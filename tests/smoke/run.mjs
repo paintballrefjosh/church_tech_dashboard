@@ -404,6 +404,125 @@ async function main() {
     assert(res.status === 404 || res.status === 403, `status ${res.status}`);
   });
 
+  // ---- note attachments (Phase 1.5) ----
+  let attachNoteId;
+  await test("create a fresh note to host attachments", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/notes",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "attach-host", body: "" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    attachNoteId = body.id;
+  });
+
+  const PNG_BYTES = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+    0x42, 0x60, 0x82,
+  ]);
+
+  let createdAttachmentId;
+  await test("POST /api/v1/notes/:id/attachments uploads a PNG (multipart)", async () => {
+    const fd = new FormData();
+    fd.append("file", new Blob([PNG_BYTES], { type: "image/png" }), "pixel.png");
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.parentType === "note" && body.parentId === attachNoteId, "wrong parent linkage");
+    assert(body.contentType === "image/png", `content-type: ${body.contentType}`);
+    assert(body.sizeBytes === PNG_BYTES.length, `size: ${body.sizeBytes} vs ${PNG_BYTES.length}`);
+    createdAttachmentId = body.id;
+  });
+
+  await test("GET attachments list contains the upload", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/notes/${attachNoteId}/attachments`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(
+      Array.isArray(body) && body.some((a) => a.id === createdAttachmentId),
+      "attachment missing from list",
+    );
+  });
+
+  await test("download streams the original PNG bytes back", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments/${createdAttachmentId}`,
+      {},
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    assert(res.headers.get("content-type") === "image/png", `content-type: ${res.headers.get("content-type")}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    assert(buf.length === PNG_BYTES.length, `size ${buf.length} vs ${PNG_BYTES.length}`);
+    for (let i = 0; i < 8; i++) {
+      if (buf[i] !== PNG_BYTES[i]) throw new Error(`signature byte ${i} differs`);
+    }
+  });
+
+  await test("upload rejects content-type not on the whitelist", async () => {
+    const fd = new FormData();
+    fd.append("file", new Blob(["<html></html>"], { type: "text/html" }), "evil.html");
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/notes/:id/attachments/:aid removes it", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments/${createdAttachmentId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+    const { res: r2 } = await fetchWithCookies(`/api/v1/notes/${attachNoteId}/attachments`, {}, jar);
+    const body = await r2.json();
+    assert(!body.some((a) => a.id === createdAttachmentId), "attachment still listed after delete");
+  });
+
+  await test("deleting the host note cascade-removes any remaining attachments", async () => {
+    // Re-upload one so there's something to cascade.
+    const fd = new FormData();
+    fd.append("file", new Blob(["plain text"], { type: "text/plain" }), "test.txt");
+    const { res: upRes } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(upRes.status === 200 || upRes.status === 201, `upload status ${upRes.status}`);
+
+    const { res: delRes } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(delRes.status === 200 || delRes.status === 204, `note delete status ${delRes.status}`);
+
+    // Listing on a deleted note returns 404 (owner-check on assertOwner). The
+    // attachment row + MinIO object should both be gone — proven by the listing
+    // simply failing.
+    const { res: listRes } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments`,
+      {},
+      jar,
+    );
+    assert(listRes.status === 404 || listRes.status === 403, `expected 404/403, got ${listRes.status}`);
+  });
+
   // ---- tickets (Phase 1.3) ----
   await test("GET /api/v1/tickets returns 401 without session", async () => {
     const { res } = await fetchWithCookies("/api/v1/tickets");

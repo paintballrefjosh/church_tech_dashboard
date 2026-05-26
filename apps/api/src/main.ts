@@ -3,6 +3,8 @@ import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Logger } from "@nestjs/common";
 import fastifyCookie from "@fastify/cookie";
+import fastifyMultipart from "@fastify/multipart";
+import { MAX_ATTACHMENT_BYTES } from "@church/shared";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -12,6 +14,12 @@ async function bootstrap() {
   });
 
   await app.register(fastifyCookie as never);
+  await app.register(fastifyMultipart as never, {
+    limits: {
+      fileSize: MAX_ATTACHMENT_BYTES,
+      files: 1, // controllers consume one file at a time
+    },
+  });
 
   app.setGlobalPrefix("api/v1");
   // Validation: Zod schemas inside each controller, not class-validator.

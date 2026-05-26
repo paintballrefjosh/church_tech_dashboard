@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { NOTE_COLORS, type Note, type NoteColor } from "@church/shared";
+import { NoteAttachments } from "./note-attachments";
 
 const COLOR_CLASS: Record<NoteColor, string> = {
   default: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800",
@@ -246,6 +247,7 @@ function NoteCard({
         rows={4}
         className="mt-2 w-full resize-y bg-transparent text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
       />
+      <NoteAttachments noteId={note.id} />
       <footer className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-1.5">
           {NOTE_COLORS.map((c) => (

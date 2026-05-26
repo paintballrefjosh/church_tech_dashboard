@@ -8,3 +8,4 @@ export * from "./schemas/audit";
 export * from "./schemas/note";
 export * from "./schemas/ticket";
 export * from "./schemas/wiki";
+export * from "./schemas/attachment";

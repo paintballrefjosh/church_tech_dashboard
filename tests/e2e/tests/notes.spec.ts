@@ -111,4 +111,31 @@ test.describe("Phase 1.1 — Notes", () => {
     await page.getByRole("button", { name: "Delete" }).click();
     await expect(page.getByText(/no archived notes/i)).toBeVisible();
   });
+
+  test("attach an image to a note: preview appears, then delete removes it", async ({ page }) => {
+    await page.goto("/notes");
+    await page.getByRole("button", { name: /add note/i }).click();
+    await page.getByLabel("Note title").first().fill("with attachment");
+    await page.getByLabel("Note title").first().blur();
+
+    // 67-byte PNG (1x1 transparent pixel).
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "base64",
+    );
+
+    // Find the hidden file input and feed it bytes.
+    const input = page.locator('input[type="file"]').first();
+    await input.setInputFiles({ name: "pixel.png", mimeType: "image/png", buffer: png });
+
+    // After upload the preview image appears in the card.
+    const preview = page.locator('img[alt="pixel.png"]');
+    await expect(preview).toBeVisible({ timeout: 15_000 });
+
+    // Hover to reveal the × button, then accept the confirm dialog.
+    await preview.hover();
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("button", { name: "Remove attachment" }).click();
+    await expect(preview).toBeHidden();
+  });
 });

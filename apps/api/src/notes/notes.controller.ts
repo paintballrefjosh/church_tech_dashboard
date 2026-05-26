@@ -7,8 +7,12 @@ import {
   Param,
   Body,
   Query,
+  Req,
+  Res,
   BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   PERMISSIONS,
   createNoteSchema,
@@ -20,12 +24,14 @@ import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { NotesService } from "./notes.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { AttachmentsService } from "../attachments/attachments.service";
 
 @Controller("notes")
 export class NotesController {
   constructor(
     private readonly notes: NotesService,
     private readonly realtime: RealtimeGateway,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   @Get()
@@ -75,5 +81,90 @@ export class NotesController {
     const note = await this.notes.delete(user.id, id);
     this.realtime.toUser(user.id, "note:deleted", { id });
     return note;
+  }
+
+  // ---- attachments ----
+
+  @Get(":id/attachments")
+  @RequirePermissions(PERMISSIONS.NOTES_READ_OWN)
+  async listAttachments(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    await this.notes.assertOwner(user.id, id);
+    return this.attachments.listByParent("note", id);
+  }
+
+  @Post(":id/attachments")
+  @RequirePermissions(PERMISSIONS.NOTES_WRITE_OWN)
+  @Audited({
+    action: "note.attachment.upload",
+    resourceType: "note",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async upload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.notes.assertOwner(user.id, id);
+    const part = await (req as FastifyRequest & {
+      file: () => Promise<{ filename: string; mimetype: string; file: NodeJS.ReadableStream } | undefined>;
+    }).file();
+    if (!part) throw new BadRequestException("multipart 'file' field is required");
+    try {
+      return await this.attachments.upload("note", id, user.id, {
+        filename: part.filename,
+        mimetype: part.mimetype,
+        stream: part.file as never,
+        sizeLimit: 0,
+      });
+    } finally {
+      // Drain the stream if upload short-circuits, so the request finishes cleanly.
+      part.file.resume?.();
+    }
+  }
+
+  @Get(":id/attachments/:aid")
+  @RequirePermissions(PERMISSIONS.NOTES_READ_OWN)
+  async download(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("aid") aid: string,
+    @Res() reply: FastifyReply,
+  ) {
+    await this.notes.assertOwner(user.id, id);
+    const { row, storageKey } = await this.attachments.getOne("note", id, aid);
+    const stream = await this.attachments.openStream(storageKey);
+    // Inline images so the UI can preview them; everything else downloads.
+    const disp = row.contentType.startsWith("image/") ? "inline" : "attachment";
+    void reply
+      .header("content-type", row.contentType)
+      .header(
+        "content-disposition",
+        `${disp}; filename="${encodeURIComponent(row.filename)}"`,
+      )
+      .header("cache-control", "private, max-age=3600")
+      .send(stream);
+  }
+
+  @Delete(":id/attachments/:aid")
+  @RequirePermissions(PERMISSIONS.NOTES_WRITE_OWN)
+  @Audited({
+    action: "note.attachment.delete",
+    resourceType: "note",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async deleteAttachment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("aid") aid: string,
+  ) {
+    await this.notes.assertOwner(user.id, id);
+    // 404 to non-existent attachments comes from getOne inside delete().
+    try {
+      await this.attachments.delete("note", id, aid);
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      throw err;
+    }
+    return { ok: true };
   }
 }

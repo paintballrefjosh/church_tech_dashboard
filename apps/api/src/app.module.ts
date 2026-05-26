@@ -14,6 +14,7 @@ import { SettingsModule } from "./settings/settings.module";
 import { NotesModule } from "./notes/notes.module";
 import { TicketsModule } from "./tickets/tickets.module";
 import { WikiModule } from "./wiki/wiki.module";
+import { AttachmentsModule } from "./attachments/attachments.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
@@ -41,6 +42,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     AuditModule,
     SettingsModule,
     RealtimeModule,
+    AttachmentsModule,
     NotesModule,
     TicketsModule,
     WikiModule,

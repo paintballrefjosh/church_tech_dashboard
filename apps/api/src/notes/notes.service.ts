@@ -3,10 +3,14 @@ import { and, eq, desc, ilike, or, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { notes } from "../db/schema";
 import type { CreateNoteInput, UpdateNoteInput, NoteListQuery } from "@church/shared";
+import { AttachmentsService } from "../attachments/attachments.service";
 
 @Injectable()
 export class NotesService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly attachments: AttachmentsService,
+  ) {}
 
   async list(ownerUserId: string, query: NoteListQuery) {
     const conditions: SQL[] = [eq(notes.ownerUserId, ownerUserId)];
@@ -66,7 +70,16 @@ export class NotesService {
 
   async delete(ownerUserId: string, id: string) {
     await this.getById(ownerUserId, id);
+    // Best-effort cascade — drops MinIO objects + DB rows before the note row
+    // goes away. Failures here don't block the note delete; orphans get cleaned
+    // up later (future reaper job).
+    await this.attachments.deleteAllForParent("note", id);
     const [row] = await this.db.delete(notes).where(eq(notes.id, id)).returning();
     return row;
+  }
+
+  /** Helper so the controller can authorise note-scoped attachment routes. */
+  async assertOwner(ownerUserId: string, id: string): Promise<void> {
+    await this.getById(ownerUserId, id);
   }
 }
