@@ -31,7 +31,10 @@ You will be required to set a new password on first login. After that, runtime c
 (Google OAuth, SMTP, site name, etc.) lives in the database — edit it at `/admin/settings`,
 no file editing needed.
 
-If you ever need the default back (CI, regression testing, lost password): `make reset-admin`.
+If you ever need the default back (lost password, fresh start): `make reset-admin`. This is
+an **explicit** opt-in — `make regression` and the automated tests never touch the admin
+user. They use a dedicated `regression-test@local` user that's reset by
+`make reset-test-user` (run automatically as the first step of `make regression`).
 
 The dev stack includes:
 - Single-node CockroachDB on internal `:26257` (web UI at <http://localhost:8180>)

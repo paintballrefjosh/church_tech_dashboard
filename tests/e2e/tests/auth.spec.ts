@@ -1,10 +1,11 @@
 import { test, expect } from "@playwright/test";
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_DEFAULT_PASSWORD = "admin";
-// New password used after the forced password change. Each test sequence resets
-// the admin back to admin/admin via `make reset-admin` before the suite runs.
-const ADMIN_NEW_PASSWORD = "regression-test-pwd-1";
+// Match apps/api/src/scripts/reset-test-user.ts. The bootstrap admin user
+// is NEVER touched by these tests — we operate on a dedicated test user
+// instead so an operator's real admin password is safe.
+const TEST_USER = "regression-test@local";
+const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
+const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
 test.describe.configure({ mode: "serial" });
 
@@ -35,10 +36,10 @@ test.describe("Phase 0 — auth + dashboard shell", () => {
     await expect(html).toHaveClass(/light/);
   });
 
-  test("default admin/admin sign-in lands on /change-password", async ({ page }) => {
+  test("test user with default password lands on /change-password", async ({ page }) => {
     await page.goto("/signin");
-    await page.getByLabel("Email or username").fill(ADMIN_USERNAME);
-    await page.getByLabel("Password").fill(ADMIN_DEFAULT_PASSWORD);
+    await page.getByLabel("Email or username").fill(TEST_USER);
+    await page.getByLabel("Password").fill(TEST_DEFAULT_PASSWORD);
     await Promise.all([
       page.waitForURL(/\/change-password/, { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),
@@ -47,26 +48,23 @@ test.describe("Phase 0 — auth + dashboard shell", () => {
   });
 
   test("changing the password signs out, then signing in with the new password reaches the dashboard", async ({ page }) => {
-    // 1. default sign-in lands on /change-password
     await page.goto("/signin");
-    await page.getByLabel("Email or username").fill(ADMIN_USERNAME);
-    await page.getByLabel("Password").fill(ADMIN_DEFAULT_PASSWORD);
+    await page.getByLabel("Email or username").fill(TEST_USER);
+    await page.getByLabel("Password").fill(TEST_DEFAULT_PASSWORD);
     await Promise.all([
       page.waitForURL(/\/change-password/, { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),
     ]);
 
-    // 2. submit a new password — server clears the JWT and bounces to /signin?changed=1
-    await page.getByLabel("New password").fill(ADMIN_NEW_PASSWORD);
-    await page.getByLabel("Confirm password").fill(ADMIN_NEW_PASSWORD);
+    await page.getByLabel("New password").fill(TEST_NEW_PASSWORD);
+    await page.getByLabel("Confirm password").fill(TEST_NEW_PASSWORD);
     await Promise.all([
       page.waitForURL(/\/signin/, { timeout: 15_000 }),
       page.getByRole("button", { name: /save new password/i }).click(),
     ]);
 
-    // 3. signing in again with the new password gets us to the dashboard
-    await page.getByLabel("Email or username").fill(ADMIN_USERNAME);
-    await page.getByLabel("Password").fill(ADMIN_NEW_PASSWORD);
+    await page.getByLabel("Email or username").fill(TEST_USER);
+    await page.getByLabel("Password").fill(TEST_NEW_PASSWORD);
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),
@@ -75,11 +73,9 @@ test.describe("Phase 0 — auth + dashboard shell", () => {
   });
 
   test("sign-out returns to /signin", async ({ page }) => {
-    // Signed in via the previous test; cookies persist within the test file
-    // because the context is reused in serial mode unless reset.
     await page.goto("/signin");
-    await page.getByLabel("Email or username").fill(ADMIN_USERNAME);
-    await page.getByLabel("Password").fill(ADMIN_NEW_PASSWORD);
+    await page.getByLabel("Email or username").fill(TEST_USER);
+    await page.getByLabel("Password").fill(TEST_NEW_PASSWORD);
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),

@@ -216,7 +216,13 @@ compose — that would defeat the single-ingress design.
 
 - **Default admin:** seed creates user `admin` with password `admin` (stored as
   `admin@local`) and `must_change_password=true`. The first sign-in is force-routed to
-  `/change-password`. `make reset-admin` restores this state.
+  `/change-password`. `make reset-admin` restores this state — **only** if the operator
+  explicitly asks. **Automated tests never touch the admin user's password.**
+- **Regression test user:** smoke + e2e tests sign in as `regression-test@local`
+  (created/refreshed by `make reset-test-user`, which is the first step of
+  `make regression`). The bootstrap admin's credentials are immutable from the
+  test suite's perspective — verified by setting a real admin password and
+  running the full suite; admin password is preserved end-to-end.
 - **Configuration:** anything an operator might want to change at runtime (Google OAuth
   client, SMTP, site name, etc.) lives in the `settings` table and is editable at
   `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`,

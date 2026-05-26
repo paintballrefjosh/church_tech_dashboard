@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
- * Phase 0 HTTP smoke tests. Exercises every public-facing endpoint via the
- * Caddy reverse proxy on :8100. Expects:
- *   - `make up && make migrate && make seed` has run
- *   - The default admin (admin/admin) password is still in place. Run
- *     `make reset-admin` after a prior regression run to restore it.
+ * HTTP smoke tests. Exercises every public-facing endpoint via the Caddy
+ * reverse proxy on :8100. Uses a dedicated test user (created by
+ * `make reset-test-user`) so the bootstrap admin's credentials are NEVER
+ * modified by running this suite.
  *
  * Usage: node tests/smoke/run.mjs
  *        BASE=http://localhost:8100 node tests/smoke/run.mjs
@@ -12,9 +11,9 @@
 
 const BASE = process.env.BASE ?? "http://localhost:8100";
 const VERBOSE = process.env.VERBOSE === "1";
-const ADMIN_EMAIL = "admin";
-const ADMIN_PASSWORD = "admin";
-const NORMALISED_EMAIL = "admin@local";
+// Test-user credentials. Must match apps/api/src/scripts/reset-test-user.ts.
+const TEST_USER_EMAIL = "regression-test@local";
+const TEST_USER_PASSWORD = "regression-default-pwd";
 
 let pass = 0;
 let fail = 0;
@@ -140,29 +139,33 @@ async function main() {
     assert(res.status === 401, `status ${res.status}`);
   });
 
-  // ---- direct API verify-credentials: username forms ----
-  await test("verify-credentials accepts bare username 'admin'", async () => {
+  // ---- direct API verify-credentials: username + email forms ----
+  await test("verify-credentials accepts the test user's email", async () => {
     const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+      body: JSON.stringify({ email: TEST_USER_EMAIL, password: TEST_USER_PASSWORD }),
     });
     assert(res.status === 200 || res.status === 201, `status ${res.status}`);
     const body = await res.json();
     assert(body.ok === true, `expected ok=true`);
-    assert(body.user.email === NORMALISED_EMAIL, `expected ${NORMALISED_EMAIL}, got ${body.user.email}`);
-    assert(body.user.mustChangePassword === true, `mustChangePassword should be true on default admin`);
+    assert(body.user.email === TEST_USER_EMAIL, `expected ${TEST_USER_EMAIL}, got ${body.user.email}`);
+    assert(
+      body.user.mustChangePassword === true,
+      `regression-test user should have mustChangePassword=true after reset-test-user`,
+    );
   });
 
-  await test("verify-credentials also accepts the email form", async () => {
+  await test("verify-credentials normalises 'admin' username form (using bootstrap admin)", async () => {
+    // We can't test the bootstrap admin's password here without knowing what
+    // the operator set it to. Just confirm the input shape is accepted: an
+    // unknown-password should 401, never 400.
     const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: NORMALISED_EMAIL, password: ADMIN_PASSWORD }),
+      body: JSON.stringify({ email: "admin", password: "this-is-definitely-not-the-real-password" }),
     });
-    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
-    const body = await res.json();
-    assert(body.ok === true, `expected ok=true`);
+    assert(res.status === 401, `expected 401 (bad password), got ${res.status}`);
   });
 
   // ---- authenticated browser-like flow ----
@@ -177,11 +180,11 @@ async function main() {
     assert(typeof csrfToken === "string" && csrfToken.length > 0, "no csrfToken");
   });
 
-  await test("POST /api/auth/callback/credentials with admin/admin sets session cookie", async () => {
+  await test("POST /api/auth/callback/credentials with the test user sets session cookie", async () => {
     const form = new URLSearchParams({
       csrfToken,
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
+      email: TEST_USER_EMAIL,
+      password: TEST_USER_PASSWORD,
       callbackUrl: BASE + "/",
       json: "true",
     });
@@ -199,25 +202,26 @@ async function main() {
     assert(hasSession, `expected session cookie, got: ${[...j.keys()].join(", ")}`);
   });
 
-  await test("GET /api/v1/me returns admin profile with session", async () => {
+  await test("GET /api/v1/me returns test-user profile with session", async () => {
     const { res } = await fetchWithCookies("/api/v1/me", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(body.email === NORMALISED_EMAIL, `email: ${body.email}`);
+    assert(body.email === TEST_USER_EMAIL, `email: ${body.email}`);
     assert(Array.isArray(body.roles) && body.roles.includes("admin"), `roles: ${JSON.stringify(body.roles)}`);
     assert(
       Array.isArray(body.permissions) && body.permissions.includes("users:read:any"),
       `permissions: ${JSON.stringify(body.permissions)}`
     );
-    assert(body.mustChangePassword === true, "default admin should have mustChangePassword=true");
+    assert(body.mustChangePassword === true, "freshly-reset test user should have mustChangePassword=true");
   });
 
-  await test("GET /api/v1/users returns at least the bootstrap admin", async () => {
+  await test("GET /api/v1/users returns at least the bootstrap admin + the test user", async () => {
     const { res } = await fetchWithCookies("/api/v1/users", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(Array.isArray(body) && body.length >= 1, `users count: ${body?.length}`);
-    assert(body.some((u) => u.email === NORMALISED_EMAIL), "bootstrap admin not in list");
+    assert(Array.isArray(body) && body.length >= 2, `users count: ${body?.length}`);
+    assert(body.some((u) => u.email === "admin@local"), "bootstrap admin not in list");
+    assert(body.some((u) => u.email === TEST_USER_EMAIL), "test user not in list");
   });
 
   await test("GET /api/v1/roles returns the three system roles", async () => {

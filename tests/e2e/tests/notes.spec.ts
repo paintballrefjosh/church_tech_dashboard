@@ -1,36 +1,40 @@
 import { test, expect, type Page } from "@playwright/test";
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_DEFAULT_PASSWORD = "admin";
-const ADMIN_NEW_PASSWORD = "regression-test-pwd-1";
+// Dedicated test user — must match apps/api/src/scripts/reset-test-user.ts.
+// The bootstrap admin user is never signed in as by these tests.
+const TEST_USER = "regression-test@local";
+const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
+const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
 test.describe.configure({ mode: "serial" });
 
-async function signInAsAdmin(page: Page) {
+async function signInAsTestUser(page: Page) {
   async function attempt(password: string) {
     await page.goto("/signin");
-    await page.getByLabel("Email or username").fill(ADMIN_USERNAME);
+    await page.getByLabel("Email or username").fill(TEST_USER);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL((u) => !u.pathname.startsWith("/signin") || u.search.includes("error="), {
       timeout: 15_000,
     });
   }
-  await attempt(ADMIN_NEW_PASSWORD);
+  // Try the post-change-password value first, since auth.spec.ts runs first
+  // and changes the password as part of its flow.
+  await attempt(TEST_NEW_PASSWORD);
   if (page.url().includes("/signin")) {
-    await attempt(ADMIN_DEFAULT_PASSWORD);
+    await attempt(TEST_DEFAULT_PASSWORD);
     if (page.url().includes("/change-password")) {
-      await page.getByLabel("New password").fill(ADMIN_NEW_PASSWORD);
-      await page.getByLabel("Confirm password").fill(ADMIN_NEW_PASSWORD);
+      await page.getByLabel("New password").fill(TEST_NEW_PASSWORD);
+      await page.getByLabel("Confirm password").fill(TEST_NEW_PASSWORD);
       await Promise.all([
         page.waitForURL(/\/signin/, { timeout: 15_000 }),
         page.getByRole("button", { name: /save new password/i }).click(),
       ]);
-      await attempt(ADMIN_NEW_PASSWORD);
+      await attempt(TEST_NEW_PASSWORD);
     }
   }
   if (page.url().includes("/signin") || page.url().includes("/change-password")) {
-    throw new Error(`signInAsAdmin: ended at unexpected URL ${page.url()}`);
+    throw new Error(`signInAsTestUser: ended at unexpected URL ${page.url()}`);
   }
 }
 
@@ -55,7 +59,7 @@ async function wipeAllNotes(page: Page) {
 
 test.describe("Phase 1.1 — Notes", () => {
   test.beforeEach(async ({ page }) => {
-    await signInAsAdmin(page);
+    await signInAsTestUser(page);
     // Sign-in lands somewhere; navigate to /notes so /api/notes is same-origin
     // (fetch from a /signin page won't carry the session cookie correctly in
     // some browsers' first navigation).

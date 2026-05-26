@@ -4,21 +4,23 @@ COMPOSE_PROD := docker compose -f infra/docker-compose.prod.yml
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
-.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
+.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
 
 help:
 	@echo "Common targets:"
-	@echo "  make init-env     Generate .env from .env.example with a random AUTH_SECRET"
-	@echo "  make init-data    Create ./data/* dirs for bind-mount volumes"
-	@echo "  make check-ports  Confirm host-bound ports are free (auto-run by 'up')"
-	@echo "  make up           Start dev stack (runs init-env + init-data + check-ports first)"
-	@echo "  make down         Stop dev stack (keep data)"
-	@echo "  make nuke         Stop + delete ./data/* (DESTROYS DATA)"
-	@echo "  make logs         Tail all dev logs"
-	@echo "  make migrate      Apply DB migrations"
-	@echo "  make seed         Seed default roles + bootstrap admin"
-	@echo "  make regression   Run smoke + e2e suite against running stack"
-	@echo "  make prod-up      Start prod stack"
+	@echo "  make init-env         Generate .env from .env.example with a random AUTH_SECRET"
+	@echo "  make init-data        Create ./data/* dirs for bind-mount volumes"
+	@echo "  make check-ports      Confirm host-bound ports are free (auto-run by 'up')"
+	@echo "  make up               Start dev stack (runs init-env + init-data + check-ports first)"
+	@echo "  make down             Stop dev stack (keep data)"
+	@echo "  make nuke             Stop + delete ./data/* (DESTROYS DATA)"
+	@echo "  make logs             Tail all dev logs"
+	@echo "  make migrate          Apply DB migrations"
+	@echo "  make seed             Seed default roles + bootstrap admin"
+	@echo "  make reset-admin      Force the bootstrap admin back to admin/admin (manual only)"
+	@echo "  make reset-test-user  Force the regression test user back to default state"
+	@echo "  make regression       Run smoke + e2e suite (does NOT touch bootstrap admin)"
+	@echo "  make prod-up          Start prod stack"
 
 init-env:
 	@if [ ! -f .env ]; then \
@@ -70,6 +72,12 @@ seed:
 reset-admin:
 	$(COMPOSE) exec api node dist/scripts/reset-admin.js
 
+# Used by the regression suite. Creates/refreshes a dedicated test user
+# (regression-test@local) with admin role and a known default password.
+# The bootstrap admin user is NOT touched.
+reset-test-user:
+	$(COMPOSE) exec api node dist/scripts/reset-test-user.js
+
 install:
 	$(NODE_RUN) '$(PNPM) install --frozen-lockfile || $(PNPM) install'
 
@@ -99,14 +107,14 @@ test-e2e:
 	  -u $$(id -u):$$(id -g) -e HOME=/tmp -e BASE=http://localhost:$${EXTERNAL_PORT:-8100} \
 	  mcr.microsoft.com/playwright:v1.48.0-jammy npx playwright test --reporter=line
 
-# reset-admin runs both BEFORE (so tests start in a known admin/admin state) AND
-# AFTER (so the human-facing default isn't left as the test-suite's changed password).
+# regression uses a dedicated test user (regression-test@local) — the bootstrap
+# admin's credentials are NEVER modified by tests. reset-test-user runs before
+# the suite so the test user starts in a known default state.
 regression:
-	@$(MAKE) reset-admin
+	@$(MAKE) reset-test-user
 	@$(MAKE) test-smoke
 	@$(MAKE) test-e2e
-	@$(MAKE) reset-admin
-	@echo "regression done — admin/admin restored"
+	@echo "regression done — bootstrap admin password unchanged"
 
 nuke:
 	$(COMPOSE) down -v
