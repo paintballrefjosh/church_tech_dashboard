@@ -1,7 +1,8 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f infra/docker-compose.yml
 COMPOSE_PROD := docker compose -f infra/docker-compose.prod.yml
-NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp node:20-alpine sh -c
+NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
+PNPM := npx -y pnpm@9.12.0
 
 .PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
 
@@ -70,27 +71,42 @@ reset-admin:
 	$(COMPOSE) exec api node dist/scripts/reset-admin.js
 
 install:
-	$(NODE_RUN) 'corepack enable && pnpm install --frozen-lockfile || pnpm install'
+	$(NODE_RUN) '$(PNPM) install --frozen-lockfile || $(PNPM) install'
 
 build:
-	$(NODE_RUN) 'corepack enable && pnpm build'
+	$(NODE_RUN) '$(PNPM) build'
 
 typecheck:
-	$(NODE_RUN) 'corepack enable && pnpm typecheck'
+	$(NODE_RUN) '$(PNPM) typecheck'
 
 lint:
-	$(NODE_RUN) 'corepack enable && pnpm lint'
+	$(NODE_RUN) '$(PNPM) lint'
 
 test:
-	$(NODE_RUN) 'corepack enable && pnpm test'
+	$(NODE_RUN) '$(PNPM) test'
 
+# Smoke tests are a single Node script — no pnpm needed. Host networking lets
+# the script reach the Caddy proxy at http://localhost:$(EXTERNAL_PORT).
 test-smoke:
-	$(NODE_RUN) 'corepack enable && pnpm test:smoke'
+	docker run --rm --network=host -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) \
+	  -e HOME=/tmp -e BASE=http://localhost:$${EXTERNAL_PORT:-8100} \
+	  node:20-alpine node tests/smoke/run.mjs
 
+# E2E uses the official Playwright image (browsers pre-installed) on host
+# networking so it can reach the stack at http://localhost:$(EXTERNAL_PORT).
 test-e2e:
-	$(NODE_RUN) 'corepack enable && pnpm test:e2e'
+	docker run --rm --network=host --ipc=host -v "$$PWD":/w -w /w/tests/e2e \
+	  -u $$(id -u):$$(id -g) -e HOME=/tmp -e BASE=http://localhost:$${EXTERNAL_PORT:-8100} \
+	  mcr.microsoft.com/playwright:v1.48.0-jammy npx playwright test --reporter=line
 
-regression: reset-admin test-smoke test-e2e
+# reset-admin runs both BEFORE (so tests start in a known admin/admin state) AND
+# AFTER (so the human-facing default isn't left as the test-suite's changed password).
+regression:
+	@$(MAKE) reset-admin
+	@$(MAKE) test-smoke
+	@$(MAKE) test-e2e
+	@$(MAKE) reset-admin
+	@echo "regression done — admin/admin restored"
 
 nuke:
 	$(COMPOSE) down -v
