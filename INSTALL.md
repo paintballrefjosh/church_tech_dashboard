@@ -47,7 +47,9 @@ See `.env.example` for the full list. The most important ones:
 | Var | Required | Purpose |
 |---|---|---|
 | `AUTH_SECRET` | yes | Signs session cookies. Generate with `openssl rand -hex 32`. |
-| `EXTERNAL_PORT` | no | Host port for Caddy (default `8100`). |
+| `EXTERNAL_PORT` | no | Host port for Caddy — the public entrypoint (default `8100`). |
+| `COCKROACH_UI_PORT` | no | Host port for the dev Cockroach admin UI (default `8180`). |
+| `MAILHOG_UI_PORT` | no | Host port for the dev MailHog inbox (default `18025`). |
 | `APP_URL` | yes | Public base URL (e.g. `https://dashboard.example.org`). Used in emails and OAuth redirects. |
 | `GOOGLE_OAUTH_CLIENT_ID` | no | Google OAuth client id. If unset, only local auth is available. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | no | Matching client secret. |
@@ -152,10 +154,22 @@ make db-restore FILE=./backups/cockroach-20260525-1830.sql.gz
 In production, schedule one of these from cron. Backups are local to the host — copy them
 off-box too.
 
+## Port collisions
+
+`make up` runs `make check-ports` first. If any host-bound port (`EXTERNAL_PORT`,
+`COCKROACH_UI_PORT`, `MAILHOG_UI_PORT`) is already taken by something *outside* this
+stack, the check fails with a suggested free port and the env var to set. Edit `.env`
+and re-run.
+
+Internal container ports (Next.js on `:3000`, NestJS on `:3001`) are **not** exposed
+to the host — they live on the `church_internal` docker bridge — so collisions with
+other host processes on those ports do not affect this stack.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `make up` aborts with "port in use" | another project on the host already binds that port | follow the suggestion the script prints — set the var in `.env` and re-run |
 | `http://localhost:8100` 502 | api or web not yet healthy | `make logs`, wait for both to report ready |
 | Cockroach won't start | volume from previous version | `make nuke` (DESTROYS DATA), then `make up` |
 | Google sign-in fails with `redirect_uri_mismatch` | OAuth redirect URI wrong | Confirm it ends with `/api/auth/callback/google` and `APP_URL` matches |

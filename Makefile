@@ -3,13 +3,14 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 COMPOSE_PROD := docker compose -f infra/docker-compose.prod.yml
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp node:20-alpine sh -c
 
-.PHONY: help init-env init-data up down restart logs ps psql migrate seed reset-admin build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
+.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
 
 help:
 	@echo "Common targets:"
 	@echo "  make init-env     Generate .env from .env.example with a random AUTH_SECRET"
 	@echo "  make init-data    Create ./data/* dirs for bind-mount volumes"
-	@echo "  make up           Start dev stack (runs init-env + init-data first)"
+	@echo "  make check-ports  Confirm host-bound ports are free (auto-run by 'up')"
+	@echo "  make up           Start dev stack (runs init-env + init-data + check-ports first)"
 	@echo "  make down         Stop dev stack (keep data)"
 	@echo "  make nuke         Stop + delete ./data/* (DESTROYS DATA)"
 	@echo "  make logs         Tail all dev logs"
@@ -38,7 +39,10 @@ init-data:
 	@chmod 0777 data/redis data/meili 2>/dev/null || true
 	@echo "data/ ready (bind-mount targets created)"
 
-up: init-env init-data
+check-ports:
+	@bash scripts/check-ports.sh
+
+up: init-env init-data check-ports
 	$(COMPOSE) up -d --build
 
 down:
@@ -103,7 +107,7 @@ db-restore:
 	@if [ -z "$(FILE)" ]; then echo "usage: make db-restore FILE=./backups/xxx.sql.gz"; exit 1; fi
 	gunzip -c $(FILE) | $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure --database=church
 
-prod-up: init-env init-data
+prod-up: init-env init-data check-ports
 	$(COMPOSE_PROD) up -d --build
 
 prod-down:

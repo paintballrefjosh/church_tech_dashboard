@@ -168,6 +168,21 @@ equivalent — see [INSTALL.md](./INSTALL.md).
 - **Phase 3** — AI/MCP module, Meilisearch wired across wiki/notes/tickets, @mentions, tags, activity feed
 - **Phase 4 (deferred)** — church-specific modules. Do not start without explicit ask.
 
+## Host ports
+
+Only one port on the docker host belongs to a real user: `EXTERNAL_PORT` (default
+`8100`) for Caddy. The dev compose also exposes `COCKROACH_UI_PORT` (8180) and
+`MAILHOG_UI_PORT` (18025) as convenience. All three are env-overridable.
+
+`scripts/check-ports.sh` runs automatically as part of `make up` (and `make prod-up`).
+It distinguishes three states per port: free, held by one of our own containers
+(re-up is safe), or taken by something else (abort with a suggested free port + env
+var to set). Never bypass this check — port collisions surface late and confusingly.
+
+Internal container ports (Next.js `:3000`, NestJS `:3001`) are NOT bound on the host;
+they live on the `church_internal` bridge. Do not add `ports:` entries for them in
+compose — that would defeat the single-ingress design.
+
 ## Operational defaults
 
 - **Default admin:** seed creates user `admin` with password `admin` (stored as

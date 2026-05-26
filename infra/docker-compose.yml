@@ -23,7 +23,7 @@ services:
     volumes:
       - ../data/cockroach-1:/cockroach/cockroach-data
     ports:
-      - "8180:8080"
+      - "${COCKROACH_UI_PORT:-8180}:8080"
     healthcheck:
       test: ["CMD", "cockroach", "sql", "--insecure", "--host=localhost", "-e", "SELECT 1"]
       interval: 5s
