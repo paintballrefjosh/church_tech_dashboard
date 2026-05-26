@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiFetch, apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { Markdown } from "@/components/markdown";
+import { AttachmentList } from "@/components/attachment-list";
 import { WikiPageActions } from "./wiki-page-actions";
 import type { WikiPage } from "@church/shared";
 
@@ -72,6 +73,17 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
           ) : (
             <p className="italic text-slate-400">(empty page)</p>
           )}
+
+          <section className="mt-8 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Attachments
+            </h2>
+            <AttachmentList
+              baseUrl={`/api/wiki/${payload.page.id}/attachments`}
+              canEdit={payload.canEdit}
+              layout="row"
+            />
+          </section>
         </article>
 
         <aside className="space-y-4 rounded-md border border-slate-200 p-4 text-sm dark:border-slate-800">

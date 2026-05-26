@@ -20,6 +20,7 @@ import {
   type WikiPageListQuery,
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
+import { AttachmentsService } from "../attachments/attachments.service";
 
 /**
  * Wiki access checks (per page):
@@ -42,7 +43,10 @@ import type { AuthenticatedUser } from "../auth/current-user.decorator";
  */
 @Injectable()
 export class WikiService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly attachments: AttachmentsService,
+  ) {}
 
   private async userGroupIds(userId: string): Promise<string[]> {
     const rows = await this.db
@@ -230,8 +234,22 @@ export class WikiService {
     if (!page) throw new NotFoundException("Wiki page not found");
     const canDelete = this.canDeleteAny(user) || page.ownerUserId === user.id;
     if (!canDelete) throw new ForbiddenException("Cannot delete this page");
+    // Cascade attachments (MinIO + DB) before dropping the page row.
+    await this.attachments.deleteAllForParent("wiki_page", id);
     await this.db.delete(wikiPages).where(eq(wikiPages.id, id));
     return { ok: true, id };
+  }
+
+  /** Visibility check used by attachment routes. */
+  async assertReadable(user: AuthenticatedUser, id: string): Promise<void> {
+    const ok = await this.canReadPage(user, id);
+    if (!ok) throw new NotFoundException("Wiki page not found");
+  }
+
+  /** Edit check used by attachment routes. */
+  async assertWritable(user: AuthenticatedUser, id: string): Promise<void> {
+    const ok = await this.canWritePage(user, id);
+    if (!ok) throw new ForbiddenException("Cannot modify this page");
   }
 
   async revisions(user: AuthenticatedUser, id: string) {

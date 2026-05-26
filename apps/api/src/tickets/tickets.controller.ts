@@ -7,8 +7,11 @@ import {
   Param,
   Body,
   Query,
+  Req,
+  Res,
   BadRequestException,
 } from "@nestjs/common";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   PERMISSIONS,
   createTicketSchema,
@@ -21,12 +24,14 @@ import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { TicketsService } from "./tickets.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { AttachmentsService } from "../attachments/attachments.service";
 
 @Controller("tickets")
 export class TicketsController {
   constructor(
     private readonly tickets: TicketsService,
     private readonly realtime: RealtimeGateway,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   @Get()
@@ -120,5 +125,84 @@ export class TicketsController {
     @Param("cid") cid: string,
   ) {
     return this.tickets.deleteComment(user, id, cid);
+  }
+
+  // ---- attachments (Phase 1.5.1) ----
+
+  @Get(":id/attachments")
+  @RequirePermissions(PERMISSIONS.TICKETS_READ_OWN)
+  async listAttachments(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    await this.tickets.assertReadable(user, id);
+    return this.attachments.listByParent("ticket", id);
+  }
+
+  @Post(":id/attachments")
+  @RequirePermissions(PERMISSIONS.TICKETS_READ_OWN)
+  @Audited({
+    action: "ticket.attachment.upload",
+    resourceType: "ticket",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async uploadAttachment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.tickets.assertWritable(user, id);
+    const part = await (req as FastifyRequest & {
+      file: () => Promise<
+        { filename: string; mimetype: string; file: NodeJS.ReadableStream } | undefined
+      >;
+    }).file();
+    if (!part) throw new BadRequestException("multipart 'file' field is required");
+    try {
+      return await this.attachments.upload("ticket", id, user.id, {
+        filename: part.filename,
+        mimetype: part.mimetype,
+        stream: part.file as never,
+        sizeLimit: 0,
+      });
+    } finally {
+      part.file.resume?.();
+    }
+  }
+
+  @Get(":id/attachments/:aid")
+  @RequirePermissions(PERMISSIONS.TICKETS_READ_OWN)
+  async downloadAttachment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("aid") aid: string,
+    @Res() reply: FastifyReply,
+  ) {
+    await this.tickets.assertReadable(user, id);
+    const { row, storageKey } = await this.attachments.getOne("ticket", id, aid);
+    const stream = await this.attachments.openStream(storageKey);
+    const disp = row.contentType.startsWith("image/") ? "inline" : "attachment";
+    void reply
+      .header("content-type", row.contentType)
+      .header(
+        "content-disposition",
+        `${disp}; filename="${encodeURIComponent(row.filename)}"`,
+      )
+      .header("cache-control", "private, max-age=3600")
+      .send(stream);
+  }
+
+  @Delete(":id/attachments/:aid")
+  @RequirePermissions(PERMISSIONS.TICKETS_READ_OWN)
+  @Audited({
+    action: "ticket.attachment.delete",
+    resourceType: "ticket",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async deleteAttachment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("aid") aid: string,
+  ) {
+    await this.tickets.assertWritable(user, id);
+    await this.attachments.delete("ticket", id, aid);
+    return { ok: true };
   }
 }

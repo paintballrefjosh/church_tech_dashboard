@@ -16,6 +16,7 @@ import {
   type CreateCommentInput,
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
+import { AttachmentsService } from "../attachments/attachments.service";
 
 /**
  * Tickets visibility rule applied to every read/write:
@@ -33,7 +34,10 @@ import type { AuthenticatedUser } from "../auth/current-user.decorator";
  */
 @Injectable()
 export class TicketsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly attachments: AttachmentsService,
+  ) {}
 
   private hasAnyRead(user: AuthenticatedUser): boolean {
     return user.permissions.includes(PERMISSIONS.TICKETS_READ_ANY);
@@ -166,9 +170,27 @@ export class TicketsService {
 
   async delete(user: AuthenticatedUser, id: string) {
     if (!this.canDelete(user)) throw new ForbiddenException("Missing tickets:delete:any");
+    // Cascade attachments (MinIO + DB) before dropping the ticket row.
+    await this.attachments.deleteAllForParent("ticket", id);
     const [row] = await this.db.delete(tickets).where(eq(tickets.id, id)).returning();
     if (!row) throw new NotFoundException("Ticket not found");
     return row;
+  }
+
+  /** Visibility check for attachment routes — throws 404/403 like getById. */
+  async assertReadable(user: AuthenticatedUser, id: string): Promise<void> {
+    await this.getById(user, id);
+  }
+
+  /**
+   * Write check for attachment routes. Owners can upload to / delete attachments
+   * on their own tickets; tickets:write:any holders can touch anything.
+   */
+  async assertWritable(user: AuthenticatedUser, id: string): Promise<void> {
+    const ticket = await this.getById(user, id);
+    if (ticket.createdByUserId === user.id) return;
+    if (this.hasAnyWrite(user)) return;
+    throw new ForbiddenException("Cannot modify this ticket");
   }
 
   async listComments(user: AuthenticatedUser, ticketId: string) {

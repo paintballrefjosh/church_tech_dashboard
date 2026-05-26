@@ -11,6 +11,7 @@ import {
   type TicketStatus,
 } from "@church/shared";
 import { StatusBadge, PriorityBadge } from "../ticket-badges";
+import { AttachmentList } from "@/components/attachment-list";
 
 interface UserBrief {
   id: string;
@@ -174,6 +175,17 @@ export function TicketDetail({
               {ticket.description || <span className="italic text-slate-400">(empty)</span>}
             </p>
           )}
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Attachments
+          </h2>
+          <AttachmentList
+            baseUrl={`/api/tickets/${ticket.id}/attachments`}
+            canEdit={canEditCore}
+            layout="row"
+          />
         </section>
 
         <section>

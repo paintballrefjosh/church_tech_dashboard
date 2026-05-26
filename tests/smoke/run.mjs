@@ -656,6 +656,27 @@ async function main() {
     assert(res.status === 200 || res.status === 204, `status ${res.status}`);
   });
 
+  // ---- ticket attachments (Phase 1.5.1) ----
+  await test("POST /api/v1/tickets/:id/attachments uploads a file", async () => {
+    const fd = new FormData();
+    fd.append("file", new Blob(["ticket attached"], { type: "text/plain" }), "tix.txt");
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.parentType === "ticket" && body.parentId === createdTicketId, "wrong parent linkage");
+  });
+
+  await test("GET /api/v1/tickets/:id/attachments lists it", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}/attachments`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body) && body.length === 1, `count: ${body?.length}`);
+  });
+
   await test("DELETE /api/v1/tickets/:id removes the ticket (admin)", async () => {
     const { res } = await fetchWithCookies(
       `/api/v1/tickets/${createdTicketId}`,
@@ -668,6 +689,15 @@ async function main() {
   await test("GET /api/v1/tickets/:id on a deleted ticket returns 404", async () => {
     const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}`, {}, jar);
     assert(res.status === 404, `status ${res.status}`);
+  });
+
+  await test("ticket attachment list on deleted ticket also 404s (cascade)", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}/attachments`,
+      {},
+      jar,
+    );
+    assert(res.status === 404 || res.status === 403, `status ${res.status}`);
   });
 
   // ---- wiki (Phase 1.4) ----
@@ -776,6 +806,27 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
   });
 
+  // ---- wiki attachments (Phase 1.5.1) ----
+  await test("POST /api/v1/wiki/:id/attachments uploads a file", async () => {
+    const fd = new FormData();
+    fd.append("file", new Blob(["wiki attached"], { type: "text/plain" }), "wiki.txt");
+    const { res } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.parentType === "wiki_page" && body.parentId === createdWikiId, "wrong parent");
+  });
+
+  await test("GET /api/v1/wiki/:id/attachments lists it", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/wiki/${createdWikiId}/attachments`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body) && body.length === 1, `count: ${body?.length}`);
+  });
+
   await test("DELETE /api/v1/wiki/:id removes the page (owner)", async () => {
     const { res } = await fetchWithCookies(
       `/api/v1/wiki/${createdWikiId}`,
@@ -788,6 +839,21 @@ async function main() {
   await test("GET /api/v1/wiki/:id on a deleted page returns 404", async () => {
     const { res } = await fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, {}, jar);
     assert(res.status === 404, `status ${res.status}`);
+  });
+
+  await test("wiki attachment list on deleted page is empty / 404 (cascade)", async () => {
+    // Admins (wiki:read:any) treat any uuid as readable, so the route returns
+    // 200 with an empty list rather than 404. Non-admins would 404. Either is
+    // acceptable evidence the rows were cascade-removed.
+    const { res } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}/attachments`,
+      {},
+      jar,
+    );
+    if (res.status === 404) return;
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body) && body.length === 0, `expected empty list, got ${JSON.stringify(body)}`);
   });
 
   // ---- summary ----
