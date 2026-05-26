@@ -48,6 +48,18 @@ export const PERMISSIONS = {
   TICKETS_ASSIGN: "tickets:assign",
   TICKETS_DELETE_ANY: "tickets:delete:any",
   TICKET_COMMENTS_WRITE_INTERNAL: "ticket_comments:write:internal",
+
+  // Wiki (Phase 1.4). 'own' here means "the page owner OR a user with edit
+  // access via a wiki_page_acl row". Reading a public page requires only
+  // WIKI_READ_OWN; reading a 'group'-visibility page additionally requires
+  // membership in one of its ACL groups (or WIKI_READ_ANY).
+  WIKI_CREATE: "wiki:create",
+  WIKI_READ_OWN: "wiki:read:own",
+  WIKI_WRITE_OWN: "wiki:write:own",
+  WIKI_DELETE_OWN: "wiki:delete:own",
+  WIKI_READ_ANY: "wiki:read:any",
+  WIKI_WRITE_ANY: "wiki:write:any",
+  WIKI_DELETE_ANY: "wiki:delete:any",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

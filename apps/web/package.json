@@ -20,6 +20,8 @@
     "pg": "8.13.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-markdown": "9.0.1",
+    "remark-gfm": "4.0.0",
     "zod": "3.23.8"
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "@types/pg": "8.11.10",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
+    "@tailwindcss/typography": "0.5.15",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
     "eslint-config-next": "15.1.6",

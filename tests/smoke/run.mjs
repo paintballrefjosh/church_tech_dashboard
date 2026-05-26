@@ -551,6 +551,126 @@ async function main() {
     assert(res.status === 404, `status ${res.status}`);
   });
 
+  // ---- wiki (Phase 1.4) ----
+  await test("GET /api/v1/wiki returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/wiki");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/wiki returns an array for the test user", async () => {
+    const { res } = await fetchWithCookies("/api/v1/wiki", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), "expected array");
+  });
+
+  let createdWikiId;
+  await test("POST /api/v1/wiki creates a public page", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/wiki",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "smoke wiki",
+          body: "# Hello\n\nbody text",
+          visibility: "public",
+        }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.id === "string", "no id");
+    assert(body.visibility === "public", `visibility: ${body.visibility}`);
+    createdWikiId = body.id;
+  });
+
+  await test("GET /api/v1/wiki/:id returns the page + ACL + caps", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.page && body.page.id === createdWikiId, "page payload missing");
+    assert(Array.isArray(body.acl), "acl missing");
+    assert(body.canEdit === true && body.canDelete === true, "test user should be owner + admin");
+  });
+
+  await test("PATCH /api/v1/wiki/:id updates body and creates a revision", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body: "# Hello\n\nrevised body", summary: "smoke edit" }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const { res: rRev } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}/revisions`,
+      {},
+      jar,
+    );
+    assert(rRev.status === 200, `revisions status ${rRev.status}`);
+    const revs = await rRev.json();
+    assert(
+      Array.isArray(revs) && revs.length >= 2,
+      `expected at least 2 revisions, got ${revs?.length}`,
+    );
+    assert(revs.some((r) => r.summary === "smoke edit"), "edit-summary revision missing");
+  });
+
+  await test("GET /api/v1/wiki?q=smoke filters by search", async () => {
+    const { res } = await fetchWithCookies("/api/v1/wiki?q=smoke", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.some((p) => p.id === createdWikiId), "created page not in filtered results");
+  });
+
+  await test("audit log records wiki.create + wiki.update", async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    const { res } = await fetchWithCookies(
+      "/api/v1/audit?resourceType=wiki_page&limit=10",
+      {},
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    const actions = (body.items ?? []).map((e) => e.action);
+    assert(actions.includes("wiki.create"), "no wiki.create audit entry");
+    assert(actions.includes("wiki.update"), "no wiki.update audit entry");
+  });
+
+  await test("PATCH visibility=group with empty ACL is accepted by the server", async () => {
+    // The empty-ACL guard lives in the UI; the server accepts it (and the page
+    // becomes invisible to everyone except the owner + admin). This test pins
+    // that contract so we notice if we ever tighten it.
+    const { res } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility: "group", acl: [] }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/wiki/:id removes the page (owner)", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/wiki/${createdWikiId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/wiki/:id on a deleted page returns 404", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, {}, jar);
+    assert(res.status === 404, `status ${res.status}`);
+  });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);

@@ -20,6 +20,12 @@ export async function TopBar() {
                 Tickets
               </Link>
               <Link
+                href="/wiki"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+              >
+                Wiki
+              </Link>
+              <Link
                 href="/notes"
                 className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               >

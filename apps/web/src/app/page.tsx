@@ -30,6 +30,15 @@ export default async function HomePage() {
             </p>
           </Link>
           <Link
+            href="/wiki"
+            className="rounded-lg border border-slate-200 p-5 transition hover:border-brand-500 hover:shadow-sm dark:border-slate-800 dark:hover:border-brand-500"
+          >
+            <h2 className="text-base font-semibold">Wiki</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Markdown pages with per-page group access. Revisions kept on every save.
+            </p>
+          </Link>
+          <Link
             href="/notes"
             className="rounded-lg border border-slate-200 p-5 transition hover:border-brand-500 hover:shadow-sm dark:border-slate-800 dark:hover:border-brand-500"
           >

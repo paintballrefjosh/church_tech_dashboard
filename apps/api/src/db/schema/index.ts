@@ -6,3 +6,4 @@ export * from "./audit";
 export * from "./settings";
 export * from "./notes";
 export * from "./tickets";
+export * from "./wiki";
