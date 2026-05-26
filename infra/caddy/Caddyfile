@@ -18,18 +18,31 @@
 :8100 {
 	encode gzip zstd
 
-	# NestJS API. All backend routes are namespaced under /api/v1/.
+	# We pass the *original* Host header through to every upstream so Auth.js
+	# (trustHost: true) and any other URL-building code reconstruct the public
+	# origin from the hostname the user actually typed — localhost, a LAN IP,
+	# docker01.example.com, an upstream HTTPS LB, whatever — without any
+	# value baked into env or code.
+	#
+	# Caddy v2's default is to rewrite Host to the upstream address (e.g.
+	# web:3000). The `header_up Host {host}` lines below override that so the
+	# upstream sees the same Host the client sent.
+
 	handle /api/v1/* {
-		reverse_proxy api:3001
+		reverse_proxy api:3001 {
+			header_up Host {host}
+		}
 	}
 
-	# Socket.io upgrade. reverse_proxy handles WS upgrades automatically.
 	handle /socket.io/* {
-		reverse_proxy api:3001
+		reverse_proxy api:3001 {
+			header_up Host {host}
+		}
 	}
 
-	# Everything else -> Next.js (including /api/auth/* which is Auth.js).
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			header_up Host {host}
+		}
 	}
 }

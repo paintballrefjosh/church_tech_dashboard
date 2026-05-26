@@ -15,6 +15,10 @@ async function bootstrap() {
 
   app.setGlobalPrefix("api/v1");
   // Validation: Zod schemas inside each controller, not class-validator.
+  // CORS: echo whatever Origin the request used (browser will reject if the
+  // server doesn't match), with credentials. This means the app works at every
+  // hostname you point at it without code changes. If you want to lock CORS
+  // down to a known origin, set APP_URL in .env.
   app.enableCors({
     origin: process.env.APP_URL ?? true,
     credentials: true,

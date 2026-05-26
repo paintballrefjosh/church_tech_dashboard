@@ -168,6 +168,35 @@ equivalent — see [INSTALL.md](./INSTALL.md).
 - **Phase 3** — AI/MCP module, Meilisearch wired across wiki/notes/tickets, @mentions, tags, activity feed
 - **Phase 4 (deferred)** — church-specific modules. Do not start without explicit ask.
 
+## Public origin / hostname handling
+
+The app **does not bake any hostname into env or code**. It works at every URL
+you can reach it on — `localhost:8100`, a LAN IP, `docker01.example.com:8100`,
+behind an HTTPS LB — without any per-deployment config.
+
+How it works end-to-end:
+- Caddy listens on `:8100` and reverse-proxies to the upstream containers with
+  `header_up Host {host}`, so `web` and `api` see the original `Host` header
+  from the user's browser.
+- Next.js standalone is the gotcha: it sets `req.url` from `HOSTNAME:PORT`
+  (`0.0.0.0:3000`), not from the request's `Host` header. Auth.js builds OAuth
+  callback URLs, sign-in redirects, and cookie domains from `req.url`, which
+  would leak the bind address out to the browser and break every sign-in.
+- The wrapper `withPublicOriginRewrite` in [apps/web/src/lib/auth.ts](apps/web/src/lib/auth.ts)
+  intercepts every `/api/auth/*` request, rewrites `req.url` using
+  `X-Forwarded-Host` (set by Caddy from the original Host) + `X-Forwarded-Proto`,
+  and only then hands off to Auth.js. Result: the redirect/cookie/callback URL
+  always matches the host the user actually typed.
+- `AUTH_URL` and `APP_URL` are **intentionally unset** in `.env.example`. Setting
+  them would override the dynamic detection and re-introduce the original bug.
+  Only override if a proxy strips/rewrites both `Host` AND `X-Forwarded-Host`.
+
+If you ever change the proxy or the way the Next standalone server starts:
+re-test sign-in from **at least two different hostnames** (e.g. localhost and a
+non-localhost domain) before merging. The smoke suite covers the localhost case;
+the wrapper itself is non-trivial to unit-test, but the symptom — being
+redirected to `http://0.0.0.0:3000/` — is obvious in the browser address bar.
+
 ## Host ports
 
 Only one port on the docker host belongs to a real user: `EXTERNAL_PORT` (default

@@ -109,4 +109,35 @@ export const authConfig: NextAuthConfig = {
   },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+const nextAuth = NextAuth(authConfig);
+export const { auth, signIn, signOut } = nextAuth;
+
+/**
+ * Next.js standalone constructs req.url from the bind address ($HOSTNAME:$PORT,
+ * e.g. http://0.0.0.0:3000/...), not from the incoming Host header. Auth.js
+ * uses that req.url to build OAuth callbacks, sign-in redirects, and cookie
+ * domains — which leaks the internal bind address out to the user's browser
+ * and breaks sign-in entirely when the app is accessed from a remote machine.
+ *
+ * To keep this fully dynamic — same image works at localhost, a LAN IP, a
+ * real domain, behind an HTTPS LB — we rewrite the URL using the public origin
+ * derived from X-Forwarded-Host (set by Caddy) before Auth.js sees the request.
+ * AUTH_URL stays unset on purpose so this is the only origin-derivation logic.
+ */
+function withPublicOriginRewrite(handler: (req: Request) => Promise<Response> | Response) {
+  return async (req: Request) => {
+    const xfHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    if (!xfHost) return handler(req);
+    const xfProto =
+      (req.headers.get("x-forwarded-proto") ?? "http").split(",")[0]?.trim() ?? "http";
+    const reqUrl = new URL(req.url);
+    const fixed = new URL(reqUrl.pathname + reqUrl.search, `${xfProto}://${xfHost}`);
+    if (fixed.toString() === reqUrl.toString()) return handler(req);
+    return handler(new Request(fixed.toString(), req));
+  };
+}
+
+export const handlers = {
+  GET: withPublicOriginRewrite(nextAuth.handlers.GET as never),
+  POST: withPublicOriginRewrite(nextAuth.handlers.POST as never),
+};
