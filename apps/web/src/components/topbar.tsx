@@ -6,15 +6,24 @@ export async function TopBar() {
   const session = await auth();
   return (
     <header className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-base font-semibold tracking-tight">
-          Church Dashboard
-        </Link>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="text-base font-semibold tracking-tight">
+            Church Dashboard
+          </Link>
+          {session?.user ? (
+            <nav className="flex items-center gap-4 text-sm">
+              <Link href="/notes" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+                Notes
+              </Link>
+            </nav>
+          ) : null}
+        </div>
         <nav className="flex items-center gap-4 text-sm">
           <ThemeToggle />
           {session?.user ? (
             <>
-              <span className="text-slate-500 dark:text-slate-400">{session.user.email}</span>
+              <span className="hidden text-slate-500 dark:text-slate-400 sm:inline">{session.user.email}</span>
               <form
                 action={async () => {
                   "use server";
@@ -42,3 +51,4 @@ export async function TopBar() {
     </header>
   );
 }
+

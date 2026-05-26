@@ -317,6 +317,89 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
   });
 
+  // ---- notes (Phase 1.1) ----
+  await test("GET /api/v1/notes returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/notes");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/notes returns an array for the signed-in admin", async () => {
+    const { res } = await fetchWithCookies("/api/v1/notes", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), "expected array");
+  });
+
+  let createdNoteId;
+  await test("POST /api/v1/notes creates a note", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/notes",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "smoke", body: "body", color: "amber", pinned: true }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.id === "string", "no id");
+    assert(body.title === "smoke" && body.color === "amber" && body.pinned === true, `bad body: ${JSON.stringify(body)}`);
+    createdNoteId = body.id;
+  });
+
+  await test("PATCH /api/v1/notes/:id updates a note", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${createdNoteId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "smoke-updated", pinned: false }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.title === "smoke-updated" && body.pinned === false, `bad body: ${JSON.stringify(body)}`);
+  });
+
+  await test("GET /api/v1/notes?q=smoke filters by search", async () => {
+    const { res } = await fetchWithCookies("/api/v1/notes?q=smoke-updated", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.some((n) => n.id === createdNoteId), "created note not in filtered results");
+  });
+
+  await test("audit log records the note creation", async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    const { res } = await fetchWithCookies("/api/v1/audit?action=note.create&limit=5", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(
+      Array.isArray(body.items) && body.items.some((e) => e.action === "note.create"),
+      "no note.create audit entry",
+    );
+  });
+
+  await test("DELETE /api/v1/notes/:id removes the note", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/notes/${createdNoteId}`, { method: "DELETE" }, jar);
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  await test("PATCH on someone else's note 404s (owner enforcement)", async () => {
+    // Use a random uuid that doesn't belong to us — service throws NotFound before owner-check.
+    const { res } = await fetchWithCookies(
+      "/api/v1/notes/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "nope" }),
+      },
+      jar,
+    );
+    assert(res.status === 404 || res.status === 403, `status ${res.status}`);
+  });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);

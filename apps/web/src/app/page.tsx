@@ -16,13 +16,29 @@ export default async function HomePage() {
         <div className="rounded-lg border border-slate-200 p-6 dark:border-slate-800">
           <h1 className="text-2xl font-semibold">Welcome back</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-300">
-            You are signed in as <span className="font-mono">{session.user.email}</span>.
-          </p>
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-            This is the Phase 0 dashboard shell. Tiles (calendar, tickets, notes, etc.) land in Phase 1.
-            See <Link href="/admin" className="text-brand-600 underline">admin</Link> if you are signed in as an administrator.
+            Signed in as <span className="font-mono">{session.user.email}</span>.
           </p>
         </div>
+        <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Link
+            href="/notes"
+            className="rounded-lg border border-slate-200 p-5 transition hover:border-brand-500 hover:shadow-sm dark:border-slate-800 dark:hover:border-brand-500"
+          >
+            <h2 className="text-base font-semibold">Notes</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Your personal scratch space, Keep-style. Pin, colour-code, archive.
+            </p>
+          </Link>
+          <Link
+            href="/admin"
+            className="rounded-lg border border-slate-200 p-5 transition hover:border-brand-500 hover:shadow-sm dark:border-slate-800 dark:hover:border-brand-500"
+          >
+            <h2 className="text-base font-semibold">Admin</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Settings, users, groups, roles, audit log. Admin role only.
+            </p>
+          </Link>
+        </section>
       </main>
     </>
   );

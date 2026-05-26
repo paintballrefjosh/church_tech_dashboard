@@ -76,4 +76,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   handleDisconnect(socket: Socket): void {
     this.logger.debug(`ws disconnect sid=${socket.id}`);
   }
+
+  /**
+   * Emit an event to every socket joined to `user:{id}` (i.e. every browser
+   * tab that user has open). Safe to call before the server is up — falls
+   * silently to a no-op when `this.server` is undefined.
+   */
+  toUser(userId: string, event: string, payload: unknown): void {
+    this.server?.to(`user:${userId}`).emit(event, payload);
+  }
+
+  /** Broadcast to a named room, e.g. `wiki:{id}` for a wiki page. */
+  toRoom(room: string, event: string, payload: unknown): void {
+    this.server?.to(room).emit(event, payload);
+  }
 }

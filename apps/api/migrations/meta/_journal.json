@@ -15,6 +15,13 @@
       "when": 1748131300000,
       "tag": "0001_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748217600000,
+      "tag": "0002_notes",
+      "breakpoints": true
     }
   ]
 }

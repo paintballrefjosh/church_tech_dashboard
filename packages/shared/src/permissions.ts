@@ -29,6 +29,13 @@ export const PERMISSIONS = {
   // Site settings
   SETTINGS_READ_ANY: "settings:read:any",
   SETTINGS_WRITE_ANY: "settings:write:any",
+
+  // Notes — owner-only for Phase 1.1. ANY-scope grants admins a future
+  // moderation surface; the controller currently only honours OWN.
+  NOTES_READ_OWN: "notes:read:own",
+  NOTES_WRITE_OWN: "notes:write:own",
+  NOTES_DELETE_OWN: "notes:delete:own",
+  NOTES_READ_ANY: "notes:read:any",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

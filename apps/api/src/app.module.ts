@@ -11,6 +11,7 @@ import { GroupsModule } from "./groups/groups.module";
 import { RolesModule } from "./roles/roles.module";
 import { AuditModule } from "./audit/audit.module";
 import { SettingsModule } from "./settings/settings.module";
+import { NotesModule } from "./notes/notes.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
@@ -38,6 +39,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     AuditModule,
     SettingsModule,
     RealtimeModule,
+    NotesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: SessionGuard },
