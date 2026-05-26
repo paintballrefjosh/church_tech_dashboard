@@ -17,8 +17,8 @@ services:
       - "${EXTERNAL_PORT:-8100}:8100"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ../data/caddy:/data
+      - ../data/caddy-config:/config
     depends_on:
       web:
         condition: service_healthy
@@ -31,19 +31,19 @@ services:
     <<: *cockroach-base
     command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-1:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
     volumes:
-      - cockroach1-data:/cockroach/cockroach-data
+      - ../data/cockroach-1:/cockroach/cockroach-data
 
   cockroach-2:
     <<: *cockroach-base
     command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-2:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
     volumes:
-      - cockroach2-data:/cockroach/cockroach-data
+      - ../data/cockroach-2:/cockroach/cockroach-data
 
   cockroach-3:
     <<: *cockroach-base
     command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-3:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
     volumes:
-      - cockroach3-data:/cockroach/cockroach-data
+      - ../data/cockroach-3:/cockroach/cockroach-data
 
   cockroach-init:
     image: cockroachdb/cockroach:v24.2.0
@@ -64,7 +64,7 @@ services:
     image: redis:7-alpine
     command: redis-server --save 60 1 --loglevel warning
     volumes:
-      - redis-data:/data
+      - ../data/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -79,7 +79,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - minio-data:/data
+      - ../data/minio:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -105,7 +105,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       MEILI_ENV: production
     volumes:
-      - meili-data:/meili_data
+      - ../data/meili:/meili_data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
@@ -135,7 +135,7 @@ services:
       minio-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/v1/healthz"]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -150,28 +150,23 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      HOSTNAME: "0.0.0.0"
       API_INTERNAL_URL: http://api:3001
       AUTH_TRUST_HOST: "true"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 30
     restart: unless-stopped
     networks: [internal]
 
-volumes:
-  cockroach1-data:
-  cockroach2-data:
-  cockroach3-data:
-  redis-data:
-  minio-data:
-  meili-data:
-  caddy-data:
-  caddy-config:
+# Volumes are bind-mounted into ./data/<service>/ at the project root so a tar
+# of ./data/ is a complete backup. `make init-data` creates the directories
+# with the right ownership before first start.
 
 networks:
   internal:

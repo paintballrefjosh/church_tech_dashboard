@@ -10,10 +10,7 @@
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "verbatimModuleSyntax": false,
-    "isolatedModules": false,
-    "paths": {
-      "@church/shared": ["../../packages/shared/dist/index.js"]
-    }
+    "isolatedModules": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]

@@ -40,13 +40,19 @@ interceptor. Realtime updates are pushed over Socket.io with a Redis pub/sub ada
 ```bash
 git clone <this repo>
 cd church-dashboard
-cp .env.example .env       # edit AUTH_SECRET and Google OAuth credentials
-make up                    # or: docker compose -f infra/docker-compose.yml up -d --build
-make seed                  # creates default roles/permissions and bootstrap admin user
+make up        # generates .env with a random AUTH_SECRET; creates ./data/ bind mounts
+make migrate   # applies DB migrations
+make seed      # creates default roles + default admin (user "admin", password "admin")
 open http://localhost:8100
 ```
 
-Full instructions, including Google Workspace setup, in [INSTALL.md](./INSTALL.md).
+Sign in with **admin / admin**. You'll be forced to set a new password on first login.
+After that, all other settings (Google OAuth, SMTP, etc.) live in the database — edit them at
+`/admin/settings` instead of touching files.
+
+Persistent data is bind-mounted into `./data/<service>/` so backing up the whole stack is a
+`tar -czf backup.tgz data/` away. Full setup details and Google Workspace integration are in
+[INSTALL.md](./INSTALL.md).
 
 ## Deployment
 

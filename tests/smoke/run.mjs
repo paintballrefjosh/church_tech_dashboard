@@ -2,18 +2,19 @@
 /**
  * Phase 0 HTTP smoke tests. Exercises every public-facing endpoint via the
  * Caddy reverse proxy on :8100. Expects:
- *   - `make up` has completed and all services report healthy
- *   - `make migrate && make seed` has run, with bootstrap admin credentials at
- *     /tmp/bootstrap-credentials.txt inside the api container, OR
- *     BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD set in the host env
+ *   - `make up && make migrate && make seed` has run
+ *   - The default admin (admin/admin) password is still in place. Run
+ *     `make reset-admin` after a prior regression run to restore it.
  *
  * Usage: node tests/smoke/run.mjs
  *        BASE=http://localhost:8100 node tests/smoke/run.mjs
  */
-import { execFileSync } from "node:child_process";
 
 const BASE = process.env.BASE ?? "http://localhost:8100";
 const VERBOSE = process.env.VERBOSE === "1";
+const ADMIN_EMAIL = "admin";
+const ADMIN_PASSWORD = "admin";
+const NORMALISED_EMAIL = "admin@local";
 
 let pass = 0;
 let fail = 0;
@@ -49,7 +50,6 @@ async function fetchWithCookies(path, init = {}, jar = new Map()) {
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
   };
   const res = await fetch(url, { ...init, headers, redirect: "manual" });
-  // Capture set-cookie headers into the jar. Node fetch exposes raw headers via getSetCookie() since 19.7.
   const setCookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
   for (const sc of setCookies) {
     const semi = sc.indexOf(";");
@@ -64,36 +64,6 @@ async function fetchWithCookies(path, init = {}, jar = new Map()) {
   }
   if (VERBOSE) log(`    ${init.method ?? "GET"} ${path} -> ${res.status}`);
   return { res, jar };
-}
-
-function getBootstrapCreds() {
-  if (process.env.BOOTSTRAP_ADMIN_EMAIL && process.env.BOOTSTRAP_ADMIN_PASSWORD) {
-    return {
-      email: process.env.BOOTSTRAP_ADMIN_EMAIL,
-      password: process.env.BOOTSTRAP_ADMIN_PASSWORD,
-    };
-  }
-  // Read from inside the api container.
-  try {
-    const out = execFileSync("docker", [
-      "compose",
-      "-f",
-      "infra/docker-compose.yml",
-      "exec",
-      "-T",
-      "api",
-      "cat",
-      "/tmp/bootstrap-credentials.txt",
-    ], { encoding: "utf8" });
-    const emailMatch = out.match(/email:\s+(\S+)/);
-    const passMatch = out.match(/password:\s+(\S+)/);
-    if (!emailMatch || !passMatch) throw new Error("cannot parse credentials file");
-    return { email: emailMatch[1], password: passMatch[1] };
-  } catch (err) {
-    throw new Error(
-      `Could not load bootstrap credentials. Either run \`make seed\` or set BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD. (${err.message})`
-    );
-  }
 }
 
 async function main() {
@@ -165,27 +135,53 @@ async function main() {
     assert(res.status === 401, `status ${res.status}`);
   });
 
-  // ---- authenticated flow ----
-  const creds = getBootstrapCreds();
-  log(`  using bootstrap admin: ${creds.email}`);
-  const jar = new Map();
+  await test("GET /api/v1/settings returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/settings");
+    assert(res.status === 401, `status ${res.status}`);
+  });
 
-  // Auth.js v5 Credentials sign-in: GET csrf, then POST callback with csrfToken.
+  // ---- direct API verify-credentials: username forms ----
+  await test("verify-credentials accepts bare username 'admin'", async () => {
+    const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    });
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.ok === true, `expected ok=true`);
+    assert(body.user.email === NORMALISED_EMAIL, `expected ${NORMALISED_EMAIL}, got ${body.user.email}`);
+    assert(body.user.mustChangePassword === true, `mustChangePassword should be true on default admin`);
+  });
+
+  await test("verify-credentials also accepts the email form", async () => {
+    const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: NORMALISED_EMAIL, password: ADMIN_PASSWORD }),
+    });
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.ok === true, `expected ok=true`);
+  });
+
+  // ---- authenticated browser-like flow ----
+  const jar = new Map();
   let csrfToken;
+
   await test("GET /api/auth/csrf returns csrfToken", async () => {
-    const { res, jar: j } = await fetchWithCookies("/api/auth/csrf", {}, jar);
+    const { res } = await fetchWithCookies("/api/auth/csrf", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
     csrfToken = body.csrfToken;
     assert(typeof csrfToken === "string" && csrfToken.length > 0, "no csrfToken");
-    // jar already mutated in place
   });
 
-  await test("POST /api/auth/callback/credentials with bootstrap creds sets session cookie", async () => {
+  await test("POST /api/auth/callback/credentials with admin/admin sets session cookie", async () => {
     const form = new URLSearchParams({
       csrfToken,
-      email: creds.email,
-      password: creds.password,
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
       callbackUrl: BASE + "/",
       json: "true",
     });
@@ -198,23 +194,22 @@ async function main() {
       },
       jar
     );
-    // Auth.js typically responds 302 redirecting back to callbackUrl or to /signin?error=... on failure.
     assert(res.status === 200 || res.status === 302, `status ${res.status}`);
-    // Verify we have an authjs.session-token in the jar.
     const hasSession = [...j.keys()].some((k) => k.includes("session-token"));
     assert(hasSession, `expected session cookie, got: ${[...j.keys()].join(", ")}`);
   });
 
-  await test("GET /api/v1/me returns user profile with session", async () => {
+  await test("GET /api/v1/me returns admin profile with session", async () => {
     const { res } = await fetchWithCookies("/api/v1/me", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(body.email === creds.email, `email mismatch: ${body.email}`);
+    assert(body.email === NORMALISED_EMAIL, `email: ${body.email}`);
     assert(Array.isArray(body.roles) && body.roles.includes("admin"), `roles: ${JSON.stringify(body.roles)}`);
     assert(
       Array.isArray(body.permissions) && body.permissions.includes("users:read:any"),
       `permissions: ${JSON.stringify(body.permissions)}`
     );
+    assert(body.mustChangePassword === true, "default admin should have mustChangePassword=true");
   });
 
   await test("GET /api/v1/users returns at least the bootstrap admin", async () => {
@@ -222,7 +217,7 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
     assert(Array.isArray(body) && body.length >= 1, `users count: ${body?.length}`);
-    assert(body.some((u) => u.email === creds.email), "bootstrap admin not in list");
+    assert(body.some((u) => u.email === NORMALISED_EMAIL), "bootstrap admin not in list");
   });
 
   await test("GET /api/v1/roles returns the three system roles", async () => {
@@ -243,6 +238,7 @@ async function main() {
     const keys = body.map((p) => p.key);
     assert(keys.includes("users:read:any"), `missing core permission`);
     assert(keys.includes("audit:read:any"), `missing audit permission`);
+    assert(keys.includes("settings:write:any"), `missing settings permission`);
   });
 
   await test("GET /api/v1/groups returns an array (empty initially)", async () => {
@@ -270,8 +266,7 @@ async function main() {
   });
 
   await test("audit log records the group creation", async () => {
-    // small delay: audit write is fire-and-forget
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 300));
     const { res } = await fetchWithCookies("/api/v1/audit?action=group.create&limit=5", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
@@ -284,6 +279,42 @@ async function main() {
   await test("DELETE /api/v1/groups/:id removes the test group", async () => {
     const { res } = await fetchWithCookies(`/api/v1/groups/${createdGroupId}`, { method: "DELETE" }, jar);
     assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+  });
+
+  // ---- settings ----
+  await test("PUT /api/v1/settings/site.name stores a value", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/settings/site.name",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value: "Smoke Church" }),
+      },
+      jar
+    );
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/settings/site.name reads the value back", async () => {
+    const { res } = await fetchWithCookies("/api/v1/settings/site.name", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.value === "Smoke Church", `unexpected value: ${JSON.stringify(body)}`);
+  });
+
+  await test("GET /api/v1/settings lists the persisted setting", async () => {
+    const { res } = await fetchWithCookies("/api/v1/settings", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(
+      Array.isArray(body.items) && body.items.some((s) => s.key === "site.name" && s.value === "Smoke Church"),
+      "settings list missing site.name"
+    );
+  });
+
+  await test("DELETE /api/v1/settings/site.name removes it", async () => {
+    const { res } = await fetchWithCookies("/api/v1/settings/site.name", { method: "DELETE" }, jar);
+    assert(res.status === 200, `status ${res.status}`);
   });
 
   // ---- summary ----

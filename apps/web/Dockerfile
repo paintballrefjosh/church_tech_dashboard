@@ -10,6 +10,11 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 ENV NEXT_TELEMETRY_DISABLED=1
+# Dummy env vars so `next build` can collect page data without trying to connect
+# to a real DB or read a real secret. Both are overridden at runtime by env_file.
+ENV COCKROACH_URL=postgresql://build@127.0.0.1:5432/build?sslmode=disable
+ENV AUTH_SECRET=build-time-placeholder-replaced-at-runtime
+ENV AUTH_TRUST_HOST=true
 COPY --from=deps /app /app
 COPY packages/shared packages/shared
 COPY apps/web apps/web

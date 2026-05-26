@@ -168,6 +168,20 @@ equivalent — see [INSTALL.md](./INSTALL.md).
 - **Phase 3** — AI/MCP module, Meilisearch wired across wiki/notes/tickets, @mentions, tags, activity feed
 - **Phase 4 (deferred)** — church-specific modules. Do not start without explicit ask.
 
+## Operational defaults
+
+- **Default admin:** seed creates user `admin` with password `admin` (stored as
+  `admin@local`) and `must_change_password=true`. The first sign-in is force-routed to
+  `/change-password`. `make reset-admin` restores this state.
+- **Configuration:** anything an operator might want to change at runtime (Google OAuth
+  client, SMTP, site name, etc.) lives in the `settings` table and is editable at
+  `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`,
+  Redis URL) stay in `.env`. `KNOWN_SETTINGS` in `packages/shared/src/settings.ts`
+  is the catalogue.
+- **Volumes:** all stateful services bind-mount into `./data/<service>/` at the repo
+  root. Backup = `tar -czf data/`. `make init-data` creates the dirs with the right
+  perms (Redis and Meilisearch need world-writable).
+
 ## Things to never do
 
 - Add `tenant_id` columns
@@ -178,3 +192,4 @@ equivalent — see [INSTALL.md](./INSTALL.md).
 - Use Postgres-only features (Cockroach compatibility)
 - Add Phase 4 church-specific modules without an explicit user ask
 - Commit emojis in code or generated files
+- Re-introduce env-based config for things in `KNOWN_SETTINGS` — they belong in the DB

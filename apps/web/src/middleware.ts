@@ -7,7 +7,15 @@ const SESSION_COOKIE_CANDIDATES = [
   "__Secure-next-auth.session-token",
 ];
 
-const PUBLIC_PATH_PREFIXES = ["/signin", "/api/auth", "/api/health", "/_next", "/favicon", "/manifest", "/icon"];
+const PUBLIC_PATH_PREFIXES = [
+  "/signin",
+  "/api/auth",
+  "/api/health",
+  "/_next",
+  "/favicon",
+  "/manifest",
+  "/icon",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
   name: string | null;
   isActive: boolean;
   totpEnabled: boolean;
+  mustChangePassword: boolean;
   roles: string[]; // role keys
   permissions: string[]; // resolved permission strings
 };

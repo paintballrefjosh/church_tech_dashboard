@@ -77,6 +77,7 @@ export class AuthService {
       name: user.name,
       isActive: user.isActive,
       totpEnabled: user.totpEnabled,
+      mustChangePassword: user.mustChangePassword,
       roles: roleKeys,
       permissions: permissionRows.map((p) => p.permissionKey),
     };

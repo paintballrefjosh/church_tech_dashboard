@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
-import { ValidationPipe, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import fastifyCookie from "@fastify/cookie";
 import { AppModule } from "./app.module";
 
@@ -14,7 +14,7 @@ async function bootstrap() {
   await app.register(fastifyCookie as never);
 
   app.setGlobalPrefix("api/v1");
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  // Validation: Zod schemas inside each controller, not class-validator.
   app.enableCors({
     origin: process.env.APP_URL ?? true,
     credentials: true,

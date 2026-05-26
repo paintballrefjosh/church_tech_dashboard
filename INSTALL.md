@@ -15,16 +15,23 @@ docker-only equivalent — see [the dockerized commands section](#dockerized-com
 ```bash
 git clone <this repo>
 cd church-dashboard
-cp .env.example .env
-$EDITOR .env                   # set AUTH_SECRET at minimum
-make up                        # builds and starts the dev stack
+make up                        # auto-generates .env, creates ./data/ bind mounts, starts stack
 make migrate                   # applies SQL migrations to Cockroach
-make seed                      # creates default roles/permissions + bootstrap admin
+make seed                      # creates default roles + default admin
 make logs                      # tail everything
 ```
 
-Then open <http://localhost:8100>. Sign in with the bootstrap admin credentials
-printed by `make seed` (or check `make seed-credentials`).
+Then open <http://localhost:8100> and sign in with:
+
+| Username | Password |
+|---|---|
+| `admin` | `admin` |
+
+You will be required to set a new password on first login. After that, runtime configuration
+(Google OAuth, SMTP, site name, etc.) lives in the database — edit it at `/admin/settings`,
+no file editing needed.
+
+If you ever need the default back (CI, regression testing, lost password): `make reset-admin`.
 
 The dev stack includes:
 - Single-node CockroachDB on internal `:26257` (web UI at <http://localhost:8180>)
@@ -112,19 +119,38 @@ docker run --rm -v "$PWD":/w -w /w node:20-alpine sh -c 'corepack enable && pnpm
 
 The `Makefile` wraps these so you can just `make install`, `make typecheck`, `make test`.
 
-## Backup & restore
+## Data & backup
+
+All stateful data lives under `./data/` in the project directory via bind mounts:
+
+```
+./data/cockroach-1/    # CockroachDB store (DB tables, audit log, users, …)
+./data/cockroach-2/    # (prod only) second cluster node
+./data/cockroach-3/    # (prod only) third cluster node
+./data/redis/          # Redis save-files
+./data/minio/          # uploaded files (wiki attachments, note images, …)
+./data/meili/          # Meilisearch indexes
+./data/caddy/          # Caddy state
+./data/caddy-config/   # Caddy auto-generated config
+```
+
+For a full point-in-time backup, stop the stack and tar the directory:
 
 ```bash
-# manual backup (dev or prod)
-make db-backup                 # writes ./backups/cockroach-YYYYMMDD-HHMM.sql.gz
+make down
+tar -czf backup-$(date +%F).tgz data/
+make up
+```
 
-# restore from a backup file
+For a hot logical DB-only backup that doesn't require downtime:
+
+```bash
+make db-backup                 # writes ./backups/cockroach-YYYYMMDD-HHMM.sql.gz
 make db-restore FILE=./backups/cockroach-20260525-1830.sql.gz
 ```
 
-In production, schedule `make db-backup` from cron on the host (or a dedicated
-sidecar). Backups include schema + data but **not** MinIO contents — back those up
-separately with `mc mirror`.
+In production, schedule one of these from cron. Backups are local to the host — copy them
+off-box too.
 
 ## Troubleshooting
 

@@ -7,8 +7,8 @@ services:
       - "${EXTERNAL_PORT:-8100}:8100"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ../data/caddy:/data
+      - ../data/caddy-config:/config
     depends_on:
       web:
         condition: service_healthy
@@ -19,16 +19,16 @@ services:
 
   cockroach-1:
     image: cockroachdb/cockroach:v24.2.0
-    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-1:26257
+    command: start-single-node --insecure --advertise-addr=cockroach-1
     volumes:
-      - cockroach-data:/cockroach/cockroach-data
+      - ../data/cockroach-1:/cockroach/cockroach-data
     ports:
       - "8180:8080"
     healthcheck:
-      test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
+      test: ["CMD", "cockroach", "sql", "--insecure", "--host=localhost", "-e", "SELECT 1"]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
     restart: unless-stopped
     networks: [internal]
 
@@ -37,9 +37,10 @@ services:
     depends_on:
       cockroach-1:
         condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      cockroach sql --insecure --host=cockroach-1 -e "CREATE DATABASE IF NOT EXISTS church"
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - "cockroach sql --insecure --host=cockroach-1 -e 'CREATE DATABASE IF NOT EXISTS church'"
     restart: "no"
     networks: [internal]
 
@@ -47,7 +48,7 @@ services:
     image: redis:7-alpine
     command: redis-server --save 60 1 --loglevel warning
     volumes:
-      - redis-data:/data
+      - ../data/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -63,9 +64,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-churchadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-please}
     volumes:
-      - minio-data:/data
-    ports:
-      - "9090:9001"
+      - ../data/minio:/data
+    # MinIO console is reachable inside the compose network only.
+    # If you need it from the host, add `- "${MINIO_CONSOLE_PORT:-19090}:9001"` here.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -79,10 +80,10 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-churchadmin} ${MINIO_ROOT_PASSWORD:-change-me-please} && \
-      mc mb --ignore-existing local/${MINIO_BUCKET:-church-files}
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - "mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-churchadmin} ${MINIO_ROOT_PASSWORD:-change-me-please} && mc mb --ignore-existing local/${MINIO_BUCKET:-church-files}"
     restart: "no"
     networks: [internal]
 
@@ -92,7 +93,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev-master-key-change-in-prod}
       MEILI_ENV: development
     volumes:
-      - meili-data:/meili_data
+      - ../data/meili:/meili_data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 5s
@@ -104,7 +105,7 @@ services:
   mailhog:
     image: mailhog/mailhog:latest
     ports:
-      - "8025:8025"
+      - "${MAILHOG_UI_PORT:-18025}:8025"
     restart: unless-stopped
     networks: [internal]
 
@@ -130,7 +131,7 @@ services:
       minio-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/v1/healthz"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -145,26 +146,23 @@ services:
     environment:
       NODE_ENV: development
       PORT: "3000"
+      HOSTNAME: "0.0.0.0"
       API_INTERNAL_URL: http://api:3001
       AUTH_TRUST_HOST: "true"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 5s
       timeout: 3s
       retries: 30
     restart: unless-stopped
     networks: [internal]
 
-volumes:
-  cockroach-data:
-  redis-data:
-  minio-data:
-  meili-data:
-  caddy-data:
-  caddy-config:
+# Volumes are bind-mounted into ./data/<service>/ at the project root so a tar
+# of ./data/ is a complete backup. `make init-data` creates the directories
+# with the right ownership before first `make up`.
 
 networks:
   internal:

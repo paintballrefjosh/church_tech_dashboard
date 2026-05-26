@@ -10,6 +10,7 @@ import { UsersModule } from "./users/users.module";
 import { GroupsModule } from "./groups/groups.module";
 import { RolesModule } from "./roles/roles.module";
 import { AuditModule } from "./audit/audit.module";
+import { SettingsModule } from "./settings/settings.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
@@ -35,6 +36,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     GroupsModule,
     RolesModule,
     AuditModule,
+    SettingsModule,
     RealtimeModule,
   ],
   providers: [

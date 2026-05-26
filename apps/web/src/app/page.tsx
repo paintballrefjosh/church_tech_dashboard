@@ -6,6 +6,9 @@ import { TopBar } from "@/components/topbar";
 export default async function HomePage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
+  if ((session.user as { mustChangePassword?: boolean }).mustChangePassword) {
+    redirect("/change-password");
+  }
   return (
     <>
       <TopBar />

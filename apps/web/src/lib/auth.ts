@@ -41,24 +41,23 @@ export const authConfig: NextAuthConfig = {
               totp: { label: "TOTP", type: "text" },
             },
             async authorize(creds) {
+              const payload = {
+                email: typeof creds?.email === "string" ? creds.email : "",
+                password: typeof creds?.password === "string" ? creds.password : "",
+                totp: typeof creds?.totp === "string" && creds.totp.length > 0 ? creds.totp : undefined,
+              };
               try {
                 const res = await fetch(`${apiInternalUrl}/api/v1/auth/verify-credentials`, {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    email: creds?.email,
-                    password: creds?.password,
-                    totp: creds?.totp || undefined,
-                  }),
+                  body: JSON.stringify(payload),
                   cache: "no-store",
                 });
                 if (!res.ok) return null;
                 const data = (await res.json()) as
-                  | { ok: true; user: { id: string; email: string; name: string | null; image: string | null } }
+                  | { ok: true; user: { id: string; email: string; name: string | null; image: string | null; mustChangePassword?: boolean } }
                   | { ok: false; requiresTotp?: boolean };
                 if (!data.ok) {
-                  // Bubble up so the UI can prompt for TOTP. Auth.js doesn't have a
-                  // first-class way to signal this; we throw so the caller sees the message.
                   if ("requiresTotp" in data && data.requiresTotp) {
                     throw new Error("TOTP_REQUIRED");
                   }
@@ -69,7 +68,9 @@ export const authConfig: NextAuthConfig = {
                   email: data.user.email,
                   name: data.user.name,
                   image: data.user.image,
-                };
+                  // Persisted onto the JWT below so the layout can force a redirect.
+                  mustChangePassword: data.user.mustChangePassword === true,
+                } as never;
               } catch (err) {
                 if (err instanceof Error && err.message === "TOTP_REQUIRED") throw err;
                 return null;
@@ -88,13 +89,20 @@ export const authConfig: NextAuthConfig = {
       return true;
     },
     async jwt({ token, user }) {
-      // First login: attach the user id (becomes JWT.sub).
-      if (user?.id) token.sub = user.id;
+      if (user?.id) {
+        token.sub = user.id;
+        const mcp = (user as { mustChangePassword?: boolean }).mustChangePassword;
+        if (typeof mcp === "boolean") {
+          (token as { mustChangePassword?: boolean }).mustChangePassword = mcp;
+        }
+      }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.sub) {
-        (session.user as { id?: string }).id = token.sub;
+        (session.user as { id?: string; mustChangePassword?: boolean }).id = token.sub;
+        (session.user as { id?: string; mustChangePassword?: boolean }).mustChangePassword =
+          (token as { mustChangePassword?: boolean }).mustChangePassword === true;
       }
       return session;
     },

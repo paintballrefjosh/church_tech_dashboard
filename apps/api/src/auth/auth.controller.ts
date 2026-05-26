@@ -7,11 +7,20 @@ import { AuthService } from "./auth.service";
 import { DB, type Db } from "../db/db.module";
 import { users, credentials } from "../db/schema";
 
+/**
+ * `identifier` is either an email address or a bare username. A bare username
+ * (no "@") is treated as <username>@local — this is how the default "admin"
+ * account is reachable as both "admin" and "admin@local".
+ */
 const verifyBodySchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(1).max(254),
   password: z.string().min(1),
   totp: z.string().regex(/^\d{6}$/).optional(),
 });
+
+function normaliseIdentifier(input: string): string {
+  return input.includes("@") ? input.toLowerCase().trim() : `${input.toLowerCase().trim()}@local`;
+}
 
 /**
  * Endpoints used by Auth.js (Credentials provider on the web side) to verify
@@ -26,7 +35,8 @@ export class AuthController {
   async verifyCredentials(@Body() body: unknown) {
     const parsed = verifyBodySchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const { email, password, totp } = parsed.data;
+    const { email: rawEmail, password, totp } = parsed.data;
+    const email = normaliseIdentifier(rawEmail);
 
     const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
     if (!user || !user.isActive) throw new UnauthorizedException("Invalid credentials");
@@ -56,6 +66,7 @@ export class AuthController {
         email: user.email,
         name: user.name,
         image: user.image,
+        mustChangePassword: user.mustChangePassword,
       },
     };
   }
