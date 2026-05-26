@@ -36,6 +36,18 @@ export const PERMISSIONS = {
   NOTES_WRITE_OWN: "notes:write:own",
   NOTES_DELETE_OWN: "notes:delete:own",
   NOTES_READ_ANY: "notes:read:any",
+
+  // Helpdesk / tickets (Phase 1.3). OWN = the tickets a user opened;
+  // ANY = every ticket in the system. Comments inherit ticket visibility,
+  // except COMMENTS_WRITE_INTERNAL which gates the "internal note" flag
+  // (notes visible only to support_engineer + admin).
+  TICKETS_READ_OWN: "tickets:read:own",
+  TICKETS_WRITE_OWN: "tickets:write:own",
+  TICKETS_READ_ANY: "tickets:read:any",
+  TICKETS_WRITE_ANY: "tickets:write:any",
+  TICKETS_ASSIGN: "tickets:assign",
+  TICKETS_DELETE_ANY: "tickets:delete:any",
+  TICKET_COMMENTS_WRITE_INTERNAL: "ticket_comments:write:internal",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

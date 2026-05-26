@@ -404,6 +404,153 @@ async function main() {
     assert(res.status === 404 || res.status === 403, `status ${res.status}`);
   });
 
+  // ---- tickets (Phase 1.3) ----
+  await test("GET /api/v1/tickets returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/tickets");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/tickets returns an array for the test user", async () => {
+    const { res } = await fetchWithCookies("/api/v1/tickets", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), "expected array");
+  });
+
+  let createdTicketId;
+  let createdTicketNumber;
+  await test("POST /api/v1/tickets creates a ticket", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/tickets",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "smoke ticket", description: "from smoke", priority: "high" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.id === "string", "no id");
+    assert(typeof body.number === "number" && body.number >= 1, `bad number: ${body.number}`);
+    assert(body.status === "open" && body.priority === "high", `bad body: ${JSON.stringify(body)}`);
+    createdTicketId = body.id;
+    createdTicketNumber = body.number;
+  });
+
+  await test("GET /api/v1/tickets/:id returns the just-created ticket", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.number === createdTicketNumber, `bad number: ${body.number}`);
+  });
+
+  await test("PATCH /api/v1/tickets/:id moves to in_progress and clears resolved", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "in_progress" }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.status === "in_progress", `bad status: ${body.status}`);
+    assert(body.resolvedAt == null, "resolvedAt should be null while in_progress");
+  });
+
+  await test("PATCH status=resolved sets resolved_at", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "resolved" }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.status === "resolved", `bad status: ${body.status}`);
+    assert(body.resolvedAt != null, "resolvedAt should be set");
+  });
+
+  let createdCommentId;
+  await test("POST /api/v1/tickets/:id/comments adds a public comment", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}/comments`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body: "looking into this" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.id === "string", "no id");
+    assert(body.isInternal === false, "default should be public");
+    createdCommentId = body.id;
+  });
+
+  await test("POST /api/v1/tickets/:id/comments with isInternal=true works for staff", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}/comments`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body: "staff only note", isInternal: true }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.isInternal === true, `isInternal: ${body.isInternal}`);
+  });
+
+  await test("GET /api/v1/tickets/:id/comments returns both", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}/comments`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body) && body.length === 2, `comment count: ${body?.length}`);
+  });
+
+  await test("audit log records ticket.create", async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    const { res } = await fetchWithCookies("/api/v1/audit?action=ticket.create&limit=5", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(
+      Array.isArray(body.items) && body.items.some((e) => e.action === "ticket.create"),
+      "no ticket.create audit entry",
+    );
+  });
+
+  await test("DELETE /api/v1/tickets/:id/comments/:cid removes the comment", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}/comments/${createdCommentId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/tickets/:id removes the ticket (admin)", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/tickets/${createdTicketId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/tickets/:id on a deleted ticket returns 404", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}`, {}, jar);
+    assert(res.status === 404, `status ${res.status}`);
+  });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);

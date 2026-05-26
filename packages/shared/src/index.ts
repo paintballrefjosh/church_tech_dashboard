@@ -6,3 +6,4 @@ export * from "./schemas/group";
 export * from "./schemas/role";
 export * from "./schemas/audit";
 export * from "./schemas/note";
+export * from "./schemas/ticket";

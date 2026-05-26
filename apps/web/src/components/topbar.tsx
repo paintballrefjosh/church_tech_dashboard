@@ -13,7 +13,16 @@ export async function TopBar() {
           </Link>
           {session?.user ? (
             <nav className="flex items-center gap-4 text-sm">
-              <Link href="/notes" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+              <Link
+                href="/tickets"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+              >
+                Tickets
+              </Link>
+              <Link
+                href="/notes"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+              >
                 Notes
               </Link>
             </nav>
