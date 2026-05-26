@@ -22,7 +22,7 @@ importers:
     dependencies:
       '@auth/core':
         specifier: 0.37.0
-        version: 0.37.0
+        version: 0.37.0(nodemailer@6.9.16)
       '@church/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -68,6 +68,9 @@ importers:
       nestjs-pino:
         specifier: 4.1.0
         version: 4.1.0(@nestjs/common@10.4.4(reflect-metadata@0.2.2)(rxjs@7.8.1))(pino-http@10.5.0)
+      nodemailer:
+        specifier: 6.9.16
+        version: 6.9.16
       otplib:
         specifier: 12.0.1
         version: 12.0.1
@@ -111,6 +114,9 @@ importers:
       '@types/node':
         specifier: 20.16.10
         version: 20.16.10
+      '@types/nodemailer':
+        specifier: 6.4.16
+        version: 6.4.16
       '@types/pg':
         specifier: 8.11.10
         version: 8.11.10
@@ -134,7 +140,7 @@ importers:
     dependencies:
       '@auth/drizzle-adapter':
         specifier: 1.5.2
-        version: 1.5.2
+        version: 1.5.2(nodemailer@6.9.16)
       '@church/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -146,7 +152,7 @@ importers:
         version: 15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       next-auth:
         specifier: 5.0.0-beta.25
-        version: 5.0.0-beta.25(next@15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
+        version: 5.0.0-beta.25(next@15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(nodemailer@6.9.16)(react@19.0.0)
       next-themes:
         specifier: 0.4.4
         version: 0.4.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -1489,6 +1495,9 @@ packages:
 
   '@types/node@20.16.10':
     resolution: {integrity: sha512-vQUKgWTjEIRFCvK6CyriPH3MZYiYlNy0fKiEYHWbcoWLEgs4opurGGKlebrTLqdSMIbXImH6XExNiIyNUv3WpA==}
+
+  '@types/nodemailer@6.4.16':
+    resolution: {integrity: sha512-uz6hN6Pp0upXMcilM61CoKyjT7sskBoOWpptkjjJp8jIMlTdc3xG01U7proKkXzruMS4hS0zqtHNkNPFB20rKQ==}
 
   '@types/pg@8.11.10':
     resolution: {integrity: sha512-LczQUW4dbOQzsH2RQ5qoeJ6qJPdrcM/DcMLoqWQkMLMsq83J5lAX3LXjdkWdpscFy67JSOWDnh7Ny/sPFykmkg==}
@@ -3624,6 +3633,10 @@ packages:
     resolution: {integrity: sha512-GYVXHE2KnrzAfsAjl4uP++evGFCrAU1jta4ubEjIG7YWt/64Gqv66a30yKwWczVjA6j3bM4nBwH7Pk1JmDHaxQ==}
     engines: {node: '>=18'}
 
+  nodemailer@6.9.16:
+    resolution: {integrity: sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==}
+    engines: {node: '>=6.0.0'}
+
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
@@ -5028,7 +5041,7 @@ snapshots:
     transitivePeerDependencies:
       - chokidar
 
-  '@auth/core@0.35.2':
+  '@auth/core@0.35.2(nodemailer@6.9.16)':
     dependencies:
       '@panva/hkdf': 1.2.1
       '@types/cookie': 0.6.0
@@ -5037,8 +5050,10 @@ snapshots:
       oauth4webapi: 2.17.0
       preact: 10.11.3
       preact-render-to-string: 5.2.3(preact@10.11.3)
+    optionalDependencies:
+      nodemailer: 6.9.16
 
-  '@auth/core@0.37.0':
+  '@auth/core@0.37.0(nodemailer@6.9.16)':
     dependencies:
       '@panva/hkdf': 1.2.1
       '@types/cookie': 0.6.0
@@ -5047,8 +5062,10 @@ snapshots:
       oauth4webapi: 3.8.6
       preact: 10.11.3
       preact-render-to-string: 5.2.3(preact@10.11.3)
+    optionalDependencies:
+      nodemailer: 6.9.16
 
-  '@auth/core@0.37.2':
+  '@auth/core@0.37.2(nodemailer@6.9.16)':
     dependencies:
       '@panva/hkdf': 1.2.1
       '@types/cookie': 0.6.0
@@ -5057,10 +5074,12 @@ snapshots:
       oauth4webapi: 3.8.6
       preact: 10.11.3
       preact-render-to-string: 5.2.3(preact@10.11.3)
+    optionalDependencies:
+      nodemailer: 6.9.16
 
-  '@auth/drizzle-adapter@1.5.2':
+  '@auth/drizzle-adapter@1.5.2(nodemailer@6.9.16)':
     dependencies:
-      '@auth/core': 0.35.2
+      '@auth/core': 0.35.2(nodemailer@6.9.16)
     transitivePeerDependencies:
       - '@simplewebauthn/browser'
       - '@simplewebauthn/server'
@@ -5942,6 +5961,10 @@ snapshots:
   '@types/node@20.16.10':
     dependencies:
       undici-types: 6.19.8
+
+  '@types/nodemailer@6.4.16':
+    dependencies:
+      '@types/node': 20.16.10
 
   '@types/pg@8.11.10':
     dependencies:
@@ -8455,11 +8478,13 @@ snapshots:
       '@nestjs/common': 10.4.4(reflect-metadata@0.2.2)(rxjs@7.8.1)
       pino-http: 10.5.0
 
-  next-auth@5.0.0-beta.25(next@15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0):
+  next-auth@5.0.0-beta.25(next@15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(nodemailer@6.9.16)(react@19.0.0):
     dependencies:
-      '@auth/core': 0.37.2
+      '@auth/core': 0.37.2(nodemailer@6.9.16)
       next: 15.1.6(@opentelemetry/api@1.9.1)(@playwright/test@1.48.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
+    optionalDependencies:
+      nodemailer: 6.9.16
 
   next-themes@0.4.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
@@ -8515,6 +8540,8 @@ snapshots:
   node-gyp-build@4.8.4: {}
 
   node-releases@2.0.46: {}
+
+  nodemailer@6.9.16: {}
 
   normalize-path@3.0.0: {}
 

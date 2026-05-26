@@ -9,3 +9,4 @@ export * from "./tickets";
 export * from "./wiki";
 export * from "./attachments";
 export * from "./dashboard";
+export * from "./notifications";

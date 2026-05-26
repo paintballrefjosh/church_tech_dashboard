@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 
 export async function TopBar() {
   const session = await auth();
@@ -34,7 +35,8 @@ export async function TopBar() {
             </nav>
           ) : null}
         </div>
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex items-center gap-3 text-sm">
+          {session?.user ? <NotificationBell /> : null}
           <ThemeToggle />
           {session?.user ? (
             <>

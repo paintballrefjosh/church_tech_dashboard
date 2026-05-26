@@ -25,6 +25,7 @@ import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decora
 import { TicketsService } from "./tickets.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService } from "../attachments/attachments.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 @Controller("tickets")
 export class TicketsController {
@@ -32,6 +33,7 @@ export class TicketsController {
     private readonly tickets: TicketsService,
     private readonly realtime: RealtimeGateway,
     private readonly attachments: AttachmentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -70,11 +72,49 @@ export class TicketsController {
   ) {
     const parsed = updateTicketSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+
+    // Capture prior values so we can detect assignment/status changes for
+    // notification fan-out. getById enforces visibility too.
+    const prior = await this.tickets.getById(user, id);
     const ticket = await this.tickets.update(user, id, parsed.data);
+
+    // Realtime fan-out (unchanged from before).
     this.realtime.toUser(ticket.createdByUserId, "ticket:updated", ticket);
     if (ticket.assignedUserId && ticket.assignedUserId !== ticket.createdByUserId) {
       this.realtime.toUser(ticket.assignedUserId, "ticket:updated", ticket);
     }
+
+    // Notifications: assignment change.
+    if (
+      ticket.assignedUserId &&
+      ticket.assignedUserId !== prior.assignedUserId
+    ) {
+      void this.notifications.create({
+        recipientUserId: ticket.assignedUserId,
+        kind: "ticket.assigned",
+        title: `Ticket #${ticket.number} assigned to you`,
+        body: ticket.title,
+        link: `/tickets/${ticket.id}`,
+        excludeActorId: user.id,
+      });
+    }
+
+    // Notifications: status change.
+    if (ticket.status !== prior.status) {
+      const recipients = new Set<string>([ticket.createdByUserId]);
+      if (ticket.assignedUserId) recipients.add(ticket.assignedUserId);
+      for (const rid of recipients) {
+        void this.notifications.create({
+          recipientUserId: rid,
+          kind: "ticket.status_changed",
+          title: `Ticket #${ticket.number} is now "${ticket.status}"`,
+          body: ticket.title,
+          link: `/tickets/${ticket.id}`,
+          excludeActorId: user.id,
+        });
+      }
+    }
+
     return ticket;
   }
 
@@ -109,6 +149,28 @@ export class TicketsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const comment = await this.tickets.addComment(user, id, parsed.data);
     this.realtime.toRoom(`ticket:${id}`, "ticket:comment", comment);
+
+    // Notify the ticket's creator + assignee (excluding the comment author).
+    // Internal comments only notify users who would otherwise see them; for
+    // now that's anyone with tickets:read:any. We approximate by skipping
+    // creator notification on internal comments (creator may be a 'user' role
+    // who can't read internals) but always notifying the assignee (assignment
+    // implies staff status).
+    const ticket = await this.tickets.getById(user, id);
+    const recipients = new Set<string>();
+    if (!comment.isInternal) recipients.add(ticket.createdByUserId);
+    if (ticket.assignedUserId) recipients.add(ticket.assignedUserId);
+    for (const rid of recipients) {
+      void this.notifications.create({
+        recipientUserId: rid,
+        kind: "ticket.comment",
+        title: `New comment on ticket #${ticket.number}`,
+        body: comment.body.slice(0, 280),
+        link: `/tickets/${ticket.id}`,
+        excludeActorId: user.id,
+      });
+    }
+
     return comment;
   }
 

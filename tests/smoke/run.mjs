@@ -933,6 +933,110 @@ async function main() {
     );
   });
 
+  // ---- notifications (Phase 1.7) ----
+  await test("GET /api/v1/notifications returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/notifications");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/notifications/unread-count starts at 0", async () => {
+    // Clear any leftovers from previous test sections so the baseline is clean.
+    const { res: list } = await fetchWithCookies("/api/v1/notifications?limit=200", {}, jar);
+    const existing = await list.json();
+    for (const n of existing) {
+      await fetchWithCookies(`/api/v1/notifications/${n.id}`, { method: "DELETE" }, jar);
+    }
+    const { res } = await fetchWithCookies("/api/v1/notifications/unread-count", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.count === 0, `expected 0, got ${body.count}`);
+  });
+
+  await test("POST /api/v1/notifications/test-email creates a self-notification", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/notifications/test-email",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: cnt } = await fetchWithCookies("/api/v1/notifications/unread-count", {}, jar);
+    const body = await cnt.json();
+    assert(body.count >= 1, `expected >=1, got ${body.count}`);
+  });
+
+  let lastNotificationId;
+  await test("GET /api/v1/notifications lists the test-email entry", async () => {
+    const { res } = await fetchWithCookies("/api/v1/notifications", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    const found = body.find((n) => n.kind === "system.test");
+    assert(found, "no system.test notification in list");
+    lastNotificationId = found.id;
+  });
+
+  await test("POST /api/v1/notifications/:id/read marks one read", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/notifications/${lastNotificationId}/read`,
+      { method: "POST" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: cnt } = await fetchWithCookies("/api/v1/notifications/unread-count", {}, jar);
+    const body = await cnt.json();
+    assert(body.count === 0, `expected 0 after mark-read, got ${body.count}`);
+  });
+
+  await test("DELETE /api/v1/notifications/:id dismisses it", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/notifications/${lastNotificationId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+  });
+
+  await test("test-email actually delivers to the SMTP server (MailHog)", async () => {
+    // Set the SMTP settings so MailerService has a usable config. Defaults
+    // here match the in-stack MailHog (apps/api/src/mailer/mailer.service.ts
+    // reads these keys at send time, no restart needed).
+    const settings = [
+      ["smtp.host", "mailhog", "string"],
+      ["smtp.port", 1025, "number"],
+      ["smtp.from_email", "noreply@church.local", "string"],
+      ["smtp.from_name", "Church Dashboard", "string"],
+    ];
+    for (const [key, value] of settings) {
+      const { res } = await fetchWithCookies(
+        `/api/v1/settings/${key}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ value }),
+        },
+        jar,
+      );
+      assert(res.status === 200 || res.status === 201, `setting ${key}: ${res.status}`);
+    }
+
+    // Drain MailHog so the count delta is clean.
+    await fetch("http://localhost:18025/api/v1/messages", { method: "DELETE" }).catch(() => undefined);
+
+    const { res } = await fetchWithCookies(
+      "/api/v1/notifications/test-email",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `test-email status ${res.status}`);
+
+    // Fire-and-forget send + cross-container SMTP; give it a moment.
+    await new Promise((r) => setTimeout(r, 800));
+    const inbox = await (await fetch("http://localhost:18025/api/v2/messages")).json();
+    assert(
+      (inbox.total ?? 0) >= 1,
+      `MailHog did not receive the test email: total=${inbox.total}`,
+    );
+  });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);
