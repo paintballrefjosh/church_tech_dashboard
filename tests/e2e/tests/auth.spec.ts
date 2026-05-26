@@ -69,7 +69,7 @@ test.describe("Phase 0 — auth + dashboard shell", () => {
       page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),
     ]);
-    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
   test("sign-out returns to /signin", async ({ page }) => {

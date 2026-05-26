@@ -8,3 +8,4 @@ export * from "./notes";
 export * from "./tickets";
 export * from "./wiki";
 export * from "./attachments";
+export * from "./dashboard";

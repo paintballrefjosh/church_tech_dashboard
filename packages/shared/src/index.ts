@@ -9,3 +9,4 @@ export * from "./schemas/note";
 export * from "./schemas/ticket";
 export * from "./schemas/wiki";
 export * from "./schemas/attachment";
+export * from "./schemas/dashboard";

@@ -856,6 +856,83 @@ async function main() {
     assert(Array.isArray(body) && body.length === 0, `expected empty list, got ${JSON.stringify(body)}`);
   });
 
+  // ---- dashboard tiles (Phase 1.6) ----
+  await test("GET /api/v1/dashboard/tiles returns the catalogue", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dashboard/tiles", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    const ids = body.map((t) => t.id);
+    assert(
+      ids.includes("tickets.summary") && ids.includes("notes.recent") &&
+        ids.includes("wiki.recent") && ids.includes("quick.links"),
+      `missing tile in catalogue: ${ids.join(",")}`,
+    );
+  });
+
+  await test("GET /api/v1/dashboard/layout returns the default before any save", async () => {
+    // Ensure a clean slate first.
+    await fetchWithCookies("/api/v1/dashboard/layout", { method: "DELETE" }, jar);
+    const { res } = await fetchWithCookies("/api/v1/dashboard/layout", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body.layout) && body.layout.length >= 1, `bad layout: ${JSON.stringify(body)}`);
+    assert(
+      body.layout.some((p) => p.tileId === "tickets.summary"),
+      "default layout missing tickets.summary",
+    );
+  });
+
+  await test("PUT /api/v1/dashboard/layout persists a custom layout", async () => {
+    const custom = {
+      layout: [
+        { tileId: "notes.recent", x: 0, y: 0, w: 6, h: 3 },
+        { tileId: "wiki.recent", x: 6, y: 0, w: 6, h: 3 },
+      ],
+    };
+    const { res } = await fetchWithCookies(
+      "/api/v1/dashboard/layout",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(custom),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: get } = await fetchWithCookies("/api/v1/dashboard/layout", {}, jar);
+    const body = await get.json();
+    assert(body.layout.length === 2, `expected 2 tiles, got ${body.layout.length}`);
+    assert(body.layout[0].tileId === "notes.recent", `bad first tile: ${body.layout[0].tileId}`);
+  });
+
+  await test("PUT rejects invalid placements (oversize w/h)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/dashboard/layout",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ layout: [{ tileId: "x", x: 0, y: 0, w: 999, h: 999 }] }),
+      },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/dashboard/layout reverts to default", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/dashboard/layout",
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 204, `status ${res.status}`);
+    const { res: get } = await fetchWithCookies("/api/v1/dashboard/layout", {}, jar);
+    const body = await get.json();
+    assert(
+      body.layout.some((p) => p.tileId === "quick.links"),
+      "after reset, expected default to be back (quick.links missing)",
+    );
+  });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);
