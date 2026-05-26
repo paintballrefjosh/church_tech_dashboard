@@ -1,0 +1,35 @@
+{
+	# HTTPS is offloaded by the upstream load balancer.
+	# We listen plain HTTP on :8100 only; no auto-TLS.
+	auto_https off
+
+	# Trust X-Forwarded-* headers. Lock this down at the LB, not here.
+	servers {
+		trusted_proxies static 0.0.0.0/0
+	}
+
+	log default {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+:8100 {
+	encode gzip zstd
+
+	# NestJS API. All backend routes are namespaced under /api/v1/.
+	handle /api/v1/* {
+		reverse_proxy api:3001
+	}
+
+	# Socket.io upgrade. reverse_proxy handles WS upgrades automatically.
+	handle /socket.io/* {
+		reverse_proxy api:3001
+	}
+
+	# Everything else -> Next.js (including /api/auth/* which is Auth.js).
+	handle {
+		reverse_proxy web:3000
+	}
+}

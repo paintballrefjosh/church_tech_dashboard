@@ -1,0 +1,178 @@
+name: church-prod
+
+x-cockroach-base: &cockroach-base
+  image: cockroachdb/cockroach:v24.2.0
+  restart: unless-stopped
+  networks: [internal]
+  healthcheck:
+    test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+
+services:
+  proxy:
+    image: caddy:2.8-alpine
+    ports:
+      - "${EXTERNAL_PORT:-8100}:8100"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+  cockroach-1:
+    <<: *cockroach-base
+    command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-1:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+    volumes:
+      - cockroach1-data:/cockroach/cockroach-data
+
+  cockroach-2:
+    <<: *cockroach-base
+    command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-2:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+    volumes:
+      - cockroach2-data:/cockroach/cockroach-data
+
+  cockroach-3:
+    <<: *cockroach-base
+    command: start --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-3:26257 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+    volumes:
+      - cockroach3-data:/cockroach/cockroach-data
+
+  cockroach-init:
+    image: cockroachdb/cockroach:v24.2.0
+    depends_on:
+      - cockroach-1
+      - cockroach-2
+      - cockroach-3
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      sleep 10 && \
+      cockroach init --insecure --host=cockroach-1 || true && \
+      sleep 5 && \
+      cockroach sql --insecure --host=cockroach-1 -e "CREATE DATABASE IF NOT EXISTS church"
+    restart: "no"
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      retries: 20
+    restart: unless-stopped
+    networks: [internal]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && \
+      mc mb --ignore-existing local/${MINIO_BUCKET:-church-files}
+    restart: "no"
+    networks: [internal]
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      retries: 20
+    restart: unless-stopped
+    networks: [internal]
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      COCKROACH_URL: postgresql://root@cockroach-1:26257/church?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      MEILI_URL: http://meilisearch:7700
+      MINIO_ENDPOINT: minio:9000
+    depends_on:
+      cockroach-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks: [internal]
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      API_INTERNAL_URL: http://api:3001
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  cockroach1-data:
+  cockroach2-data:
+  cockroach3-data:
+  redis-data:
+  minio-data:
+  meili-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:
+    driver: bridge

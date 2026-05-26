@@ -1,0 +1,171 @@
+name: church
+
+services:
+  proxy:
+    image: caddy:2.8-alpine
+    ports:
+      - "${EXTERNAL_PORT:-8100}:8100"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+  cockroach-1:
+    image: cockroachdb/cockroach:v24.2.0
+    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-1:26257
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks: [internal]
+
+  cockroach-init:
+    image: cockroachdb/cockroach:v24.2.0
+    depends_on:
+      cockroach-1:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      cockroach sql --insecure --host=cockroach-1 -e "CREATE DATABASE IF NOT EXISTS church"
+    restart: "no"
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-churchadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-please}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9090:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [internal]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-churchadmin} ${MINIO_ROOT_PASSWORD:-change-me-please} && \
+      mc mb --ignore-existing local/${MINIO_BUCKET:-church-files}
+    restart: "no"
+    networks: [internal]
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev-master-key-change-in-prod}
+      MEILI_ENV: development
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [internal]
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "8025:8025"
+    restart: unless-stopped
+    networks: [internal]
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    env_file: ../.env
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+      COCKROACH_URL: postgresql://root@cockroach-1:26257/church?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      MEILI_URL: http://meilisearch:7700
+      MINIO_ENDPOINT: minio:9000
+    depends_on:
+      cockroach-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/v1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [internal]
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    env_file: ../.env
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      API_INTERNAL_URL: http://api:3001
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  cockroach-data:
+  redis-data:
+  minio-data:
+  meili-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:
+    driver: bridge

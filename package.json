@@ -1,0 +1,33 @@
+{
+  "name": "church-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev:up": "docker compose -f infra/docker-compose.yml up -d --build",
+    "dev:down": "docker compose -f infra/docker-compose.yml down",
+    "dev:logs": "docker compose -f infra/docker-compose.yml logs -f --tail=200",
+    "dev:psql": "docker compose -f infra/docker-compose.yml exec cockroach-1 cockroach sql --insecure --database=church",
+    "prod:up": "docker compose -f infra/docker-compose.prod.yml up -d --build",
+    "prod:down": "docker compose -f infra/docker-compose.prod.yml down",
+    "db:generate": "pnpm --filter @church/api db:generate",
+    "db:migrate": "pnpm --filter @church/api db:migrate",
+    "db:seed": "pnpm --filter @church/api db:seed",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:smoke": "node tests/smoke/run.mjs",
+    "test:e2e": "pnpm --filter @church/e2e test",
+    "regression": "node tests/smoke/run.mjs && pnpm --filter @church/e2e test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\""
+  },
+  "devDependencies": {
+    "prettier": "3.3.3",
+    "turbo": "2.1.3",
+    "typescript": "5.6.2"
+  }
+}

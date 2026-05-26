@@ -1,0 +1,146 @@
+# Install & operate
+
+## Prerequisites
+
+- **Docker** 25+ with the Compose plugin (`docker compose version` should report v2.x)
+- A free **host port 8100** (configurable via `EXTERNAL_PORT` in `.env`)
+- A Google Workspace domain (free for nonprofits) for SSO + group sync, OR you can run
+  with local accounts only and add Google later
+
+You do **not** need Node.js or pnpm on the host. Every dev/admin command has a
+docker-only equivalent — see [the dockerized commands section](#dockerized-commands-no-node-on-host).
+
+## Quick start (dev)
+
+```bash
+git clone <this repo>
+cd church-dashboard
+cp .env.example .env
+$EDITOR .env                   # set AUTH_SECRET at minimum
+make up                        # builds and starts the dev stack
+make migrate                   # applies SQL migrations to Cockroach
+make seed                      # creates default roles/permissions + bootstrap admin
+make logs                      # tail everything
+```
+
+Then open <http://localhost:8100>. Sign in with the bootstrap admin credentials
+printed by `make seed` (or check `make seed-credentials`).
+
+The dev stack includes:
+- Single-node CockroachDB on internal `:26257` (web UI at <http://localhost:8180>)
+- MailHog SMTP sink at <http://localhost:8025>
+- MinIO console at <http://localhost:9090>
+- Meilisearch at internal `:7700` (no auth in dev)
+- Redis on internal `:6379`
+
+## Environment variables
+
+See `.env.example` for the full list. The most important ones:
+
+| Var | Required | Purpose |
+|---|---|---|
+| `AUTH_SECRET` | yes | Signs session cookies. Generate with `openssl rand -hex 32`. |
+| `EXTERNAL_PORT` | no | Host port for Caddy (default `8100`). |
+| `APP_URL` | yes | Public base URL (e.g. `https://dashboard.example.org`). Used in emails and OAuth redirects. |
+| `GOOGLE_OAUTH_CLIENT_ID` | no | Google OAuth client id. If unset, only local auth is available. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | no | Matching client secret. |
+| `GOOGLE_WORKSPACE_DOMAIN` | no | e.g. `mychurch.org`. If set, restricts Google sign-in to this domain. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | no | Path (in container) to a JSON key for Workspace Admin SDK. Required for Google Groups sync. |
+| `GOOGLE_ADMIN_IMPERSONATE` | no | Workspace admin email the service account impersonates for Directory API. |
+| `SMTP_*` | yes in prod | Real SMTP server for notifications. Dev uses MailHog automatically. |
+| `COCKROACH_URL` | no | Override DB URL. Defaults to in-stack `cockroach-1:26257`. |
+| `REDIS_URL` | no | Override Redis URL. |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | yes | MinIO admin credentials. |
+| `MEILI_MASTER_KEY` | yes in prod | Meilisearch master key. Dev uses a dev key. |
+
+## Google Workspace setup (optional but recommended)
+
+1. In Google Cloud Console, create a project for the church.
+2. Enable **Admin SDK API** and **People API**.
+3. Create an **OAuth 2.0 Client ID** (Web application). Authorized redirect URI:
+   `https://<APP_URL>/api/auth/callback/google`.
+   Put the client id/secret in `.env`.
+4. Create a **service account** with **domain-wide delegation** enabled.
+   - In the Workspace Admin Console → Security → API controls → Domain-wide delegation,
+     authorize the service account's client ID with these scopes:
+     - `https://www.googleapis.com/auth/admin.directory.group.readonly`
+     - `https://www.googleapis.com/auth/admin.directory.user.readonly`
+5. Download the service account JSON key, mount it into the `api` container
+   (compose already binds `./secrets/google-sa.json` if it exists), and set
+   `GOOGLE_SERVICE_ACCOUNT_JSON=/run/secrets/google-sa.json` and
+   `GOOGLE_ADMIN_IMPERSONATE=<a Workspace admin email>`.
+6. In the admin UI, click **Sync Google Groups** to pull groups in.
+
+If you skip this section, the app still works — just with local accounts and locally
+managed groups.
+
+## Production
+
+```bash
+cp .env.example .env
+$EDITOR .env                   # set everything; APP_URL, real SMTP, MinIO creds, etc.
+docker compose -f infra/docker-compose.prod.yml up -d --build
+docker compose -f infra/docker-compose.prod.yml exec api node dist/scripts/migrate.js
+docker compose -f infra/docker-compose.prod.yml exec api node dist/scripts/seed.js
+```
+
+The prod compose file:
+- Runs a 3-node CockroachDB cluster with persistent volumes
+- Drops MailHog (real SMTP from `SMTP_*` vars)
+- Drops the MinIO console exposure (admin via `mc` inside the container)
+- Restarts on failure (`restart: unless-stopped`)
+- Locks every non-proxy port behind the internal compose network
+
+Behind your load balancer, terminate TLS and proxy HTTP to the host's `:EXTERNAL_PORT`.
+Set `X-Forwarded-Proto: https` and `X-Forwarded-For: <client ip>` on the LB; Caddy
+trusts these by default in our config.
+
+## Dockerized commands (no Node on host)
+
+Every `make` target below can also be run via a one-off node container:
+
+```bash
+# install / lockfile
+docker run --rm -v "$PWD":/w -w /w node:20-alpine sh -c 'corepack enable && pnpm install'
+
+# typecheck
+docker run --rm -v "$PWD":/w -w /w node:20-alpine sh -c 'corepack enable && pnpm typecheck'
+
+# unit tests
+docker run --rm -v "$PWD":/w -w /w node:20-alpine sh -c 'corepack enable && pnpm test'
+```
+
+The `Makefile` wraps these so you can just `make install`, `make typecheck`, `make test`.
+
+## Backup & restore
+
+```bash
+# manual backup (dev or prod)
+make db-backup                 # writes ./backups/cockroach-YYYYMMDD-HHMM.sql.gz
+
+# restore from a backup file
+make db-restore FILE=./backups/cockroach-20260525-1830.sql.gz
+```
+
+In production, schedule `make db-backup` from cron on the host (or a dedicated
+sidecar). Backups include schema + data but **not** MinIO contents — back those up
+separately with `mc mirror`.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `http://localhost:8100` 502 | api or web not yet healthy | `make logs`, wait for both to report ready |
+| Cockroach won't start | volume from previous version | `make nuke` (DESTROYS DATA), then `make up` |
+| Google sign-in fails with `redirect_uri_mismatch` | OAuth redirect URI wrong | Confirm it ends with `/api/auth/callback/google` and `APP_URL` matches |
+| Sessions log out on every request | `AUTH_SECRET` not stable | Ensure `.env` is mounted into both `web` and `api` (it is by default) |
+| Audit log empty after mutations | hitting an unaudited route or interceptor disabled | Check the route exists in `apps/api/src` and the controller is under a module that imports `AuditModule` |
+
+For anything else, `make logs` and grep for `error`. If it's a code bug, file an issue.
+
+## Uninstall / wipe
+
+```bash
+make down       # stop containers, keep volumes (data preserved)
+make nuke       # stop + delete all volumes (DESTROYS ALL DATA)
+```
