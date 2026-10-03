@@ -1,6 +1,7 @@
-import type { CSSProperties } from "react";
+import { Children, isValidElement, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { ZoomableImage, ZoomableVideo } from "@/components/zoomable-media";
 
 /**
@@ -49,6 +50,19 @@ export function Markdown({ children }: { children: string }) {
                 {c}
               </code>
             );
+          },
+          // ```mermaid fences become diagrams (client-rendered); every other
+          // fenced block keeps the default <pre>.
+          pre(props) {
+            const { children: kids, node: _node, ...rest } = props;
+            const only = Children.toArray(kids)[0];
+            if (isValidElement(only)) {
+              const p = only.props as { className?: string; children?: ReactNode };
+              if (p.className?.split(/\s+/).includes("language-mermaid")) {
+                return <MermaidDiagram chart={String(p.children ?? "")} />;
+              }
+            }
+            return <pre {...rest}>{kids}</pre>;
           },
           // `![alt](url?t=video&w=480)` — the same markdown syntax notes use.
           // When the URL carries `t=video|audio` we swap the `<img>` for the
