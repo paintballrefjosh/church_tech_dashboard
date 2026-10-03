@@ -86,6 +86,7 @@ export async function collectProxmox(ctx: CollectContext): Promise<CollectResult
   let maxDisk: number | null = null;
   let guestsRunning = 0;
   let guestsStopped = 0;
+  let blindNodes = 0;
 
   // Nodes — enrich with per-node status for loadavg/rootfs.
   for (const r of resources.filter((x) => x.type === "node")) {
@@ -99,6 +100,8 @@ export async function collectProxmox(ctx: CollectContext): Promise<CollectResult
     }
     const cpuPct = r.cpu != null ? Math.round(r.cpu * 1000) / 10 : null;
     const memPct = r.mem != null && r.maxmem ? Math.round((r.mem / r.maxmem) * 1000) / 10 : null;
+    // An online node with no stats means the token can list it but lacks Sys.Audit.
+    if (r.status === "online" && r.cpu == null && r.mem == null) blindNodes++;
     const rootTotal = detail.rootfs?.total ?? 0;
     const rootUsed = detail.rootfs?.used ?? 0;
     const rootPct = rootTotal > 0 ? Math.round((rootUsed / rootTotal) * 1000) / 10 : null;
@@ -195,8 +198,14 @@ export async function collectProxmox(ctx: CollectContext): Promise<CollectResult
     },
   };
 
+  const warning =
+    blindNodes > 0
+      ? `Proxmox API token can see ${blindNodes} node(s) but returns no stats - grant it the PVEAuditor role on / (and disable Privilege Separation or give the token its own permission)`
+      : undefined;
+
   return {
     ok: true,
+    warning,
     target: { cpuPct: maxNodeCpu, memPct: maxNodeMem, diskPctMax: maxDisk, metrics },
     entities,
   };

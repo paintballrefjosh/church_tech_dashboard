@@ -46,6 +46,12 @@ export interface CollectedEntity {
 export interface CollectResult {
   ok: boolean;
   error?: string;
+  /**
+   * Set on an `ok` result that connected but is not collecting what it should
+   * (e.g. an API token without audit rights). Marks the target "degraded" and
+   * is surfaced as its lastError.
+   */
+  warning?: string;
   /** SSH host-key fingerprint discovered this connect (for TOFU pinning). */
   hostKey?: string | null;
   /** Target-level headline + detailed metrics. */

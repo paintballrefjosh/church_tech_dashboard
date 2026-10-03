@@ -233,9 +233,9 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
     await this.db
       .update(infraTargets)
       .set({
-        status: result.ok ? "up" : "down",
+        status: !result.ok ? "down" : result.warning ? "degraded" : "up",
         lastPolledAt: now,
-        lastError: result.ok ? null : result.error ?? "poll failed",
+        lastError: result.ok ? result.warning ?? null : result.error ?? "poll failed",
         lastSample: result.ok
           ? {
               cpuPct: result.target.cpuPct,
