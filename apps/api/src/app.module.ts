@@ -35,6 +35,7 @@ import { AuthTokensModule } from "./auth-tokens/auth-tokens.module";
 import { CiscoModule } from "./cisco/cisco.module";
 import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
+import { DnsModule } from "./dns/dns.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
 import { AuditInterceptor } from "./audit/audit.interceptor";
@@ -84,6 +85,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     CiscoModule,
     IpamModule,
     UpsModule,
+    DnsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: SessionGuard },

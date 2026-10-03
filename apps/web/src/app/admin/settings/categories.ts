@@ -105,7 +105,7 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
   {
     slug: "monitoring",
     label: "Monitoring & Network",
-    description: "Collector tick + concurrency, plus the UniFi controller URL and API key.",
+    description: "Collector tick + concurrency, the UniFi controller, and the Technitium DNS primary.",
     Icon: Server,
     section: "module",
     permission: "monitors:write:any",

@@ -1431,6 +1431,57 @@ async function main() {
     assert(Array.isArray(body) && body.length === 0, `expected []: ${JSON.stringify(body)}`);
   });
 
+  // ---- DNS (Technitium) ----
+  // Works whether or not a Technitium primary is configured on this stack:
+  // validation paths are checked unconditionally, the "not configured"
+  // behaviour only when summary says so.
+  await test("GET /api/v1/dns/summary returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dns/summary");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+  let dnsConfigured = false;
+  await test("GET /api/v1/dns/summary returns a summary", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dns/summary", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.configured === "boolean", `configured missing: ${JSON.stringify(body)}`);
+    assert(typeof body.unreachableNodes === "number", `unreachableNodes missing: ${JSON.stringify(body)}`);
+    dnsConfigured = body.configured;
+  });
+  await test("GET /api/v1/dns/zones/:zone/records rejects an invalid zone name", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/dns/zones/${encodeURIComponent("bad zone!")}/records`, {}, jar);
+    assert(res.status === 400, `status ${res.status}`);
+  });
+  await test("GET /api/v1/dns/stats rejects an unknown range", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dns/stats?range=Forever", {}, jar);
+    assert(res.status === 400, `status ${res.status}`);
+  });
+  await test("POST /api/v1/dns/test rejects a non-http URL without calling out", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/dns/test",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ baseUrl: "ftp://dns.invalid", apiToken: "x" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.ok === false && /http/.test(body.message), `unexpected: ${JSON.stringify(body)}`);
+  });
+  await test("DNS (unconfigured) zones are empty and records/stats return 503", async () => {
+    if (dnsConfigured) return; // live cluster attached; nothing to assert here
+    const { res: z } = await fetchWithCookies("/api/v1/dns/zones", {}, jar);
+    assert(z.status === 200, `zones status ${z.status}`);
+    const zones = await z.json();
+    assert(Array.isArray(zones) && zones.length === 0, `expected []: ${JSON.stringify(zones)}`);
+    const { res: r } = await fetchWithCookies("/api/v1/dns/zones/example.org/records", {}, jar);
+    assert(r.status === 503, `records status ${r.status}`);
+    const { res: s } = await fetchWithCookies("/api/v1/dns/stats?range=LastDay", {}, jar);
+    assert(s.status === 503, `stats status ${s.status}`);
+  });
+
   // ---- ProPresenter (Phase 2.3) ----
   await test("GET /api/v1/propresenter/health returns 401 without session", async () => {
     const { res } = await fetchWithCookies("/api/v1/propresenter/health");

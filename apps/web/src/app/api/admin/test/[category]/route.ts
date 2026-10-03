@@ -13,6 +13,7 @@ const ROUTES: Record<string, string> = {
   google: "/api/v1/auth/google/test",
   printers: "/api/v1/printers/test",
   monitoring: "/api/v1/unifi/test",
+  dns: "/api/v1/dns/test",
 };
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ category: string }> }) {

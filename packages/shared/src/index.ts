@@ -20,3 +20,4 @@ export * from "./schemas/printer";
 export * from "./schemas/cisco";
 export * from "./schemas/ipam";
 export * from "./schemas/ups";
+export * from "./schemas/dns";

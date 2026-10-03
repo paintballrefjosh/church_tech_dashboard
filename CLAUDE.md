@@ -153,6 +153,18 @@ over UPS-MIB / RFC 1628, mirroring the `printers` module — `ups_devices` table
 `monitoring` permissions like cisco/ipam — reads `monitors:read:any`, writes
 `monitors:write:any`, no dedicated module/permission strings).
 
+There is also a **DNS** tab (`/monitoring/dns` — the `dns` module: a client for a
+Technitium DNS Server cluster running *outside* this stack, so port 53 never
+touches compose). `dns/technitium.ts` calls the Technitium HTTP API with the token
+as `Authorization: Bearer` (never in the URL); only the cluster **primary** is
+configured (`dns.primary_url`, `dns.api_token`, `dns.verify_tls` in the
+`monitoring` settings category) because it alone accepts zone edits and
+aggregates cluster stats (`node=cluster`). Phase 1 is read-only: summary/tab
+badge (primary unreachable = critical, a non-connected cluster node = degraded),
+cluster nodes, query stats, zones and records. Same `monitors:*` permissions as
+cisco/ipam/ups. The planned IPAM→DNS sync (A/PTR for named hosts, opt-in per
+subnet) is not built yet.
+
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi
 device-offline, and Cisco switch alerts — incidents are still recorded, only the

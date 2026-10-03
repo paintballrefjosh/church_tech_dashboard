@@ -369,6 +369,36 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: false,
     category: "monitoring",
   },
+  // DNS (Monitoring → DNS). A Technitium DNS Server cluster, driven over its
+  // HTTP API. Only the cluster primary is configured here: it is the only node
+  // that accepts zone edits, and it aggregates stats for the whole cluster.
+  {
+    key: "dns.primary_url",
+    type: "string",
+    label: "Technitium primary URL",
+    description:
+      "Base URL of the Technitium cluster primary's web console/API (e.g. https://dns1.int.example.org:53443). Change it after promoting a secondary.",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
+    key: "dns.api_token",
+    type: "secret",
+    label: "Technitium API token",
+    description:
+      "API token for a dedicated Technitium user (Administration → Sessions → Create Token). Needs View on Dashboard, Zones and Administration; edits in later phases also need Modify on Zones.",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
+    key: "dns.verify_tls",
+    type: "boolean",
+    label: "Verify Technitium TLS certificate",
+    description:
+      "Off for Technitium's self-signed certificate. Turn on if the web console has a trusted cert.",
+    defaultValue: false,
+    category: "monitoring",
+  },
   // Printers — SNMP defaults + polling cadence. Per-printer values on the
   // `printers` rows override these when set.
   {

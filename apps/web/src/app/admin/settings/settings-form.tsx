@@ -13,16 +13,20 @@ type Known = {
 };
 
 /**
- * Per-category mapping for the "Test connection" button. Each entry knows
- * how to translate the form's flat `values` map (keyed by full setting keys
- * like "smtp.host") into the body expected by /api/admin/test/<category>.
- * Categories not listed don't show a Test button.
+ * Per-category "Test connection" buttons. Each entry knows how to translate
+ * the form's flat `values` map (keyed by full setting keys like "smtp.host")
+ * into the body expected by /api/admin/test/<target>; `target` defaults to the
+ * category slug. A category can carry several (Monitoring tests both UniFi and
+ * DNS). Categories not listed don't show a Test button.
  */
-const TEST_HANDLERS: Record<
-  string,
-  { label: string; build: (values: Record<string, unknown>) => Record<string, unknown> }
-> = {
-  smtp: {
+interface TestHandler {
+  label: string;
+  target?: string;
+  build: (values: Record<string, unknown>) => Record<string, unknown>;
+}
+
+const TEST_HANDLERS: Record<string, TestHandler[]> = {
+  smtp: [{
     label: "Test SMTP",
     build: (v) => ({
       host: v["smtp.host"],
@@ -33,23 +37,23 @@ const TEST_HANDLERS: Record<
       fromEmail: v["smtp.from_email"],
       fromName: v["smtp.from_name"],
     }),
-  },
-  google: {
+  }],
+  google: [{
     label: "Test Google OAuth",
     build: (v) => ({
       clientId: v["google.oauth.client_id"],
       clientSecret: v["google.oauth.client_secret"],
     }),
-  },
-  propresenter: {
+  }],
+  propresenter: [{
     label: "Test ProPresenter",
     build: (v) => ({
       host: v["propresenter.host"],
       port: v["propresenter.port"],
       password: v["propresenter.password"],
     }),
-  },
-  monitoring: {
+  }],
+  monitoring: [{
     label: "Test UniFi connection",
     build: (v) => ({
       baseUrl: v["unifi.controller_url"],
@@ -57,7 +61,15 @@ const TEST_HANDLERS: Record<
       siteId: v["unifi.site_id"],
       verifyTls: v["unifi.verify_tls"],
     }),
-  },
+  }, {
+    label: "Test DNS connection",
+    target: "dns",
+    build: (v) => ({
+      baseUrl: v["dns.primary_url"],
+      apiToken: v["dns.api_token"],
+      verifyTls: v["dns.verify_tls"],
+    }),
+  }],
 };
 
 /**
@@ -88,7 +100,7 @@ export function SettingsForm({
   const [testing, setTesting] = useState(false);
   const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
-  const testHandler = category ? TEST_HANDLERS[category] : undefined;
+  const testHandlers = category ? TEST_HANDLERS[category] ?? [] : [];
 
   /**
    * For a provider "enable" toggle, report which prerequisite credentials are
@@ -134,13 +146,14 @@ export function SettingsForm({
     });
   }
 
-  async function runTest() {
-    if (!testHandler || !category) return;
+  async function runTest(handler: TestHandler) {
+    if (!category) return;
     setStatus(null);
     setTesting(true);
     try {
-      const payload = testHandler.build(values);
-      const r = await fetch(`/api/admin/test/${encodeURIComponent(category)}`, {
+      const payload = handler.build(values);
+      const target = handler.target ?? category;
+      const r = await fetch(`/api/admin/test/${encodeURIComponent(target)}`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -265,7 +278,7 @@ export function SettingsForm({
         </p>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={saving || testing}
@@ -273,16 +286,17 @@ export function SettingsForm({
         >
           {saving ? "Saving…" : "Save changes"}
         </button>
-        {testHandler ? (
+        {testHandlers.map((h) => (
           <button
+            key={h.label}
             type="button"
-            onClick={runTest}
+            onClick={() => void runTest(h)}
             disabled={saving || testing}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            {testing ? "Testing…" : testHandler.label}
+            {testing ? "Testing…" : h.label}
           </button>
-        ) : null}
+        ))}
       </div>
     </form>
   );
