@@ -7,6 +7,10 @@ dist/
 *.log
 .DS_Store
 
+# NFS "silly rename" files: left behind when a file that is still open (for
+# example a bind-mounted config) is replaced on an NFS share
+.nfs*
+
 .env
 .env.local
 .env.*.local
