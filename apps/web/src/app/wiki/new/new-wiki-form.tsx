@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { WIKI_VISIBILITIES, type WikiVisibility } from "@church/shared";
 import { AclEditor, type AclState } from "../acl-editor";
+import { WikiBodyEditor } from "@/components/wiki-body-editor";
+import { WikiLocationPicker, type WikiLocation } from "../wiki-location-picker";
 
 interface GroupBrief {
   id: string;
@@ -10,10 +13,23 @@ interface GroupBrief {
 }
 
 export function NewWikiForm({ groups }: { groups: GroupBrief[] }) {
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [visibility, setVisibility] = useState<WikiVisibility>("public");
   const [acl, setAcl] = useState<AclState>([]);
   const [error, setError] = useState<string | null>(null);
+  const [body, setBody] = useState<string>("");
+  // Pre-filled from the tree sidebar's "New page here" / "New subpage here"
+  // actions (?parentFolderId=… / ?parentId=…); otherwise root.
+  const [location, setLocation] = useState<WikiLocation>(() => ({
+    parentId: searchParams.get("parentId"),
+    parentFolderId: searchParams.get("parentFolderId"),
+  }));
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function submitForm() {
+    formRef.current?.requestSubmit();
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,7 +37,6 @@ export function NewWikiForm({ groups }: { groups: GroupBrief[] }) {
     const form = e.currentTarget;
     const data = new FormData(form);
     const title = String(data.get("title") ?? "").trim();
-    const body = String(data.get("body") ?? "");
     if (!title) {
       setError("Title is required.");
       return;
@@ -34,7 +49,14 @@ export function NewWikiForm({ groups }: { groups: GroupBrief[] }) {
       const res = await fetch("/api/wiki", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, body, visibility, acl }),
+        body: JSON.stringify({
+          title,
+          body,
+          visibility,
+          acl,
+          parentId: location.parentId,
+          parentFolderId: location.parentFolderId,
+        }),
         credentials: "same-origin",
       });
       if (res.ok) {
@@ -48,7 +70,7 @@ export function NewWikiForm({ groups }: { groups: GroupBrief[] }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <form ref={formRef} onSubmit={onSubmit} className="mt-6 space-y-4">
       <label className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Title</span>
         <input
@@ -56,23 +78,30 @@ export function NewWikiForm({ groups }: { groups: GroupBrief[] }) {
           type="text"
           required
           maxLength={200}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base dark:border-slate-700 dark:bg-slate-950"
           placeholder="What's this page about?"
         />
       </label>
-      <label className="block">
-        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-          Body <span className="text-xs font-normal text-slate-500">(markdown)</span>
+      <WikiLocationPicker value={location} onChange={setLocation} />
+      <div className="block">
+        <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Body
         </span>
-        <textarea
+        {/* No onUpload until the page exists — the editor surfaces the
+            constraint inline when the user tries to drop or click the image
+            button. They can attach files from the page after creating it. */}
+        <WikiBodyEditor
           name="body"
-          rows={16}
-          maxLength={200_000}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-950"
-          placeholder={"# Heading\n\nWrite markdown here. **bold**, _italics_, [links](https://example.com), tables, code blocks."}
+          value={body}
+          onChange={setBody}
+          onSubmitShortcut={submitForm}
+          placeholder={"# Heading\n\nUse the toolbar, or type '/' on a new line for blocks. **bold**, _italics_, [links](https://example.com), code, tables."}
         />
-      </label>
-      <fieldset className="rounded-md border border-slate-200 p-4 dark:border-slate-800">
+      </div>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        You can attach files (images, video, PDFs, …) and embed them in the body once the page is created.
+      </p>
+      <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Visibility
         </legend>

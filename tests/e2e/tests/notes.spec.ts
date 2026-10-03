@@ -38,15 +38,19 @@ async function signInAsTestUser(page: Page) {
   }
 }
 
+// Every note this suite creates is prefixed with this marker so the cleanup
+// only touches its own rows — manual notes on a dev DB survive a test run.
+const E2E_PREFIX = "[e2e]";
+
 async function wipeAllNotes(page: Page) {
   for (const archived of ["false", "true"]) {
     const ids = (await page.evaluate(
-      async (a) => {
+      async ({ a, prefix }) => {
         const r = await fetch(`/api/notes?archived=${a}`, { credentials: "same-origin" });
-        const list = (await r.json()) as Array<{ id: string }>;
-        return list.map((n) => n.id);
+        const list = (await r.json()) as Array<{ id: string; title: string }>;
+        return list.filter((n) => n.title.startsWith(prefix)).map((n) => n.id);
       },
-      archived,
+      { a: archived, prefix: E2E_PREFIX },
     )) as string[];
     for (const id of ids) {
       await page.evaluate(
@@ -71,20 +75,28 @@ test.describe("Phase 1.1 — Notes", () => {
 
   test("Notes link from dashboard navigates to /notes", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Notes", exact: true }).first().click();
+    // Notes now lives inside the Docs dropdown. Open the menu then click in.
+    await page.getByRole("button", { name: /^docs$/i }).click();
+    await page.getByRole("menuitem", { name: /^notes$/i }).click();
     await page.waitForURL(/\/notes$/);
     await expect(page.getByRole("heading", { name: "Notes" })).toBeVisible();
   });
 
   test("create, edit, archive, and delete a note", async ({ page }) => {
-    // Start clean (beforeEach wiped everything)
-    await expect(page.getByText(/no notes yet/i)).toBeVisible();
+    const TITLE = "[e2e] note";
+    // React renders the `value` attribute on the title input's first render,
+    // so this CSS-attribute locator scopes the assertions to *just* our
+    // [e2e]-prefixed note even if the test user happens to have other notes.
+    const e2eTitle = page.locator(`input[aria-label="Note title"][value="${TITLE}"]`);
+
+    // Sanity: wipe should have cleared any prior [e2e] notes.
+    await expect(e2eTitle).toHaveCount(0);
 
     // create
     await page.getByRole("button", { name: /add note/i }).click();
     const titleField = page.getByLabel("Note title").first();
     await expect(titleField).toBeVisible();
-    await titleField.fill("e2e note");
+    await titleField.fill(TITLE);
     await titleField.blur();
     const bodyField = page.getByLabel("Note body").first();
     await bodyField.fill("written by playwright");
@@ -92,30 +104,29 @@ test.describe("Phase 1.1 — Notes", () => {
 
     // reload should persist
     await page.reload();
-    const persistedTitle = page.getByLabel("Note title");
-    await expect(persistedTitle).toHaveCount(1);
-    await expect(persistedTitle.first()).toHaveValue("e2e note");
-    await expect(page.getByLabel("Note body").first()).toHaveValue("written by playwright");
+    await expect(e2eTitle).toHaveCount(1);
+    const card = page.locator("article", { has: e2eTitle });
+    await expect(card.getByLabel("Note body")).toHaveValue("written by playwright");
 
     // archive
-    await page.getByRole("button", { name: "Archive" }).click();
-    await expect(page.getByText(/no notes yet/i)).toBeVisible();
+    await card.getByRole("button", { name: "Archive" }).click();
+    await expect(e2eTitle).toHaveCount(0);
 
     // toggle archived view, see the note again
     await page.getByRole("button", { name: "Active" }).click();
     await expect(page.getByRole("button", { name: "Showing archived" })).toBeVisible();
-    await expect(page.getByLabel("Note title").first()).toHaveValue("e2e note");
+    await expect(e2eTitle).toHaveCount(1);
 
     // delete from archived view
     page.once("dialog", (d) => d.accept());
-    await page.getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByText(/no archived notes/i)).toBeVisible();
+    await page.locator("article", { has: e2eTitle }).getByRole("button", { name: "Delete" }).click();
+    await expect(e2eTitle).toHaveCount(0);
   });
 
   test("attach an image to a note: preview appears, then delete removes it", async ({ page }) => {
     await page.goto("/notes");
     await page.getByRole("button", { name: /add note/i }).click();
-    await page.getByLabel("Note title").first().fill("with attachment");
+    await page.getByLabel("Note title").first().fill("[e2e] with attachment");
     await page.getByLabel("Note title").first().blur();
 
     // 67-byte PNG (1x1 transparent pixel).

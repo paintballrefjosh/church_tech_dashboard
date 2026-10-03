@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS "ups_devices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text NOT NULL,
+	"host" text NOT NULL,
+	"snmp_port" integer DEFAULT 161 NOT NULL,
+	"snmp_version" text,
+	"snmp_community" text,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"notes" text,
+	"last_status" text DEFAULT 'unknown' NOT NULL,
+	"last_checked_at" timestamp,
+	"last_error" text,
+	"battery_pct" integer,
+	"runtime_min" integer,
+	"load_pct" integer,
+	"input_voltage" real,
+	"output_voltage" real,
+	"battery_state" text DEFAULT 'unknown' NOT NULL,
+	"output_source" text DEFAULT 'unknown' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);

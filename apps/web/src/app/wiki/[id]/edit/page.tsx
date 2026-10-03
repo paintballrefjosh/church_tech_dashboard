@@ -3,6 +3,8 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { apiFetch, apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
+import { PageTitle } from "@/components/page-title";
+import { ArrowLeft, FileEdit } from "lucide-react";
 import { EditWikiForm } from "./edit-wiki-form";
 import type { WikiPage } from "@church/shared";
 
@@ -38,7 +40,7 @@ export default async function EditWikiPage({
     return (
       <>
         <TopBar />
-        <main className="mx-auto max-w-4xl px-4 py-8">
+        <main className="mx-auto max-w-6xl px-4 py-8">
           <p className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300">
             Couldn't load page ({res.status}).
           </p>
@@ -51,7 +53,7 @@ export default async function EditWikiPage({
     return (
       <>
         <TopBar />
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-6xl px-4 py-8">
           <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
             You don't have permission to edit this page.{" "}
             <Link href={`/wiki/${id}`} className="underline">
@@ -66,13 +68,13 @@ export default async function EditWikiPage({
   return (
     <>
       <TopBar />
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <nav className="mb-3 text-sm">
-          <Link href={`/wiki/${id}`} className="text-brand-600 hover:underline">
-            ← Back to page
+          <Link href={`/wiki/${id}`} className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to page
           </Link>
         </nav>
-        <h1 className="text-2xl font-semibold">Edit “{payload.page.title}”</h1>
+        <PageTitle icon={FileEdit}>Edit &ldquo;{payload.page.title}&rdquo;</PageTitle>
         <EditWikiForm
           page={payload.page}
           initialAcl={payload.acl}

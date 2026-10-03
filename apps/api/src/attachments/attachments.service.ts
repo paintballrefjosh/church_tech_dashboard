@@ -8,11 +8,13 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Readable } from "node:stream";
 import {
   ATTACHMENT_ALLOWED_CONTENT_TYPES,
+  ATTACHMENT_MAGICLESS_TYPES,
   type AttachmentParentType,
 } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { attachments } from "../db/schema";
 import { getMinio } from "./minio.client";
+import { reconcileMime } from "./magic-bytes";
 
 export interface IncomingFile {
   filename: string;
@@ -48,10 +50,28 @@ export class AttachmentsService {
     uploaderUserId: string | null,
     file: IncomingFile,
   ): Promise<StoredAttachment> {
-    const contentType = (file.mimetype || "application/octet-stream").toLowerCase();
-    if (!ATTACHMENT_ALLOWED_CONTENT_TYPES.includes(contentType)) {
-      throw new BadRequestException(`content-type ${contentType} not allowed`);
+    const declared = (file.mimetype || "").toLowerCase();
+    if (!declared || !ATTACHMENT_ALLOWED_CONTENT_TYPES.includes(declared)) {
+      throw new BadRequestException(`content-type ${declared || "<missing>"} not allowed`);
     }
+
+    // Buffer the upload so we can sniff magic bytes before storing.
+    // fastify-multipart caps fileSize at MAX_ATTACHMENT_BYTES (10 MiB) so the
+    // memory cost per upload is bounded.
+    const chunks: Buffer[] = [];
+    for await (const chunk of file.stream) {
+      chunks.push(chunk as Buffer);
+    }
+    const buf = Buffer.concat(chunks);
+    if (buf.length === 0) throw new BadRequestException("empty upload");
+
+    let contentType: string;
+    try {
+      contentType = reconcileMime(declared, buf.subarray(0, 16), ATTACHMENT_MAGICLESS_TYPES);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+
     const filename = sanitiseFilename(file.filename);
     const id = crypto.randomUUID();
     const ext = extOf(filename);
@@ -60,21 +80,9 @@ export class AttachmentsService {
     const { client, bucket } = getMinio();
     await ensureBucket(client, bucket);
 
-    // Stream straight to MinIO. Size is enforced by fastify-multipart's
-    // file-size limit; if exceeded the stream throws before we can write the row.
-    const info = await client.putObject(bucket, storageKey, file.stream, undefined, {
+    await client.putObject(bucket, storageKey, buf, buf.length, {
       "Content-Type": contentType,
     });
-
-    // Read back the actual stored size — minio returns it on completion.
-    let sizeBytes = 0;
-    try {
-      const stat = await client.statObject(bucket, storageKey);
-      sizeBytes = stat.size;
-    } catch {
-      sizeBytes = 0;
-    }
-    void info;
 
     const [row] = await this.db
       .insert(attachments)
@@ -84,7 +92,7 @@ export class AttachmentsService {
         uploaderUserId,
         filename,
         contentType,
-        sizeBytes,
+        sizeBytes: buf.length,
         storageKey,
       })
       .returning();

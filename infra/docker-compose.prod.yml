@@ -2,7 +2,7 @@ name: church-prod
 
 x-cockroach-base: &cockroach-base
   image: cockroachdb/cockroach:v24.2.0
-  restart: unless-stopped
+  restart: always
   networks: [internal]
   healthcheck:
     test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
@@ -24,7 +24,7 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
   cockroach-1:
@@ -69,7 +69,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       retries: 10
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
   minio:
@@ -84,7 +84,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       retries: 20
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
   minio-init:
@@ -110,13 +110,18 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
       retries: 20
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
   api:
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
+    # NET_RAW lets the IPAM scanner send ICMP echo (via busybox `ping`) for its
+    # host sweep. Node can't open raw sockets itself; without this the scanner
+    # silently falls back to its TCP-connect probe.
+    cap_add:
+      - NET_RAW
     env_file: ../.env
     environment:
       NODE_ENV: production
@@ -139,7 +144,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
   web:
@@ -161,7 +166,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-    restart: unless-stopped
+    restart: always
     networks: [internal]
 
 # Volumes are bind-mounted into ./data/<service>/ at the project root so a tar

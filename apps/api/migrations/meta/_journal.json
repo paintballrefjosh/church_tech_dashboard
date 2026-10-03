@@ -57,6 +57,286 @@
       "when": 1748649600000,
       "tag": "0007_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1748736000000,
+      "tag": "0008_notes_grid",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1748822400000,
+      "tag": "0009_user_page_width",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1748908800000,
+      "tag": "0010_user_page_width_presets",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1748995200000,
+      "tag": "0011_notification_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1749081600000,
+      "tag": "0012_monitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1749168000000,
+      "tag": "0013_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1749254400000,
+      "tag": "0014_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1749340800000,
+      "tag": "0015_ticket_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1749427200000,
+      "tag": "0016_planning_center",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1749513600000,
+      "tag": "0017_admin_perms",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1749600000000,
+      "tag": "0018_module_read_perms",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1749686400000,
+      "tag": "0019_fix_categories_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1749772800000,
+      "tag": "0020_checklists",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1749859200000,
+      "tag": "0021_printers",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1749945600000,
+      "tag": "0022_roles_to_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1750032000000,
+      "tag": "0023_drop_menu_visibility_perms",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1750118400000,
+      "tag": "0024_module_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780038462915,
+      "tag": "0025_groovy_tinkerer",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1780064752516,
+      "tag": "0026_fantastic_sabretooth",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1780067559314,
+      "tag": "0027_cooing_wind_dancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1780502515760,
+      "tag": "0028_add_user_approval_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780510521041,
+      "tag": "0029_petite_nick_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783403051639,
+      "tag": "0030_polite_magneto",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783403052639,
+      "tag": "0031_merge_network_into_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783403053639,
+      "tag": "0032_infra_os_capabilities",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1783403054639,
+      "tag": "0033_cisco_switches",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1783403055639,
+      "tag": "0034_cisco_alert_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1783403056639,
+      "tag": "0035_unifi_device_acks",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1783403057639,
+      "tag": "0036_ipam",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785114251091,
+      "tag": "0037_faithful_layla_miller",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785115374845,
+      "tag": "0038_ups_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1789192385559,
+      "tag": "0039_checklist_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789312680975,
+      "tag": "0040_wiki_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789400457484,
+      "tag": "0041_ipam_label_auto",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789404752088,
+      "tag": "0042_checklist_service_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789422544759,
+      "tag": "0043_checklist_stations",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1789944677598,
+      "tag": "0044_infra_update_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1789947206820,
+      "tag": "0045_infra_update_runs_full_upgrade",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1789970682083,
+      "tag": "0046_infra_update_runs_include_phased",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790057082083,
+      "tag": "0047_ticket_comment_kind",
+      "breakpoints": true
     }
   ]
 }

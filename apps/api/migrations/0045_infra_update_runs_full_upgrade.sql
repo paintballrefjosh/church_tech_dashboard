@@ -1,0 +1,1 @@
+ALTER TABLE "infra_update_runs" ADD COLUMN "full_upgrade" boolean DEFAULT false NOT NULL;

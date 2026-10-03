@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Put, BadRequestException } from "@nestjs
 import { dashboardLayoutSchema, TILE_CATALOGUE } from "@church/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { DashboardService } from "./dashboard.service";
+import { SkipAudit } from "../audit/audit.decorator";
 
 @Controller("dashboard")
 export class DashboardController {
@@ -18,7 +19,10 @@ export class DashboardController {
     return { layout: await this.dashboard.getLayout(user.id) };
   }
 
+  // Layout saves fire on every drag/resize — auditing would flood without
+  // adding any meaningful signal. The user is editing their own preference.
   @Put("layout")
+  @SkipAudit()
   async saveLayout(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     const parsed = dashboardLayoutSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
@@ -27,6 +31,7 @@ export class DashboardController {
   }
 
   @Delete("layout")
+  @SkipAudit()
   async reset(@CurrentUser() user: AuthenticatedUser) {
     await this.dashboard.reset(user.id);
     return { ok: true };

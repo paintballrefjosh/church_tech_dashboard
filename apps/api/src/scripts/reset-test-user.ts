@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
-import { DEFAULT_ROLES } from "@church/shared";
+import { DEFAULT_GROUPS } from "@church/shared";
 import * as schema from "../db/schema";
 
 /**
@@ -16,7 +16,7 @@ import * as schema from "../db/schema";
  *   email                 regression-test@local
  *   password              regression-default-pwd
  *   must_change_password  true       (so the change-password gate can be tested)
- *   roles                 admin      (so admin-scoped endpoints can be exercised)
+ *   groups                admin      (so admin-scoped endpoints can be exercised)
  *   notes / other rows    DELETED via FK cascade
  */
 const TEST_EMAIL = "regression-test@local";
@@ -46,18 +46,18 @@ async function main() {
   const hash = await argon2.hash(TEST_DEFAULT_PASSWORD, { type: argon2.argon2id });
   await db.insert(schema.credentials).values({ userId: user.id, passwordHash: hash });
 
-  // Grant the admin role (must exist — seed.js creates it on first run).
-  const [adminRole] = await db
+  // Add to the admin group (must exist — seed.js creates it on first run).
+  const [adminGroup] = await db
     .select()
-    .from(schema.roles)
-    .where(eq(schema.roles.key, DEFAULT_ROLES.ADMIN))
+    .from(schema.groups)
+    .where(eq(schema.groups.name, DEFAULT_GROUPS.ADMIN))
     .limit(1);
-  if (!adminRole) {
-    throw new Error("admin role missing — run `make seed` first");
+  if (!adminGroup) {
+    throw new Error("admin group missing — run `make seed` first");
   }
-  await db.insert(schema.userRoles).values({ userId: user.id, roleId: adminRole.id });
+  await db.insert(schema.groupMemberships).values({ userId: user.id, groupId: adminGroup.id });
 
-  console.log(`[reset-test-user] ${TEST_EMAIL} / ${TEST_DEFAULT_PASSWORD}  (must_change_password=true, role=admin)`);
+  console.log(`[reset-test-user] ${TEST_EMAIL} / ${TEST_DEFAULT_PASSWORD}  (must_change_password=true, group=admin)`);
   console.log("[reset-test-user] bootstrap admin NOT touched.");
 
   await pool.end();

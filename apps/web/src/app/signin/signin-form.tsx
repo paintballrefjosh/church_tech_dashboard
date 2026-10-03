@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 /**
  * Hydrates a native HTML form with a freshly-fetched CSRF token. We use a
@@ -40,7 +41,7 @@ export function SignInForm({
           inputMode="email"
           required
           autoComplete="username"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950"
         />
       </label>
       <label className="block">
@@ -50,7 +51,7 @@ export function SignInForm({
           type="password"
           required
           autoComplete="current-password"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950"
         />
       </label>
       {needsTotp ? (
@@ -58,11 +59,14 @@ export function SignInForm({
           <span className="text-sm text-slate-700 dark:text-slate-300">Two-factor code</span>
           <input
             name="totp"
-            inputMode="numeric"
-            pattern="\d{6}"
+            autoComplete="one-time-code"
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm tracking-widest dark:border-slate-700 dark:bg-slate-950"
+            placeholder="6-digit code, or recovery code"
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-950"
           />
+          <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">
+            Lost your phone? Enter one of your one-time recovery codes instead.
+          </span>
         </label>
       ) : null}
       {loadError ? (
@@ -76,10 +80,16 @@ export function SignInForm({
       <button
         type="submit"
         disabled={!csrfToken}
-        className="w-full rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+        className="w-full rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-medium text-white shadow-sm shadow-brand-600/30 transition hover:-translate-y-px hover:bg-brand-700 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none dark:focus-visible:ring-offset-slate-900"
       >
         {csrfToken ? "Sign in" : "Loading…"}
       </button>
+      <Link
+        href="/forgot-password"
+        className="block text-center text-xs text-slate-500 hover:underline"
+      >
+        Forgot password?
+      </Link>
     </form>
   );
 }

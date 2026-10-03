@@ -14,33 +14,56 @@ export function NotificationsPanel({
   const [items, setItems] = useState<Notification[]>(initial);
   const [unreadOnly, setUnreadOnly] = useState(initialUnreadOnly);
 
+  // Always load the full list; the All/Unread toggle filters client-side so
+  // switching views never hits the network. `initial` may be pre-filtered to
+  // unread (when the page was opened with ?unread=true), so we refetch the
+  // unfiltered set once on mount to back the "All" view.
   const refresh = useCallback(async () => {
-    const r = await fetch(`/api/notifications?limit=100${unreadOnly ? "&unread=true" : ""}`, {
+    const r = await fetch(`/api/notifications?limit=100`, {
       credentials: "same-origin",
       cache: "no-store",
     });
     if (r.ok) setItems((await r.json()) as Notification[]);
-  }, [unreadOnly]);
+  }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
+  const visible = unreadOnly ? items.filter((n) => !n.readAt) : items;
+
   async function markRead(id: string) {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)));
+    // Only decrement the topbar badge if the notification was actually unread.
+    let wasUnread = false;
+    setItems((prev) =>
+      prev.map((n) => {
+        if (n.id === id) {
+          wasUnread = !n.readAt;
+          return { ...n, readAt: new Date().toISOString() };
+        }
+        return n;
+      }),
+    );
     await fetch(`/api/notifications/${id}/read`, { method: "POST", credentials: "same-origin" });
-    if (unreadOnly) void refresh();
+    if (wasUnread) emitChange({ delta: -1 });
   }
 
   async function markAllRead() {
     setItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
     await fetch("/api/notifications/read-all", { method: "POST", credentials: "same-origin" });
-    if (unreadOnly) void refresh();
+    emitChange({ setTo: 0 });
   }
 
   async function dismiss(id: string) {
-    setItems((prev) => prev.filter((n) => n.id !== id));
+    // Same logic as markRead — only decrement if it was unread before being dropped.
+    let wasUnread = false;
+    setItems((prev) => {
+      const target = prev.find((n) => n.id === id);
+      wasUnread = !!target && !target.readAt;
+      return prev.filter((n) => n.id !== id);
+    });
     await fetch(`/api/notifications/${id}`, { method: "DELETE", credentials: "same-origin" });
+    if (wasUnread) emitChange({ delta: -1 });
   }
 
   return (
@@ -79,13 +102,13 @@ export function NotificationsPanel({
         </button>
       </div>
 
-      {items.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
           {unreadOnly ? "No unread notifications." : "Nothing yet."}
         </p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
-          {items.map((n) => (
+        <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
+          {visible.map((n) => (
             <li
               key={n.id}
               className={`flex items-start gap-3 px-4 py-3 ${
@@ -137,4 +160,15 @@ export function NotificationsPanel({
       )}
     </div>
   );
+}
+
+/**
+ * Same-tab signal to the topbar UserMenu so it can decrement its badge without
+ * waiting for the 30s background poll. `delta` adjusts the current count;
+ * `setTo` clamps it to an absolute value (used by "mark all read"). The
+ * UserMenu component listens for "notifications:changed".
+ */
+function emitChange(detail: { delta?: number; setTo?: number }) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("notifications:changed", { detail }));
 }

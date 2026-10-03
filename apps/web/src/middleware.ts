@@ -9,6 +9,8 @@ const SESSION_COOKIE_CANDIDATES = [
 
 const PUBLIC_PATH_PREFIXES = [
   "/signin",
+  "/forgot-password",
+  "/set-password",
   "/api/auth",
   "/api/health",
   "/_next",
@@ -29,6 +31,11 @@ export function middleware(req: NextRequest) {
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
+  // Pending/approval gating is done in the server components (home page →
+  // /pending, /pending verifies via fresh /me, and the API blocks pending
+  // users at 403). We deliberately don't decode the JWT here: the cookie can
+  // lag the DB (first sign-in, or just after an admin approves), and a
+  // token-vs-DB disagreement between middleware and /pending would loop.
   return NextResponse.next();
 }
 

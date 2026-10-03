@@ -10,8 +10,23 @@ export const NOTIFICATION_KINDS = [
   "ticket.assigned",
   "ticket.status_changed",
   "ticket.comment",
+  "wiki.updated",
+  "monitor.incident.opened",
+  "monitor.incident.resolved",
+  "mention",
+  "checklist.assigned",
+  "user.approval_pending",
+  "cisco.device_offline",
+  "cisco.port_change",
+  "cisco.config_change",
+  "cisco.uptime_change",
+  "unifi.device_offline",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/** OAuth account approval states stored in users.approval_status. */
+export const APPROVAL_STATUSES = ["approved", "pending"] as const;
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 
 export const notificationSchema = z.object({
   id: z.string().uuid(),

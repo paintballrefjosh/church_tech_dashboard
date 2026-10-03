@@ -24,13 +24,11 @@ load_var() {
 
 EXTERNAL_PORT=$(load_var EXTERNAL_PORT 8100)
 COCKROACH_UI_PORT=$(load_var COCKROACH_UI_PORT 8180)
-MAILHOG_UI_PORT=$(load_var MAILHOG_UI_PORT 18025)
 
 # Map: "label:env-var-name:port"
 declare -a CHECKS=(
   "Caddy proxy (browser entrypoint):EXTERNAL_PORT:${EXTERNAL_PORT}"
   "Cockroach admin UI:COCKROACH_UI_PORT:${COCKROACH_UI_PORT}"
-  "MailHog inbox UI:MAILHOG_UI_PORT:${MAILHOG_UI_PORT}"
 )
 
 # What's listening? Prefer `ss` (faster, modern); fall back to `netstat`.

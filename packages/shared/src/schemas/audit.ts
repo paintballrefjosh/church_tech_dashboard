@@ -22,6 +22,11 @@ export const auditListQuerySchema = z.object({
   actorUserId: z.string().uuid().optional(),
   resourceType: z.string().optional(),
   action: z.string().optional(),
+  // Inclusive lower-bound / exclusive upper-bound on `ts`. `from`/`to` are
+  // accepted as either full datetime strings or YYYY-MM-DD (we treat YYYY-MM-DD
+  // as midnight UTC for the UI date-picker case).
+  from: z.string().min(8).max(40).optional(),
+  to: z.string().min(8).max(40).optional(),
 });
 
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;

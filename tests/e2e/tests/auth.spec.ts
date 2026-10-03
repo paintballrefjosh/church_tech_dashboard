@@ -80,7 +80,10 @@ test.describe("Phase 0 — auth + dashboard shell", () => {
       page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 }),
       page.getByRole("button", { name: "Sign in" }).click(),
     ]);
-    await page.getByRole("button", { name: "Sign out" }).click();
+    // Sign out now lives inside the username dropdown. Open the user menu
+    // (the trigger button shows the user's email), then click Sign out.
+    await page.locator('button[aria-haspopup="menu"]').filter({ hasText: TEST_USER }).click();
+    await page.getByRole("menuitem", { name: /sign out/i }).click();
     await page.waitForURL(/\/signin/);
   });
 });

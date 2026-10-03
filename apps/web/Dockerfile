@@ -1,12 +1,20 @@
+# syntax=docker/dockerfile:1.6
+# 1.6 enables RUN --mount=type=cache so pnpm's content-addressed store survives
+# across builds. Without it, every lockfile change re-downloads + re-extracts
+# every dependency from scratch.
+
 FROM node:20-alpine AS base
 RUN corepack enable
 WORKDIR /app
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PNPM_STORE_PATH=/root/.local/share/pnpm/store
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 FROM base AS build
 ENV NEXT_TELEMETRY_DISABLED=1

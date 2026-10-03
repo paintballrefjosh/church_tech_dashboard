@@ -1,0 +1,1 @@
+ALTER TABLE "infra_update_runs" ADD COLUMN "include_phased" boolean DEFAULT false NOT NULL;

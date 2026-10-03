@@ -72,7 +72,7 @@ export function AclEditor({
           No groups added. At least one group is required for restricted pages.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+        <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
           {value.map((a) => (
             <li key={a.groupId} className="flex items-center gap-3 px-3 py-2">
               <span className="flex-1 truncate">

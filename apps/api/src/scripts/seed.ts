@@ -5,9 +5,9 @@ import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import {
   ALL_PERMISSIONS,
-  DEFAULT_ROLES,
-  DEFAULT_ROLE_PERMISSIONS,
-  DEFAULT_ROLE_DESCRIPTIONS,
+  DEFAULT_GROUPS,
+  DEFAULT_GROUP_DESCRIPTIONS,
+  DEFAULT_GROUP_MODULE_ACCESS,
 } from "@church/shared";
 import * as schema from "../db/schema";
 
@@ -15,11 +15,15 @@ import * as schema from "../db/schema";
  * Idempotent seed. Safe to re-run.
  *
  * On a fresh DB it creates:
- *   - all permission rows (from packages/shared)
- *   - the three system roles (admin, support_engineer, user) with default permissions
- *   - one bootstrap admin: email "admin", password "admin", with must_change_password=true
+ *   - all permission rows (from packages/shared) — kept for legacy
+ *     references in audit/admin matrix; new code reads modules, not perms
+ *   - the three default groups (admin, support_engineer, user) with
+ *     is_system=true on admin + user
+ *   - per-group module access rows from DEFAULT_GROUP_MODULE_ACCESS
+ *   - one bootstrap admin: email "admin", password "admin",
+ *     with must_change_password=true, member of the admin group
  *
- * On subsequent runs it only inserts missing rows and never overwrites passwords.
+ * On subsequent runs only inserts missing rows; never overwrites passwords.
  */
 async function main() {
   const url = process.env.COCKROACH_URL;
@@ -33,41 +37,47 @@ async function main() {
     await db.insert(schema.permissions).values({ key, description: null }).onConflictDoNothing();
   }
 
-  console.log("[seed] system roles");
-  const roleKeyToId = new Map<string, string>();
-  for (const key of Object.values(DEFAULT_ROLES)) {
-    let [row] = await db.select().from(schema.roles).where(eq(schema.roles.key, key)).limit(1);
+  console.log("[seed] default groups");
+  const groupNameToId = new Map<string, string>();
+  for (const name of Object.values(DEFAULT_GROUPS)) {
+    const isSystem = name === DEFAULT_GROUPS.ADMIN || name === DEFAULT_GROUPS.USER;
+    let [row] = await db.select().from(schema.groups).where(eq(schema.groups.name, name)).limit(1);
     if (!row) {
       [row] = await db
-        .insert(schema.roles)
+        .insert(schema.groups)
         .values({
-          key,
-          description: DEFAULT_ROLE_DESCRIPTIONS[key as keyof typeof DEFAULT_ROLE_DESCRIPTIONS] ?? null,
-          isSystem: true,
+          name,
+          description: DEFAULT_GROUP_DESCRIPTIONS[name as keyof typeof DEFAULT_GROUP_DESCRIPTIONS] ?? null,
+          isManaged: false,
+          isSystem,
         })
         .returning();
+    } else if (isSystem && !row.isSystem) {
+      // Existing row predates the is_system column. Flip the flag so the
+      // delete-protection guards engage.
+      [row] = await db
+        .update(schema.groups)
+        .set({ isSystem: true, updatedAt: new Date() })
+        .where(eq(schema.groups.id, row.id))
+        .returning();
     }
-    if (!row) throw new Error(`Failed to upsert role ${key}`);
-    roleKeyToId.set(key, row.id);
+    if (!row) throw new Error(`Failed to upsert group ${name}`);
+    groupNameToId.set(name, row.id);
   }
 
-  console.log("[seed] role -> permissions");
-  for (const [roleKey, perms] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
-    const roleId = roleKeyToId.get(roleKey);
-    if (!roleId) continue;
-    for (const permissionKey of perms) {
+  console.log("[seed] group module access");
+  for (const [groupName, access] of Object.entries(DEFAULT_GROUP_MODULE_ACCESS)) {
+    const groupId = groupNameToId.get(groupName);
+    if (!groupId) continue;
+    for (const [moduleKey, tier] of Object.entries(access)) {
       await db
-        .insert(schema.rolePermissions)
-        .values({ roleId, permissionKey })
+        .insert(schema.groupModuleAccess)
+        .values({ groupId, moduleKey, tier })
         .onConflictDoNothing();
     }
   }
 
   // ---- bootstrap admin ----
-  // Username "admin" is stored as email "admin@local" so it survives the email-unique
-  // constraint and ordinary user-management code can treat it like any other account.
-  // The login form normalises bare "admin" to "admin@local" so the user just types
-  // "admin / admin" the first time, then is forced to change the password.
   const bootstrapEmail = "admin@local";
   const bootstrapPassword = "admin";
 
@@ -101,11 +111,11 @@ async function main() {
     console.log(`[seed] bootstrap admin already exists (${bootstrapEmail}) — not touching password`);
   }
 
-  const adminRoleId = roleKeyToId.get(DEFAULT_ROLES.ADMIN);
-  if (adminRoleId) {
+  const adminGroupId = groupNameToId.get(DEFAULT_GROUPS.ADMIN);
+  if (adminGroupId) {
     await db
-      .insert(schema.userRoles)
-      .values({ userId: adminUser.id, roleId: adminRoleId })
+      .insert(schema.groupMemberships)
+      .values({ userId: adminUser.id, groupId: adminGroupId })
       .onConflictDoNothing();
   }
 

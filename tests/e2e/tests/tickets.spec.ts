@@ -34,14 +34,18 @@ async function signInAsTestUser(page: Page) {
   }
 }
 
+// Every ticket this suite creates is prefixed with this marker so the cleanup
+// only touches its own rows — manual tickets on a dev DB survive a test run.
+const E2E_PREFIX = "[e2e]";
+
 async function wipeAllTickets(page: Page) {
   // Visit /tickets so same-origin fetch is reliable.
   await page.goto("/tickets?scope=all");
-  const ids = (await page.evaluate(async () => {
+  const ids = (await page.evaluate(async (prefix) => {
     const r = await fetch("/api/tickets?scope=all", { credentials: "same-origin" });
-    const list = (await r.json()) as Array<{ id: string }>;
-    return list.map((t) => t.id);
-  })) as string[];
+    const list = (await r.json()) as Array<{ id: string; title: string }>;
+    return list.filter((t) => t.title.startsWith(prefix)).map((t) => t.id);
+  }, E2E_PREFIX)) as string[];
   for (const id of ids) {
     await page.evaluate(
       (i) => fetch(`/api/tickets/${i}`, { method: "DELETE", credentials: "same-origin" }),
@@ -58,7 +62,10 @@ test.describe("Phase 1.3 — Tickets", () => {
 
   test("Tickets link from the nav goes to /tickets", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Tickets", exact: true }).first().click();
+    // Tickets now lives inside the IT dropdown as "Help Desk". Open the menu
+    // then click the menu item.
+    await page.getByRole("button", { name: /^it$/i }).click();
+    await page.getByRole("menuitem", { name: /help desk/i }).click();
     await page.waitForURL(/\/tickets(\?|$)/);
     await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
   });
@@ -66,7 +73,7 @@ test.describe("Phase 1.3 — Tickets", () => {
   test("create a ticket, see it on the list, open it, change status, comment", async ({ page }) => {
     // Create
     await page.goto("/tickets/new");
-    await page.getByLabel("Title").fill("printer in foyer is jammed");
+    await page.getByLabel("Title").fill("[e2e] printer in foyer is jammed");
     await page.getByLabel("Description").fill("Won't feed paper. Tried restart.");
     await page.getByLabel("Priority").selectOption("high");
     await Promise.all([
@@ -76,7 +83,7 @@ test.describe("Phase 1.3 — Tickets", () => {
 
     // Detail page renders
     await expect(page.getByRole("heading", { name: "Tickets" })).toHaveCount(0);
-    await expect(page.getByLabel("Title")).toHaveValue("printer in foyer is jammed");
+    await expect(page.getByLabel("Title")).toHaveValue("[e2e] printer in foyer is jammed");
 
     // Change status to in_progress via the sidebar dropdown
     await page.getByRole("combobox").first().selectOption("in_progress");
@@ -90,14 +97,14 @@ test.describe("Phase 1.3 — Tickets", () => {
 
     // Back to the list; the ticket appears with the in_progress badge
     await page.goto("/tickets");
-    await expect(page.getByText("printer in foyer is jammed")).toBeVisible();
+    await expect(page.getByText("[e2e] printer in foyer is jammed")).toBeVisible();
     await expect(page.getByText("In progress").first()).toBeVisible();
   });
 
   test("admin/staff can post an internal comment that's flagged 'internal'", async ({ page }) => {
     // Create a ticket to attach the comment to.
     await page.goto("/tickets/new");
-    await page.getByLabel("Title").fill("internal comment test");
+    await page.getByLabel("Title").fill("[e2e] internal comment test");
     await Promise.all([
       page.waitForURL(/\/tickets\/[0-9a-f-]+$/, { timeout: 15_000 }),
       page.getByRole("button", { name: /create ticket/i }).click(),

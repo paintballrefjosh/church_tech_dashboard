@@ -24,3 +24,7 @@ test-results/
 .claude/
 .vscode/
 .idea/
+
+# rebuild script markers (see scripts/rebuild.sh)
+.last-rebuild
+.last-migrate

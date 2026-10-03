@@ -11,6 +11,7 @@ import {
 import { notificationListQuerySchema } from "@church/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { NotificationsService } from "./notifications.service";
+import { SkipAudit } from "../audit/audit.decorator";
 
 @Controller("notifications")
 export class NotificationsController {
@@ -28,19 +29,24 @@ export class NotificationsController {
     return { count: await this.notifications.unreadCount(user.id) };
   }
 
+  // The "read"/"dismiss" endpoints fire on every notification click — auditing
+  // them would flood audit_log without surfacing anything actionable.
   @Post(":id/read")
+  @SkipAudit()
   async markRead(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     await this.notifications.markRead(user.id, id);
     return { ok: true };
   }
 
   @Post("read-all")
+  @SkipAudit()
   async markAllRead(@CurrentUser() user: AuthenticatedUser) {
     await this.notifications.markAllRead(user.id);
     return { ok: true };
   }
 
   @Delete(":id")
+  @SkipAudit()
   async dismiss(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     await this.notifications.dismiss(user.id, id);
     return { ok: true };

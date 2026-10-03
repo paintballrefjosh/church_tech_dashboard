@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, index, primaryKey } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /**
@@ -27,5 +27,30 @@ export const notifications = pgTable(
   (t) => ({
     recipientIdx: index("notifications_recipient_idx").on(t.recipientUserId, t.createdAt),
     unreadIdx: index("notifications_unread_idx").on(t.recipientUserId, t.readAt),
+  }),
+);
+
+/**
+ * Per-user per-kind delivery preferences. `channels` is the set of channels
+ * the user wants to be notified through for that kind — "in_app", "email",
+ * both, or neither. Rows are upserted by /me/notification-prefs; a missing
+ * row means "use the global default" (in_app + email).
+ *
+ * Replaces the older `users.muted_notification_kinds` array column, which
+ * is left in place so the rolling upgrade still works (NotificationsService
+ * unions both sources during the migration window).
+ */
+export const notificationPrefs = pgTable(
+  "notification_prefs",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    channels: text("channels").array().notNull().default([]),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.kind] }),
   }),
 );

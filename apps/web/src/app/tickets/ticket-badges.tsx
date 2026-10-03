@@ -1,4 +1,5 @@
-import type { TicketPriority, TicketStatus } from "@church/shared";
+import type { Ticket, TicketPriority, TicketSlaMap, TicketStatus } from "@church/shared";
+import { ticketSlaStatus } from "@church/shared";
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
   open: "Open",
@@ -40,6 +41,32 @@ export function PriorityBadge({ priority }: { priority: TicketPriority }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_CLASS[priority]}`}>
       {PRIORITY_LABEL[priority]}
+    </span>
+  );
+}
+
+/**
+ * Red pill when the ticket has missed an SLA target. Renders nothing when
+ * both clocks are within target (or disabled). The `slaTargets` map is
+ * delivered by GET /me; rendering happens in the browser so the badge tracks
+ * the clock without server re-fetch.
+ */
+export function SlaBadge({
+  ticket,
+  slaTargets,
+}: {
+  ticket: Pick<Ticket, "priority" | "createdAt" | "firstResponseAt" | "status" | "resolvedAt">;
+  slaTargets: TicketSlaMap;
+}) {
+  const { responseBreached, resolutionBreached } = ticketSlaStatus(ticket, slaTargets);
+  if (!responseBreached && !resolutionBreached) return null;
+  const label = resolutionBreached ? "SLA: resolution overdue" : "SLA: response overdue";
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-900/50 dark:text-rose-200"
+      title={label}
+    >
+      {resolutionBreached ? "Overdue" : "Late"}
     </span>
   );
 }

@@ -134,9 +134,13 @@ export class NotesController {
     const { row, storageKey } = await this.attachments.getOne("note", id, aid);
     const stream = await this.attachments.openStream(storageKey);
     // Inline images so the UI can preview them; everything else downloads.
+    // nosniff stops the browser from MIME-sniffing past our declared type,
+    // which combined with upload-time magic-byte validation means a file
+    // stored as image/png really will be rendered (and only rendered) as one.
     const disp = row.contentType.startsWith("image/") ? "inline" : "attachment";
     void reply
       .header("content-type", row.contentType)
+      .header("x-content-type-options", "nosniff")
       .header(
         "content-disposition",
         `${disp}; filename="${encodeURIComponent(row.filename)}"`,

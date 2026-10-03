@@ -17,7 +17,9 @@ export type Group = z.infer<typeof groupSchema>;
 
 export const createGroupSchema = z.object({
   name: z.string().min(1).max(120),
-  description: z.string().max(1000).optional(),
+  // Allow null so the admin UI can clear the description by sending `null`;
+  // omit the field entirely (undefined) to leave it untouched on PATCH.
+  description: z.string().max(1000).nullable().optional(),
 });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;

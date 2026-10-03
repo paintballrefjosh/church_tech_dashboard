@@ -14,9 +14,11 @@ import {
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   PERMISSIONS,
+  MAX_IMPORT_SOURCE_BYTES,
   createWikiPageSchema,
   updateWikiPageSchema,
   wikiPageListQuerySchema,
+  importWikiQuerySchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
@@ -24,6 +26,9 @@ import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decora
 import { WikiService } from "./wiki.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService } from "../attachments/attachments.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { MentionsService } from "../mentions/mentions.service";
+import { WikiImportService } from "./import/wiki-import.service";
 
 @Controller("wiki")
 export class WikiController {
@@ -31,6 +36,9 @@ export class WikiController {
     private readonly wiki: WikiService,
     private readonly realtime: RealtimeGateway,
     private readonly attachments: AttachmentsService,
+    private readonly notifications: NotificationsService,
+    private readonly wikiImport: WikiImportService,
+    private readonly mentions: MentionsService,
   ) {}
 
   @Get()
@@ -47,10 +55,41 @@ export class WikiController {
     return this.wiki.getWithAcl(user, id);
   }
 
+  @Get("tree")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  tree(@CurrentUser() user: AuthenticatedUser) {
+    return this.wiki.tree(user);
+  }
+
   @Get(":id/revisions")
   @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
   revisions(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.wiki.revisions(user, id);
+  }
+
+  @Get(":id/revisions/:revId")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  getRevision(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("revId") revId: string,
+  ) {
+    return this.wiki.getRevision(user, id, revId);
+  }
+
+  @Post(":id/revisions/:revId/revert")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  @Audited({
+    action: "wiki.revert",
+    resourceType: "wiki_page",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async revert(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Param("revId") revId: string,
+  ) {
+    return this.wiki.revertToRevision(user, id, revId);
   }
 
   @Post()
@@ -60,6 +99,42 @@ export class WikiController {
     const parsed = createWikiPageSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const page = await this.wiki.create(user, parsed.data);
+    this.realtime.toUser(user.id, "wiki:created", page);
+    return page;
+  }
+
+  // ---- file import (.docx / .txt / .pdf) ----
+
+  @Post("import")
+  @RequirePermissions(PERMISSIONS.WIKI_CREATE)
+  @Audited({ action: "wiki.import", resourceType: "wiki_page" })
+  async importFile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: unknown,
+    @Req() req: FastifyRequest,
+  ) {
+    const parsed = importWikiQuerySchema.safeParse(query ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+
+    const part = await (req as FastifyRequest & {
+      file: (opts?: {
+        limits?: { fileSize?: number };
+      }) => Promise<
+        { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+      >;
+    }).file({ limits: { fileSize: MAX_IMPORT_SOURCE_BYTES } });
+    if (!part) throw new BadRequestException("multipart 'file' field is required");
+
+    const page = await this.wikiImport.import(user, {
+      filename: part.filename,
+      mimetype: part.mimetype,
+      buffer: await part.toBuffer(),
+      title: parsed.data.title,
+      visibility: parsed.data.visibility,
+      acl: parsed.data.acl,
+      parentId: parsed.data.parentId,
+      parentFolderId: parsed.data.parentFolderId,
+    });
     this.realtime.toUser(user.id, "wiki:created", page);
     return page;
   }
@@ -80,6 +155,36 @@ export class WikiController {
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const page = await this.wiki.update(user, id, parsed.data);
     this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
+
+    // Notify the owner + everyone with ACL access (excluding the actor). We
+    // skip email here — wiki edits can be high-volume and notifications
+    // already show up in the bell + (if open) the page room. Cheaper for the
+    // SMTP relay and friendlier to the recipient's inbox.
+    const recipients = await this.wiki.recipientsForPageChange(id);
+    void this.notifications.createMany(
+      recipients.map((rid) => ({
+        recipientUserId: rid,
+        kind: "wiki.updated",
+        title: `Wiki page updated: ${page.title}`,
+        body: parsed.data.summary ?? "",
+        link: `/wiki/${page.id}`,
+        excludeActorId: user.id,
+        email: false,
+      })),
+    );
+
+    // Fan out @mention notifications from the new body. We only mention on
+    // body changes (visibility/ACL-only edits don't trigger this).
+    if (parsed.data.body !== undefined) {
+      void this.mentions.notify({
+        body: parsed.data.body,
+        excludeUserId: user.id,
+        title: `Mentioned in wiki page: ${page.title}`,
+        summary: parsed.data.body,
+        link: `/wiki/${page.id}`,
+      });
+    }
+
     return page;
   }
 
@@ -150,6 +255,7 @@ export class WikiController {
     const disp = row.contentType.startsWith("image/") ? "inline" : "attachment";
     void reply
       .header("content-type", row.contentType)
+      .header("x-content-type-options", "nosniff")
       .header(
         "content-disposition",
         `${disp}; filename="${encodeURIComponent(row.filename)}"`,

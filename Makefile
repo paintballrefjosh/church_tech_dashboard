@@ -4,7 +4,7 @@ COMPOSE_PROD := docker compose -f infra/docker-compose.prod.yml
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
-.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs
+.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs rebuild rebuild-all
 
 help:
 	@echo "Common targets:"
@@ -19,6 +19,7 @@ help:
 	@echo "  make seed             Seed default roles + bootstrap admin"
 	@echo "  make reset-admin      Force the bootstrap admin back to admin/admin (manual only)"
 	@echo "  make reset-test-user  Force the regression test user back to default state"
+	@echo "  make disable-test-user Disable the regression test user (post-test teardown)"
 	@echo "  make regression       Run smoke + e2e suite (does NOT touch bootstrap admin)"
 	@echo "  make prod-up          Start prod stack"
 
@@ -66,6 +67,16 @@ psql:
 migrate:
 	$(COMPOSE) exec api node dist/scripts/migrate.js
 
+# Selective rebuild for the dev iteration loop: only rebuilds api/web if their
+# source actually changed since the last invocation, then applies migrations
+# only if there are new SQL files. Replaces the slower pattern of unconditionally
+# running `docker compose up -d --build api web` after every code change.
+rebuild:
+	@bash scripts/rebuild.sh
+
+rebuild-all:
+	@bash scripts/rebuild.sh --all
+
 seed:
 	$(COMPOSE) exec api node dist/scripts/seed.js
 
@@ -77,6 +88,12 @@ reset-admin:
 # The bootstrap admin user is NOT touched.
 reset-test-user:
 	$(COMPOSE) exec api node dist/scripts/reset-test-user.js
+
+# Teardown counterpart: disables the regression test user once testing is done
+# so the known-password admin account never lingers active (sign-in locked +
+# dropped from notification recipients). reset-test-user re-enables it next run.
+disable-test-user:
+	$(COMPOSE) exec api node dist/scripts/disable-test-user.js
 
 install:
 	$(NODE_RUN) '$(PNPM) install --frozen-lockfile || $(PNPM) install'
@@ -112,9 +129,10 @@ test-e2e:
 # the suite so the test user starts in a known default state.
 regression:
 	@$(MAKE) reset-test-user
-	@$(MAKE) test-smoke
-	@$(MAKE) test-e2e
-	@echo "regression done — bootstrap admin password unchanged"
+	@set +e; $(MAKE) test-smoke && $(MAKE) test-e2e; status=$$?; set -e; \
+	  $(MAKE) disable-test-user; \
+	  echo "regression done — bootstrap admin password unchanged; test user disabled"; \
+	  exit $$status
 
 nuke:
 	$(COMPOSE) down -v

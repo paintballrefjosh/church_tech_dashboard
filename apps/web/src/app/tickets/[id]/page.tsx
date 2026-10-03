@@ -5,6 +5,7 @@ import { apiJson, apiFetch } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { TicketDetail } from "./ticket-detail";
 import type { Ticket, TicketComment } from "@church/shared";
+import { type TagLike } from "@/components/tag-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function TicketDetailPage({
     return (
       <>
         <TopBar />
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-6xl px-4 py-8">
           <p className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300">
             Couldn't load ticket ({ticketRes.status}).
           </p>
@@ -53,19 +54,28 @@ export default async function TicketDetailPage({
   }
   const ticket = (await ticketRes.json()) as Ticket;
 
-  const [comments, users] = await Promise.all([
+  // Fetch comments, assignable users, tags, and categories in parallel up front
+  // so the detail component renders complete instead of firing client-side
+  // requests for tags/categories after mount.
+  const [comments, users, tags, categories] = await Promise.all([
     apiJson<TicketComment[]>(`/api/v1/tickets/${encodeURIComponent(id)}/comments`).catch(
       () => [] as TicketComment[],
     ),
-    perms.has("tickets:assign")
+    perms.has("tickets:admin")
       ? apiJson<UserBrief[]>("/api/v1/users").catch(() => [] as UserBrief[])
       : Promise.resolve([] as UserBrief[]),
+    apiJson<TagLike[]>(`/api/v1/tags/ticket/${encodeURIComponent(id)}`).catch(
+      () => [] as TagLike[],
+    ),
+    apiJson<TagLike[]>(`/api/v1/ticket-categories/for/${encodeURIComponent(id)}`).catch(
+      () => [] as TagLike[],
+    ),
   ]);
 
   return (
     <>
       <TopBar />
-      <main className="mx-auto max-w-3xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6">
         <nav className="mb-4 text-sm">
           <Link href="/tickets" className="text-brand-600 hover:underline">
             ← All tickets
@@ -74,14 +84,16 @@ export default async function TicketDetailPage({
         <TicketDetail
           ticket={ticket}
           initialComments={comments}
+          initialTags={tags}
+          initialCategories={categories}
           me={{ id: me.id, email: me.email, name: me.name }}
           assignableUsers={users}
           can={{
-            writeAny: perms.has("tickets:write:any"),
+            writeAny: perms.has("tickets:admin"),
             writeOwn: perms.has("tickets:write:own"),
-            assign: perms.has("tickets:assign"),
-            deleteAny: perms.has("tickets:delete:any"),
-            writeInternalComment: perms.has("ticket_comments:write:internal"),
+            assign: perms.has("tickets:admin"),
+            deleteAny: perms.has("tickets:admin"),
+            writeInternalComment: perms.has("tickets:admin"),
           }}
         />
       </main>

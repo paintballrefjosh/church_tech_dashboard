@@ -3,8 +3,18 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
+import { PageTitle } from "@/components/page-title";
+import { LifeBuoy, Plus } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "./ticket-badges";
-import type { Ticket, TicketStatus, TicketPriority } from "@church/shared";
+import { TicketsTagFilter } from "./tag-filter-island";
+import { TicketsListClient } from "./tickets-list-client";
+import { SavedViewsBar } from "./saved-views-bar";
+import type {
+  Ticket,
+  TicketSlaMap,
+  TicketStatus,
+  TicketPriority,
+} from "@church/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +30,7 @@ export default async function TicketsListPage({
     assigned?: string;
     scope?: string;
     q?: string;
+    tag?: string;
   }>;
 }) {
   const session = await auth();
@@ -33,8 +44,16 @@ export default async function TicketsListPage({
     id: string;
     email: string;
     permissions: string[];
+    slaTargets?: TicketSlaMap;
   }>("/api/v1/me").catch(() => null);
   const canSeeAll = me?.permissions.includes("tickets:read:any") ?? false;
+  const canAdmin = me?.permissions.includes("tickets:admin") ?? false;
+  const slaTargets: TicketSlaMap = me?.slaTargets ?? {
+    low: { responseMin: 0, resolutionMin: 0 },
+    normal: { responseMin: 0, resolutionMin: 0 },
+    high: { responseMin: 0, resolutionMin: 0 },
+    urgent: { responseMin: 0, resolutionMin: 0 },
+  };
   const scope = params.scope === "all" && canSeeAll ? "all" : "own";
 
   const qs = new URLSearchParams();
@@ -44,6 +63,7 @@ export default async function TicketsListPage({
     qs.set("priority", params.priority);
   if (params.assigned === "me" || params.assigned === "unassigned") qs.set("assigned", params.assigned);
   if (params.q) qs.set("q", params.q);
+  if (params.tag) qs.set("tagId", params.tag);
 
   const tickets = await apiJson<Ticket[]>(`/api/v1/tickets?${qs}`).catch(() => [] as Ticket[]);
 
@@ -62,13 +82,13 @@ export default async function TicketsListPage({
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <header className="mb-4 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">Tickets</h1>
+          <PageTitle icon={LifeBuoy}>Tickets</PageTitle>
           <div className="ml-auto flex items-center gap-2">
             <Link
               href="/tickets/new"
-              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
             >
-              + New ticket
+              <Plus className="h-4 w-4" aria-hidden /> New ticket
             </Link>
           </div>
         </header>
@@ -129,36 +149,17 @@ export default async function TicketsListPage({
           ) : null}
         </div>
 
-        {tickets.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            No tickets match these filters.{" "}
-            <Link href="/tickets/new" className="text-brand-600 underline">
-              Open a new one
-            </Link>
-            .
-          </p>
-        ) : (
-          <ul className="divide-y divide-slate-200 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
-            {tickets.map((t) => (
-              <li key={t.id}>
-                <Link
-                  href={`/tickets/${t.id}`}
-                  className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-900"
-                >
-                  <span className="w-12 font-mono text-xs text-slate-500 dark:text-slate-400">
-                    #{t.number}
-                  </span>
-                  <span className="flex-1 truncate text-sm font-medium">{t.title}</span>
-                  <PriorityBadge priority={t.priority} />
-                  <StatusBadge status={t.status} />
-                  <span className="hidden w-32 text-right text-xs text-slate-500 dark:text-slate-400 sm:inline">
-                    {new Date(t.updatedAt).toLocaleString()}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <TicketsTagFilter />
+
+        <div className="mb-4">
+          <SavedViewsBar resourceType="ticket" />
+        </div>
+
+        <TicketsListClient
+          tickets={tickets}
+          slaTargets={slaTargets}
+          canAdmin={canAdmin}
+        />
       </main>
     </>
   );

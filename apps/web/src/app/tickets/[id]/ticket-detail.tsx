@@ -12,6 +12,9 @@ import {
 } from "@church/shared";
 import { StatusBadge, PriorityBadge } from "../ticket-badges";
 import { AttachmentList } from "@/components/attachment-list";
+import { TagPicker } from "@/components/tag-picker";
+import { TicketCategoryPicker } from "@/components/ticket-category-picker";
+import { type TagLike } from "@/components/tag-badge";
 
 interface UserBrief {
   id: string;
@@ -30,12 +33,16 @@ interface Capabilities {
 export function TicketDetail({
   ticket: initial,
   initialComments,
+  initialTags,
+  initialCategories,
   me,
   assignableUsers,
   can,
 }: {
   ticket: Ticket;
   initialComments: TicketComment[];
+  initialTags: TagLike[];
+  initialCategories: TagLike[];
   me: UserBrief;
   assignableUsers: UserBrief[];
   can: Capabilities;
@@ -44,7 +51,36 @@ export function TicketDetail({
   const [comments, setComments] = useState(initialComments);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Tags and categories are fetched server-side and passed in; the picker
+  // mutates these via saveTags/saveCategories below.
+  const [tags, setTags] = useState<TagLike[]>(initialTags);
+  const [categories, setCategories] = useState<TagLike[]>(initialCategories);
   const router = useRouter();
+
+  async function saveTags(next: TagLike[]) {
+    setTags(next);
+    await fetch(`/api/tags/for/ticket/${ticket.id}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tagIds: next.map((t) => t.id) }),
+    });
+    void refreshComments();
+  }
+
+  // Categories are a separate, admin-curated catalogue — saved against its own
+  // endpoint. We don't roll them into the tag payload so the picker can offer
+  // creation only for tags.
+  async function saveCategories(next: TagLike[]) {
+    setCategories(next);
+    await fetch(`/api/ticket-categories/for/${ticket.id}`, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ categoryIds: next.map((c) => c.id) }),
+    });
+    void refreshComments();
+  }
 
   const isOwner = ticket.createdByUserId === me.id;
   const canEditCore = can.writeAny || (isOwner && can.writeOwn);
@@ -70,6 +106,7 @@ export function TicketDetail({
         return;
       }
       setTicket((await res.json()) as Ticket);
+      void refreshComments();
     });
   }
 
@@ -113,6 +150,14 @@ export function TicketDetail({
       setComments((prev) => [...prev, c]);
       form.reset();
     });
+  }
+
+  async function refreshComments() {
+    const res = await fetch(`/api/tickets/${ticket.id}/comments`, {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (res.ok) setComments((await res.json()) as TicketComment[]);
   }
 
   function deleteComment(cid: string) {
@@ -167,7 +212,7 @@ export function TicketDetail({
                 if (e.target.value !== ticket.description) patch({ description: e.target.value });
               }}
               rows={6}
-              className="mt-1 w-full resize-y rounded-md border border-slate-200 bg-transparent p-3 text-sm outline-none focus:border-brand-500 dark:border-slate-800"
+              className="mt-1 w-full resize-y rounded-md border border-slate-300 bg-transparent p-3 text-sm outline-none focus:border-brand-500 dark:border-slate-800"
               placeholder="Add detail…"
             />
           ) : (
@@ -179,12 +224,31 @@ export function TicketDetail({
 
         <section>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Tags
+          </h2>
+          <TagPicker value={tags} onChange={(next) => void saveTags(next)} />
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Categories
+          </h2>
+          <TicketCategoryPicker
+            value={categories}
+            onChange={(next) => void saveCategories(next)}
+            canEdit={canEditCore}
+          />
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Attachments
           </h2>
           <AttachmentList
             baseUrl={`/api/tickets/${ticket.id}/attachments`}
             canEdit={canEditCore}
             layout="row"
+            onChange={() => void refreshComments()}
           />
         </section>
 
@@ -196,13 +260,21 @@ export function TicketDetail({
             <p className="text-sm text-slate-500 dark:text-slate-400">No comments yet.</p>
           ) : (
             <ul className="space-y-3">
-              {comments.map((c) => (
+              {comments.map((c) =>
+                c.kind === "event" ? (
+                  <li
+                    key={c.id}
+                    className="border-l-2 border-slate-300 pl-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                  >
+                    {c.body} · {new Date(c.createdAt).toLocaleString()}
+                  </li>
+                ) : (
                 <li
                   key={c.id}
                   className={`rounded-md border p-3 text-sm ${
                     c.isInternal
                       ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/30"
-                      : "border-slate-200 dark:border-slate-800"
+                      : "border-slate-300 dark:border-slate-800"
                   }`}
                 >
                   <header className="mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
@@ -223,7 +295,8 @@ export function TicketDetail({
                   </header>
                   <p className="whitespace-pre-wrap">{c.body}</p>
                 </li>
-              ))}
+                ),
+              )}
             </ul>
           )}
 
@@ -264,7 +337,7 @@ export function TicketDetail({
         ) : null}
       </div>
 
-      <aside className="space-y-4 rounded-md border border-slate-200 p-4 text-sm dark:border-slate-800">
+      <aside className="space-y-4 rounded-md border border-slate-300 p-4 text-sm dark:border-slate-800">
         <Field label="Status">
           {allowedStatuses.length > 0 ? (
             <select
@@ -353,7 +426,7 @@ export function TicketDetail({
         ) : null}
 
         {can.deleteAny ? (
-          <div className="border-t border-slate-200 pt-3 dark:border-slate-800">
+          <div className="border-t border-slate-300 pt-3 dark:border-slate-800">
             <button
               type="button"
               onClick={destroyTicket}

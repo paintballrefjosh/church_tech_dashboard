@@ -18,14 +18,16 @@ import {
   updateTicketSchema,
   ticketListQuerySchema,
   createCommentSchema,
+  bulkTicketActionSchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { TicketsService } from "./tickets.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
-import { AttachmentsService } from "../attachments/attachments.service";
+import { AttachmentsService, type StoredAttachment } from "../attachments/attachments.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { MentionsService } from "../mentions/mentions.service";
 
 @Controller("tickets")
 export class TicketsController {
@@ -34,6 +36,7 @@ export class TicketsController {
     private readonly realtime: RealtimeGateway,
     private readonly attachments: AttachmentsService,
     private readonly notifications: NotificationsService,
+    private readonly mentions: MentionsService,
   ) {}
 
   @Get()
@@ -103,28 +106,72 @@ export class TicketsController {
     if (ticket.status !== prior.status) {
       const recipients = new Set<string>([ticket.createdByUserId]);
       if (ticket.assignedUserId) recipients.add(ticket.assignedUserId);
-      for (const rid of recipients) {
-        void this.notifications.create({
+      void this.notifications.createMany(
+        [...recipients].map((rid) => ({
           recipientUserId: rid,
           kind: "ticket.status_changed",
           title: `Ticket #${ticket.number} is now "${ticket.status}"`,
           body: ticket.title,
           link: `/tickets/${ticket.id}`,
           excludeActorId: user.id,
-        });
-      }
+        })),
+      );
     }
 
     return ticket;
   }
 
   @Delete(":id")
-  @RequirePermissions(PERMISSIONS.TICKETS_DELETE_ANY)
+  @RequirePermissions(PERMISSIONS.TICKETS_ADMIN)
   @Audited({ action: "ticket.delete", resourceType: "ticket", resourceIdFromParams: (p) => p.id ?? null })
   async remove(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     const ticket = await this.tickets.delete(user, id);
     this.realtime.toUser(ticket.createdByUserId, "ticket:deleted", { id });
     return ticket;
+  }
+
+  /**
+   * Bulk apply a single mutation across many ticket ids. Runs the same
+   * permission checks per row as the singleton routes, so this can't be
+   * used to escalate. Returns counts of {applied, skipped, failed} so the
+   * UI can surface partial-success cases without parsing per-row errors.
+   *
+   * Audit: one row per affected ticket via the underlying service calls
+   * (which go through the same code paths as individual updates).
+   */
+  @Post("bulk")
+  @RequirePermissions(PERMISSIONS.TICKETS_READ_OWN)
+  @Audited({ action: "ticket.bulk", resourceType: "ticket" })
+  async bulk(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
+    const parsed = bulkTicketActionSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const a = parsed.data.action;
+    const apply = (id: string): Promise<unknown> => {
+      if (a.kind === "delete") return this.tickets.delete(user, id);
+      if (a.kind === "set_status") return this.tickets.update(user, id, { status: a.status });
+      if (a.kind === "set_priority") return this.tickets.update(user, id, { priority: a.priority });
+      return this.tickets.update(user, id, { assignedUserId: a.assignedUserId });
+    };
+    // Apply across the selection in parallel; each ticket is an independent
+    // permission-checked mutation, so there's no ordering dependency.
+    const results = await Promise.allSettled(parsed.data.ids.map((id) => apply(id)));
+    let applied = 0;
+    let skipped = 0;
+    const errors: Array<{ id: string; reason: string }> = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (!r) continue;
+      if (r.status === "fulfilled") {
+        applied++;
+        continue;
+      }
+      const e = r.reason as { status?: number; message?: string };
+      // 403/404 → user lacks perm or ticket doesn't exist; count as skipped
+      // rather than failed so a partial selection doesn't look like an outage.
+      if (e.status === 403 || e.status === 404) skipped++;
+      else errors.push({ id: parsed.data.ids[i]!, reason: e.message ?? "unknown" });
+    }
+    return { applied, skipped, failed: errors.length, errors };
   }
 
   @Get(":id/comments")
@@ -160,16 +207,27 @@ export class TicketsController {
     const recipients = new Set<string>();
     if (!comment.isInternal) recipients.add(ticket.createdByUserId);
     if (ticket.assignedUserId) recipients.add(ticket.assignedUserId);
-    for (const rid of recipients) {
-      void this.notifications.create({
+    void this.notifications.createMany(
+      [...recipients].map((rid) => ({
         recipientUserId: rid,
         kind: "ticket.comment",
         title: `New comment on ticket #${ticket.number}`,
         body: comment.body.slice(0, 280),
         link: `/tickets/${ticket.id}`,
         excludeActorId: user.id,
-      });
-    }
+      })),
+    );
+
+    // Fan out @mention notifications for anyone tagged in the comment body
+    // (separate kind so users can mute mentions independently of the
+    // ticket-comment thread firehose).
+    void this.mentions.notify({
+      body: comment.body,
+      excludeUserId: user.id,
+      title: `Mentioned in ticket #${ticket.number}`,
+      summary: comment.body,
+      link: `/tickets/${ticket.id}`,
+    });
 
     return comment;
   }
@@ -217,8 +275,9 @@ export class TicketsController {
       >;
     }).file();
     if (!part) throw new BadRequestException("multipart 'file' field is required");
+    let uploaded!: StoredAttachment;
     try {
-      return await this.attachments.upload("ticket", id, user.id, {
+      uploaded = await this.attachments.upload("ticket", id, user.id, {
         filename: part.filename,
         mimetype: part.mimetype,
         stream: part.file as never,
@@ -227,6 +286,22 @@ export class TicketsController {
     } finally {
       part.file.resume?.();
     }
+
+    // Surface the upload in the ticket conversation so reviewers see it without
+    // having to scan the attachments panel. Non-internal so the ticket owner
+    // sees staff uploads and vice versa. Failure here is non-fatal — the
+    // attachment is already stored and we don't want a retry to duplicate it.
+    try {
+      const comment = await this.tickets.addComment(user, id, {
+        body: `Added attachment: ${uploaded.filename}`,
+        isInternal: false,
+      });
+      this.realtime.toRoom(`ticket:${id}`, "ticket:comment", comment);
+    } catch {
+      // courtesy comment; swallow
+    }
+
+    return uploaded;
   }
 
   @Get(":id/attachments/:aid")
@@ -243,6 +318,7 @@ export class TicketsController {
     const disp = row.contentType.startsWith("image/") ? "inline" : "attachment";
     void reply
       .header("content-type", row.contentType)
+      .header("x-content-type-options", "nosniff")
       .header(
         "content-disposition",
         `${disp}; filename="${encodeURIComponent(row.filename)}"`,

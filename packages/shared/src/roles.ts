@@ -1,89 +1,24 @@
-import { PERMISSIONS, type PermissionString } from "./permissions";
-
-export const DEFAULT_ROLES = {
+/**
+ * Default groups seeded on a fresh DB and used by the OAuth provisioning
+ * hook + reset scripts. The role system was retired in favour of groups
+ * (migration 0022); per-permission grants gave way to per-module tiered
+ * access in migration 0024 (see ./modules.ts → DEFAULT_GROUP_MODULE_ACCESS).
+ * The legacy role + group_permissions tables remain in the DB as a safety
+ * net but are no longer read.
+ */
+export const DEFAULT_GROUPS = {
   ADMIN: "admin",
   SUPPORT_ENGINEER: "support_engineer",
   USER: "user",
 } as const;
 
-export type DefaultRoleKey = (typeof DEFAULT_ROLES)[keyof typeof DEFAULT_ROLES];
+export type DefaultGroupKey = (typeof DEFAULT_GROUPS)[keyof typeof DEFAULT_GROUPS];
 
-/**
- * Phase 0 role -> permission mapping. Used by the seed script.
- *
- * Roles are stored in the DB and editable at runtime via the admin UI; this
- * mapping only seeds the *initial* state. Adding permissions here later
- * requires re-running the seed (idempotent — it inserts missing rows only).
- */
-export const DEFAULT_ROLE_PERMISSIONS: Record<DefaultRoleKey, readonly PermissionString[]> = {
-  [DEFAULT_ROLES.ADMIN]: [
-    PERMISSIONS.USERS_READ_ANY,
-    PERMISSIONS.USERS_WRITE_ANY,
-    PERMISSIONS.USERS_DELETE_ANY,
-    PERMISSIONS.GROUPS_READ_ANY,
-    PERMISSIONS.GROUPS_WRITE_ANY,
-    PERMISSIONS.GROUPS_SYNC_GOOGLE,
-    PERMISSIONS.ROLES_READ_ANY,
-    PERMISSIONS.ROLES_WRITE_ANY,
-    PERMISSIONS.PERMISSIONS_READ_ANY,
-    PERMISSIONS.AUDIT_READ_ANY,
-    PERMISSIONS.SETTINGS_READ_ANY,
-    PERMISSIONS.SETTINGS_WRITE_ANY,
-    PERMISSIONS.NOTES_READ_OWN,
-    PERMISSIONS.NOTES_WRITE_OWN,
-    PERMISSIONS.NOTES_DELETE_OWN,
-    PERMISSIONS.NOTES_READ_ANY,
-    PERMISSIONS.TICKETS_READ_OWN,
-    PERMISSIONS.TICKETS_WRITE_OWN,
-    PERMISSIONS.TICKETS_READ_ANY,
-    PERMISSIONS.TICKETS_WRITE_ANY,
-    PERMISSIONS.TICKETS_ASSIGN,
-    PERMISSIONS.TICKETS_DELETE_ANY,
-    PERMISSIONS.TICKET_COMMENTS_WRITE_INTERNAL,
-    PERMISSIONS.WIKI_CREATE,
-    PERMISSIONS.WIKI_READ_OWN,
-    PERMISSIONS.WIKI_WRITE_OWN,
-    PERMISSIONS.WIKI_DELETE_OWN,
-    PERMISSIONS.WIKI_READ_ANY,
-    PERMISSIONS.WIKI_WRITE_ANY,
-    PERMISSIONS.WIKI_DELETE_ANY,
-  ],
-  [DEFAULT_ROLES.SUPPORT_ENGINEER]: [
-    PERMISSIONS.USERS_READ_ANY,
-    PERMISSIONS.GROUPS_READ_ANY,
-    PERMISSIONS.AUDIT_READ_ANY,
-    PERMISSIONS.NOTES_READ_OWN,
-    PERMISSIONS.NOTES_WRITE_OWN,
-    PERMISSIONS.NOTES_DELETE_OWN,
-    PERMISSIONS.TICKETS_READ_OWN,
-    PERMISSIONS.TICKETS_WRITE_OWN,
-    PERMISSIONS.TICKETS_READ_ANY,
-    PERMISSIONS.TICKETS_WRITE_ANY,
-    PERMISSIONS.TICKETS_ASSIGN,
-    PERMISSIONS.TICKET_COMMENTS_WRITE_INTERNAL,
-    PERMISSIONS.WIKI_CREATE,
-    PERMISSIONS.WIKI_READ_OWN,
-    PERMISSIONS.WIKI_WRITE_OWN,
-    PERMISSIONS.WIKI_DELETE_OWN,
-  ],
-  [DEFAULT_ROLES.USER]: [
-    PERMISSIONS.NOTES_READ_OWN,
-    PERMISSIONS.NOTES_WRITE_OWN,
-    PERMISSIONS.NOTES_DELETE_OWN,
-    PERMISSIONS.TICKETS_READ_OWN,
-    PERMISSIONS.TICKETS_WRITE_OWN,
-    PERMISSIONS.WIKI_CREATE,
-    PERMISSIONS.WIKI_READ_OWN,
-    PERMISSIONS.WIKI_WRITE_OWN,
-    PERMISSIONS.WIKI_DELETE_OWN,
-  ],
+export const DEFAULT_GROUP_DESCRIPTIONS: Record<DefaultGroupKey, string> = {
+  [DEFAULT_GROUPS.ADMIN]:
+    "Full access to every module. Cannot be deleted or edited.",
+  [DEFAULT_GROUPS.SUPPORT_ENGINEER]:
+    "Moderates tickets/wiki/monitoring; baseline access to most other modules.",
+  [DEFAULT_GROUPS.USER]:
+    "Default group joined by every newly provisioned user. Cannot be deleted.",
 };
-
-export const DEFAULT_ROLE_DESCRIPTIONS: Record<DefaultRoleKey, string> = {
-  [DEFAULT_ROLES.ADMIN]: "Full access to all features and admin settings.",
-  [DEFAULT_ROLES.SUPPORT_ENGINEER]: "Can view all tickets, reply, and modify ticket details.",
-  [DEFAULT_ROLES.USER]: "Default role. Can create and manage own tickets, notes, and dashboard.",
-};
-
-/** TOTP is required for any user holding a role in this set. */
-export const ROLES_REQUIRING_TOTP: readonly DefaultRoleKey[] = [DEFAULT_ROLES.ADMIN];

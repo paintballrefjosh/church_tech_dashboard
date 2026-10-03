@@ -7,5 +7,6 @@ import { RealtimeModule } from "../realtime/realtime.module";
   imports: [RealtimeModule],
   controllers: [TicketsController],
   providers: [TicketsService],
+  exports: [TicketsService],
 })
 export class TicketsModule {}

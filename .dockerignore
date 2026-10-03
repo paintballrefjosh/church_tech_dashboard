@@ -12,6 +12,12 @@ dist
 coverage
 playwright-report
 test-results
+# The bare names above are anchored to the context root; these patterns cover
+# nested test/output directories (e.g. tests/e2e/test-results/) that would
+# otherwise be sent on every build.
+**/playwright-report
+**/test-results
+**/coverage
 .env
 .env.local
 .env.*.local
@@ -21,3 +27,12 @@ data
 README.md
 INSTALL.md
 CLAUDE.md
+# editor + agent metadata — not needed by either Dockerfile and would otherwise
+# bust the deps-stage cache whenever they change.
+.claude
+.vscode
+.idea
+*.swp
+# scripts/rebuild.sh markers
+.last-rebuild
+.last-migrate

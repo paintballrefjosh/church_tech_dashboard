@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
+import { PageTitle } from "@/components/page-title";
+import { FilePlus } from "lucide-react";
 import { NewWikiForm } from "./new-wiki-form";
+
+export const dynamic = "force-dynamic";
 
 interface GroupBrief {
   id: string;
@@ -22,9 +27,11 @@ export default async function NewWikiPage() {
   return (
     <>
       <TopBar />
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">New wiki page</h1>
-        <NewWikiForm groups={groups} />
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <PageTitle icon={FilePlus}>New wiki page</PageTitle>
+        <Suspense fallback={null}>
+          <NewWikiForm groups={groups} />
+        </Suspense>
       </main>
     </>
   );

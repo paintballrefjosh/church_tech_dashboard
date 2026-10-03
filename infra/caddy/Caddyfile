@@ -18,6 +18,29 @@
 :8100 {
 	encode gzip zstd
 
+	# Baseline security headers, applied to every response. Each:
+	#   X-Content-Type-Options nosniff — keeps browsers from MIME-sniffing
+	#     past the declared content-type (already set per-route on attachment
+	#     downloads, but defence-in-depth for everything else).
+	#   X-Frame-Options DENY — kills clickjacking. We never embed this site
+	#     in an iframe, including from itself.
+	#   Referrer-Policy strict-origin-when-cross-origin — leaks only the
+	#     origin (not the path) when navigating to external links.
+	#   Permissions-Policy — disable browser features we never use.
+	#   Content-Security-Policy — restrict scripts/styles to self + the
+	#     Socket.IO endpoint we serve from the same origin. img-src is wider
+	#     to allow OAuth-provided avatars (Google/Microsoft) and inline
+	#     data: URIs that Next emits for the dev experience.
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		# HSTS deliberately omitted — HTTPS termination is upstream of Caddy
+		# (per CLAUDE.md), so it's the LB's job to set HSTS.
+	}
+
 	# We pass the *original* Host header through to every upstream so Auth.js
 	# (trustHost: true) and any other URL-building code reconstruct the public
 	# origin from the hostname the user actually typed — localhost, a LAN IP,
@@ -28,21 +51,44 @@
 	# web:3000). The `header_up Host {host}` lines below override that so the
 	# upstream sees the same Host the client sent.
 
+	# Internal-only endpoints that hand out secrets (OAuth client_id/secret) or
+	# accept un-authenticated state mutations. The web container reaches these
+	# directly via api:3001 on the docker bridge — they have no business being
+	# reachable from the public proxy. Defence-in-depth alongside the
+	# X-Internal-Token check on the controller side.
+	@internal_only path /api/v1/auth/providers/internal* /api/v1/users/ensure-default-group*
+	handle @internal_only {
+		respond "Not found" 404
+	}
+
 	handle /api/v1/* {
 		reverse_proxy api:3001 {
 			header_up Host {host}
+			# Clobber X-Forwarded-For with the client's real IP. Without this,
+			# a malicious client can spoof XFF at the edge and have the api
+			# log a chosen IP in audit_log. (If an HTTPS LB is upstream of
+			# Caddy and itself sets a trustworthy XFF, point Caddy at it
+			# via `trusted_proxies` and remove this override.)
+			header_up X-Forwarded-For {client_ip}
 		}
 	}
 
 	handle /socket.io/* {
 		reverse_proxy api:3001 {
 			header_up Host {host}
+			# Clobber X-Forwarded-For with the client's real IP. Without this,
+			# a malicious client can spoof XFF at the edge and have the api
+			# log a chosen IP in audit_log. (If an HTTPS LB is upstream of
+			# Caddy and itself sets a trustworthy XFF, point Caddy at it
+			# via `trusted_proxies` and remove this override.)
+			header_up X-Forwarded-For {client_ip}
 		}
 	}
 
 	handle {
 		reverse_proxy web:3000 {
 			header_up Host {host}
+			header_up X-Forwarded-For {client_ip}
 		}
 	}
 }

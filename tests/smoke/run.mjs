@@ -207,12 +207,109 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
     assert(body.email === TEST_USER_EMAIL, `email: ${body.email}`);
-    assert(Array.isArray(body.roles) && body.roles.includes("admin"), `roles: ${JSON.stringify(body.roles)}`);
+    assert(Array.isArray(body.groups) && body.groups.includes("admin"), `groups: ${JSON.stringify(body.groups)}`);
     assert(
       Array.isArray(body.permissions) && body.permissions.includes("users:read:any"),
       `permissions: ${JSON.stringify(body.permissions)}`
     );
     assert(body.mustChangePassword === true, "freshly-reset test user should have mustChangePassword=true");
+    assert(
+      body.pageWidth === "standard",
+      `expected default pageWidth=standard, got: ${body.pageWidth}`
+    );
+    assert(body.pageWidthPx === null, `expected pageWidthPx=null by default, got: ${body.pageWidthPx}`);
+  });
+
+  await test("PATCH /api/v1/me cycles through every preset", async () => {
+    for (const value of ["fluid", "narrow", "wide", "standard"]) {
+      const patch = await fetchWithCookies(
+        "/api/v1/me",
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ pageWidth: value }),
+        },
+        jar
+      );
+      assert(patch.res.status === 200, `patch ${value} status ${patch.res.status}`);
+      const patched = await patch.res.json();
+      assert(patched.pageWidth === value, `patch echoed: ${patched.pageWidth}`);
+      assert(patched.pageWidthPx === null, `non-custom mode should null pageWidthPx`);
+    }
+  });
+
+  await test("PATCH /api/v1/me { pageWidth: 'custom', pageWidthPx: 1400 } stores px", async () => {
+    const patch = await fetchWithCookies(
+      "/api/v1/me",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageWidth: "custom", pageWidthPx: 1400 }),
+      },
+      jar
+    );
+    assert(patch.res.status === 200, `status ${patch.res.status}`);
+    const patched = await patch.res.json();
+    assert(patched.pageWidth === "custom", `echoed: ${patched.pageWidth}`);
+    assert(patched.pageWidthPx === 1400, `px echoed: ${patched.pageWidthPx}`);
+
+    const { res } = await fetchWithCookies("/api/v1/me", {}, jar);
+    const body = await res.json();
+    assert(body.pageWidth === "custom" && body.pageWidthPx === 1400, "GET /me persisted custom+px");
+  });
+
+  await test("Switching from custom to a preset clears pageWidthPx", async () => {
+    const patch = await fetchWithCookies(
+      "/api/v1/me",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageWidth: "narrow" }),
+      },
+      jar
+    );
+    assert(patch.res.status === 200, `status ${patch.res.status}`);
+    const patched = await patch.res.json();
+    assert(patched.pageWidthPx === null, `narrow mode should null px, got: ${patched.pageWidthPx}`);
+  });
+
+  await test("PATCH /api/v1/me { pageWidth: 'fixed' } is rejected (legacy value removed)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/me",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageWidth: "fixed" }),
+      },
+      jar
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("PATCH /api/v1/me { pageWidthPx: 100 } is rejected (out of bounds)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/me",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageWidth: "custom", pageWidthPx: 100 }),
+      },
+      jar
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("PATCH /api/v1/me restores pageWidth=standard (test cleanup)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/me",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageWidth: "standard" }),
+      },
+      jar
+    );
+    assert(res.status === 200, `status ${res.status}`);
   });
 
   await test("GET /api/v1/users returns at least the bootstrap admin + the test user", async () => {
@@ -224,25 +321,109 @@ async function main() {
     assert(body.some((u) => u.email === TEST_USER_EMAIL), "test user not in list");
   });
 
-  await test("GET /api/v1/roles returns the three system roles", async () => {
-    const { res } = await fetchWithCookies("/api/v1/roles", {}, jar);
-    assert(res.status === 200, `status ${res.status}`);
-    const body = await res.json();
-    const keys = body.map((r) => r.key).sort();
-    assert(
-      keys.includes("admin") && keys.includes("support_engineer") && keys.includes("user"),
-      `got roles: ${keys.join(", ")}`
+  await test("user soft-delete lifecycle: delete keeps the row, blocks re-create, restore re-enables", async () => {
+    const email = `soft-delete-smoke-${Date.now()}@example.com`;
+    // Create a throwaway local user.
+    const created = await fetchWithCookies(
+      "/api/v1/users",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email,
+          displayName: "Soft Delete Smoke",
+          password: "smoke-password-1234",
+        }),
+      },
+      jar,
     );
+    assert(created.res.status === 201 || created.res.status === 200, `create status ${created.res.status}`);
+    const user = await created.res.json();
+    assert(typeof user.id === "string", "created user has no id");
+
+    // Soft-delete it.
+    const del = await fetchWithCookies(`/api/v1/users/${user.id}`, { method: "DELETE" }, jar);
+    assert(del.res.status === 200, `delete status ${del.res.status}`);
+
+    // Still present in the list, now tombstoned.
+    const list1 = await (await fetchWithCookies("/api/v1/users", {}, jar)).res.json();
+    const afterDelete = list1.find((u) => u.id === user.id);
+    assert(afterDelete, "soft-deleted user should still appear in the list");
+    assert(afterDelete.deletedAt, "soft-deleted user should have deletedAt set");
+    assert(afterDelete.isActive === false, "soft-deleted user should be inactive");
+
+    // Re-creating with the same email is blocked with a deleted-account message.
+    const reCreate = await fetchWithCookies(
+      "/api/v1/users",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, displayName: "Dup", password: "smoke-password-1234" }),
+      },
+      jar,
+    );
+    assert(reCreate.res.status === 409, `expected 409 conflict, got ${reCreate.res.status}`);
+    const conflict = await reCreate.res.json();
+    assert(
+      JSON.stringify(conflict).toLowerCase().includes("deleted"),
+      `conflict message should mention deleted account: ${JSON.stringify(conflict)}`,
+    );
+
+    // Deleted user cannot sign in via credentials (specific coded error).
+    const login = await fetchWithCookies("/api/v1/auth/verify-credentials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password: "smoke-password-1234" }),
+    });
+    assert(login.res.status === 401, `deleted user login should 401, got ${login.res.status}`);
+    const loginBody = await login.res.json();
+    assert(loginBody.code === "account_deleted", `expected account_deleted code, got ${JSON.stringify(loginBody)}`);
+
+    // Restore re-enables the account.
+    const restore = await fetchWithCookies(`/api/v1/users/${user.id}/restore`, { method: "POST" }, jar);
+    assert(restore.res.status === 200 || restore.res.status === 201, `restore status ${restore.res.status}`);
+    const list2 = await (await fetchWithCookies("/api/v1/users", {}, jar)).res.json();
+    const afterRestore = list2.find((u) => u.id === user.id);
+    assert(afterRestore && !afterRestore.deletedAt, "restored user should have deletedAt cleared");
+    assert(afterRestore.isActive === true, "restored user should be active again");
+
+    // Hard-delete requires the account to be soft-deleted first.
+    const earlyPurge = await fetchWithCookies(`/api/v1/users/${user.id}/hard-delete`, { method: "POST" }, jar);
+    assert(earlyPurge.res.status === 400, `hard-delete on a live user should 400, got ${earlyPurge.res.status}`);
+
+    // Soft-delete, then hard-delete (cleanup + exercises the SITE_ADMIN purge).
+    await fetchWithCookies(`/api/v1/users/${user.id}`, { method: "DELETE" }, jar);
+    const purge = await fetchWithCookies(`/api/v1/users/${user.id}/hard-delete`, { method: "POST" }, jar);
+    assert(purge.res.status === 200 || purge.res.status === 201, `hard-delete status ${purge.res.status}`);
+    const list3 = await (await fetchWithCookies("/api/v1/users", {}, jar)).res.json();
+    assert(!list3.some((u) => u.id === user.id), "hard-deleted user should be gone from the list entirely");
   });
 
-  await test("GET /api/v1/roles/permissions returns the permission catalog", async () => {
-    const { res } = await fetchWithCookies("/api/v1/roles/permissions", {}, jar);
+  await test("GET /api/v1/groups/matrix returns the default groups with module access", async () => {
+    const { res } = await fetchWithCookies("/api/v1/groups/matrix", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    const keys = body.map((p) => p.key);
-    assert(keys.includes("users:read:any"), `missing core permission`);
-    assert(keys.includes("audit:read:any"), `missing audit permission`);
-    assert(keys.includes("settings:write:any"), `missing settings permission`);
+    assert(Array.isArray(body.modules), "modules should be an array");
+    assert(Array.isArray(body.groups), "groups should be an array");
+    const moduleKeys = body.modules.map((m) => m.key);
+    assert(
+      moduleKeys.includes("tickets") && moduleKeys.includes("wiki") && moduleKeys.includes("admin"),
+      `expected core modules in catalog, got: ${moduleKeys.join(",")}`,
+    );
+    const names = body.groups.map((g) => g.name).sort();
+    assert(
+      names.includes("admin") && names.includes("support_engineer") && names.includes("user"),
+      `expected default groups present, got: ${names.join(", ")}`,
+    );
+    const adminGroup = body.groups.find((g) => g.name === "admin");
+    assert(
+      adminGroup && adminGroup.access && adminGroup.access.admin === "admin",
+      `expected admin group at admin tier on admin module, got: ${JSON.stringify(adminGroup?.access)}`,
+    );
+    assert(
+      adminGroup.isSystem === true,
+      `admin group should be flagged is_system`,
+    );
   });
 
   await test("GET /api/v1/groups returns an array (empty initially)", async () => {
@@ -286,6 +467,19 @@ async function main() {
   });
 
   // ---- settings ----
+  // This block exercises PUT/GET/list/DELETE against a real setting key. It
+  // MUST be non-destructive: site.name is operator branding, and a regression
+  // run that deletes it silently reverts the live site to the "Church
+  // Dashboard" fallback. So snapshot the current value up front and restore it
+  // (or re-delete it, if it was unset) once the CRUD assertions are done.
+  let originalSiteName = null;
+  await test("snapshot existing site.name before mutating it", async () => {
+    const { res } = await fetchWithCookies("/api/v1/settings/site.name", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    originalSiteName = typeof body.value === "string" ? body.value : null;
+  });
+
   await test("PUT /api/v1/settings/site.name stores a value", async () => {
     const { res } = await fetchWithCookies(
       "/api/v1/settings/site.name",
@@ -318,6 +512,22 @@ async function main() {
 
   await test("DELETE /api/v1/settings/site.name removes it", async () => {
     const { res } = await fetchWithCookies("/api/v1/settings/site.name", { method: "DELETE" }, jar);
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  // Put the operator's branding back exactly as we found it. If it was unset
+  // the DELETE above already left it unset, so there's nothing to restore.
+  await test("restore the operator's original site.name", async () => {
+    if (originalSiteName === null) return;
+    const { res } = await fetchWithCookies(
+      "/api/v1/settings/site.name",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value: originalSiteName }),
+      },
+      jar
+    );
     assert(res.status === 200, `status ${res.status}`);
   });
 
@@ -995,46 +1205,523 @@ async function main() {
     assert(res.status === 200 || res.status === 204, `status ${res.status}`);
   });
 
-  await test("test-email actually delivers to the SMTP server (MailHog)", async () => {
-    // Set the SMTP settings so MailerService has a usable config. Defaults
-    // here match the in-stack MailHog (apps/api/src/mailer/mailer.service.ts
-    // reads these keys at send time, no restart needed).
-    const settings = [
-      ["smtp.host", "mailhog", "string"],
-      ["smtp.port", 1025, "number"],
-      ["smtp.from_email", "noreply@church.local", "string"],
-      ["smtp.from_name", "Church Dashboard", "string"],
-    ];
-    for (const [key, value] of settings) {
-      const { res } = await fetchWithCookies(
-        `/api/v1/settings/${key}`,
-        {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ value }),
-        },
-        jar,
-      );
-      assert(res.status === 200 || res.status === 201, `setting ${key}: ${res.status}`);
+  // NOTE: actual SMTP delivery is intentionally NOT asserted in the smoke suite.
+  // There is no in-stack mail sink (MailHog was removed), and the suite must not
+  // mutate the operator's real smtp.* settings — doing so previously clobbered
+  // prod SMTP config on every run. The test-email endpoint's success is already
+  // covered above; delivery is verified manually against the real mail server.
+
+  // ---- TOTP enrollment (Phase 1.8) ----
+  // We exercise the API endpoints end-to-end against the *test* user only;
+  // bootstrap admin is never touched. After this block runs we tear down the
+  // enrollment so subsequent runs start from a known state.
+  //
+  // Inline RFC 6238 TOTP generator (no otplib in the smoke container).
+  const crypto = await import("node:crypto");
+  const totp = (base32Secret) => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const cleaned = base32Secret.replace(/=+$/, "").toUpperCase();
+    let bits = "";
+    for (const ch of cleaned) {
+      const v = alphabet.indexOf(ch);
+      if (v < 0) throw new Error(`bad base32 char ${ch}`);
+      bits += v.toString(2).padStart(5, "0");
     }
-
-    // Drain MailHog so the count delta is clean.
-    await fetch("http://localhost:18025/api/v1/messages", { method: "DELETE" }).catch(() => undefined);
-
-    const { res } = await fetchWithCookies(
-      "/api/v1/notifications/test-email",
-      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    const bytes = Buffer.alloc(Math.floor(bits.length / 8));
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+    }
+    const counter = Math.floor(Date.now() / 1000 / 30);
+    const ctrBuf = Buffer.alloc(8);
+    ctrBuf.writeBigUInt64BE(BigInt(counter));
+    const hmac = crypto.createHmac("sha1", bytes).update(ctrBuf).digest();
+    const offset = hmac[hmac.length - 1] & 0x0f;
+    const code =
+      ((hmac[offset] & 0x7f) << 24) |
+      ((hmac[offset + 1] & 0xff) << 16) |
+      ((hmac[offset + 2] & 0xff) << 8) |
+      (hmac[offset + 3] & 0xff);
+    return String(code % 1_000_000).padStart(6, "0");
+  };
+  await test("GET /api/v1/auth/totp/status reports not enrolled initially", async () => {
+    // Best-effort cleanup in case a previous run was interrupted mid-enroll.
+    await fetchWithCookies(
+      "/api/v1/auth/totp",
+      { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "000000" }) },
       jar,
     );
-    assert(res.status === 200 || res.status === 201, `test-email status ${res.status}`);
+    const { res } = await fetchWithCookies("/api/v1/auth/totp/status", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.enabled === false, `enabled=${body.enabled}`);
+  });
 
-    // Fire-and-forget send + cross-container SMTP; give it a moment.
-    await new Promise((r) => setTimeout(r, 800));
-    const inbox = await (await fetch("http://localhost:18025/api/v2/messages")).json();
-    assert(
-      (inbox.total ?? 0) >= 1,
-      `MailHog did not receive the test email: total=${inbox.total}`,
+  let totpSecret = null;
+  await test("POST /api/v1/auth/totp/enroll returns otpauth + qr svg", async () => {
+    const { res } = await fetchWithCookies("/api/v1/auth/totp/enroll", { method: "POST" }, jar);
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.otpauth === "string" && body.otpauth.startsWith("otpauth://"), "no otpauth uri");
+    assert(typeof body.qr === "string" && body.qr.startsWith("<svg"), "qr is not an svg");
+    // Pull the secret out of the otpauth URI so we can compute a real code.
+    const m = body.otpauth.match(/secret=([A-Z2-7]+)/);
+    assert(m, "could not extract secret from otpauth uri");
+    totpSecret = m[1];
+  });
+
+  await test("POST /api/v1/auth/totp/confirm with a valid code enrolls TOTP", async () => {
+    const code = totp(totpSecret);
+    const { res } = await fetchWithCookies(
+      "/api/v1/auth/totp/confirm",
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) },
+      jar,
     );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: st } = await fetchWithCookies("/api/v1/auth/totp/status", {}, jar);
+    const body = await st.json();
+    assert(body.enabled === true, `still not enrolled: ${JSON.stringify(body)}`);
+  });
+
+  await test("DELETE /api/v1/auth/totp rejects a bad code", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/auth/totp",
+      { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "000000" }) },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/auth/totp with a valid code disables TOTP", async () => {
+    const code = totp(totpSecret);
+    const { res } = await fetchWithCookies(
+      "/api/v1/auth/totp",
+      { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: st } = await fetchWithCookies("/api/v1/auth/totp/status", {}, jar);
+    const body = await st.json();
+    assert(body.enabled === false, `still enrolled: ${JSON.stringify(body)}`);
+  });
+
+  // ---- Monitoring (Phase 2.1) ----
+  // Best-effort cleanup of any monitors a prior run left behind, then exercise
+  // the CRUD + history endpoints against a freshly-created HTTP monitor.
+  let monitorId = null;
+  await test("GET /api/v1/monitors returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/monitors");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("clean up any stale [smoke] monitors from a previous run", async () => {
+    const { res } = await fetchWithCookies("/api/v1/monitors", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const list = await res.json();
+    for (const m of list) {
+      if (typeof m.name === "string" && m.name.startsWith("[smoke]")) {
+        await fetchWithCookies(`/api/v1/monitors/${m.id}`, { method: "DELETE" }, jar);
+      }
+    }
+  });
+
+  await test("POST /api/v1/monitors creates an http monitor", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/monitors",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "[smoke] localhost healthz",
+          kind: "http",
+          target: "http://api:3001/api/v1/healthz",
+          intervalSec: 30,
+          failThreshold: 2,
+          recoverThreshold: 1,
+        }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    monitorId = body.id;
+    assert(body.kind === "http", `kind: ${body.kind}`);
+    assert(body.status === "unknown", `expected unknown, got ${body.status}`);
+  });
+
+  await test("POST /api/v1/monitors rejects invalid kind (zod)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/monitors",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "[smoke] bad", kind: "carrier-pigeon", target: "x" }),
+      },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("GET /api/v1/monitors/:id returns the monitor", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/monitors/${monitorId}`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.id === monitorId, `id mismatch`);
+  });
+
+  await test("GET /api/v1/monitors/summary returns counts", async () => {
+    const { res } = await fetchWithCookies("/api/v1/monitors/summary", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    for (const k of ["total", "up", "down", "unknown"]) {
+      assert(typeof body[k] === "number", `${k} not a number: ${JSON.stringify(body)}`);
+    }
+  });
+
+  await test("PATCH /api/v1/monitors/:id updates fields", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/monitors/${monitorId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: false }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.enabled === false, `still enabled`);
+  });
+
+  await test("GET /api/v1/monitors/:id/history returns an array", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/monitors/${monitorId}/history`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), "history not an array");
+  });
+
+  await test("DELETE /api/v1/monitors/:id removes the monitor", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/monitors/${monitorId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const { res: after } = await fetchWithCookies(`/api/v1/monitors/${monitorId}`, {}, jar);
+    assert(after.status === 404, `expected 404, got ${after.status}`);
+  });
+
+  // ---- UniFi (Phase 2.2) ----
+  // Smoke tests run against an *unconfigured* controller — they exercise the
+  // surface only, asserting the API returns useful structure when no
+  // `unifi.controller_url` is set.
+  await test("GET /api/v1/unifi/health returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/unifi/health");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+  await test("GET /api/v1/unifi/health (unconfigured) returns configured=false", async () => {
+    const { res } = await fetchWithCookies("/api/v1/unifi/health", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.configured === false, `expected configured=false: ${JSON.stringify(body)}`);
+  });
+  await test("GET /api/v1/unifi/devices (unconfigured) returns an empty array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/unifi/devices", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body) && body.length === 0, `expected []: ${JSON.stringify(body)}`);
+  });
+
+  // ---- ProPresenter (Phase 2.3) ----
+  await test("GET /api/v1/propresenter/health returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/propresenter/health");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+  await test("GET /api/v1/propresenter/health (unconfigured) returns configured=false", async () => {
+    const { res } = await fetchWithCookies("/api/v1/propresenter/health", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.configured === false, `expected configured=false: ${JSON.stringify(body)}`);
+  });
+  await test("POST /api/v1/propresenter/next (unconfigured) returns 503", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/propresenter/next",
+      { method: "POST" },
+      jar,
+    );
+    assert(res.status === 503, `expected 503, got ${res.status}`);
+  });
+
+  // ---- Search + Tags + Activity (Phase 3) ----
+  await test("GET /api/v1/search returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/search?q=anything");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/search with empty q returns empty hits", async () => {
+    const { res } = await fetchWithCookies("/api/v1/search?q=", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body.hits) && body.hits.length === 0, `expected []`);
+  });
+
+  await test("GET /api/v1/search returns hits array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/search?q=zzz-no-match-zzz", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body.hits), `expected array hits`);
+  });
+
+  let tagId = null;
+  await test("clean up any stale [smoke] tags", async () => {
+    const { res } = await fetchWithCookies("/api/v1/tags", {}, jar);
+    if (res.status === 200) {
+      const list = await res.json();
+      for (const t of list) {
+        if (typeof t.name === "string" && t.name.startsWith("[smoke]")) {
+          await fetchWithCookies(`/api/v1/tags/${t.id}`, { method: "DELETE" }, jar);
+        }
+      }
+    }
+  });
+
+  await test("POST /api/v1/tags creates a tag", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/tags",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "[smoke] urgent", color: "rose" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    tagId = body.id;
+    assert(body.color === "rose", `color: ${body.color}`);
+  });
+
+  await test("POST /api/v1/tags rejects duplicate name with 409", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/tags",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "[smoke] urgent", color: "rose" }),
+      },
+      jar,
+    );
+    assert(res.status === 409, `expected 409, got ${res.status}`);
+  });
+
+  await test("POST /api/v1/tags rejects invalid colour (zod)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/tags",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "[smoke] bad-color", color: "magenta" }),
+      },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/tags/:id removes the tag", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/tags/${tagId}`, { method: "DELETE" }, jar);
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/activity returns an array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/activity?limit=10", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), `expected array`);
+  });
+
+  // ---- Planning Center ----
+  await test("GET /api/v1/planning-center/health returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/planning-center/health");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+  await test("GET /api/v1/planning-center/health returns expected shape", async () => {
+    // Shape-only — once an operator fills in real credentials this stack
+    // actually reaches PC, so configured/reachable may flip to true. We just
+    // check the keys exist and the right types come back.
+    const { res } = await fetchWithCookies("/api/v1/planning-center/health", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.configured === "boolean", `configured: ${typeof body.configured}`);
+    assert(typeof body.reachable === "boolean", `reachable: ${typeof body.reachable}`);
+  });
+  await test("GET /api/v1/planning-center/plans returns an array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/planning-center/plans", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), `expected array`);
+  });
+  await test("GET /api/v1/planning-center/me/link returns null or a link row", async () => {
+    // Test user may have linked themselves between runs — shape-only check.
+    const { res } = await fetchWithCookies("/api/v1/planning-center/me/link", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(
+      body === null || typeof body.pcPersonId === "string",
+      `unexpected shape: ${JSON.stringify(body)}`,
+    );
+  });
+  await test("GET /api/v1/planning-center/links returns []", async () => {
+    const { res } = await fetchWithCookies("/api/v1/planning-center/links", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), `expected array`);
+  });
+  await test("POST /api/v1/planning-center/me/link rejects invalid body (zod)", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/planning-center/me/link",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      jar,
+    );
+    assert(res.status === 400, `expected 400, got ${res.status}`);
+  });
+
+  // ---- Checklists ----
+  // Drives the full lifecycle: create template + task → create event from
+  // template → fetch event detail with snapshot tasks → tick a task → read
+  // my-open-tasks. Auth admin role required (the test user has it).
+  await test("GET /api/v1/checklists/events returns 401 without session", async () => {
+    const { res } = await fetchWithCookies("/api/v1/checklists/events");
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  let smokeTemplateId = null;
+  let smokeTemplateTaskId = null;
+  let smokeEventId = null;
+  let smokeEventTaskId = null;
+
+  await test("clean up any stale [smoke] checklist templates", async () => {
+    const { res } = await fetchWithCookies("/api/v1/checklists/templates", {}, jar);
+    if (res.status === 200) {
+      const list = await res.json();
+      for (const t of list) {
+        if (typeof t.name === "string" && t.name.startsWith("[smoke]")) {
+          await fetchWithCookies(`/api/v1/checklists/templates/${t.id}`, { method: "DELETE" }, jar);
+        }
+      }
+    }
+  });
+
+  await test("POST /api/v1/checklists/templates creates a template", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/checklists/templates",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "[smoke] sound", description: "Smoke template" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    smokeTemplateId = body.id;
+  });
+
+  await test("POST /api/v1/checklists/templates/:id/tasks adds a task", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/checklists/templates/${smokeTemplateId}/tasks`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "Set up mic", positionName: "Sound" }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    smokeTemplateTaskId = body.id;
+    assert(body.positionName === "Sound", `positionName: ${body.positionName}`);
+  });
+
+  await test("POST /api/v1/checklists/events instantiates the template", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/checklists/events",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          templateId: smokeTemplateId,
+          name: "[smoke] event",
+          autoAssignFromPlan: false,
+        }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const body = await res.json();
+    smokeEventId = body.event.id;
+    assert(Array.isArray(body.tasks) && body.tasks.length === 1, "tasks not snapshotted");
+    smokeEventTaskId = body.tasks[0].id;
+  });
+
+  await test("GET /api/v1/checklists/events/:id returns event + tasks", async () => {
+    const { res } = await fetchWithCookies(`/api/v1/checklists/events/${smokeEventId}`, {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.event?.id === smokeEventId, `event id`);
+    assert(body.tasks?.length === 1, `task count`);
+  });
+
+  await test("PATCH /api/v1/checklists/event-tasks/:id with completed=true marks done", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/checklists/event-tasks/${smokeEventTaskId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ completed: true }),
+      },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(body.completedAt, "completedAt should be set");
+  });
+
+  await test("GET /api/v1/checklists/reports/events includes our smoke event", async () => {
+    const { res } = await fetchWithCookies("/api/v1/checklists/reports/events?limit=200", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    const row = body.find((r) => r.eventId === smokeEventId);
+    assert(row, "event not in stats");
+    assert(row.completed === 1 && row.total === 1, `expected 1/1, got ${row.completed}/${row.total}`);
+    assert(row.pctComplete === 100, `expected 100% complete`);
+  });
+
+  await test("GET /api/v1/checklists/my/open-tasks returns array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/checklists/my/open-tasks", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body), `expected array`);
+  });
+
+  await test("DELETE /api/v1/checklists/events/:id removes the event", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/checklists/events/${smokeEventId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
+  });
+
+  await test("DELETE /api/v1/checklists/templates/:id removes the template", async () => {
+    const { res } = await fetchWithCookies(
+      `/api/v1/checklists/templates/${smokeTemplateId}`,
+      { method: "DELETE" },
+      jar,
+    );
+    assert(res.status === 200, `status ${res.status}`);
   });
 
   // ---- summary ----

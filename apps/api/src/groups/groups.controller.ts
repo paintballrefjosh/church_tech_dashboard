@@ -1,11 +1,20 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, BadRequestException, Logger } from "@nestjs/common";
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, BadRequestException, Logger } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createGroupSchema, updateGroupSchema } from "@church/shared";
+import { PERMISSIONS, createGroupSchema, updateGroupSchema, MODULE_TIERS } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { GroupsService } from "./groups.service";
 
 const memberBody = z.object({ userId: z.string().uuid() });
+
+/**
+ * { moduleKey -> tier | null }. null clears access; missing keys are left
+ * unchanged is NOT supported — this is full-replace semantics so the UI can
+ * just send the entire intended map on every save.
+ */
+const setModuleAccessBody = z.object({
+  access: z.record(z.union([z.enum(MODULE_TIERS), z.null()])),
+});
 
 @Controller("groups")
 export class GroupsController {
@@ -18,6 +27,12 @@ export class GroupsController {
     return this.groups.list();
   }
 
+  @Get("matrix")
+  @RequirePermissions(PERMISSIONS.PERMISSIONS_READ_ANY)
+  matrix() {
+    return this.groups.matrix();
+  }
+
   @Get(":id")
   @RequirePermissions(PERMISSIONS.GROUPS_READ_ANY)
   byId(@Param("id") id: string) {
@@ -25,7 +40,7 @@ export class GroupsController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.GROUPS_WRITE_ANY)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.create", resourceType: "group" })
   create(@Body() body: unknown) {
     const parsed = createGroupSchema.safeParse(body);
@@ -34,7 +49,7 @@ export class GroupsController {
   }
 
   @Patch(":id")
-  @RequirePermissions(PERMISSIONS.GROUPS_WRITE_ANY)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.update", resourceType: "group", resourceIdFromParams: (p) => p.id ?? null })
   update(@Param("id") id: string, @Body() body: unknown) {
     const parsed = updateGroupSchema.safeParse(body);
@@ -43,7 +58,7 @@ export class GroupsController {
   }
 
   @Delete(":id")
-  @RequirePermissions(PERMISSIONS.GROUPS_WRITE_ANY)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.delete", resourceType: "group", resourceIdFromParams: (p) => p.id ?? null })
   remove(@Param("id") id: string) {
     return this.groups.delete(id);
@@ -56,7 +71,7 @@ export class GroupsController {
   }
 
   @Post(":id/members")
-  @RequirePermissions(PERMISSIONS.GROUPS_WRITE_ANY)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.addMember", resourceType: "group", resourceIdFromParams: (p) => p.id ?? null })
   addMember(@Param("id") id: string, @Body() body: unknown) {
     const { userId } = memberBody.parse(body);
@@ -64,18 +79,43 @@ export class GroupsController {
   }
 
   @Delete(":id/members/:userId")
-  @RequirePermissions(PERMISSIONS.GROUPS_WRITE_ANY)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.removeMember", resourceType: "group", resourceIdFromParams: (p) => p.id ?? null })
   removeMember(@Param("id") id: string, @Param("userId") userId: string) {
     return this.groups.removeMember(id, userId);
   }
 
+  // ---- module access ----
+
+  @Get(":id/module-access")
+  @RequirePermissions(PERMISSIONS.GROUPS_READ_ANY)
+  getModuleAccess(@Param("id") id: string) {
+    return this.groups.getModuleAccess(id);
+  }
+
+  @Put(":id/module-access")
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
+  @Audited({ action: "group.setModuleAccess", resourceType: "group", resourceIdFromParams: (p) => p.id ?? null })
+  setModuleAccess(@Param("id") id: string, @Body() body: unknown) {
+    const parsed = setModuleAccessBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.groups.setModuleAccess(id, parsed.data.access);
+  }
+
+  /**
+   * Read-only fallback used by anything still listing flat permission strings
+   * (currently nothing; kept until we're sure). Derived from module access.
+   */
+  @Get(":id/permissions")
+  @RequirePermissions(PERMISSIONS.GROUPS_READ_ANY)
+  groupPermissions(@Param("id") id: string) {
+    return this.groups.listPermissions(id);
+  }
+
   @Post("sync-google")
-  @RequirePermissions(PERMISSIONS.GROUPS_SYNC_GOOGLE)
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
   @Audited({ action: "group.sync.google", resourceType: "group" })
   syncGoogle() {
-    // Phase 0 stub. Google Admin SDK wiring lands when the church's service-account
-    // JSON is provisioned (see INSTALL.md § "Google Workspace setup").
     this.logger.warn("Google Groups sync requested but adapter is not implemented yet (Phase 0 stub).");
     return { ok: false, reason: "not-implemented", phase: 0 };
   }

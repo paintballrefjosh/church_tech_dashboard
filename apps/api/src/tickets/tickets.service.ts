@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { and, eq, desc, asc, ilike, or, inArray, isNull, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { tickets, ticketComments, users } from "../db/schema";
+import { tickets, ticketComments, users, tagAssignments } from "../db/schema";
 import {
   PERMISSIONS,
   type CreateTicketInput,
@@ -17,6 +17,9 @@ import {
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
+import { SearchService, searchDocId } from "../search/search.service";
+import { ActivityService } from "../activity/activity.service";
+import { MentionsService } from "../mentions/mentions.service";
 
 /**
  * Tickets visibility rule applied to every read/write:
@@ -37,22 +40,38 @@ export class TicketsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly attachments: AttachmentsService,
+    private readonly search: SearchService,
+    private readonly activity: ActivityService,
+    private readonly mentions: MentionsService,
   ) {}
+
+  private toSearchDoc(row: typeof tickets.$inferSelect) {
+    return {
+      id: searchDocId("ticket", row.id),
+      kind: "ticket" as const,
+      resourceId: row.id,
+      ownerUserId: row.createdByUserId,
+      title: row.title,
+      body: row.description ?? "",
+      extra: { number: row.number, status: row.status, priority: row.priority },
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
 
   private hasAnyRead(user: AuthenticatedUser): boolean {
     return user.permissions.includes(PERMISSIONS.TICKETS_READ_ANY);
   }
   private hasAnyWrite(user: AuthenticatedUser): boolean {
-    return user.permissions.includes(PERMISSIONS.TICKETS_WRITE_ANY);
+    return user.permissions.includes(PERMISSIONS.TICKETS_ADMIN);
   }
   private canAssign(user: AuthenticatedUser): boolean {
-    return user.permissions.includes(PERMISSIONS.TICKETS_ASSIGN);
+    return user.permissions.includes(PERMISSIONS.TICKETS_ADMIN);
   }
   private canDelete(user: AuthenticatedUser): boolean {
-    return user.permissions.includes(PERMISSIONS.TICKETS_DELETE_ANY);
+    return user.permissions.includes(PERMISSIONS.TICKETS_ADMIN);
   }
   private canWriteInternal(user: AuthenticatedUser): boolean {
-    return user.permissions.includes(PERMISSIONS.TICKET_COMMENTS_WRITE_INTERNAL);
+    return user.permissions.includes(PERMISSIONS.TICKETS_ADMIN);
   }
 
   async list(user: AuthenticatedUser, query: TicketListQuery) {
@@ -81,6 +100,22 @@ export class TicketsService {
     if (query.q) {
       const like = `%${query.q.replace(/[%_]/g, "\\$&")}%`;
       conds.push(or(ilike(tickets.title, like), ilike(tickets.description, like))!);
+    }
+    if (query.tagId) {
+      conds.push(
+        inArray(
+          tickets.id,
+          this.db
+            .select({ id: tagAssignments.resourceId })
+            .from(tagAssignments)
+            .where(
+              and(
+                eq(tagAssignments.resourceType, "ticket"),
+                eq(tagAssignments.tagId, query.tagId),
+              ),
+            ),
+        ),
+      );
     }
 
     const rows = await this.db
@@ -114,6 +149,16 @@ export class TicketsService {
       })
       .returning();
     if (!row) throw new Error("Insert failed");
+    void this.search.upsert(this.toSearchDoc(row));
+    void this.activity.record({
+      actorUserId: user.id,
+      action: "ticket.created",
+      resourceType: "ticket",
+      resourceId: row.id,
+      title: `Ticket #${row.number}: ${row.title}`,
+      summary: row.description?.slice(0, 200) ?? null,
+      link: `/tickets/${row.id}`,
+    });
     return row;
   }
 
@@ -128,21 +173,21 @@ export class TicketsService {
     // and close their own ticket, but cannot reassign or set arbitrary statuses.
     if (!this.hasAnyWrite(user)) {
       if (input.assignedUserId !== undefined) {
-        throw new ForbiddenException("Missing tickets:assign");
+        throw new ForbiddenException("Missing tickets:admin");
       }
       if (input.status && input.status !== "closed" && input.status !== existing.status) {
         throw new ForbiddenException("Owners can only close their own tickets");
       }
     }
     if (input.assignedUserId !== undefined && !this.canAssign(user)) {
-      throw new ForbiddenException("Missing tickets:assign");
+      throw new ForbiddenException("Missing tickets:admin");
     }
     // Validate assignee exists, if set.
     if (input.assignedUserId) {
       const [u] = await this.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.id, input.assignedUserId))
+        .where(and(eq(users.id, input.assignedUserId), isNull(users.deletedAt)))
         .limit(1);
       if (!u) throw new BadRequestException("Assignee user not found");
     }
@@ -163,17 +208,48 @@ export class TicketsService {
         patch.closedAt = null;
       }
     }
+    // Assigning a ticket counts as staff engagement → stops the SLA response
+    // clock. Same for any non-owner status change. Idempotent — once set,
+    // never updated.
+    const staffEngaged =
+      (input.assignedUserId && !existing.assignedUserId) ||
+      (input.status && input.status !== existing.status && existing.createdByUserId !== user.id);
+    if (staffEngaged && !existing.firstResponseAt) {
+      patch.firstResponseAt = new Date();
+    }
 
     const [row] = await this.db.update(tickets).set(patch).where(eq(tickets.id, id)).returning();
+    if (row) void this.search.upsert(this.toSearchDoc(row));
+
+    const actor = user.name ?? user.email;
+    if (input.title !== undefined && input.title.trim() !== existing.title) {
+      await this.logEvent(id, user, `${actor} changed title from "${existing.title}" to "${input.title.trim()}"`);
+    }
+    if (input.description !== undefined && input.description !== existing.description) {
+      await this.logEvent(id, user, `${actor} edited the description`);
+    }
+    if (input.status !== undefined && input.status !== existing.status) {
+      await this.logEvent(id, user, `${actor} changed status from ${existing.status} to ${input.status}`);
+    }
+    if (input.priority !== undefined && input.priority !== existing.priority) {
+      await this.logEvent(id, user, `${actor} changed priority from ${existing.priority} to ${input.priority}`);
+    }
+    if (input.assignedUserId !== undefined && input.assignedUserId !== existing.assignedUserId) {
+      const names = await this.userLabels([existing.assignedUserId, input.assignedUserId]);
+      const from = existing.assignedUserId ? names.get(existing.assignedUserId) ?? "unknown" : "unassigned";
+      const to = input.assignedUserId ? names.get(input.assignedUserId) ?? "unknown" : "unassigned";
+      await this.logEvent(id, user, `${actor} changed assignee from ${from} to ${to}`);
+    }
     return row!;
   }
 
   async delete(user: AuthenticatedUser, id: string) {
-    if (!this.canDelete(user)) throw new ForbiddenException("Missing tickets:delete:any");
+    if (!this.canDelete(user)) throw new ForbiddenException("Missing tickets:admin");
     // Cascade attachments (MinIO + DB) before dropping the ticket row.
     await this.attachments.deleteAllForParent("ticket", id);
     const [row] = await this.db.delete(tickets).where(eq(tickets.id, id)).returning();
     if (!row) throw new NotFoundException("Ticket not found");
+    void this.search.remove(searchDocId("ticket", id));
     return row;
   }
 
@@ -193,6 +269,46 @@ export class TicketsService {
     throw new ForbiddenException("Cannot modify this ticket");
   }
 
+  /** Append a system-generated entry to the ticket's comment timeline. */
+  async logEvent(ticketId: string, user: AuthenticatedUser, body: string) {
+    await this.db.insert(ticketComments).values({
+      ticketId,
+      authorUserId: user.id,
+      body,
+      isInternal: false,
+      kind: "event",
+    });
+  }
+
+  /** Log a before/after change to a named set (tags, categories) on a ticket. */
+  async logSetChange(
+    ticketId: string,
+    user: AuthenticatedUser,
+    noun: string,
+    before: string[],
+    after: string[],
+  ) {
+    const added = after.filter((n) => !before.includes(n));
+    const removed = before.filter((n) => !after.includes(n));
+    if (added.length === 0 && removed.length === 0) return;
+    const parts: string[] = [];
+    if (added.length) parts.push(`added ${added.join(", ")}`);
+    if (removed.length) parts.push(`removed ${removed.join(", ")}`);
+    await this.logEvent(ticketId, user, `${user.name ?? user.email} ${noun}: ${parts.join("; ")}`);
+  }
+
+  private async userLabels(ids: (string | null)[]) {
+    const real = ids.filter((i): i is string => !!i);
+    const map = new Map<string, string>();
+    if (real.length === 0) return map;
+    const rows = await this.db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(inArray(users.id, real));
+    for (const r of rows) map.set(r.id, r.name ?? r.email);
+    return map;
+  }
+
   async listComments(user: AuthenticatedUser, ticketId: string) {
     await this.getById(user, ticketId); // visibility check
     const conds: SQL[] = [eq(ticketComments.ticketId, ticketId)];
@@ -207,7 +323,7 @@ export class TicketsService {
   }
 
   async addComment(user: AuthenticatedUser, ticketId: string, input: CreateCommentInput) {
-    await this.getById(user, ticketId);
+    const ticket = await this.getById(user, ticketId);
     if (input.isInternal && !this.canWriteInternal(user)) {
       throw new ForbiddenException("Missing ticket_comments:write:internal");
     }
@@ -221,10 +337,24 @@ export class TicketsService {
       })
       .returning();
     if (!row) throw new Error("Insert failed");
-    await this.db
-      .update(tickets)
-      .set({ updatedAt: new Date() })
-      .where(eq(tickets.id, ticketId));
+    // Stamp first-response time the first time someone other than the
+    // creator engages. That's the canonical SLA "response clock stops" event.
+    const isFirstResponse =
+      !ticket.firstResponseAt && ticket.createdByUserId !== user.id;
+    const patch: Partial<typeof tickets.$inferInsert> = { updatedAt: new Date() };
+    if (isFirstResponse) patch.firstResponseAt = new Date();
+    await this.db.update(tickets).set(patch).where(eq(tickets.id, ticketId));
+    // Fire mention notifications. Internal comments only notify staff — the
+    // mention itself is gated by who can see the comment; the resolver here
+    // just looks at the body so we leave it as-is and let the recipient's
+    // RBAC enforce visibility when they click through. Fire-and-forget.
+    void this.mentions.notify({
+      body: input.body,
+      excludeUserId: user.id,
+      title: `Mentioned in ticket comment`,
+      summary: input.body,
+      link: `/tickets/${ticketId}`,
+    });
     return row;
   }
 
@@ -235,6 +365,7 @@ export class TicketsService {
       .where(and(eq(ticketComments.id, commentId), eq(ticketComments.ticketId, ticketId)))
       .limit(1);
     if (!c) throw new NotFoundException("Comment not found");
+    if (c.kind === "event") throw new ForbiddenException("Activity entries cannot be deleted");
     if (c.authorUserId !== user.id && !this.canDelete(user)) {
       throw new ForbiddenException("Cannot delete another user's comment");
     }

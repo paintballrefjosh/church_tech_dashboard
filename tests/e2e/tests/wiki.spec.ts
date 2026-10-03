@@ -34,16 +34,41 @@ async function signInAsTestUser(page: Page) {
   }
 }
 
+// Every page this suite creates is prefixed with this marker so the cleanup
+// only touches its own rows — manual wiki pages on a dev DB survive a test run.
+const E2E_PREFIX = "[e2e]";
+// Restricted-page test needs a group; we always reuse one by this exact name
+// rather than creating a new one each run (groups aren't name-unique, so
+// blindly POSTing leaks rows).
+const RESTRICTED_GROUP_NAME = "wiki-restricted-group";
+
 async function wipeAllWikiPages(page: Page) {
   await page.goto("/wiki");
-  const ids = (await page.evaluate(async () => {
+  const ids = (await page.evaluate(async (prefix) => {
     const r = await fetch("/api/wiki", { credentials: "same-origin" });
-    const list = (await r.json()) as Array<{ id: string }>;
-    return list.map((p) => p.id);
-  })) as string[];
+    const list = (await r.json()) as Array<{ id: string; title: string }>;
+    return list.filter((p) => p.title.startsWith(prefix)).map((p) => p.id);
+  }, E2E_PREFIX)) as string[];
   for (const id of ids) {
     await page.evaluate(
       (i) => fetch(`/api/wiki/${i}`, { method: "DELETE", credentials: "same-origin" }),
+      id,
+    );
+  }
+}
+
+async function wipeRestrictedGroups(page: Page) {
+  // Earlier versions of this suite created a fresh group every run and never
+  // cleaned up, leaving dozens of duplicates with the same name. Sweep them
+  // before each test so re-running the suite stays idempotent.
+  const ids = (await page.evaluate(async (name) => {
+    const r = await fetch("/api/v1/groups", { credentials: "same-origin" });
+    const list = (await r.json()) as Array<{ id: string; name: string }>;
+    return list.filter((g) => g.name === name).map((g) => g.id);
+  }, RESTRICTED_GROUP_NAME)) as string[];
+  for (const id of ids) {
+    await page.evaluate(
+      (i) => fetch(`/api/v1/groups/${i}`, { method: "DELETE", credentials: "same-origin" }),
       id,
     );
   }
@@ -53,11 +78,14 @@ test.describe("Phase 1.4 — Wiki", () => {
   test.beforeEach(async ({ page }) => {
     await signInAsTestUser(page);
     await wipeAllWikiPages(page);
+    await wipeRestrictedGroups(page);
   });
 
   test("Wiki link in the nav goes to /wiki", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Wiki", exact: true }).first().click();
+    // Wiki now lives inside the Docs dropdown. Open the menu then click in.
+    await page.getByRole("button", { name: /^docs$/i }).click();
+    await page.getByRole("menuitem", { name: /^wiki$/i }).click();
     await page.waitForURL(/\/wiki(\?|$)/);
     await expect(page.getByRole("heading", { name: "Wiki" })).toBeVisible();
   });
@@ -65,7 +93,7 @@ test.describe("Phase 1.4 — Wiki", () => {
   test("create a page, view rendered markdown, edit and persist", async ({ page }) => {
     // Create
     await page.goto("/wiki/new");
-    await page.getByLabel("Title").fill("Getting started");
+    await page.getByLabel("Title").fill("[e2e] Getting started");
     await page.getByLabel(/^Body/).fill("# Welcome\n\nThis is **markdown**.\n\n- one\n- two");
     await Promise.all([
       page.waitForURL(/\/wiki\/[0-9a-f-]+$/, { timeout: 15_000 }),
@@ -73,7 +101,7 @@ test.describe("Phase 1.4 — Wiki", () => {
     ]);
 
     // The view page renders the heading from the markdown
-    await expect(page.getByRole("heading", { name: "Getting started" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "[e2e] Getting started" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
     await expect(page.getByText("This is", { exact: false })).toBeVisible();
 
@@ -111,7 +139,7 @@ test.describe("Phase 1.4 — Wiki", () => {
         headers: { "content-type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({
-          title: "secret handbook",
+          title: "[e2e] secret handbook",
           body: "members only",
           visibility: "group",
           acl: [{ groupId: gid, canEdit: false }],
@@ -123,7 +151,7 @@ test.describe("Phase 1.4 — Wiki", () => {
 
     // 3. As the owner, the page is visible and clearly marked Restricted.
     await page.goto(`/wiki/${pageId}`);
-    await expect(page.getByRole("heading", { name: "secret handbook" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "[e2e] secret handbook" })).toBeVisible();
     await expect(page.getByText("Restricted").first()).toBeVisible();
   });
 });

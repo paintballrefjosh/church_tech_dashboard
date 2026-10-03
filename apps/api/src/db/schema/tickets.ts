@@ -29,6 +29,10 @@ export const tickets = pgTable(
     assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    // First non-creator comment / status-change time. Drives SLA "response
+    // clock" — null while the ticket is awaiting first reply. Stamped by
+    // TicketsService.addComment / update once a support engineer engages.
+    firstResponseAt: timestamp("first_response_at"),
     resolvedAt: timestamp("resolved_at"),
     closedAt: timestamp("closed_at"),
   },
@@ -38,6 +42,10 @@ export const tickets = pgTable(
     statusIdx: index("tickets_status_idx").on(t.status),
     updatedIdx: index("tickets_updated_idx").on(t.updatedAt),
     numberIdx: index("tickets_number_idx").on(t.number),
+    // Owner-scoped list is the hot ticket query: filter by creator then sort
+    // by recency. The composite avoids the post-filter sort that the
+    // single-column createdByIdx forces.
+    ownerUpdatedIdx: index("tickets_owner_updated_idx").on(t.createdByUserId, t.updatedAt.desc()),
   }),
 );
 
@@ -55,6 +63,8 @@ export const ticketComments = pgTable(
     // Internal comments are only visible to support_engineer + admin (i.e. holders of
     // tickets:read:any). Users never see them, even on their own tickets.
     isInternal: boolean("is_internal").notNull().default(false),
+    // 'comment' = user-written; 'event' = system-logged change (status, tags, ...).
+    kind: text("kind").notNull().default("comment"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

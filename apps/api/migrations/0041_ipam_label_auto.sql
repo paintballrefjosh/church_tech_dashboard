@@ -1,0 +1,1 @@
+ALTER TABLE "ipam_subnets" ADD COLUMN "label_auto" boolean DEFAULT true NOT NULL;
