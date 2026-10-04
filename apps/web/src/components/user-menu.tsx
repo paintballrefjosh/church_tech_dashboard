@@ -132,7 +132,7 @@ export function UserMenu({ email }: { email: string }) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-1 w-64 rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="fx-solid absolute right-0 z-50 mt-1 w-64 rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="border-b border-slate-100 px-2 pb-2 pt-1 dark:border-slate-800">
             <div className="text-[10px] uppercase tracking-wide text-slate-500">Signed in as</div>

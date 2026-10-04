@@ -111,7 +111,7 @@ export function SearchBar() {
       </div>
 
       {open && q.trim() ? (
-        <div className="absolute right-0 z-50 mt-2 w-[200%] max-w-[calc(100vw-2rem)] max-h-[28rem] overflow-y-auto rounded-md border border-slate-300 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <div className="fx-solid absolute right-0 z-50 mt-2 w-[200%] max-w-[calc(100vw-2rem)] max-h-[28rem] overflow-y-auto rounded-md border border-slate-300 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
           {busy && hits.length === 0 ? (
             <p className="p-4 text-center text-xs text-slate-500">Searching…</p>
           ) : hits.length === 0 ? (

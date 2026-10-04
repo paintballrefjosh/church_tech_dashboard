@@ -90,7 +90,7 @@ export function CommandPalette() {
         onClick={() => setOpen(false)}
         aria-hidden
       />
-      <div className="relative w-full max-w-xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+      <div className="fx-solid relative w-full max-w-xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-2 border-b border-slate-300 px-3 py-2 dark:border-slate-700">
           <Search className="h-4 w-4 text-slate-400" aria-hidden />
           <Command.Input

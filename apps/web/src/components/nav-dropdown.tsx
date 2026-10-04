@@ -114,7 +114,7 @@ export function NavDropdown({
       {open ? (
         <div
           role="menu"
-          className={`absolute z-50 mt-1 min-w-[14rem] rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 ${
+          className={`fx-solid absolute z-50 mt-1 min-w-[14rem] rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900 ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
