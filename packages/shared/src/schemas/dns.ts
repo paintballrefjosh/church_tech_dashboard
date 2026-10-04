@@ -327,3 +327,26 @@ export const dnsReverseZoneCreateSchema = z.object({
     .regex(/^(\d{1,3}\.){1,3}in-addr\.arpa$/, "Expected an IPv4 reverse zone like 10.0.10.in-addr.arpa"),
 });
 export type DnsReverseZoneCreateInput = z.infer<typeof dnsReverseZoneCreateSchema>;
+
+// ---- health monitors ----
+
+/**
+ * One-click health monitors: a `dns` uptime monitor per cluster node that
+ * resolves a canary TXT record through that node. Catches a dead node and a
+ * secondary that stopped receiving zone transfers.
+ */
+export const dnsHealthMonitorsSchema = z.object({
+  /** Zone to hold the canary; defaults to dns.sync_zone, then the first primary forward zone. */
+  zone: z.string().trim().toLowerCase().max(253).optional(),
+  /** Node IPs to monitor; defaults to the cluster's node list. */
+  nodes: z.array(z.string().trim().ip({ version: "v4" })).max(16).optional(),
+});
+export type DnsHealthMonitorsInput = z.infer<typeof dnsHealthMonitorsSchema>;
+
+export interface DnsHealthMonitorsResult {
+  /** Audit resource id: the canary's FQDN. */
+  id: string;
+  canary: string;
+  created: Array<{ monitorId: string; name: string; resolver: string }>;
+  existing: Array<{ monitorId: string; name: string; resolver: string }>;
+}

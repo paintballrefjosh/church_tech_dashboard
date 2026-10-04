@@ -64,6 +64,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "UniFi device offline",
     hint: "A UniFi device (AP, switch, gateway) goes offline or recovers. Enable in Monitoring & Network settings.",
   },
+  "dns.primary_unreachable": {
+    title: "DNS primary unreachable",
+    hint: "The Technitium primary's API stops answering (or recovers). Enable in Monitoring & Network settings.",
+  },
 };
 
 interface Pref {

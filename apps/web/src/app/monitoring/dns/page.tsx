@@ -10,6 +10,7 @@ import {
   type DnsEditableType,
   type DnsRecord,
   type DnsRecordData,
+  type DnsHealthMonitorsResult,
   type DnsSyncAction,
   type DnsSyncPlan,
   type DnsSyncRun,
@@ -134,7 +135,7 @@ function DnsPageInner() {
       </div>
 
       {!summary.reachable ? null : view === "overview" ? (
-        <Overview summary={summary} />
+        <Overview summary={summary} canWrite={canWrite} />
       ) : view === "sync" ? (
         <SyncView canWrite={canWrite} />
       ) : (
@@ -186,7 +187,7 @@ const NODE_STATE_CLS: Record<string, string> = {
   Unreachable: "bg-rose-500",
 };
 
-function Overview({ summary }: { summary: DnsSummary }) {
+function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolean }) {
   const [range, setRange] = useState<DnsStatsRange>("LastDay");
   const [stats, setStats] = useState<DnsStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +267,8 @@ function Overview({ summary }: { summary: DnsSummary }) {
         </p>
       ) : null}
 
+      {canWrite ? <HealthMonitorsCard summary={summary} /> : null}
+
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -307,6 +310,83 @@ function Overview({ summary }: { summary: DnsSummary }) {
         ) : null}
       </section>
     </div>
+  );
+}
+
+/**
+ * One-click `dns` uptime monitors, one per node, each resolving a canary TXT
+ * record through that node. A dead node, or a secondary that stopped getting
+ * zone transfers, then opens an incident like any other monitor.
+ */
+function HealthMonitorsCard({ summary }: { summary: DnsSummary }) {
+  const defaultIps = (summary.nodes ?? []).map((n) => n.ipAddress).filter((ip): ip is string => Boolean(ip));
+  const [ips, setIps] = useState(defaultIps.join(", "));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const create = async () => {
+    setBusy(true);
+    setMsg(null);
+    const nodes = ips
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    try {
+      const r = await fetch("/api/dns/health-monitors", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(nodes.length ? { nodes } : {}),
+      });
+      const body = (await r.json().catch(() => null)) as DnsHealthMonitorsResult | null;
+      if (!r.ok || !body) {
+        setMsg({ ok: false, text: errorText(body, r.status) });
+        return;
+      }
+      const made = body.created.length;
+      const had = body.existing.length;
+      setMsg({
+        ok: true,
+        text: `${made} monitor${made === 1 ? "" : "s"} created${had ? `, ${had} already existed` : ""}. Each resolves ${body.canary} through its node.`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className={cardCls}>
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Health monitors</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        Adds a DNS uptime monitor per node (shown under{" "}
+        <Link href="/monitoring" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
+          Services
+        </Link>
+        ) that resolves a canary record through it, so a dead node or a secondary that stopped receiving zone
+        transfers opens an incident.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="block min-w-0 flex-1">
+          <span className="text-xs text-slate-500">Node IPs</span>
+          <input
+            value={ips}
+            onChange={(e) => setIps(e.target.value)}
+            placeholder="10.0.0.53, 10.0.1.53"
+            className={`${inputCls} mt-1 block w-full font-mono`}
+          />
+        </label>
+        <button
+          onClick={() => void create()}
+          disabled={busy}
+          className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {busy ? "Creating…" : "Create health monitors"}
+        </button>
+      </div>
+      {msg ? (
+        <p className={`mt-2 text-xs ${msg.ok ? "text-emerald-700 dark:text-emerald-300" : "text-rose-600 dark:text-rose-400"}`}>{msg.text}</p>
+      ) : null}
+    </section>
   );
 }
 

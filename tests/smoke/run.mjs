@@ -1516,6 +1516,14 @@ async function main() {
     );
     assert(res.status === 400, `status ${res.status}`);
   });
+  await test("POST /api/v1/dns/health-monitors rejects a node that isn't an IPv4 address", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/dns/health-monitors",
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nodes: ["dns1.example.org"] }) },
+      jar,
+    );
+    assert(res.status === 400, `status ${res.status}`);
+  });
   await test("PATCH /api/v1/ipam/hosts/:id rejects a DNS name that isn't one label", async () => {
     const { res } = await fetchWithCookies(
       "/api/v1/ipam/hosts/00000000-0000-0000-0000-000000000000",

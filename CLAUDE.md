@@ -107,10 +107,11 @@ Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 `DEFAULT_GROUP_MODULE_ACCESS` and are applied by the seed.
 
 The `monitoring` module is a single section covering tabbed views under
-`/monitoring`: **Services** (uptime probes — `http`/`tcp`/`icmp` plus `tls`
-certificate-expiry and `dns` resolution checks; per-kind config lives in the
-monitor's freeform `options` blob, no migration to add a kind. The prober fans
-incidents out to the monitoring recipients like infra alerts), **Infrastructure**
+`/monitoring`: **Services** (uptime probes run by the `services/monitor` worker —
+`http`/`tcp`/`icmp`/`dns`; per-kind config lives in the monitor's freeform
+`options` blob, no migration to add a kind. **`tls` is in `MONITOR_KINDS` but the
+worker has no probe for it**: a `tls` monitor reports `unknown kind` (down). The
+worker fans incidents out to the monitoring recipients like infra alerts), **Infrastructure**
 (`/monitoring/infra` — host/Docker/Proxmox; the per-host detail page charts
 CPU/mem/disk plus load/temperature — persisted into rollups — and network/disk-IO,
 which are raw-sample-only so they populate at the ≤2h range), **Network (UniFi)**
@@ -190,6 +191,16 @@ unless forced. Triggers: end of each IPAM scanner pass and IPAM edits
 (debounced), a 15-minute timer, and "Sync now"; background runs only while
 `dns.sync_enabled` is on. One run at a time via an in-process guard (single API
 process).
+
+**DNS health** (`dns/dns.health.ts`): "Create health monitors" on the Overview
+adds one `dns` uptime monitor per node (cluster node IPs, or typed in) that
+resolves the TXT canary `_dashboard-canary.<zone>` through that node, so a dead
+node or a secondary that stopped receiving zone transfers opens a normal
+incident. The canary carries the managed marker so it can't be hand-edited.
+`dns.alert_unreachable` adds a notification-only alert (kind
+`dns.primary_unreachable`, like UniFi's, since the primary's API isn't a monitor
+row) after 3 failed 60s polls of the primary, plus a recovery notice; silenced
+by maintenance mode. The dashboard monitoring tile has a DNS row (nodes up/down).
 
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi

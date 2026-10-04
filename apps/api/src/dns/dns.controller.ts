@@ -8,6 +8,7 @@ import {
   dnsRecordDeleteSchema,
   dnsSyncRunSchema,
   dnsReverseZoneCreateSchema,
+  dnsHealthMonitorsSchema,
   type DnsStatsRange,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
@@ -16,6 +17,7 @@ import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decora
 import { DnsService } from "./dns.service";
 import { DnsSearchIndexer } from "./dns.search-indexer";
 import { DnsSyncService } from "./dns.sync";
+import { DnsHealthService } from "./dns.health";
 
 /**
  * DNS API for the monitoring module's DNS tab. Reuses the monitoring
@@ -34,6 +36,7 @@ export class DnsController {
     private readonly dns: DnsService,
     private readonly indexer: DnsSearchIndexer,
     private readonly sync: DnsSyncService,
+    private readonly health: DnsHealthService,
   ) {}
 
   @Get("summary")
@@ -150,6 +153,16 @@ export class DnsController {
     const parsed = dnsReverseZoneCreateSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     return this.sync.createReverseZone(parsed.data.zone);
+  }
+
+  /** One `dns` uptime monitor per node, resolving a canary TXT record through it. */
+  @Post("health-monitors")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "dns.health_monitors.create", resourceType: "dns_health_monitors" })
+  createHealthMonitors(@Body() body: unknown) {
+    const parsed = dnsHealthMonitorsSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.health.createHealthMonitors(parsed.data);
   }
 
   @Post("test")

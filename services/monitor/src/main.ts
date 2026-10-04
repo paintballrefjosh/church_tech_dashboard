@@ -13,7 +13,7 @@ import {
   settings,
   activityEvents,
 } from "./schema";
-import { probeHttp, probeTcp, probeIcmp, type ProbeResult } from "./probes";
+import { probeHttp, probeTcp, probeIcmp, probeDns, type ProbeResult } from "./probes";
 
 const POLL_MS = parseInt(process.env.MONITOR_POLL_MS ?? "5000", 10);
 const PRUNE_KEEP_DAYS = parseInt(process.env.MONITOR_PRUNE_DAYS ?? "30", 10);
@@ -30,6 +30,8 @@ async function runProbe(kind: string, target: string, options: Record<string, un
       return probeTcp({ target, options });
     case "icmp":
       return probeIcmp({ target, options });
+    case "dns":
+      return probeDns({ target, options });
     default:
       return { ok: false, latencyMs: 0, info: `unknown kind '${kind}'` };
   }

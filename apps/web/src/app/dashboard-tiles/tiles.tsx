@@ -7,6 +7,7 @@ import {
   Activity,
   Wifi,
   Network,
+  Globe,
   Ticket,
   TicketPlus,
   BookPlus,
@@ -222,6 +223,7 @@ function buildOverviewRows(
   infra: unknown,
   unifi: unknown,
   cisco: unknown,
+  dns: unknown,
 ): OverviewRow[] {
   const rows: OverviewRow[] = [];
 
@@ -302,12 +304,25 @@ function buildOverviewRows(
     rows.push({ key: "cisco", label: "Switches", href: "/monitoring/network-cisco", Icon: Network, up: 0, down: 0, total: 0, status: "error", note: "unavailable" });
   }
 
+  // DNS (Technitium cluster nodes). A single unclustered server, or a token
+  // without the node list, counts as one node.
+  const n = dns as { configured?: boolean; reachable?: boolean; nodes?: unknown[] | null; unreachableNodes?: number } | null;
+  if (!n || n.configured === false) {
+    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "unconfigured", note: "not configured" });
+  } else if (n.reachable === false) {
+    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "error", note: "primary unreachable" });
+  } else {
+    const total = n.nodes?.length || 1;
+    const down = n.unreachableNodes ?? 0;
+    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: total - down, down, total, status: "ok" });
+  }
+
   return rows;
 }
 
 /**
  * Consolidated monitoring tile: one row per area (Infrastructure, Services,
- * Network/UniFi, Switches/Cisco) with up (green), down (red), and total counts.
+ * Network/UniFi, Switches/Cisco, DNS) with up (green), down (red), and total counts.
  * Replaces the former separate monitoring / infra / network tiles.
  */
 export function MonitoringOverviewTile() {
@@ -316,13 +331,14 @@ export function MonitoringOverviewTile() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [mon, infra, unifi, cisco] = await Promise.all([
+      const [mon, infra, unifi, cisco, dns] = await Promise.all([
         getJson("/api/monitors/summary"),
         getJson("/api/infra/summary"),
         getJson("/api/unifi/summary"),
         getJson("/api/cisco/switches"),
+        getJson("/api/dns/summary"),
       ]);
-      if (!cancelled) setRows(buildOverviewRows(mon, infra, unifi, cisco));
+      if (!cancelled) setRows(buildOverviewRows(mon, infra, unifi, cisco, dns));
     }
     void load();
     const t = setInterval(load, 15_000);

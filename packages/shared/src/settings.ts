@@ -399,6 +399,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: false,
     category: "monitoring",
   },
+  {
+    key: "dns.alert_unreachable",
+    type: "boolean",
+    label: "Alert when the Technitium primary is unreachable",
+    description:
+      "Notify monitoring admins (in-app + email) when the primary's API stops answering for 3 minutes, and when it recovers. Lookups keep working on the secondary; this is about edits and the IPAM sync. Silenced by maintenance mode.",
+    defaultValue: false,
+    category: "monitoring",
+  },
   // IPAM -> DNS sync: A (+PTR) records for named hosts in subnets with
   // "Publish to DNS" on. Records it writes carry a managed-by comment and are
   // the only ones it ever changes.
