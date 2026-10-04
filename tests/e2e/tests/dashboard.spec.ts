@@ -42,10 +42,12 @@ test.describe("Phase 1.6 — Dashboard tiles", () => {
     await page.goto("/");
   });
 
-  test("default layout renders all four tiles", async ({ page }) => {
+  test("default layout renders the default tiles", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    for (const title of ["My tickets", "Recent notes", "Recent wiki pages", "Quick links"]) {
-      await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
+    // DEFAULT_DASHBOARD_LAYOUT in packages/shared/src/schemas/dashboard.ts.
+    // (checklists.my_open_tasks is module-gated, so it isn't asserted here.)
+    for (const tileId of ["tickets.summary", "notes.recent", "wiki.recent", "monitoring.overview", "quick.links"]) {
+      await expect(page.locator(`[data-tile-id="${tileId}"]`)).toBeVisible();
     }
   });
 
@@ -56,13 +58,13 @@ test.describe("Phase 1.6 — Dashboard tiles", () => {
 
     // Remove the Quick links tile via its × button (aria-label "Remove Quick links")
     await page.getByRole("button", { name: "Remove Quick links" }).click();
-    await expect(page.getByText("Quick links", { exact: true })).toBeHidden();
+    await expect(page.locator('[data-tile-id="quick.links"]')).toBeHidden();
 
     // Reload — the save should persist
     await page.waitForTimeout(1200); // debounce window
     await page.reload();
-    await expect(page.getByText("Quick links", { exact: true })).toBeHidden();
-    await expect(page.getByText("My tickets", { exact: true }).first()).toBeVisible();
+    await expect(page.locator('[data-tile-id="quick.links"]')).toBeHidden();
+    await expect(page.locator('[data-tile-id="tickets.summary"]')).toBeVisible();
   });
 
   test("reset button restores the default layout", async ({ page }) => {
@@ -78,15 +80,15 @@ test.describe("Phase 1.6 — Dashboard tiles", () => {
       }),
     );
     await page.reload();
-    await expect(page.getByText("Quick links", { exact: true })).toBeHidden();
+    await expect(page.locator('[data-tile-id="quick.links"]')).toBeHidden();
 
     // Customise → Reset
     await page.getByRole("button", { name: "Customise" }).click();
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "Reset" }).click();
 
-    // Default has all four tiles
-    await expect(page.getByText("Quick links", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("My tickets", { exact: true }).first()).toBeVisible();
+    // Back to the default layout
+    await expect(page.locator('[data-tile-id="quick.links"]')).toBeVisible();
+    await expect(page.locator('[data-tile-id="tickets.summary"]')).toBeVisible();
   });
 });

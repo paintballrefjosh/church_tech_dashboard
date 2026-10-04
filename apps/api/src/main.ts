@@ -8,6 +8,11 @@ import fastifyRateLimit from "@fastify/rate-limit";
 import { MAX_ATTACHMENT_BYTES } from "@church/shared";
 import { AppModule } from "./app.module";
 import { RedisIoAdapter } from "./realtime/redis-io-adapter";
+import { SettingsService } from "./settings/settings.service";
+
+const DEFAULT_RATE_LIMIT_PER_MIN = 1200;
+// Floor so a mistyped setting (0, 5) can't lock every user out of the UI.
+const MIN_RATE_LIMIT_PER_MIN = 60;
 
 /**
  * Build the CORS origin checker. Same-origin (Caddy proxy) requests have no
@@ -44,13 +49,25 @@ async function bootstrap() {
     },
   });
 
-  // Global rate limit. Default of 300 req/min/IP is generous for normal
-  // browsing (one user clicking around shouldn't trip it) but caps any
-  // single host hitting us in a loop. The /auth/* burst limit below is the
-  // one that actually deters credential / TOTP brute-force.
+  // Global rate limit per IP, from the `auth.rate_limit_per_minute` setting
+  // (default 1200), read through SettingsService's cache so admins can change
+  // it at /admin/settings without a restart. One page load fans out into ~15
+  // API calls plus tab/tile polling, so the old fixed 300 tripped for a
+  // fast-clicking user (and the e2e suite). This cap only stops runaway
+  // loops; the /auth/* burst limit below is what deters credential / TOTP
+  // brute-force.
+  const settings = app.get(SettingsService);
   await app.register(fastifyRateLimit as never, {
     global: true,
-    max: 300,
+    max: async () => {
+      try {
+        const raw = await settings.get("auth.rate_limit_per_minute");
+        const n = typeof raw === "number" && Number.isFinite(raw) ? Math.trunc(raw) : DEFAULT_RATE_LIMIT_PER_MIN;
+        return Math.max(MIN_RATE_LIMIT_PER_MIN, n);
+      } catch {
+        return DEFAULT_RATE_LIMIT_PER_MIN;
+      }
+    },
     timeWindow: "1 minute",
     // Allow per-route overrides via @nestjs route config.
     skipOnError: true,

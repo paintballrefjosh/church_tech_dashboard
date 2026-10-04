@@ -112,6 +112,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "auth",
   },
   {
+    key: "auth.rate_limit_per_minute",
+    type: "number",
+    label: "API requests per minute per IP",
+    description:
+      "Caps how many API requests one IP address may make per minute, to stop a runaway script or loop. A single page load makes about 15 requests, so keep this well above 300. Sign-in, 2FA and password-change attempts have their own fixed limit of 10 per minute. Takes effect within a minute; values below 60 are treated as 60.",
+    defaultValue: 1200,
+    category: "auth",
+  },
+  {
     key: "audit.retention_days",
     type: "number",
     label: "Audit log retention (days)",

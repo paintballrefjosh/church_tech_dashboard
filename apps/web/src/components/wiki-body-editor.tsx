@@ -93,9 +93,11 @@ export const WikiBodyEditor = forwardRef<
      *  prop preserves the previous interface. */
     name?: string;
     onSubmitShortcut?: () => void;
+    /** Accessible name for the editing surface (screen readers, tests). */
+    ariaLabel?: string;
   }
 >(function WikiBodyEditor(
-  { value, onChange, placeholder, onUpload, name, onSubmitShortcut },
+  { value, onChange, placeholder, onUpload, name, onSubmitShortcut, ariaLabel = "Body" },
   ref,
 ) {
   // Track the latest value via ref so the editor's onUpdate can compare
@@ -188,6 +190,11 @@ export const WikiBodyEditor = forwardRef<
     content: value,
     editorProps: {
       attributes: {
+        // ProseMirror renders a bare contenteditable div; give it a textbox
+        // role and a name so assistive tech (and the e2e suite) can find it.
+        role: "textbox",
+        "aria-multiline": "true",
+        "aria-label": ariaLabel,
         class:
           "prose prose-slate max-w-none dark:prose-invert min-h-[18rem] px-4 py-3 focus:outline-none prose-headings:font-semibold prose-a:text-brand-600 prose-pre:bg-slate-900 prose-pre:text-slate-100 dark:prose-pre:bg-slate-950 prose-code:before:content-none prose-code:after:content-none",
       },

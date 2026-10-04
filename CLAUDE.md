@@ -539,6 +539,15 @@ compose — that would defeat the single-ingress design.
   `make regression`). The bootstrap admin's credentials are immutable from the
   test suite's perspective — verified by setting a real admin password and
   running the full suite; admin password is preserved end-to-end.
+  The user is reset with `must_change_password=true`: the smoke suite asserts
+  the gate blocks writes, then changes the password itself; `make regression`
+  resets the user again before e2e, which tests the browser change-password
+  flow. Smoke tests that touch optional integrations (UniFi, ProPresenter,
+  DNS) branch on whether they're configured, and never send live commands
+  (e.g. ProPresenter "next") to a configured device.
+- **API rate limit:** `auth.rate_limit_per_minute` (default 1200, floor 60) is
+  read live by @fastify/rate-limit; sign-in/TOTP/password-change have a fixed
+  10/min bucket. The smoke client waits out 429s via `retry-after`.
 - **Configuration:** anything an operator might want to change at runtime (Google OAuth
   client, SMTP, site name, etc.) lives in the `settings` table and is editable at
   `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`,

@@ -409,7 +409,9 @@ export function DashboardGrid({
             const def = findTile(it.tileId);
             const resolved = resolveTileConfig(it.tileId, it.config);
             return (
-              <div key={it.i}>
+              // data-tile-id lets the e2e suite find a tile by id rather than by
+              // its title text, which also appears in the nav.
+              <div key={it.i} data-tile-id={it.tileId}>
                 <TileShell
                   title={def?.title ?? it.tileId}
                   titleHref={tileHref(it.tileId)}

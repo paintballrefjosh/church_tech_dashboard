@@ -49,7 +49,7 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
   {
     slug: "auth",
     label: "Authentication",
-    description: "Local sign-in policy and password requirements.",
+    description: "Local sign-in policy, password requirements, 2FA, and the API rate limit.",
     Icon: KeyRound,
     section: "core",
     permission: "site:read",

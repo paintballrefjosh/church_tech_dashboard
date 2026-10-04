@@ -137,7 +137,7 @@ test-e2e:
 # the suite so the test user starts in a known default state.
 regression:
 	@$(MAKE) reset-test-user
-	@set +e; $(MAKE) test-smoke && $(MAKE) test-e2e; status=$$?; set -e; \
+	@set +e; $(MAKE) test-smoke && $(MAKE) reset-test-user && $(MAKE) test-e2e; status=$$?; set -e; \
 	  $(MAKE) disable-test-user; \
 	  echo "regression done — bootstrap admin password unchanged; test user disabled"; \
 	  exit $$status

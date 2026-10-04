@@ -42,6 +42,14 @@ const E2E_PREFIX = "[e2e]";
 // blindly POSTing leaks rows).
 const RESTRICTED_GROUP_NAME = "wiki-restricted-group";
 
+/** Type each entry as its own line into the focused editor. */
+async function typeLines(page: Page, lines: string[]) {
+  for (const [i, line] of lines.entries()) {
+    if (i > 0) await page.keyboard.press("Enter");
+    await page.keyboard.type(line);
+  }
+}
+
 async function wipeAllWikiPages(page: Page) {
   await page.goto("/wiki");
   const ids = (await page.evaluate(async (prefix) => {
@@ -94,7 +102,10 @@ test.describe("Phase 1.4 — Wiki", () => {
     // Create
     await page.goto("/wiki/new");
     await page.getByLabel("Title").fill("[e2e] Getting started");
-    await page.getByLabel(/^Body/).fill("# Welcome\n\nThis is **markdown**.\n\n- one\n- two");
+    // The body is a Tiptap rich-text editor: type like a person so its
+    // markdown shortcuts ("# ", "**…**", "- ") build a heading, bold and a list.
+    await page.getByRole("textbox", { name: "Body" }).click();
+    await typeLines(page, ["# Welcome", "This is **markdown**.", "- one", "two"]);
     await Promise.all([
       page.waitForURL(/\/wiki\/[0-9a-f-]+$/, { timeout: 15_000 }),
       page.getByRole("button", { name: /create page/i }).click(),
@@ -108,8 +119,10 @@ test.describe("Phase 1.4 — Wiki", () => {
     // Edit
     await page.getByRole("link", { name: "Edit", exact: true }).click();
     await page.waitForURL(/\/wiki\/[0-9a-f-]+\/edit$/);
-    const body = page.getByLabel(/^Body/);
-    await body.fill("# Welcome\n\nNow with a *third* bullet.\n\n- one\n- two\n- three");
+    await page.getByRole("textbox", { name: "Body" }).click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Backspace");
+    await typeLines(page, ["Now with a third bullet.", "- one", "two", "three"]);
     await page.getByLabel(/edit summary/i).fill("add third bullet");
     await Promise.all([
       page.waitForURL(/\/wiki\/[0-9a-f-]+$/, { timeout: 15_000 }),

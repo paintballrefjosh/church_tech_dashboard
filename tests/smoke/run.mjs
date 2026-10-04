@@ -14,6 +14,8 @@ const VERBOSE = process.env.VERBOSE === "1";
 // Test-user credentials. Must match apps/api/src/scripts/reset-test-user.ts.
 const TEST_USER_EMAIL = "regression-test@local";
 const TEST_USER_PASSWORD = "regression-default-pwd";
+// What the suite changes the password to, to clear the must-change gate.
+const TEST_USER_SMOKE_PASSWORD = "regression-smoke-pwd-1";
 
 let pass = 0;
 let fail = 0;
@@ -48,7 +50,16 @@ async function fetchWithCookies(path, init = {}, jar = new Map()) {
     ...(init.headers ?? {}),
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
   };
-  const res = await fetch(url, { ...init, headers, redirect: "manual" });
+  // The API rate-limits each IP (300 req/min globally). A full run makes
+  // close to that many requests, so back-to-back runs can trip it: honour
+  // the server's retry-after instead of failing the test on a 429.
+  let res = await fetch(url, { ...init, headers, redirect: "manual" });
+  for (let attempt = 0; res.status === 429 && attempt < 3; attempt++) {
+    const waitSec = Math.min(65, Math.max(1, parseInt(res.headers.get("retry-after") ?? "10", 10) || 10));
+    log(`    429 on ${init.method ?? "GET"} ${path}; waiting ${waitSec}s (rate limit)`);
+    await new Promise((r) => setTimeout(r, waitSec * 1000));
+    res = await fetch(url, { ...init, headers, redirect: "manual" });
+  }
   const setCookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
   for (const sc of setCookies) {
     const semi = sc.indexOf(";");
@@ -220,6 +231,38 @@ async function main() {
     assert(body.pageWidthPx === null, `expected pageWidthPx=null by default, got: ${body.pageWidthPx}`);
   });
 
+  // reset-test-user leaves the account with mustChangePassword=true, so the
+  // SessionGuard gate refuses every write except the password change. Prove
+  // the gate holds, then change the password like a real first sign-in so
+  // the rest of the suite can exercise mutating endpoints. (make regression
+  // re-runs reset-test-user before e2e, which tests the browser flow itself.)
+  await test("must-change-password gate refuses writes before the password change", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/me",
+      { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ pageWidth: "wide" }) },
+      jar,
+    );
+    assert(res.status === 403, `expected 403, got ${res.status}`);
+    const body = await res.json();
+    assert(/password change required/i.test(body.message ?? ""), `unexpected message: ${JSON.stringify(body)}`);
+  });
+
+  await test("POST /api/v1/me/change-password clears the gate", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/me/change-password",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ newPassword: TEST_USER_SMOKE_PASSWORD }),
+      },
+      jar,
+    );
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    const { res: me } = await fetchWithCookies("/api/v1/me", {}, jar);
+    const body = await me.json();
+    assert(body.mustChangePassword === false, "mustChangePassword should be false after the change");
+  });
+
   await test("PATCH /api/v1/me cycles through every preset", async () => {
     for (const value of ["fluid", "narrow", "wide", "standard"]) {
       const patch = await fetchWithCookies(
@@ -312,13 +355,18 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
   });
 
-  await test("GET /api/v1/users returns at least the bootstrap admin + the test user", async () => {
+  await test("GET /api/v1/users returns the test user and at least one other active user", async () => {
     const { res } = await fetchWithCookies("/api/v1/users", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
     assert(Array.isArray(body) && body.length >= 2, `users count: ${body?.length}`);
-    assert(body.some((u) => u.email === "admin@local"), "bootstrap admin not in list");
     assert(body.some((u) => u.email === TEST_USER_EMAIL), "test user not in list");
+    // The seeded bootstrap admin is admin@local, but operators rename it to a
+    // real address, so only require that some other active account exists.
+    assert(
+      body.some((u) => u.email !== TEST_USER_EMAIL && u.isActive && !u.deletedAt),
+      "no active user besides the test user",
+    );
   });
 
   await test("user soft-delete lifecycle: delete keeps the row, blocks re-create, restore re-enables", async () => {
@@ -410,10 +458,12 @@ async function main() {
       moduleKeys.includes("tickets") && moduleKeys.includes("wiki") && moduleKeys.includes("admin"),
       `expected core modules in catalog, got: ${moduleKeys.join(",")}`,
     );
+    // admin + user are system groups (can't be deleted); support_engineer is
+    // only a seed default an operator may rename or remove.
     const names = body.groups.map((g) => g.name).sort();
     assert(
-      names.includes("admin") && names.includes("support_engineer") && names.includes("user"),
-      `expected default groups present, got: ${names.join(", ")}`,
+      names.includes("admin") && names.includes("user"),
+      `expected system groups admin + user present, got: ${names.join(", ")}`,
     );
     const adminGroup = body.groups.find((g) => g.name === "admin");
     assert(
@@ -843,7 +893,11 @@ async function main() {
     const { res } = await fetchWithCookies(`/api/v1/tickets/${createdTicketId}/comments`, {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(Array.isArray(body) && body.length === 2, `comment count: ${body?.length}`);
+    // The list also carries system "event" entries (status/assignee changes
+    // made earlier in this suite); count only the two written comments.
+    assert(Array.isArray(body), "expected an array");
+    const written = body.filter((c) => (c.kind ?? "comment") === "comment");
+    assert(written.length === 2, `comment count: ${written.length} (of ${body.length} entries)`);
   });
 
   await test("audit log records ticket.create", async () => {
@@ -1411,24 +1465,26 @@ async function main() {
   });
 
   // ---- UniFi (Phase 2.2) ----
-  // Smoke tests run against an *unconfigured* controller — they exercise the
-  // surface only, asserting the API returns useful structure when no
-  // `unifi.controller_url` is set.
+  // Works whether or not a controller is configured on this stack: the
+  // "unconfigured" behaviour is only asserted when health says so.
   await test("GET /api/v1/unifi/health returns 401 without session", async () => {
     const { res } = await fetchWithCookies("/api/v1/unifi/health");
     assert(res.status === 401, `status ${res.status}`);
   });
-  await test("GET /api/v1/unifi/health (unconfigured) returns configured=false", async () => {
+  let unifiConfigured = false;
+  await test("GET /api/v1/unifi/health returns a health object", async () => {
     const { res } = await fetchWithCookies("/api/v1/unifi/health", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(body.configured === false, `expected configured=false: ${JSON.stringify(body)}`);
+    assert(typeof body.configured === "boolean", `configured missing: ${JSON.stringify(body)}`);
+    unifiConfigured = body.configured;
   });
-  await test("GET /api/v1/unifi/devices (unconfigured) returns an empty array", async () => {
+  await test("GET /api/v1/unifi/devices returns an array (empty when unconfigured)", async () => {
     const { res } = await fetchWithCookies("/api/v1/unifi/devices", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(Array.isArray(body) && body.length === 0, `expected []: ${JSON.stringify(body)}`);
+    assert(Array.isArray(body), `expected an array: ${JSON.stringify(body).slice(0, 200)}`);
+    if (!unifiConfigured) assert(body.length === 0, `expected [] when unconfigured, got ${body.length}`);
   });
 
   // ---- DNS (Technitium) ----
@@ -1554,13 +1610,18 @@ async function main() {
     const { res } = await fetchWithCookies("/api/v1/propresenter/health");
     assert(res.status === 401, `status ${res.status}`);
   });
-  await test("GET /api/v1/propresenter/health (unconfigured) returns configured=false", async () => {
+  let propresenterConfigured = true; // assume live until health proves otherwise
+  await test("GET /api/v1/propresenter/health returns a health object", async () => {
     const { res } = await fetchWithCookies("/api/v1/propresenter/health", {}, jar);
     assert(res.status === 200, `status ${res.status}`);
     const body = await res.json();
-    assert(body.configured === false, `expected configured=false: ${JSON.stringify(body)}`);
+    assert(typeof body.configured === "boolean", `configured missing: ${JSON.stringify(body)}`);
+    propresenterConfigured = body.configured;
   });
   await test("POST /api/v1/propresenter/next (unconfigured) returns 503", async () => {
+    // NEVER send this to a configured ProPresenter: it would advance the
+    // slides on a live machine, possibly mid-service.
+    if (propresenterConfigured) return;
     const { res } = await fetchWithCookies(
       "/api/v1/propresenter/next",
       { method: "POST" },
