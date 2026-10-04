@@ -12,6 +12,7 @@ import {
   Users as UsersIcon,
   X,
 } from "lucide-react";
+import { UserTokensSection } from "./user-tokens-section";
 
 interface UserRow {
   id: string;
@@ -884,6 +885,8 @@ function ManageDrawer({
         </div>
         )}
       </section>
+
+      <UserTokensSection userId={user.id} userEmail={user.email} userName={user.name} />
 
       <section className="mb-4 rounded-md border border-rose-300 bg-rose-50 p-3 dark:border-rose-800 dark:bg-rose-950/40">
         <h3 className="mb-1 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300">

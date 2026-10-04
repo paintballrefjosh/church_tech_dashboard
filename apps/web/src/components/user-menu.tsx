@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { io, type Socket } from "socket.io-client";
-import { Bell, LogOut, Moon, Sun, User as UserIcon, ChevronDown } from "lucide-react";
+import { Bell, KeySquare, LogOut, Moon, Sun, User as UserIcon, ChevronDown } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 /**
@@ -149,6 +149,16 @@ export function UserMenu({ email }: { email: string }) {
           >
             <UserIcon className="h-4 w-4 text-slate-500" aria-hidden />
             <span>Profile &amp; settings</span>
+          </Link>
+
+          <Link
+            role="menuitem"
+            href="/me/api-tokens"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <KeySquare className="h-4 w-4 text-slate-500" aria-hidden />
+            <span>API tokens</span>
           </Link>
 
           <Link

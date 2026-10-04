@@ -50,3 +50,22 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return (await res.json()) as T;
 }
+
+/**
+ * Forward a browser request from a Next route handler to the API path
+ * `upstream` (query string carried over), returning the API's status and
+ * body unchanged. The API enforces auth and permissions; this only relays.
+ */
+export async function forwardToApi(req: Request, upstream: string): Promise<Response> {
+  const search = new URL(req.url).search;
+  const init: RequestInit = { method: req.method };
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const body = await req.text();
+    if (body) init.body = body;
+  }
+  const res = await apiFetch(`${upstream}${search}`, init);
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+  });
+}

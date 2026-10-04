@@ -9,6 +9,7 @@ import {
   type ApiTokenAdminSummary,
   type ApiTokenCreate,
   type ApiTokenCreated,
+  type ApiTokenPolicy,
   type ApiTokenStatus,
   type ApiTokenSummary,
 } from "@church/shared";
@@ -60,6 +61,20 @@ export class ApiTokensService {
     private readonly auth: AuthService,
     private readonly settings: SettingsService,
   ) {}
+
+  /** What the create form may offer: whether tokens are on, and the lifetime cap. */
+  async policy(): Promise<ApiTokenPolicy> {
+    return {
+      enabled: (await this.settings.get("auth.api_tokens_enabled")) !== false,
+      maxDays: await this.maxDays(),
+      defaultDays: API_TOKEN_DEFAULT_DAYS,
+    };
+  }
+
+  private async maxDays(): Promise<number> {
+    const raw = await this.settings.get("auth.api_tokens_max_days");
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.trunc(raw) : 365;
+  }
 
   /** The user's own tokens, newest first; long-dead ones are left out. */
   async listForUser(userId: string): Promise<ApiTokenSummary[]> {
@@ -154,8 +169,7 @@ export class ApiTokensService {
    * cap (0 = no cap, and "never" allowed). null = never expires.
    */
   private async resolveExpiry(body: ApiTokenCreate): Promise<Date | null> {
-    const raw = await this.settings.get("auth.api_tokens_max_days");
-    const maxDays = typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.trunc(raw) : 365;
+    const maxDays = await this.maxDays();
     const now = Date.now();
     const tooLong = (): BadRequestException =>
       new BadRequestException(`Tokens must expire within ${maxDays} days`);

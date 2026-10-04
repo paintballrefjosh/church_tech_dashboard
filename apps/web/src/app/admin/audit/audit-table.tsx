@@ -39,6 +39,11 @@ export function AuditTable({ items }: { items: AuditEntry[] }) {
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {e.actorEmail ?? <span className="text-slate-400">(system)</span>}
+                    {e.apiTokenId ? (
+                      <span className="block text-[10px] text-slate-500" title="Made with an API token">
+                        via token {e.apiTokenName ? <span className="font-medium">{e.apiTokenName}</span> : "(deleted)"}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{e.action}</td>
                   <td className="px-3 py-2 font-mono text-xs">

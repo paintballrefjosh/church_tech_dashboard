@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { User, ShieldCheck, Bell, CalendarDays } from "lucide-react";
+import { User, ShieldCheck, Bell, CalendarDays, KeySquare } from "lucide-react";
 import { NOTIFICATION_KINDS, type NotificationKind } from "@church/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
@@ -134,6 +134,23 @@ export default async function ProfilePage() {
             className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             Manage two-factor
+          </Link>
+        </section>
+
+        <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
+          <h2 className="flex items-center gap-2 text-lg font-medium">
+            <KeySquare className="h-5 w-5 text-brand-600" aria-hidden />
+            API tokens
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Let a script or an AI agent use the dashboard&apos;s API as you, read-only or limited
+            to certain modules if you like.
+          </p>
+          <Link
+            href="/me/api-tokens"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            Manage API tokens
           </Link>
         </section>
       </main>

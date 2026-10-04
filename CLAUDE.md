@@ -290,6 +290,13 @@ audit snapshot.
   `user:admin`: `GET /admin/api-tokens?status=&userId=`,
   `DELETE /admin/api-tokens/:id`, `POST /admin/users/:id/api-tokens` (issue to a
   service account), `POST /admin/users/:id/api-tokens/revoke-all`.
+- **UI:** `/me/api-tokens` (own tokens; linked from the user menu and the profile
+  page), `/admin/api-tokens` (everyone's, filter by status), and an "API tokens"
+  section in the `/admin/users` Manage drawer (count, issue to this user, revoke
+  one/all). Shared pieces are in `apps/web/src/components/api-tokens.tsx`; the form
+  reads `GET /me/api-tokens/policy` (enabled, max days) because non-admins can't
+  read settings. The audit table shows "via token <name>". Docs: INSTALL.md
+  "Using the API".
 - **Not covered:** the Socket.IO handshake still reads the session cookie only.
 
 ### TOTP / 2FA is optional, off by default

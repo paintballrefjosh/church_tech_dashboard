@@ -37,6 +37,11 @@ export class MeApiTokensController {
     return this.tokens.listForUser(user.id);
   }
 
+  @Get("policy")
+  policy() {
+    return this.tokens.policy();
+  }
+
   @Post()
   @SessionOnly()
   @Audited({ action: "api_token.create", resourceType: "api_token", redactKeys: ["token"] })

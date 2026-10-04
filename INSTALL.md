@@ -178,6 +178,49 @@ Behind your load balancer, terminate TLS and proxy HTTP to the host's `:EXTERNAL
 Set `X-Forwarded-Proto: https` and `X-Forwarded-For: <client ip>` on the LB; Caddy
 trusts these by default in our config.
 
+## Using the API
+
+Scripts and agents use the same REST API as the web UI, at
+`https://<your-host>/api/v1/...`, authenticated with a personal **API token** sent as a
+bearer header. Create one at **API tokens** in the user menu (`/me/api-tokens`).
+
+```bash
+TOKEN=cdt_...   # shown once, when you create it
+curl -H "Authorization: Bearer $TOKEN" https://<your-host>/api/v1/me
+
+# list tickets
+curl -H "Authorization: Bearer $TOKEN" https://<your-host>/api/v1/tickets
+
+# create a ticket (needs a read-and-write token)
+curl -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -d '{"title":"Projector in room 2 is flickering","description":"Started Sunday.","priority":"normal"}' \
+  https://<your-host>/api/v1/tickets
+```
+
+How tokens behave:
+
+- **A token acts as you.** It can never do more than your account can, right now: if your
+  groups change, so does what the token can do, and it stops working if your account is
+  disabled or deleted. Every change it makes is in the audit log as you, "via token" and
+  its name.
+- **Read-only** tokens (the default) can call any `GET`; every `POST`, `PUT`, `PATCH` or
+  `DELETE` gets `403`.
+- **Module limits** keep only what those modules grant. A token limited to the wiki gets
+  `403` on, say, `/api/v1/users`, and results such as search leave out other modules.
+- **Every token expires**, within the limit an admin sets (365 days by default; an admin
+  can allow tokens that never expire). An expired, revoked or unknown token gets `401`.
+- **Some things need a signed-in browser**: creating or revoking tokens, changing your
+  password, email or two-factor settings. A token gets `403` there, so a leaked token
+  can't make new tokens or take over the account.
+
+Admins see and revoke every token at `/admin/api-tokens`, can issue a token to another
+user (for a service account) from that user's **Manage** drawer, and set the lifetime
+limit or turn tokens off entirely at `/admin/settings/auth`. Turning tokens off makes
+every existing token fail straight away, without deleting any.
+
+To act as something other than yourself, such as a backup script or an AI agent, create a
+user for it and issue the token to that user, so its changes are attributed to it.
+
 ## Connecting Claude (MCP)
 
 The dashboard is an [MCP](https://modelcontextprotocol.io) server at `/api/v1/mcp`,
@@ -191,23 +234,11 @@ UI, so permissions, page ACLs, revisions, search and notifications all behave th
    it can create pages and edit the ones it created (or ones whose access list gives
    its group edit rights). To let it update pages people wrote, give its group the
    wiki *admin* tier.
-2. **Issue it an API token** limited to the wiki module, with read-write access. Until
-   the token page exists in the UI, run this in the browser console while signed in as
-   an admin (issuing needs a signed-in session, not a token), with the agent's email:
-
-   ```js
-   const email = "claude-docs@example.org";
-   const users = await (await fetch("/api/v1/users")).json();
-   const agent = users.find((u) => u.email === email);
-   await (await fetch(`/api/v1/admin/users/${agent.id}/api-tokens`, {
-     method: "POST",
-     headers: { "content-type": "application/json" },
-     body: JSON.stringify({ name: "Claude docs", readOnly: false, modules: ["wiki"], expiresInDays: 365 }),
-   })).json()
-   ```
-
-   Copy `token` from the result now; it's shown only once. A read-only token also works:
-   the agent can then search and read but every write tool is refused.
+2. **Issue it an API token** limited to the wiki module, with read-write access: in
+   `/admin/users`, open the agent's **Manage** drawer, expand **API tokens**, press
+   **Issue token**, choose *Read and write* and *Only these: Wiki*, then copy the token
+   it shows. It's shown only once. A read-only token also works: the agent can then
+   search and read but every write tool is refused.
 3. **Connect the agent** from the machine it runs on:
 
    ```bash

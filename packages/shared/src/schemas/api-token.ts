@@ -80,3 +80,13 @@ export interface ApiTokenAdminSummary extends ApiTokenSummary {
 export interface ApiTokenCreated extends ApiTokenSummary {
   token: string;
 }
+
+/** GET /me/api-tokens/policy: what a create form may offer. */
+export interface ApiTokenPolicy {
+  /** auth.api_tokens_enabled */
+  enabled: boolean;
+  /** auth.api_tokens_max_days; 0 = no cap, and "never expires" is allowed. */
+  maxDays: number;
+  /** Expiry used when a create request names none (capped by maxDays). */
+  defaultDays: number;
+}
