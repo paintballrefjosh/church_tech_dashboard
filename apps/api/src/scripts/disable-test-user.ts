@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import * as schema from "../db/schema";
+import { databaseUrl } from "../db/connection";
 
 /**
  * Teardown counterpart to reset-test-user: disables the regression test user
@@ -19,8 +20,7 @@ import * as schema from "../db/schema";
 const TEST_EMAIL = "regression-test@local";
 
 async function main() {
-  const url = process.env.COCKROACH_URL;
-  if (!url) throw new Error("COCKROACH_URL is not set");
+  const url = databaseUrl();
 
   const pool = new Pool({ connectionString: url });
   const db = drizzle(pool, { schema });

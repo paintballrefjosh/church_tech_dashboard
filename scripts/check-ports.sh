@@ -28,8 +28,11 @@ COCKROACH_UI_PORT=$(load_var COCKROACH_UI_PORT 8180)
 # Map: "label:env-var-name:port"
 declare -a CHECKS=(
   "Caddy proxy (browser entrypoint):EXTERNAL_PORT:${EXTERNAL_PORT}"
-  "Cockroach admin UI:COCKROACH_UI_PORT:${COCKROACH_UI_PORT}"
 )
+# The Cockroach admin UI port only exists with the bundled database.
+if [ "$(bash "$(dirname "$0")/compose.sh" --db-mode)" = bundled ]; then
+  CHECKS+=("Cockroach admin UI:COCKROACH_UI_PORT:${COCKROACH_UI_PORT}")
+fi
 
 # What's listening? Prefer `ss` (faster, modern); fall back to `netstat`.
 listening() {

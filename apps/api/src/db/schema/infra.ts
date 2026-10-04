@@ -87,10 +87,10 @@ export const infraTargetCredentials = pgTable("infra_target_credentials", {
  * / per-disk-IO facets stay nested in `metrics`. Independently-countable
  * sub-entities (containers, guests, nodes) get their own rows.
  *
- * PK is targetId-prefixed to spread writes across CockroachDB ranges (a
- * leading-timestamp PK would create a single hot range). Raw rows are pruned by
- * a CockroachDB row-level TTL added in the migration SQL (drizzle-kit can't emit
- * it): ttl_expiration_expression = ts + INTERVAL '7 days'.
+ * PK is targetId-prefixed to spread writes across ranges/tablets (a
+ * leading-timestamp PK would create a single hot range on CockroachDB and
+ * YugabyteDB alike). Raw rows older than 7 days are pruned by
+ * InfraCollector.prune(), the same on every engine.
  */
 export const infraMetricSamples = pgTable(
   "infra_metric_samples",
@@ -115,7 +115,8 @@ export const infraMetricSamples = pgTable(
 /**
  * Downsampled rollups built from raw samples by the worker. Range-aware series
  * queries read the coarsest store that satisfies the requested window
- * (raw <=24h, 5m <=~14d, else 1h). Retained longer than raw via their own TTL.
+ * (raw <=24h, 5m <=~14d, else 1h). Retained longer than raw (5m 90 days, 1h
+ * 365 days), also pruned by InfraCollector.prune().
  */
 export const infraMetricRollups = pgTable(
   "infra_metric_rollups",

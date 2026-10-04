@@ -5,7 +5,7 @@ export default {
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.COCKROACH_URL || "postgresql://root@localhost:26257/church?sslmode=disable",
+    url: process.env.DATABASE_URL || process.env.COCKROACH_URL || "postgresql://root@localhost:26257/church?sslmode=disable",
   },
   // Cockroach is wire-compatible with Postgres but lacks some pg_catalog bits;
   // drizzle-kit handles this with the postgresql dialect.

@@ -1,7 +1,11 @@
 name: church-prod
 
+# Bundled 3-node CockroachDB. Only started with the `bundled-db` profile
+# (DB_MODE=bundled, the default); with DB_MODE=external the app uses
+# DATABASE_URL instead. See scripts/compose.sh.
 x-cockroach-base: &cockroach-base
   image: cockroachdb/cockroach:v24.2.0
+  profiles: [bundled-db]
   restart: always
   networks: [internal]
   healthcheck:
@@ -47,6 +51,7 @@ services:
 
   cockroach-init:
     image: cockroachdb/cockroach:v24.2.0
+    profiles: [bundled-db]
     depends_on:
       - cockroach-1
       - cockroach-2
@@ -126,13 +131,17 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      COCKROACH_URL: postgresql://root@cockroach-1:26257/church?sslmode=disable
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
       REDIS_URL: redis://redis:6379
       MEILI_URL: http://meilisearch:7700
       MINIO_ENDPOINT: minio:9000
     depends_on:
       cockroach-init:
         condition: service_completed_successfully
+        # Only present with the bundled-db profile (DB_MODE=bundled).
+        required: false
       redis:
         condition: service_healthy
       meilisearch:
@@ -147,6 +156,30 @@ services:
     restart: always
     networks: [internal]
 
+  # Uptime-probe worker: the only thing that runs the Services tab's
+  # http/tcp/icmp/dns monitors (the API no longer probes in-process).
+  monitor:
+    build:
+      context: ..
+      dockerfile: services/monitor/Dockerfile
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
+      MONITOR_POLL_MS: "5000"
+      MONITOR_PRUNE_DAYS: "30"
+    depends_on:
+      cockroach-init:
+        condition: service_completed_successfully
+        # Only present with the bundled-db profile (DB_MODE=bundled).
+        required: false
+      api:
+        condition: service_healthy
+    restart: always
+    networks: [internal]
+
   web:
     build:
       context: ..
@@ -158,6 +191,9 @@ services:
       HOSTNAME: "0.0.0.0"
       API_INTERNAL_URL: http://api:3001
       AUTH_TRUST_HOST: "true"
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
     depends_on:
       api:
         condition: service_healthy

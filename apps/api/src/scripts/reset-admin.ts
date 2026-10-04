@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../db/schema";
+import { databaseUrl } from "../db/connection";
 
 /**
  * Resets the bootstrap admin (email "admin@local") to password "admin" with
@@ -11,8 +12,7 @@ import * as schema from "../db/schema";
  * If the user doesn't exist yet, this is a no-op — run seed.js first.
  */
 async function main() {
-  const url = process.env.COCKROACH_URL;
-  if (!url) throw new Error("COCKROACH_URL is not set");
+  const url = databaseUrl();
 
   const pool = new Pool({ connectionString: url });
   const db = drizzle(pool, { schema });

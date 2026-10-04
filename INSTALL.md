@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Docker** 25+ with the Compose plugin (`docker compose version` should report v2.x)
+- **Docker** 25+ with the Compose plugin v2.20 or newer (`docker compose version`)
 - A free **host port 8100** (configurable via `EXTERNAL_PORT` in `.env`)
 - Optionally, a Google and/or Microsoft (Entra) OAuth app for single sign-on — you can
   also run with local accounts only and add OAuth later. It's all configured in the
@@ -17,7 +17,7 @@ docker-only equivalent — see [the dockerized commands section](#dockerized-com
 git clone <this repo>
 cd church-dashboard
 make up                        # auto-generates .env, creates ./data/ bind mounts, starts stack
-make migrate                   # applies SQL migrations to Cockroach
+make migrate                   # applies SQL migrations to the database
 make seed                      # seeds default groups + per-module access and the bootstrap admin
 make logs                      # tail everything
 ```
@@ -38,12 +38,47 @@ user. They use a dedicated `regression-test@local` user that's reset by
 `make reset-test-user` (run automatically as the first step of `make regression`).
 
 The dev stack includes:
-- Single-node CockroachDB on internal `:26257` (admin UI at <http://localhost:8180>, `COCKROACH_UI_PORT`)
+- Single-node CockroachDB on internal `:26257` (admin UI at <http://localhost:8180>, `COCKROACH_UI_PORT`), unless you use an external database (see below)
 - Email: no bundled mail sink — configure a real SMTP server in `/admin/settings` (leave `smtp.host` blank to disable email). For local testing, point it at a throwaway SMTP catcher of your choice or your real mail server.
 - MinIO (S3) on internal `:9000` — console **not** exposed by default (uncomment the `MINIO_CONSOLE_PORT` line in `infra/docker-compose.yml` to reach it at <http://localhost:19090>)
 - Meilisearch on internal `:7700` (throwaway dev master key, no host port)
 - Redis on internal `:6379`
 - A `monitor` probe worker running the uptime checks
+
+## Choosing a database
+
+The app talks to its database over the PostgreSQL wire protocol and runs on
+**CockroachDB** or **YugabyteDB (YSQL)**. Pick one of three setups with `DB_MODE` in `.env`:
+
+| Setup | `.env` | Notes |
+|---|---|---|
+| Bundled CockroachDB (default) | `DB_MODE=bundled` | Runs inside the stack: one node in dev, three in prod. Nothing else to set. |
+| External YugabyteDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@yb-host:5433/church` | YSQL listens on port 5433. Tested on 2024.2 LTS and 2026.1. |
+| External CockroachDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@crdb-host:26257/church?sslmode=verify-full` | Your own cluster, licensed as you see fit. |
+
+You never say which engine an external database is: the app detects it from
+`SELECT version()` and adapts. The engine and version show on the Monitoring page's
+service health. For an external database:
+
+- **Create the database first** (`CREATE DATABASE church;`). Migrations create the
+  tables but not the database.
+- **The containers must be able to reach it.** `localhost` inside a container is the
+  container itself, so use a hostname or IP that resolves from the Docker network.
+- **YugabyteDB 2024.2 (PG 11 based)** needs the `pgcrypto` extension for
+  `gen_random_uuid()`. `make migrate` enables it if the user is allowed to; otherwise
+  have the DBA run `CREATE EXTENSION IF NOT EXISTS pgcrypto;` once. Newer YugabyteDB
+  releases have it built in.
+- **Backups are yours.** `make db-backup` only covers the bundled database; use
+  `ysql_dump` or `cockroach BACKUP` for an external one.
+
+`scripts/compose.sh` reads `DB_MODE` and `DATABASE_URL`, switches the bundled database
+(the `bundled-db` compose profile) on or off, and runs `docker compose`. Every `make`
+target goes through it. If you run compose by hand, use the script
+(`scripts/compose.sh ps`, `scripts/compose.sh --prod up -d`), or export `DATABASE_URL`
+yourself and add `--profile bundled-db` for the bundled database.
+
+Switching an existing install between databases moves no data. Export from the old one
+and import into the new one with that engine's tools before changing `DB_MODE`.
 
 ## Environment variables
 
@@ -59,10 +94,11 @@ touch:
 |---|---|---|
 | `AUTH_SECRET` | yes | Signs session cookies + derives the web↔api internal token. `openssl rand -hex 32`. Must be identical in `web` and `api` (it is by default). |
 | `EXTERNAL_PORT` | no | Host port for Caddy — the public entrypoint (default `8100`). |
-| `COCKROACH_UI_PORT` | no | Host port for the dev Cockroach admin UI (default `8180`). |
+| `COCKROACH_UI_PORT` | no | Host port for the dev Cockroach admin UI (default `8180`; bundled database only). |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | yes | MinIO credentials — set a real password before prod. |
 | `MEILI_MASTER_KEY` | yes in prod | Meilisearch master key (dev uses a throwaway key). |
-| `COCKROACH_URL` | no | DB URL; defaults to in-stack `cockroach-1:26257`. |
+| `DB_MODE` | no | `bundled` (default) or `external`. See [Choosing a database](#choosing-a-database). |
+| `DATABASE_URL` | with `DB_MODE=external` | Connection string for the external database. Leave unset for the bundled one. (`COCKROACH_URL`, the old name, is still read by the apps.) |
 | `REDIS_URL` | no | Redis URL; defaults to in-stack `redis:6379`. |
 | `MINIO_ENDPOINT` / `MINIO_BUCKET` / `MINIO_USE_SSL` / `MINIO_REGION` | no | MinIO wiring; in-stack defaults are fine. |
 | `API_INTERNAL_URL` / `WEB_INTERNAL_URL` | no | In-stack service URLs; don't change unless rewiring compose. |
@@ -119,17 +155,17 @@ groups.
 
 ```bash
 cp .env.example .env
-$EDITOR .env                   # bootstrap secrets only: AUTH_SECRET, MinIO creds, MEILI_MASTER_KEY
-docker compose -f infra/docker-compose.prod.yml up -d --build
-docker compose -f infra/docker-compose.prod.yml exec api node dist/scripts/migrate.js
-docker compose -f infra/docker-compose.prod.yml exec api node dist/scripts/seed.js
+$EDITOR .env                   # bootstrap secrets (AUTH_SECRET, MinIO creds, MEILI_MASTER_KEY) + DB_MODE/DATABASE_URL
+scripts/compose.sh --prod up -d --build
+scripts/compose.sh --prod exec api node dist/scripts/migrate.js
+scripts/compose.sh --prod exec api node dist/scripts/seed.js
 ```
 
 Then sign in as **admin / admin**, change the password, and configure SMTP and any OAuth
 providers at `/admin/settings` — none of that is env-based.
 
 The prod compose file:
-- Runs a 3-node CockroachDB cluster with persistent volumes
+- Runs a 3-node CockroachDB cluster with persistent volumes (with `DB_MODE=bundled`)
 - Drops the MinIO console exposure (admin via `mc` inside the container)
 - Restarts on failure (`restart: unless-stopped`)
 - Locks every non-proxy port behind the internal compose network

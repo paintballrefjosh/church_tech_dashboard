@@ -6,6 +6,7 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { DB, type Db } from "../db/db.module";
 import { monitorChecks, monitors } from "../db/schema";
 import { getMinio } from "../attachments/minio.client";
+import { engineFromVersion, engineLabel } from "../db/connection";
 
 type ServiceStatus = "ok" | "degraded" | "down" | "unknown";
 
@@ -70,29 +71,37 @@ export class HealthController {
 
   private async probeDb(): Promise<ServiceReport> {
     const t0 = Date.now();
+    const host = redactConnString(process.env.DATABASE_URL || process.env.COCKROACH_URL || "(env unset)");
     try {
-      await withTimeout(this.db.execute(sql`SELECT 1`), PROBE_TIMEOUT_MS, "db probe timeout");
+      const res = await withTimeout(
+        this.db.execute<{ version: string }>(sql`SELECT version() AS version`),
+        PROBE_TIMEOUT_MS,
+        "db probe timeout",
+      );
       const latencyMs = Date.now() - t0;
+      const version = String((res as { rows?: Array<{ version?: unknown }> }).rows?.[0]?.version ?? "");
+      const engine = engineFromVersion(version);
       return {
         name: "Database",
-        kind: "cockroachdb",
+        kind: engine,
         status: "ok",
         latencyMs,
         details: {
-          host: redactConnString(process.env.COCKROACH_URL ?? "(env unset)"),
-          "probe query": "SELECT 1",
+          engine: engineLabel(engine, version),
+          host,
+          "probe query": "SELECT version()",
           "probe latency": `${latencyMs} ms`,
         },
       };
     } catch (err) {
       return {
         name: "Database",
-        kind: "cockroachdb",
+        kind: "database",
         status: "down",
         latencyMs: Date.now() - t0,
         message: (err as Error).message,
         details: {
-          host: redactConnString(process.env.COCKROACH_URL ?? "(env unset)"),
+          host,
           error: (err as Error).message,
         },
       };

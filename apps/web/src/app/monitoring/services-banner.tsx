@@ -208,6 +208,9 @@ function KindIcon({ kind }: { kind: string }) {
     case "api":
       return <ShieldCheck className={cls} aria-hidden />;
     case "cockroachdb":
+    case "yugabytedb":
+    case "postgresql":
+    case "database":
       return <Database className={cls} aria-hidden />;
     case "minio":
       return <HardDrive className={cls} aria-hidden />;

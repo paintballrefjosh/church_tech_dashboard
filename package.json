@@ -7,12 +7,12 @@
     "node": ">=20.11.0"
   },
   "scripts": {
-    "dev:up": "docker compose -f infra/docker-compose.yml up -d --build",
-    "dev:down": "docker compose -f infra/docker-compose.yml down",
-    "dev:logs": "docker compose -f infra/docker-compose.yml logs -f --tail=200",
-    "dev:psql": "docker compose -f infra/docker-compose.yml exec cockroach-1 cockroach sql --insecure --database=church",
-    "prod:up": "docker compose -f infra/docker-compose.prod.yml up -d --build",
-    "prod:down": "docker compose -f infra/docker-compose.prod.yml down",
+    "dev:up": "bash scripts/compose.sh up -d --build",
+    "dev:down": "bash scripts/compose.sh down",
+    "dev:logs": "bash scripts/compose.sh logs -f --tail=200",
+    "dev:psql": "make psql",
+    "prod:up": "bash scripts/compose.sh --prod up -d --build",
+    "prod:down": "bash scripts/compose.sh --prod down",
     "db:generate": "pnpm --filter @church/api db:generate",
     "db:migrate": "pnpm --filter @church/api db:migrate",
     "db:seed": "pnpm --filter @church/api db:seed",

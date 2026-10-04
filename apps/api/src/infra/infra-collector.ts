@@ -22,6 +22,18 @@ import type { InfraThresholdRule, InfraDiscoveredService } from "@church/shared"
 const DEFAULT_TICK_SEC = parseInt(process.env.INFRA_TICK_SEC ?? "15", 10);
 const DEFAULT_CONCURRENCY = parseInt(process.env.INFRA_CONCURRENCY ?? "6", 10);
 const ROLLUP_MS = parseInt(process.env.INFRA_ROLLUP_MS ?? `${5 * 60_000}`, 10);
+// Retention, enforced here rather than by the database so it works the same
+// on CockroachDB and YugabyteDB (Cockroach row-level TTL has no YSQL
+// equivalent). Raw samples back the <=24h charts; rollups the longer ranges.
+const PRUNE_MS = 60 * 60_000;
+const RETAIN_RAW_DAYS = 7;
+const RETAIN_5M_DAYS = 90;
+const RETAIN_1H_DAYS = 365;
+// Delete in batches so one pass never holds a huge transaction, and cap the
+// batches per pass so a large backlog (first run after migrating) drains over
+// a few hours instead of hammering the database.
+const PRUNE_BATCH = 5_000;
+const PRUNE_MAX_BATCHES = 200;
 
 interface AlertEntry {
   breachingSince: string | null; // ISO
@@ -34,6 +46,7 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InfraCollector.name);
   private tickTimer: NodeJS.Timeout | null = null;
   private rollupTimer: NodeJS.Timeout | null = null;
+  private pruneTimer: NodeJS.Timeout | null = null;
   private readonly inFlight = new Set<string>();
   /** Previous poll's raw counters per target, for net/disk-IO rate math. */
   private readonly prev = new Map<string, Record<string, unknown>>();
@@ -63,6 +76,8 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
       () => void this.rollup().catch((e) => this.logger.warn(e)),
       ROLLUP_MS,
     );
+    setTimeout(() => void this.prune().catch((e) => this.logger.warn(e)), 5 * 60_000);
+    this.pruneTimer = setInterval(() => void this.prune().catch((e) => this.logger.warn(e)), PRUNE_MS);
   }
 
   private async getNumberSetting(key: string, fallback: number): Promise<number> {
@@ -73,6 +88,7 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     if (this.tickTimer) clearInterval(this.tickTimer);
     if (this.rollupTimer) clearInterval(this.rollupTimer);
+    if (this.pruneTimer) clearInterval(this.pruneTimer);
   }
 
   private async tick(): Promise<void> {
@@ -368,6 +384,52 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.warn(`infra alert fan-out failed: ${(err as Error).message}`);
     }
+  }
+
+  // ---- retention ----
+
+  /** Drop raw samples and rollups past their retention window. */
+  async prune(): Promise<void> {
+    const day = 86_400_000;
+    const now = Date.now();
+    const raw = await this.pruneBatches(
+      (cutoff) => sql`
+        DELETE FROM infra_metric_samples
+        WHERE (target_id, entity_kind, entity_id, ts) IN (
+          SELECT target_id, entity_kind, entity_id, ts FROM infra_metric_samples
+          WHERE ts < ${cutoff} LIMIT ${PRUNE_BATCH}
+        )`,
+      new Date(now - RETAIN_RAW_DAYS * day),
+    );
+    let rollups = 0;
+    for (const [bucket, days] of [["5m", RETAIN_5M_DAYS], ["1h", RETAIN_1H_DAYS]] as const) {
+      rollups += await this.pruneBatches(
+        (cutoff) => sql`
+          DELETE FROM infra_metric_rollups
+          WHERE (target_id, entity_kind, entity_id, bucket, ts) IN (
+            SELECT target_id, entity_kind, entity_id, bucket, ts FROM infra_metric_rollups
+            WHERE bucket = ${bucket} AND ts < ${cutoff} LIMIT ${PRUNE_BATCH}
+          )`,
+        new Date(now - days * day),
+      );
+    }
+    if (raw + rollups > 0) this.logger.log(`pruned ${raw} raw samples, ${rollups} rollups`);
+  }
+
+  /**
+   * Run a batched DELETE until it removes less than a full batch (or the
+   * per-pass cap is hit). `DELETE ... LIMIT` is CockroachDB-only, so each
+   * batch deletes by primary key through a LIMITed subquery instead.
+   */
+  private async pruneBatches(stmt: (cutoff: Date) => ReturnType<typeof sql>, cutoff: Date): Promise<number> {
+    let total = 0;
+    for (let i = 0; i < PRUNE_MAX_BATCHES; i++) {
+      const res = await this.db.execute(stmt(cutoff));
+      const n = (res as { rowCount?: number | null }).rowCount ?? 0;
+      total += n;
+      if (n < PRUNE_BATCH) break;
+    }
+    return total;
   }
 
   // ---- rollups ----

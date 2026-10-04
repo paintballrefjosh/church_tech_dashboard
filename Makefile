@@ -1,6 +1,8 @@
 SHELL := /bin/bash
-COMPOSE := docker compose -f infra/docker-compose.yml
-COMPOSE_PROD := docker compose -f infra/docker-compose.prod.yml
+# scripts/compose.sh wraps docker compose and wires up DB_MODE (bundled
+# CockroachDB vs an external YugabyteDB/CockroachDB) from .env.
+COMPOSE := bash scripts/compose.sh
+COMPOSE_PROD := bash scripts/compose.sh --prod
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
@@ -61,8 +63,14 @@ logs:
 ps:
 	$(COMPOSE) ps
 
+# SQL shell: the bundled Cockroach's own client, or a psql container on the
+# stack network for an external database (psql talks to both engines).
 psql:
-	$(COMPOSE) exec cockroach-1 cockroach sql --insecure --database=church
+	@if [ "$$(bash scripts/compose.sh --db-mode)" = bundled ]; then \
+	  $(COMPOSE) exec cockroach-1 cockroach sql --insecure --database=church; \
+	else \
+	  docker run --rm -it --network church_internal postgres:16-alpine psql "$$(bash scripts/compose.sh --db-url)"; \
+	fi
 
 migrate:
 	$(COMPOSE) exec api node dist/scripts/migrate.js
@@ -140,6 +148,8 @@ nuke:
 	@echo "All data destroyed. Run 'make up' to start fresh."
 
 db-backup:
+	@if [ "$$(bash scripts/compose.sh --db-mode)" = external ]; then \
+	  echo "DB_MODE=external: back the database up with its own tooling (ysql_dump / cockroach BACKUP)."; exit 1; fi
 	@mkdir -p backups
 	@TS=$$(date +%Y%m%d-%H%M); \
 	  $(COMPOSE) exec -T cockroach-1 cockroach dump church --insecure | gzip > backups/cockroach-$$TS.sql.gz; \
@@ -147,6 +157,8 @@ db-backup:
 
 db-restore:
 	@if [ -z "$(FILE)" ]; then echo "usage: make db-restore FILE=./backups/xxx.sql.gz"; exit 1; fi
+	@if [ "$$(bash scripts/compose.sh --db-mode)" = external ]; then \
+	  echo "DB_MODE=external: restore with the database's own tooling."; exit 1; fi
 	gunzip -c $(FILE) | $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure --database=church
 
 prod-up: init-env init-data check-ports

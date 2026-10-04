@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import { DEFAULT_GROUPS } from "@church/shared";
 import * as schema from "../db/schema";
+import { databaseUrl } from "../db/connection";
 
 /**
  * Creates or resets a dedicated regression test user (email
@@ -23,8 +24,7 @@ const TEST_EMAIL = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 
 async function main() {
-  const url = process.env.COCKROACH_URL;
-  if (!url) throw new Error("COCKROACH_URL is not set");
+  const url = databaseUrl();
 
   const pool = new Pool({ connectionString: url });
   const db = drizzle(pool, { schema });

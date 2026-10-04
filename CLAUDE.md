@@ -30,9 +30,9 @@ abstractions. If multi-tenancy is ever needed it will be a separate, explicit ph
                                           └─────┬─────┘  └─┬───┬──────┘
                                                 │          │   │
                                        ┌────────▼──────────▼─┐ │
-                                       │  CockroachDB        │ │
-                                       │  (1 node dev,       │ │
-                                       │   3 node prod)      │ │
+                                       │  CockroachDB or     │ │
+                                       │  YugabyteDB (see    │ │
+                                       │  ## Database)       │ │
                                        └─────────────────────┘ │
                                                                │
                        ┌─────────┐  ┌─────────────┐  ┌─────────▼────┐
@@ -43,7 +43,8 @@ abstractions. If multi-tenancy is ever needed it will be a separate, explicit ph
                         job queue)    tickets)         wiki uploads)
 ```
 
-The `monitor` probe worker runs as its own service in the dev/prod stack. The
+The `monitor` probe worker runs as its own service in the dev/prod stack (it is
+the only thing that probes uptime monitors; prod lacked it until 2026-10-03). The
 ProPresenter, UniFi, and Planning Center integrations are outbound HTTP/WS
 clients to external systems (configured in the `settings` table), not local
 services in compose.
@@ -54,7 +55,7 @@ services in compose.
 |---|---|---|
 | Frontend | Next.js 15 (App Router) + React 19 + TS 5 | RSC where it helps; Tailwind for styles |
 | Backend | NestJS 10 + Fastify adapter | WS via Socket.io, RBAC guard, audit interceptor |
-| DB | CockroachDB v24 | Postgres-wire; **do not** use Postgres-only features (e.g. `LISTEN/NOTIFY`) |
+| DB | CockroachDB v24 or YugabyteDB YSQL (2024.2+) | Postgres wire; SQL must run on both (see ## Database) |
 | ORM | Drizzle ORM + drizzle-kit | Schema-as-code TS; migrations checked into `apps/api/migrations/` |
 | Auth | Auth.js v5 (NextAuth) | Google + Microsoft Entra OAuth + Credentials (argon2id) + TOTP; providers configured in DB `settings`, not env |
 | Realtime | Socket.io 4 + Redis adapter | Rooms per resource (`ticket:{id}`) and per user (`user:{id}`) |
@@ -75,8 +76,8 @@ services/
 packages/
   shared/     Zod schemas, modules/permissions/settings catalogues, audit types
 infra/
-  docker-compose.yml         dev (single Cockroach node)
-  docker-compose.prod.yml    prod (3-node Cockroach)
+  docker-compose.yml         dev (bundled single Cockroach node, or external DB)
+  docker-compose.prod.yml    prod (bundled 3-node Cockroach, or external DB)
   caddy/Caddyfile            ingress config
 tests/
   e2e/        Playwright suite (runs against the live compose stack)
@@ -353,12 +354,52 @@ kinds in the filter — nothing leaks through the index. When adding a new
 searchable resource: add the `SearchKind`, a doc builder (with `url`), the query
 gate, and an entry in `search-kinds.ts`.
 
+## Database
+
+The app speaks the Postgres wire protocol (`pg` + Drizzle) and supports three
+deployments, chosen by `DB_MODE` in `.env` and applied by `scripts/compose.sh`
+(the Makefile, `rebuild.sh` and the `pnpm dev:*` scripts all go through it):
+
+- `DB_MODE=bundled` (default): CockroachDB inside the stack (single node dev,
+  3 nodes prod), in the `bundled-db` compose profile. `DATABASE_URL` is set for you.
+- `DB_MODE=external` + `DATABASE_URL`: an existing **YugabyteDB** (YSQL, :5433)
+  or **CockroachDB** cluster. The bundled profile is off.
+
+Deployments never name the engine: `apps/api/src/db/connection.ts` reads
+`DATABASE_URL` (falling back to the old `COCKROACH_URL`) and `detectEngine()`
+classifies `SELECT version()` (`CockroachDB …` / `…-YB-…` / plain PostgreSQL).
+Engine-specific behaviour is confined to `scripts/migrate.ts`:
+
+- **YugabyteDB doesn't support DDL inside a transaction block** (each DDL bumps
+  the catalog version and a long transaction gets aborted), but drizzle's
+  migrator wraps *all* pending migrations in one transaction. On YugabyteDB,
+  migrate applies statements one by one and records them in drizzle's own
+  `drizzle.__drizzle_migrations` table with drizzle's rules; Cockroach and
+  Postgres keep drizzle's transactional migrator. A YB migration that fails
+  halfway leaves earlier statements applied, so prefer `IF NOT EXISTS`.
+- **`gen_random_uuid()`** is built in on Cockroach and PG 13+ bases, but on
+  YugabyteDB 2024.2 (PG 11 based) it needs `pgcrypto`, which migrate enables.
+
+Portability rules for new SQL (verified against Cockroach 24.2, YugabyteDB
+2024.2 LTS and 2026.1):
+- No CockroachDB row-level TTL (`ttl_expiration_expression`). Retention lives in
+  the app: infra metrics are pruned by `InfraCollector.prune()` (raw 7d, 5m
+  rollups 90d, 1h rollups 365d). Migration 0030 originally set Cockroach TTL;
+  installs that ran it keep it, harmlessly.
+- No `DELETE … LIMIT` (Cockroach-only): batch with
+  `WHERE (pk…) IN (SELECT pk… LIMIT n)`.
+- No `LISTEN/NOTIFY` and no `DO $$` blocks (Cockroach < 24.3); no
+  Cockroach-only syntax (`UPSERT`, `STRING`, `AS OF SYSTEM TIME`, `crdb_internal`).
+- `count(*)::int` comes back as a string on Cockroach (INT8) and a number on
+  YugabyteDB/Postgres (INT4): wrap with `Number()` when the value matters.
+
 ## Conventions
 
 - **Type-safe everywhere.** No `any` in committed code. Use Zod schemas from
   `packages/shared` for request/response validation on both sides.
-- **No Postgres-only SQL.** Cockroach is wire-compatible but lacks `LISTEN/NOTIFY`,
-  certain `pg_catalog` introspection, etc. Stick to portable SQL or use Drizzle helpers.
+- **Portable SQL only: it must run on CockroachDB *and* YugabyteDB.** See
+  ## Database for the specific traps (no LISTEN/NOTIFY, no row-level TTL, no
+  `DELETE … LIMIT`, no DO blocks). Prefer Drizzle helpers.
 - **No `tenant_id`.** Single-tenant only.
 - **Church-specific modules stay deferred.** Bespoke volunteer scheduling, kids
   check-in, and service planning are out of scope (decided 2026-05-25). The
@@ -377,12 +418,13 @@ gate, and an entry in `search-kinds.ts`.
 All commands assume you're at the repo root.
 
 ```bash
-# dev stack (Cockroach single-node). No bundled mail sink — configure SMTP in
-# /admin/settings (or leave blank to disable email).
-pnpm dev:up               # docker compose -f infra/docker-compose.yml up -d --build
+# dev stack (bundled Cockroach single node unless DB_MODE=external). No bundled
+# mail sink — configure SMTP in /admin/settings (or leave blank to disable email).
+# Every compose call goes through scripts/compose.sh (applies DB_MODE).
+pnpm dev:up               # scripts/compose.sh up -d --build
 pnpm dev:down             # stop + remove
 pnpm dev:logs             # tail all services
-pnpm dev:psql             # cockroach sql shell
+pnpm dev:psql             # SQL shell (cockroach sql, or psql for an external DB)
 
 # migrations
 pnpm db:generate          # drizzle-kit generate (after editing schema TS)
@@ -472,7 +514,7 @@ redirected to `http://0.0.0.0:3000/` — is obvious in the browser address bar.
 
 Only one port on the docker host belongs to a real user: `EXTERNAL_PORT` (default
 `8100`) for Caddy. The dev compose also exposes `COCKROACH_UI_PORT` (8180) as a
-convenience. Both are env-overridable.
+convenience when the bundled database runs. Both are env-overridable.
 
 `scripts/check-ports.sh` runs automatically as part of `make up` (and `make prod-up`).
 It distinguishes three states per port: free, held by one of our own containers
@@ -510,7 +552,7 @@ compose — that would defeat the single-ingress design.
 - Set HTTPS/HSTS/TLS config inside the app (it's offloaded upstream)
 - Expose any service besides Caddy to the host
 - Hard-code role/group names in business logic (guard on permission strings derived from module tiers), or read the legacy `roles`/`permissions`/`role_permissions`/`group_permissions` tables
-- Use Postgres-only features (Cockroach compatibility)
+- Use SQL that only one of CockroachDB / YugabyteDB accepts
 - Add Phase 4 church-specific modules without an explicit user ask
 - Commit emojis in code or generated files
 - Re-introduce env-based config for things in `KNOWN_SETTINGS` — they belong in the DB

@@ -17,8 +17,12 @@ services:
     restart: always
     networks: [internal]
 
+  # Bundled single-node CockroachDB. Only started with the `bundled-db`
+  # profile (DB_MODE=bundled, the default); with DB_MODE=external the app
+  # uses DATABASE_URL instead. See scripts/compose.sh.
   cockroach-1:
     image: cockroachdb/cockroach:v24.2.0
+    profiles: [bundled-db]
     # Logs go to /cockroach/logs on LOCAL disk, NOT the ../data store (which is on NFS).
     # On NFS, a write stall trips cockroach's disk-stall protection -> hard-kills the node
     # (exit 137), and it can't even log why if the log sink is on the same stalled mount.
@@ -39,6 +43,7 @@ services:
 
   cockroach-init:
     image: cockroachdb/cockroach:v24.2.0
+    profiles: [bundled-db]
     depends_on:
       cockroach-1:
         condition: service_healthy
@@ -120,13 +125,17 @@ services:
     environment:
       NODE_ENV: development
       PORT: "3001"
-      COCKROACH_URL: postgresql://root@cockroach-1:26257/church?sslmode=disable
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
       REDIS_URL: redis://redis:6379
       MEILI_URL: http://meilisearch:7700
       MINIO_ENDPOINT: minio:9000
     depends_on:
       cockroach-init:
         condition: service_completed_successfully
+        # Only present with the bundled-db profile (DB_MODE=bundled).
+        required: false
       redis:
         condition: service_healthy
       meilisearch:
@@ -148,12 +157,16 @@ services:
     env_file: ../.env
     environment:
       NODE_ENV: development
-      COCKROACH_URL: postgresql://root@cockroach-1:26257/church?sslmode=disable
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
       MONITOR_POLL_MS: "5000"
       MONITOR_PRUNE_DAYS: "30"
     depends_on:
       cockroach-init:
         condition: service_completed_successfully
+        # Only present with the bundled-db profile (DB_MODE=bundled).
+        required: false
       api:
         condition: service_healthy
     restart: always
@@ -170,6 +183,9 @@ services:
       HOSTNAME: "0.0.0.0"
       API_INTERNAL_URL: http://api:3001
       AUTH_TRUST_HOST: "true"
+      # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
+      # Cockroach, or an external YugabyteDB/CockroachDB).
+      DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
     depends_on:
       api:
         condition: service_healthy

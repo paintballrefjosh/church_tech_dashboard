@@ -10,6 +10,7 @@ import {
   DEFAULT_GROUP_MODULE_ACCESS,
 } from "@church/shared";
 import * as schema from "../db/schema";
+import { databaseUrl } from "../db/connection";
 
 /**
  * Idempotent seed. Safe to re-run.
@@ -26,8 +27,7 @@ import * as schema from "../db/schema";
  * On subsequent runs only inserts missing rows; never overwrites passwords.
  */
 async function main() {
-  const url = process.env.COCKROACH_URL;
-  if (!url) throw new Error("COCKROACH_URL is not set");
+  const url = databaseUrl();
 
   const pool = new Pool({ connectionString: url });
   const db = drizzle(pool, { schema });

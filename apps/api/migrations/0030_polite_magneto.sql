@@ -80,8 +80,10 @@ ALTER TABLE "monitor_incidents" ADD COLUMN IF NOT EXISTS "target_id" uuid;--> st
 ALTER TABLE "monitor_incidents" ADD COLUMN IF NOT EXISTS "rule_id" text;--> statement-breakpoint
 ALTER TABLE "monitor_incidents" ADD COLUMN IF NOT EXISTS "detail" jsonb;--> statement-breakpoint
 ALTER TABLE "monitor_incidents" ADD CONSTRAINT "monitor_incidents_target_id_infra_targets_id_fk" FOREIGN KEY ("target_id") REFERENCES "infra_targets"("id") ON DELETE cascade;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "monitor_incidents_target_open_idx" ON "monitor_incidents" USING btree ("target_id","resolved_at");--> statement-breakpoint
--- CockroachDB native row-level TTL for the metrics stores (drizzle-kit cannot emit this).
--- Raw samples: keep 7 days. Rollups: 90 days for 5m buckets, 365 days for 1h buckets.
-ALTER TABLE "infra_metric_samples" SET (ttl_expiration_expression = '(ts + INTERVAL ''7 days'')::TIMESTAMPTZ', ttl_job_cron = '@hourly');--> statement-breakpoint
-ALTER TABLE "infra_metric_rollups" SET (ttl_expiration_expression = '(ts + (CASE WHEN bucket = ''5m'' THEN INTERVAL ''90 days'' ELSE INTERVAL ''365 days'' END))::TIMESTAMPTZ', ttl_job_cron = '@daily');
+CREATE INDEX IF NOT EXISTS "monitor_incidents_target_open_idx" ON "monitor_incidents" USING btree ("target_id","resolved_at");
+-- Retention for the metrics stores (raw samples 7 days; rollups 90 days for
+-- 5m buckets, 365 days for 1h buckets) is enforced by the API's pruner
+-- (InfraCollector.prune), not by the database. This migration originally set
+-- CockroachDB row-level TTL here, which YugabyteDB/Postgres reject; databases
+-- that already ran the original keep that TTL, which is harmless alongside the
+-- pruner.

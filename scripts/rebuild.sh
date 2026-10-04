@@ -20,7 +20,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-COMPOSE=(docker compose -f infra/docker-compose.yml)
+# Through the wrapper so DB_MODE (bundled vs external database) applies.
+COMPOSE=(bash scripts/compose.sh)
 REBUILD_MARKER=".last-rebuild"
 MIGRATE_MARKER=".last-migrate"
 FORCE_ALL=0
