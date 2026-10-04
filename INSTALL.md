@@ -3,10 +3,13 @@
 ## Prerequisites
 
 - **Docker** 25+ with the Compose plugin v2.20 or newer (`docker compose version`)
+- **git** and **make**
 - A free **host port 8100** (configurable via `EXTERNAL_PORT` in `.env`)
 - Optionally, a Google and/or Microsoft (Entra) OAuth app for single sign-on — you can
   also run with local accounts only and add OAuth later. It's all configured in the
   browser at `/admin/settings`, not in files.
+
+Want the shortest path instead? See [QUICKSTART.md](./QUICKSTART.md).
 
 You do **not** need Node.js or pnpm on the host. Every dev/admin command has a
 docker-only equivalent — see [the dockerized commands section](#dockerized-commands-no-node-on-host).
@@ -14,7 +17,7 @@ docker-only equivalent — see [the dockerized commands section](#dockerized-com
 ## Quick start (dev)
 
 ```bash
-git clone <this repo>
+git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
 cd church-dashboard
 make up                        # auto-generates .env, creates ./data/ bind mounts, starts stack
 make migrate                   # applies SQL migrations to the database
@@ -38,7 +41,7 @@ user. They use a dedicated `regression-test@local` user that's reset by
 `make reset-test-user` (run automatically as the first step of `make regression`).
 
 The dev stack includes:
-- Single-node CockroachDB on internal `:26257` (admin UI at <http://localhost:8180>, `COCKROACH_UI_PORT`), unless you use an external database (see below)
+- Single-node CockroachDB on internal `:26257`, unless you use an external database (see below). Its admin UI runs in insecure mode with no login, so it's published on the host's loopback only, at <http://localhost:8180> (`COCKROACH_UI_PORT`). From another machine, tunnel to it: `ssh -L 8180:localhost:8180 <server>`, then open <http://localhost:8180>. Its logs go to `./data/cockroach-logs`; if `./data` is on NFS, set `COCKROACH_LOG_DIR` to a local-disk path, because an NFS write stall makes Cockroach kill itself.
 - Email: no bundled mail sink — configure a real SMTP server in `/admin/settings` (leave `smtp.host` blank to disable email). For local testing, point it at a throwaway SMTP catcher of your choice or your real mail server.
 - MinIO (S3) on internal `:9000` — console **not** exposed by default (uncomment the `MINIO_CONSOLE_PORT` line in `infra/docker-compose.yml` to reach it at <http://localhost:19090>)
 - Meilisearch on internal `:7700` (throwaway dev master key, no host port)
@@ -94,7 +97,8 @@ touch:
 |---|---|---|
 | `AUTH_SECRET` | yes | Signs session cookies + derives the web↔api internal token. `openssl rand -hex 32`. Must be identical in `web` and `api` (it is by default). |
 | `EXTERNAL_PORT` | no | Host port for Caddy — the public entrypoint (default `8100`). |
-| `COCKROACH_UI_PORT` | no | Host port for the dev Cockroach admin UI (default `8180`; bundled database only). |
+| `COCKROACH_UI_PORT` | no | Loopback-only host port for the dev Cockroach admin UI (default `8180`; bundled database only). |
+| `COCKROACH_LOG_DIR` | no | Host folder for the dev Cockroach logs (default `./data/cockroach-logs`; bundled database only). Use local disk if `./data` is on NFS. |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | yes | MinIO credentials — set a real password before prod. |
 | `MEILI_MASTER_KEY` | yes in prod | Meilisearch master key (dev uses a throwaway key). |
 | `DB_MODE` | no | `bundled` (default) or `external`. See [Choosing a database](#choosing-a-database). |

@@ -23,16 +23,18 @@ services:
   cockroach-1:
     image: cockroachdb/cockroach:v24.2.0
     profiles: [bundled-db]
-    # Logs go to /cockroach/logs on LOCAL disk, NOT the ../data store (which is on NFS).
+    # Logs go to their own mount so they can sit on local disk when ../data is on NFS.
     # On NFS, a write stall trips cockroach's disk-stall protection -> hard-kills the node
     # (exit 137), and it can't even log why if the log sink is on the same stalled mount.
     command: ["start-single-node", "--insecure", "--advertise-addr=cockroach-1", "--log", "{file-defaults: {dir: /cockroach/logs}}"]
     volumes:
       - ../data/cockroach-1:/cockroach/cockroach-data
-      # MUST be local disk (absolute host path) — do NOT put cockroach logs on NFS.
-      - /home/josh/church-cockroach-logs:/cockroach/logs
+      # If ./data is on NFS, set COCKROACH_LOG_DIR in .env to a local-disk path.
+      - ${COCKROACH_LOG_DIR:-../data/cockroach-logs}:/cockroach/logs
     ports:
-      - "${COCKROACH_UI_PORT:-8180}:8080"
+      # Insecure-mode admin UI with no login: loopback only. Reach it from
+      # another machine with an SSH tunnel (see INSTALL.md).
+      - "127.0.0.1:${COCKROACH_UI_PORT:-8180}:8080"
     healthcheck:
       test: ["CMD", "cockroach", "sql", "--insecure", "--host=localhost", "-e", "SELECT 1"]
       interval: 5s

@@ -45,18 +45,20 @@ interceptor. Realtime updates push over Socket.io with a Redis pub/sub adapter.
 
 ## Quick start
 
+**[QUICKSTART.md](./QUICKSTART.md)** goes from a bare Linux host to a signed-in dashboard
+in six steps, including choosing a database. In short, with the default bundled database:
+
 ```bash
-git clone <this repo>
+git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
 cd church-dashboard
 make up        # generates .env with a random AUTH_SECRET; creates ./data/ bind mounts
 make migrate   # applies DB migrations
 make seed      # seeds default groups + per-module access and the bootstrap admin (user "admin", password "admin")
-open http://localhost:8100
 ```
 
-Sign in with **admin / admin**. You'll be forced to set a new password on first login.
-After that, all other settings (Google/Microsoft OAuth, SMTP, etc.) live in the database — edit
-them at `/admin/settings` instead of touching files.
+Then open `http://<server>:8100` and sign in with **admin / admin**. You'll be forced to set
+a new password on first login. After that, all other settings (Google/Microsoft OAuth,
+SMTP, etc.) live in the database — edit them at `/admin/settings` instead of touching files.
 
 Persistent data is bind-mounted into `./data/<service>/` so backing up the whole stack is a
 `tar -czf backup.tgz data/ .env` away. Full setup details and Google Workspace integration are in
@@ -77,7 +79,7 @@ Only Caddy is exposed to the host. Everything else is on the internal compose ne
 The upstream load balancer terminates TLS and forwards HTTP to host port **:8100**.
 
 ```bash
-docker compose -f infra/docker-compose.prod.yml up -d --build
+make prod-up   # same as: scripts/compose.sh --prod up -d --build
 ```
 
 Prod compose runs a 3-node CockroachDB cluster and expects production env vars
@@ -98,6 +100,7 @@ make regression
 ## Project docs
 
 - [CLAUDE.md](./CLAUDE.md) — architecture, conventions, "things to never do"
+- [QUICKSTART.md](./QUICKSTART.md) — shortest path to a running dashboard
 - [INSTALL.md](./INSTALL.md) — full setup, including Google Workspace
 - Roadmap: see CLAUDE.md § Roadmap
 

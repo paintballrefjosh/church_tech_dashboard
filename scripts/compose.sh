@@ -85,4 +85,9 @@ if [[ -n "$PROFILE" ]]; then
 fi
 export COMPOSE_PROFILES="$profiles"
 
-exec docker compose -f "$FILE" "$@"
+# Compose looks for .env next to the compose file (infra/), not here, so
+# without this the ${VAR} values in the compose files ignore the root .env.
+env_args=()
+[[ -f .env ]] && env_args=(--env-file .env)
+
+exec docker compose "${env_args[@]}" -f "$FILE" "$@"

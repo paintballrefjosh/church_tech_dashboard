@@ -16,7 +16,7 @@ load_var() {
   local var="$1" default="$2"
   if [ -f "$ENV_FILE" ]; then
     local val
-    val=$(grep -E "^${var}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'") || true
+    val=$(grep -E "^${var}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//' | tr -d '"' | tr -d "'") || true
     [ -n "${val:-}" ] && { echo "$val"; return; }
   fi
   echo "$default"

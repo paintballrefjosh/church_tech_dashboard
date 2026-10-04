@@ -514,7 +514,10 @@ redirected to `http://0.0.0.0:3000/` — is obvious in the browser address bar.
 
 Only one port on the docker host belongs to a real user: `EXTERNAL_PORT` (default
 `8100`) for Caddy. The dev compose also exposes `COCKROACH_UI_PORT` (8180) as a
-convenience when the bundled database runs. Both are env-overridable.
+convenience when the bundled database runs, bound to `127.0.0.1` only because the
+insecure-mode UI has no login (reach it over an SSH tunnel). Both are env-overridable.
+`scripts/compose.sh` passes `--env-file .env`, so the root `.env` feeds the `${VAR}`
+interpolation in both compose files (compose would otherwise look in `infra/`).
 
 `scripts/check-ports.sh` runs automatically as part of `make up` (and `make prod-up`).
 It distinguishes three states per port: free, held by one of our own containers
