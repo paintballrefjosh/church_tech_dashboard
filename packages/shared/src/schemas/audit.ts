@@ -11,6 +11,9 @@ export const auditEntrySchema = z.object({
   after: z.unknown().nullable(),
   ip: z.string().nullable(),
   userAgent: z.string().nullable(),
+  // Set when the change was made with an API token; the name is for display.
+  apiTokenId: z.string().uuid().nullable().optional(),
+  apiTokenName: z.string().nullable().optional(),
   ts: z.string().datetime(),
 });
 

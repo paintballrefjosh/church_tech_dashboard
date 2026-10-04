@@ -1903,6 +1903,10 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
   });
 
+  // ---- API tokens (tests/smoke/api-tokens.mjs) ----
+  const { apiTokenTests } = await import("./api-tokens.mjs");
+  await apiTokenTests({ test, assert, fetchWithCookies, jar });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);

@@ -93,6 +93,25 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: false,
     category: "auth",
   },
+  // API tokens (personal bearer tokens for scripts and agents).
+  {
+    key: "auth.api_tokens_enabled",
+    type: "boolean",
+    label: "Allow API tokens",
+    description:
+      "Lets users create personal API tokens for scripts and agents. Turning this off makes every existing token stop working straight away, without deleting any.",
+    defaultValue: true,
+    category: "auth",
+  },
+  {
+    key: "auth.api_tokens_max_days",
+    type: "number",
+    label: "Longest API token lifetime (days)",
+    description:
+      "New tokens must expire within this many days. 0 also allows tokens that never expire, which work until someone revokes them.",
+    defaultValue: 365,
+    category: "auth",
+  },
   {
     key: "auth.require_totp_admin",
     type: "boolean",

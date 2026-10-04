@@ -8,6 +8,7 @@ import { SettingsService } from "../settings/settings.service";
 import { DB, type Db } from "../db/db.module";
 import { users, credentials, notificationPrefs } from "../db/schema";
 import { Audited } from "../audit/audit.decorator";
+import { SessionOnly } from "./session-only.decorator";
 
 const changePasswordBody = z.object({
   newPassword: z.string().min(8).max(256),
@@ -152,6 +153,7 @@ export class MeController {
   }
 
   @Post("change-password")
+  @SessionOnly()
   @Audited({ action: "user.changePassword", resourceType: "user" })
   async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     const { newPassword } = changePasswordBody.parse(body);
@@ -175,6 +177,7 @@ export class MeController {
   }
 
   @Patch()
+  @SessionOnly()
   @Audited({ action: "user.profile.update", resourceType: "user" })
   async updateProfile(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     const parsed = updateProfileBody.safeParse(body);

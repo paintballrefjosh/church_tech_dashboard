@@ -249,12 +249,48 @@ OAuth credentials), so they change without a redeploy:
 5. `web` calls `api` with the session cookie; `api` validates it with the shared
    `AUTH_SECRET` in `SessionGuard`
 6. Service-to-service / script calls use `api_tokens` (bearer header), not sessions
+   (see ### API tokens)
 
 `web` reads the provider config from the internal-only endpoint
 `/api/v1/auth/providers/internal` (gated by an `X-Internal-Token` derived from
 `AUTH_SECRET`, and 404'd by Caddy on the public proxy). A toggle can't be enabled
 until its credentials are present — enforced by `TOGGLE_PREREQUISITES` in
 `packages/shared/src/settings.ts` and the settings UI.
+
+### API tokens
+
+Personal bearer tokens (`cdt_` + 32 random bytes, base64url) for scripts and
+agents; module `apps/api/src/api-tokens/`, shared schemas in
+`packages/shared/src/schemas/api-token.ts`, migration 0049. Only the SHA-256
+hash and the first 8 characters are stored; the plaintext is in the create
+response once, and `@Audited({ redactKeys: ["token"] })` keeps it out of the
+audit snapshot.
+
+- **A token acts as its owner, narrowed:** `AuthService.findUserByApiToken`
+  loads the owner through the normal `loadUserById` (so group changes apply at
+  once and a disabled/deleted owner's tokens die), then `scopeUserToToken`
+  (`auth/api-token-scope.ts`, unit-tested) intersects `permissions` with what the
+  token's `modules` could grant and cuts `access` to them. It returns a copy: the
+  owner record is shared through the user cache. `read_only` tokens get a 403 on
+  any non-GET/HEAD/OPTIONS in `SessionGuard`.
+- **Bearer is judged alone:** a request with `Authorization: Bearer` never falls
+  through to the cookie. Unknown, revoked, expired, and "feature off"
+  (`auth.api_tokens_enabled`) all give the same 401. Bearer requests skip the
+  TOTP-enrolment gate (creating a token is session-only, so it already passed).
+- **`@SessionOnly()`** (`auth/session-only.decorator.ts`) refuses bearer requests:
+  token create/revoke (own and admin), password change, `PATCH /me` (email), and
+  the whole TOTP controller. Put it on anything that would let a leaked token
+  outlive revocation or take over the account.
+- **Lifetime:** every token expires within `auth.api_tokens_max_days` (default
+  365; 0 also allows "never"); default 90 days. Revoking sets `revoked_at`;
+  tokens are never deleted, so `audit_log.api_token_id` keeps resolving (the
+  audit list returns `apiTokenName`). `last_used_at`/`last_used_ip` are written at
+  most once a minute.
+- **Endpoints:** `GET|POST /me/api-tokens`, `DELETE /me/api-tokens/:id`;
+  `user:admin`: `GET /admin/api-tokens?status=&userId=`,
+  `DELETE /admin/api-tokens/:id`, `POST /admin/users/:id/api-tokens` (issue to a
+  service account), `POST /admin/users/:id/api-tokens/revoke-all`.
+- **Not covered:** the Socket.IO handshake still reads the session cookie only.
 
 ### TOTP / 2FA is optional, off by default
 

@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
-import { desc, eq, and, lt, gte, type SQL } from "drizzle-orm";
+import { desc, eq, and, lt, gte, getTableColumns, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { auditLog } from "../db/schema";
+import { auditLog, apiTokens } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
 
 export interface AuditWrite {
@@ -14,6 +14,8 @@ export interface AuditWrite {
   after?: unknown;
   ip?: string | null;
   userAgent?: string | null;
+  /** The API token the request authenticated with, if any. */
+  apiTokenId?: string | null;
 }
 
 @Injectable()
@@ -73,6 +75,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
       after: (entry.after ?? null) as never,
       ip: entry.ip ?? null,
       userAgent: entry.userAgent ?? null,
+      apiTokenId: entry.apiTokenId ?? null,
     });
   }
 
@@ -95,9 +98,11 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
 
     const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
 
+    // apiTokenName lets the audit page say "via token <name>".
     const rows = await this.db
-      .select()
+      .select({ ...getTableColumns(auditLog), apiTokenName: apiTokens.name })
       .from(auditLog)
+      .leftJoin(apiTokens, eq(apiTokens.id, auditLog.apiTokenId))
       .where(where)
       .orderBy(desc(auditLog.ts))
       .limit(opts.limit ?? 50);

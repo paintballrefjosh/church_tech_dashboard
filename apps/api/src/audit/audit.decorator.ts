@@ -14,6 +14,8 @@ export interface AuditMeta {
   captureBefore?: boolean;
   /** Extract a resource id from route params if the response doesn't carry one. */
   resourceIdFromParams?: (params: Record<string, string>) => string | null;
+  /** Top-level keys dropped from the snapshot before it's stored (secrets in a response, e.g. a new API token). */
+  redactKeys?: readonly string[];
 }
 
 /**

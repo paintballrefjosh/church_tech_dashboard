@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, uuid, jsonb, index } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { apiTokens } from "./api-tokens";
 
 export const auditLog = pgTable(
   "audit_log",
@@ -14,6 +15,8 @@ export const auditLog = pgTable(
     after: jsonb("after"),
     ip: text("ip"),
     userAgent: text("user_agent"),
+    // Set when the request authenticated with an API token rather than a session.
+    apiTokenId: uuid("api_token_id").references(() => apiTokens.id, { onDelete: "set null" }),
     ts: timestamp("ts").notNull().defaultNow(),
   },
   (t) => ({

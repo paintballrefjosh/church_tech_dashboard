@@ -2,6 +2,8 @@ import { Injectable, type CanActivate, type ExecutionContext, UnauthorizedExcept
 import { Reflector } from "@nestjs/core";
 import { decode } from "@auth/core/jwt";
 import { IS_PUBLIC_KEY } from "./public.decorator";
+import { SESSION_ONLY_KEY } from "./session-only.decorator";
+import { isReadMethod } from "./api-token-scope";
 import { AuthService } from "./auth.service";
 import type { AuthenticatedUser } from "./current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
@@ -127,17 +129,30 @@ export class SessionGuard implements CanActivate {
 
     const req = ctx.switchToHttp().getRequest();
 
-    // 1. Bearer (API tokens) — for service-to-service / scripts.
+    // 1. Bearer (API tokens) — for scripts and agents. A request that sends a
+    // bearer token is judged on that token alone: an unknown, revoked or
+    // expired one is a 401, never a fall-through to the session cookie.
     const authHeader: string | undefined = req.headers?.authorization;
     if (authHeader?.toLowerCase().startsWith("bearer ")) {
       const token = authHeader.slice(7).trim();
-      const user = await this.auth.findUserByApiToken(token);
-      if (user) {
-        req.user = user;
-        enforceApproval(user, req);
-        enforceMustChangePassword(user, req);
-        return true;
+      const enabled = (await this.settings.get("auth.api_tokens_enabled")) !== false;
+      const user = enabled ? await this.auth.findUserByApiToken(token, typeof req.ip === "string" ? req.ip : null) : null;
+      if (!user) throw new UnauthorizedException("Invalid or expired API token");
+      req.user = user;
+      const sessionOnly = this.reflector.getAllAndOverride<boolean>(SESSION_ONLY_KEY, [
+        ctx.getHandler(),
+        ctx.getClass(),
+      ]);
+      if (sessionOnly) throw new ForbiddenException("This endpoint needs a signed-in session, not an API token");
+      enforceApproval(user, req);
+      enforceMustChangePassword(user, req);
+      // Bearer requests skip the TOTP-enrolment gate on purpose: a script
+      // can't enrol, and minting a token is session-only, so it already
+      // passed that gate.
+      if (user.apiToken?.readOnly && !isReadMethod(req.method)) {
+        throw new ForbiddenException("This API token is read-only");
       }
+      return true;
     }
 
     // 2. Auth.js JWT session cookie (decrypted using the shared AUTH_SECRET).

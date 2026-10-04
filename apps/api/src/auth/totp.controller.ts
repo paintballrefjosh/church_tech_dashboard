@@ -8,6 +8,7 @@ import { CurrentUser, type AuthenticatedUser } from "./current-user.decorator";
 import { AuthService } from "./auth.service";
 import { DB, type Db } from "../db/db.module";
 import { users, totpSecrets } from "../db/schema";
+import { SessionOnly } from "./session-only.decorator";
 
 const verifyBody = z.object({ code: z.string().regex(/^\d{6}$/) });
 
@@ -32,6 +33,8 @@ function hashRecoveryCode(code: string): string {
   return createHash("sha256").update(code.toUpperCase().replace(/-/g, "")).digest("hex");
 }
 
+// Enrolling or removing 2FA changes how the account signs in: never by token.
+@SessionOnly()
 @Controller("auth/totp")
 export class TotpController {
   constructor(private readonly auth: AuthService, @Inject(DB) private readonly db: Db) {}

@@ -16,6 +16,10 @@ export type AuthenticatedUser = {
   // primary user-facing access model; permissions are derived from this via
   // packages/shared/src/modules.ts.
   access: Record<string, "user" | "moderator" | "admin">;
+  // Set when the request authenticated with an API token. permissions/access
+  // above are then already narrowed to the token's modules (see
+  // auth/api-token-scope.ts); readOnly is enforced by SessionGuard.
+  apiToken?: { id: string; name: string; readOnly: boolean; modules: string[] | null };
 };
 
 export const CurrentUser = createParamDecorator(

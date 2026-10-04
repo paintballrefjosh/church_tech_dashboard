@@ -12,12 +12,14 @@ import {
   groupModuleAccess,
 } from "../db/schema";
 import type { AuthenticatedUser } from "./current-user.decorator";
+import { scopeUserToToken } from "./api-token-scope";
 import {
   MODULES,
   ALL_PERMISSIONS,
   permissionsFor,
   tierRank,
   type ModuleTier,
+  API_TOKEN_PREFIX,
 } from "@church/shared";
 
 /**
@@ -34,6 +36,8 @@ import {
  * Map for a Redis-backed cache with the same shape.
  */
 const USER_CACHE_TTL_MS = 30_000;
+/** How stale a token's last_used_at may get before a request rewrites it. */
+const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class AuthService {
@@ -61,17 +65,36 @@ export class AuthService {
     return randomBytes(bytes).toString("base64url");
   }
 
-  async findUserByApiToken(token: string): Promise<AuthenticatedUser | null> {
+  /**
+   * Resolve a bearer token to its owner, narrowed to the token's limits.
+   * Unknown, revoked and expired tokens all return null, so the caller
+   * answers each with the same 401. `last_used_at`/`last_used_ip` are
+   * written at most once a minute per token, not on every call.
+   */
+  async findUserByApiToken(token: string, ip: string | null): Promise<AuthenticatedUser | null> {
+    if (!token.startsWith(API_TOKEN_PREFIX)) return null;
     const hash = this.hashToken(token);
     const [row] = await this.db
       .select()
       .from(apiTokens)
       .where(eq(apiTokens.tokenHash, hash))
       .limit(1);
-    if (!row) return null;
-    if (row.expiresAt && row.expiresAt.getTime() < Date.now()) return null;
-    await this.db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.id));
-    return this.loadUserById(row.userId);
+    if (!row || row.revokedAt) return null;
+    const now = Date.now();
+    if (row.expiresAt && row.expiresAt.getTime() <= now) return null;
+    const owner = await this.loadUserById(row.userId);
+    if (!owner) return null;
+    if (!row.lastUsedAt || now - row.lastUsedAt.getTime() > LAST_USED_WRITE_INTERVAL_MS || row.lastUsedIp !== ip) {
+      await this.db
+        .update(apiTokens)
+        .set({ lastUsedAt: new Date(now), lastUsedIp: ip })
+        .where(eq(apiTokens.id, row.id));
+    }
+    const limits = { readOnly: row.readOnly, modules: row.modules ?? null };
+    return {
+      ...scopeUserToToken(owner, limits),
+      apiToken: { id: row.id, name: row.name, ...limits },
+    };
   }
 
   async loadUserById(userId: string): Promise<AuthenticatedUser | null> {

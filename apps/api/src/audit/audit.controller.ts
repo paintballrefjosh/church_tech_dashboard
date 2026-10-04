@@ -49,13 +49,14 @@ export class AuditController {
       from: parseDateLoose(parsed.from),
       to: parseDateLoose(parsed.to),
     });
-    const header = ["ts", "actorEmail", "action", "resourceType", "resourceId", "ip", "userAgent"];
+    const header = ["ts", "actorEmail", "apiToken", "action", "resourceType", "resourceId", "ip", "userAgent"];
     const lines = [
       header.join(","),
       ...rows.map((r) =>
         [
           r.ts.toISOString(),
           r.actorEmail ?? "",
+          r.apiTokenName ?? "",
           r.action,
           r.resourceType,
           r.resourceId ?? "",

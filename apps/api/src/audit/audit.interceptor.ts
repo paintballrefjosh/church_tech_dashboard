@@ -65,14 +65,25 @@ export class AuditInterceptor implements NestInterceptor {
             resourceType: meta.resourceType,
             resourceId,
             before: meta.captureBefore ? null : null,
-            after: meta.captureAfter ? response : requestBody ?? null,
+            after: redact(meta.captureAfter ? response : requestBody ?? null, meta.redactKeys),
             ip: typeof ip === "string" ? ip : null,
             userAgent,
+            apiTokenId: user?.apiToken?.id ?? null,
           })
           .catch(() => undefined);
       }),
     );
   }
+}
+
+/** Shallow copy of an object snapshot without the given keys. */
+function redact(snapshot: unknown, keys: readonly string[] | undefined): unknown {
+  if (!keys?.length || typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
+    return snapshot;
+  }
+  const copy: Record<string, unknown> = { ...(snapshot as Record<string, unknown>) };
+  for (const k of keys) delete copy[k];
+  return copy;
 }
 
 /**
