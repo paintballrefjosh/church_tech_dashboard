@@ -4,6 +4,8 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
+// Named tokens.spec.ts, not api-tokens: files run alphabetically and auth.spec.ts
+// must see the test user before any spec changes its default password.
 test.describe.configure({ mode: "serial" });
 
 async function signInAsTestUser(page: Page) {
@@ -62,8 +64,8 @@ test.describe("API tokens", () => {
     expect(token).toMatch(/^cdt_[A-Za-z0-9_-]{43}$/);
     await expect(reveal.getByText(`/api/v1/me`)).toBeVisible();
 
-    await reveal.getByRole("button", { name: "Copy" }).click();
-    await expect(reveal.getByRole("button", { name: "Copied" })).toBeVisible();
+    await reveal.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect(reveal.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(token);
 
     // The token works as a bearer credential, and is read-only.

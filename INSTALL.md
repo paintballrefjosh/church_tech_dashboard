@@ -305,12 +305,19 @@ tar -czf backup-$(date +%F).tgz data/
 make up
 ```
 
-For a hot logical DB-only backup that doesn't require downtime:
+For a database-only backup that doesn't need downtime (bundled CockroachDB only):
 
 ```bash
-make db-backup                 # writes ./backups/cockroach-YYYYMMDD-HHMM.sql.gz
-make db-restore FILE=./backups/cockroach-20260525-1830.sql.gz
+make db-backup                 # writes ./backups/crdb-YYYYMMDD-HHMMSS.tgz
+make db-restore FILE=./backups/crdb-20261003-233752.tgz CONFIRM=yes
 ```
+
+The archive is a native CockroachDB `BACKUP` (not SQL), so it restores only into
+CockroachDB. `db-restore` replaces the whole `church` database: it stops the api, web and
+monitor containers, restores into a temporary database, and only once that has succeeded
+swaps it in for the live one and starts them again. Without `CONFIRM=yes` it only says
+what it would do. These targets use the dev compose file; for the prod stack, take a
+`tar` of `data/` as above.
 
 In production, schedule one of these from cron. Backups are local to the host — copy them
 off-box too.

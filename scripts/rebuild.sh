@@ -5,8 +5,8 @@
 # `docker compose up -d --build api web` wastes the cache-verification + image
 # tagging time on the service that didn't change. This script consults file
 # mtimes against a marker, rebuilds only the services that actually have new
-# source, restarts everything that wasn't rebuilt, and then runs migrations
-# only if there are new SQL files since the last apply.
+# source, runs migrations (with the new api image) only if there are new SQL
+# files since the last apply, and then restarts the rebuilt services.
 #
 # Usage: scripts/rebuild.sh        # rebuild what changed, then migrate
 #        scripts/rebuild.sh --all  # force-rebuild both services
@@ -75,27 +75,38 @@ else
   [ "$web_changed" = 1 ] && services+=(web)
 fi
 
+migrations_pending() {
+  [ "$DO_MIGRATE" = 1 ] || return 1
+  [ ! -f "$MIGRATE_MARKER" ] && return 0
+  find apps/api/migrations -name '*.sql' -newer "$MIGRATE_MARKER" -print -quit | grep -q .
+}
+
+# Order matters: build the new images, migrate with the NEW api image, and only
+# then swap the running containers. Starting the new api first meant its code
+# queried columns the migration hadn't added yet (search indexing and anything
+# else touching them failed until the next restart or retry).
+if [ ${#services[@]} -gt 0 ]; then
+  echo "==> Rebuilding: ${services[*]}"
+  # DOCKER_BUILDKIT=1 is the modern default but force it for older daemons.
+  DOCKER_BUILDKIT=1 "${COMPOSE[@]}" build "${services[@]}"
+fi
+
+if migrations_pending; then
+  # The migrate script is idempotent (it tracks applied entries in a DB
+  # table); the marker only saves a container start when nothing is new.
+  # `run` brings up the database first if it isn't running.
+  echo "==> Applying migrations"
+  "${COMPOSE[@]}" run --rm api node dist/scripts/migrate.js
+  touch "$MIGRATE_MARKER"
+elif [ "$DO_MIGRATE" = 1 ]; then
+  echo "==> Migrations: no new files since $(stat -c %y "$MIGRATE_MARKER")"
+fi
+
 if [ ${#services[@]} -eq 0 ]; then
   echo "==> No source changes detected since $(stat -c %y "$REBUILD_MARKER" 2>/dev/null || echo never)."
   echo "    Ensuring containers are running (no rebuild)."
   "${COMPOSE[@]}" up -d api web
 else
-  echo "==> Rebuilding: ${services[*]}"
-  # DOCKER_BUILDKIT=1 is the modern default but force it for older daemons.
-  DOCKER_BUILDKIT=1 "${COMPOSE[@]}" up -d --build "${services[@]}"
+  "${COMPOSE[@]}" up -d "${services[@]}"
 fi
 touch "$REBUILD_MARKER"
-
-if [ "$DO_MIGRATE" = 1 ]; then
-  # Skip the migrate exec when nothing new is in migrations/. The script itself
-  # is idempotent (it tracks applied entries in a DB table), so the worst-case
-  # cost is one extra `docker compose exec` — but skipping shaves ~1s and keeps
-  # the output cleaner when nothing's actually changed.
-  if [ ! -f "$MIGRATE_MARKER" ] || find apps/api/migrations -name '*.sql' -newer "$MIGRATE_MARKER" -print -quit | grep -q .; then
-    echo "==> Applying migrations"
-    "${COMPOSE[@]}" exec api node dist/scripts/migrate.js
-    touch "$MIGRATE_MARKER"
-  else
-    echo "==> Migrations: no new files since $(stat -c %y "$MIGRATE_MARKER")"
-  fi
-fi

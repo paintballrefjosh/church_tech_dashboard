@@ -147,19 +147,51 @@ nuke:
 	rm -rf data
 	@echo "All data destroyed. Run 'make up' to start fresh."
 
+# Bundled CockroachDB only. `cockroach dump` was removed in v22, so this uses
+# BACKUP into the node's local storage (nodelocal://1 = cockroach-1's
+# cockroach-data/extern), streams that folder out as a .tgz, then deletes it
+# from the store. The archive is a native Cockroach backup, not SQL.
+CRDB_EXTERN := /cockroach/cockroach-data/extern
+
 db-backup:
 	@if [ "$$(bash scripts/compose.sh --db-mode)" = external ]; then \
 	  echo "DB_MODE=external: back the database up with its own tooling (ysql_dump / cockroach BACKUP)."; exit 1; fi
 	@mkdir -p backups
-	@TS=$$(date +%Y%m%d-%H%M); \
-	  $(COMPOSE) exec -T cockroach-1 cockroach dump church --insecure | gzip > backups/cockroach-$$TS.sql.gz; \
-	  echo "wrote backups/cockroach-$$TS.sql.gz"
+	@TS=crdb-$$(date +%Y%m%d-%H%M%S); \
+	  $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure \
+	    -e "BACKUP DATABASE church INTO 'nodelocal://1/$$TS'" >/dev/null \
+	  && $(COMPOSE) exec -T cockroach-1 tar -czf - -C $(CRDB_EXTERN) $$TS > backups/$$TS.tgz; \
+	  status=$$?; \
+	  $(COMPOSE) exec -T cockroach-1 rm -rf $(CRDB_EXTERN)/$$TS; \
+	  if [ $$status -ne 0 ]; then rm -f backups/$$TS.tgz; echo "backup failed"; exit $$status; fi; \
+	  echo "wrote backups/$$TS.tgz"
 
+# Replaces the live `church` database with the backup: stops api/web/monitor,
+# restores into church_restoring, and only once that succeeded drops church and
+# renames the copy into place (a failed restore leaves church untouched), then
+# starts them again. Needs CONFIRM=yes.
 db-restore:
-	@if [ -z "$(FILE)" ]; then echo "usage: make db-restore FILE=./backups/xxx.sql.gz"; exit 1; fi
+	@if [ -z "$(FILE)" ]; then echo "usage: make db-restore FILE=./backups/crdb-YYYYMMDD-HHMMSS.tgz CONFIRM=yes"; exit 1; fi
 	@if [ "$$(bash scripts/compose.sh --db-mode)" = external ]; then \
 	  echo "DB_MODE=external: restore with the database's own tooling."; exit 1; fi
-	gunzip -c $(FILE) | $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure --database=church
+	@if [ "$(CONFIRM)" != yes ]; then \
+	  echo "This DROPS the current church database and replaces it with $(FILE)."; \
+	  echo "Re-run with CONFIRM=yes to go ahead."; exit 1; fi
+	@DIR=$$(tar -tzf "$(FILE)" | head -n 1 | cut -d/ -f1); \
+	  [ -n "$$DIR" ] || { echo "$(FILE) doesn't look like a db-backup archive"; exit 1; }; \
+	  $(COMPOSE) exec -T cockroach-1 mkdir -p $(CRDB_EXTERN) \
+	  && $(COMPOSE) exec -T cockroach-1 tar -xzf - -C $(CRDB_EXTERN) < "$(FILE)" \
+	  && $(COMPOSE) stop api web monitor \
+	  && $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure \
+	    -e "DROP DATABASE IF EXISTS church_restoring CASCADE" \
+	    -e "RESTORE DATABASE church FROM LATEST IN 'nodelocal://1/$$DIR' WITH new_db_name = 'church_restoring'" \
+	    -e "DROP DATABASE IF EXISTS church CASCADE" \
+	    -e "ALTER DATABASE church_restoring RENAME TO church"; \
+	  status=$$?; \
+	  $(COMPOSE) exec -T cockroach-1 rm -rf $(CRDB_EXTERN)/$$DIR; \
+	  $(COMPOSE) start api web monitor; \
+	  if [ $$status -ne 0 ]; then echo "restore failed"; exit $$status; fi; \
+	  echo "restored church from $(FILE)"
 
 prod-up: init-env init-data check-ports
 	$(COMPOSE_PROD) up -d --build

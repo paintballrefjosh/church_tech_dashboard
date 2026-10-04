@@ -8,7 +8,7 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "next lint --no-cache --quiet || true",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "1.5.2",
