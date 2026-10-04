@@ -32,7 +32,10 @@ export type SearchKind =
   | "cisco_port"
   | "cisco_mac"
   | "cisco_arp"
-  | "cisco_vlan";
+  | "cisco_vlan"
+  | "ipam_subnet"
+  | "ipam_host"
+  | "dns_record";
 
 export interface SearchHit {
   id: string;
@@ -97,6 +100,9 @@ export const KIND_META: Record<SearchKind, KindMeta> = {
   cisco_mac: meta("MAC", Tag, "teal"),
   cisco_arp: meta("ARP", Globe, "teal"),
   cisco_vlan: meta("VLAN", Layers, "teal"),
+  ipam_subnet: meta("Subnet", Boxes, "indigo"),
+  ipam_host: meta("IP", Network, "indigo"),
+  dns_record: meta("DNS", Globe, "indigo"),
 };
 
 /** Deep link for a hit: the indexer-provided URL, else a kind-based fallback. */
@@ -126,6 +132,11 @@ export function hrefForHit(h: SearchHit): string {
       return `/monitoring/network-cisco/lookup`;
     case "cisco_vlan":
       return `/monitoring/network-cisco/vlans`;
+    case "ipam_subnet":
+    case "ipam_host":
+      return `/monitoring/ipam`;
+    case "dns_record":
+      return `/monitoring/dns?view=records`;
     default:
       return `/`;
   }

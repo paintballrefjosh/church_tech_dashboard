@@ -1470,6 +1470,33 @@ async function main() {
     const body = await res.json();
     assert(body.ok === false && /http/.test(body.message), `unexpected: ${JSON.stringify(body)}`);
   });
+  const dnsWrite = (method, body) =>
+    fetchWithCookies(
+      "/api/v1/dns/zones/example.org/records",
+      { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+      jar,
+    );
+  await test("POST /api/v1/dns/zones/:zone/records rejects a malformed A record", async () => {
+    const { res } = await dnsWrite("POST", { name: "printer", data: { type: "A", ipAddress: "not-an-ip" } });
+    assert(res.status === 400, `status ${res.status}`);
+  });
+  await test("POST /api/v1/dns/zones/:zone/records refuses the reserved sync comment", async () => {
+    const { res } = await dnsWrite("POST", {
+      name: "printer",
+      comments: "managed-by:church-dashboard",
+      data: { type: "A", ipAddress: "10.0.0.5" },
+    });
+    assert(res.status === 400, `status ${res.status}`);
+  });
+  await test("PATCH /api/v1/dns/zones/:zone/records refuses a type change", async () => {
+    const { res } = await dnsWrite("PATCH", {
+      current: { name: "printer", data: { type: "A", ipAddress: "10.0.0.5" } },
+      name: "printer",
+      ttl: 300,
+      data: { type: "CNAME", cname: "other.example.org" },
+    });
+    assert(res.status === 400, `status ${res.status}`);
+  });
   await test("DNS (unconfigured) zones are empty and records/stats return 503", async () => {
     if (dnsConfigured) return; // live cluster attached; nothing to assert here
     const { res: z } = await fetchWithCookies("/api/v1/dns/zones", {}, jar);
@@ -1480,6 +1507,11 @@ async function main() {
     assert(r.status === 503, `records status ${r.status}`);
     const { res: s } = await fetchWithCookies("/api/v1/dns/stats?range=LastDay", {}, jar);
     assert(s.status === 503, `stats status ${s.status}`);
+  });
+  await test("DNS (unconfigured) record writes return 503", async () => {
+    if (dnsConfigured) return;
+    const { res } = await dnsWrite("POST", { name: "printer", data: { type: "A", ipAddress: "10.0.0.5" } });
+    assert(res.status === 503, `create status ${res.status}`);
   });
 
   // ---- ProPresenter (Phase 2.3) ----

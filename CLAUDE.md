@@ -159,11 +159,17 @@ touches compose). `dns/technitium.ts` calls the Technitium HTTP API with the tok
 as `Authorization: Bearer` (never in the URL); only the cluster **primary** is
 configured (`dns.primary_url`, `dns.api_token`, `dns.verify_tls` in the
 `monitoring` settings category) because it alone accepts zone edits and
-aggregates cluster stats (`node=cluster`). Phase 1 is read-only: summary/tab
-badge (primary unreachable = critical, a non-connected cluster node = degraded),
-cluster nodes, query stats, zones and records. Same `monitors:*` permissions as
-cisco/ipam/ups. The planned IPAM→DNS sync (A/PTR for named hosts, opt-in per
-subnet) is not built yet.
+aggregates cluster stats (`node=cluster`). Summary/tab badge (primary
+unreachable = critical, a non-connected cluster node = degraded), cluster nodes,
+query stats, zones and records, plus audited record create/edit/delete
+(A/AAAA/CNAME/PTR/MX/TXT/SRV) on Primary zones. Technitium records have no id,
+so writes address a record by zone + name + structured `data` and re-read it
+first: that read is the audit "before", supplies the current TTL/disabled flag
+(an update that omits them resets TTL to 3600 and re-enables the record), and
+refuses (409) records whose comment carries `DNS_MANAGED_MARKER`. Same
+`monitors:*` permissions as cisco/ipam/ups. The planned IPAM→DNS sync (A/PTR for
+named hosts, opt-in per subnet, which will own those marked records) is not
+built yet.
 
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi
@@ -298,6 +304,11 @@ Indexed kinds (see `SearchKind` in
   content/UniFi docs untouched. Runs on startup, on a timer
   (`SEARCH_MONITORING_SYNC_MS`, default 120s, so poller churn is picked up
   without a manual reindex), and from the admin Reindex button.
+- **DNS (live, in Technitium):** `dns_record`. `DnsSearchIndexer` replaces the
+  whole kind from a full read of every zone on a timer (`DNS_SEARCH_SYNC_MS`,
+  default 300s) and shortly after each dashboard write; an unconfigured server
+  clears it, an unreachable one keeps the last set. Kept out of
+  `MONITORING_KINDS` (whose sync rebuilds from the DB) but gated the same way.
 - **UniFi (live, not in the DB):** `unifi_device`, `unifi_client`. Pushed by the
   `UnifiPoller` via `syncUnifi()` on each poll; the poller also self-refreshes on
   an idle cadence (`UNIFI_SEARCH_SYNC_MS`, default 300s) so devices/clients stay
@@ -305,7 +316,7 @@ Indexed kinds (see `SearchKind` in
 
 **Permission gating happens in the query filter, never at index time** (so a
 permission change takes effect immediately): monitoring kinds require
-`monitors:read:any`, UniFi kinds require `unifi:read:any`, tickets/wiki apply
+`monitors:read:any` (as does `dns_record`), UniFi kinds require `unifi:read:any`, tickets/wiki apply
 their own read scoping. A user without a permission simply never gets those
 kinds in the filter — nothing leaks through the index. When adding a new
 searchable resource: add the `SearchKind`, a doc builder (with `url`), the query

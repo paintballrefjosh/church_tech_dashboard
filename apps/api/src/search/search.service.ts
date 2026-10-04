@@ -38,7 +38,8 @@ export type SearchKind =
   | "cisco_arp"
   | "cisco_vlan"
   | "ipam_subnet"
-  | "ipam_host";
+  | "ipam_host"
+  | "dns_record";
 
 /**
  * Monitoring kinds visible to anyone with `monitors:read:any` (the `monitoring`
@@ -58,6 +59,12 @@ export const MONITORING_KINDS: SearchKind[] = [
   "ipam_host",
 ];
 export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
+/**
+ * DNS records live in Technitium, not the DB, so they're kept out of
+ * MONITORING_KINDS (whose periodic sync clears and rebuilds from the DB) and
+ * pushed by the DNS module's indexer instead. Same monitors:read:any gate.
+ */
+export const DNS_KINDS: SearchKind[] = ["dns_record"];
 
 /**
  * Build a Meilisearch document id from a kind + resource id.
@@ -304,7 +311,8 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     // the relevant permission simply never get those kinds in the filter, so
     // nothing leaks through the index (mirrors the per-module read checks).
     if (opts.canSeeMonitoring) {
-      orParts.push(`kind IN [${MONITORING_KINDS.map((k) => `"${k}"`).join(",")}]`);
+      const kinds = [...MONITORING_KINDS, ...DNS_KINDS];
+      orParts.push(`kind IN [${kinds.map((k) => `"${k}"`).join(",")}]`);
     }
     if (opts.canSeeUnifi) {
       orParts.push(`kind IN [${UNIFI_KINDS.map((k) => `"${k}"`).join(",")}]`);
@@ -693,6 +701,17 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       });
     }
     await this.deleteByKinds(UNIFI_KINDS);
+    if (docs.length) await this.upsertMany(docs);
+  }
+
+  /**
+   * Replace every indexed DNS record with `docs` (built by the DNS module's
+   * indexer from a full read of the Technitium zones).
+   */
+  async syncDns(docs: SearchDoc[]): Promise<void> {
+    const idx = await this.indexOrNull();
+    if (!idx) return;
+    await this.deleteByKinds(DNS_KINDS);
     if (docs.length) await this.upsertMany(docs);
   }
 }

@@ -61,6 +61,41 @@ export const dnsZoneSchema = z.object({
 });
 export type DnsZone = z.infer<typeof dnsZoneSchema>;
 
+/** Record types the dashboard can create/edit/delete. Others are read-only here. */
+export const DNS_EDITABLE_TYPES = ["A", "AAAA", "CNAME", "PTR", "MX", "TXT", "SRV"] as const;
+export type DnsEditableType = (typeof DNS_EDITABLE_TYPES)[number];
+
+/**
+ * Comment stamped on records the IPAM sync owns (phase 3). Records carrying it
+ * can't be edited by hand through the dashboard, and hand-made records may not
+ * claim it.
+ */
+export const DNS_MANAGED_MARKER = "managed-by:church-dashboard";
+
+// A domain name (absolute or relative, optional trailing dot, `_` allowed for
+// SRV/DKIM-style labels, optional leading `*.` wildcard).
+const DOMAIN_RE =
+  /^(\*\.)?([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)*[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.?$/i;
+const domainName = z.string().trim().min(1).max(253).regex(DOMAIN_RE, "Invalid domain name");
+const u16 = z.number().int().min(0).max(65535);
+
+/** Structured rData per editable type — mirrors Technitium's API field names. */
+export const dnsRecordDataSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("A"), ipAddress: z.string().trim().ip({ version: "v4", message: "Invalid IPv4 address" }) }),
+  z.object({ type: z.literal("AAAA"), ipAddress: z.string().trim().ip({ version: "v6", message: "Invalid IPv6 address" }) }),
+  z.object({ type: z.literal("CNAME"), cname: domainName }),
+  z.object({ type: z.literal("PTR"), ptrName: domainName }),
+  z.object({ type: z.literal("MX"), preference: u16, exchange: domainName }),
+  z.object({
+    type: z.literal("TXT"),
+    text: z.string().min(1).max(4000),
+    /** Technitium's "split on newlines into character-strings" flag. */
+    splitText: z.boolean().default(false),
+  }),
+  z.object({ type: z.literal("SRV"), priority: u16, weight: u16, port: u16, target: domainName }),
+]);
+export type DnsRecordData = z.infer<typeof dnsRecordDataSchema>;
+
 export const dnsRecordSchema = z.object({
   name: z.string(),
   type: z.string(),
@@ -69,8 +104,68 @@ export const dnsRecordSchema = z.object({
   value: z.string(),
   disabled: z.boolean(),
   comments: z.string().nullable(),
+  /** Structured rData for editable types; null for read-only types (SOA, NS, …). */
+  data: dnsRecordDataSchema.nullable(),
+  /** Owned by the IPAM sync (comment carries DNS_MANAGED_MARKER). */
+  managed: z.boolean(),
 });
 export type DnsRecord = z.infer<typeof dnsRecordSchema>;
+
+/**
+ * A record name as typed in the form: "@" (zone apex), a relative name
+ * ("printer", "_sip._tcp"), or a fully qualified one inside the zone.
+ */
+const recordName = z
+  .string()
+  .trim()
+  .max(253)
+  .refine((v) => v === "" || v === "@" || DOMAIN_RE.test(v), "Invalid record name");
+
+const recordComments = z
+  .string()
+  .max(500)
+  .refine((v) => !v.includes(DNS_MANAGED_MARKER), "That comment is reserved for synced records");
+
+const recordTtl = z.number().int().min(0).max(604_800);
+
+export const dnsRecordCreateSchema = z.object({
+  name: recordName,
+  /** Omitted = Technitium's default TTL. */
+  ttl: recordTtl.optional(),
+  comments: recordComments.default(""),
+  data: dnsRecordDataSchema,
+});
+export type DnsRecordCreateInput = z.infer<typeof dnsRecordCreateSchema>;
+
+/**
+ * Edit = identify the record by its current name + data (Technitium records
+ * have no id), then the new values. The type can't change: delete and re-add.
+ */
+export const dnsRecordUpdateSchema = z
+  .object({
+    current: z.object({ name: recordName, data: dnsRecordDataSchema }),
+    name: recordName,
+    ttl: recordTtl,
+    comments: recordComments.default(""),
+    data: dnsRecordDataSchema,
+  })
+  .refine((v) => v.current.data.type === v.data.type, {
+    message: "Record type can't change; delete the record and add a new one",
+    path: ["data", "type"],
+  });
+export type DnsRecordUpdateInput = z.infer<typeof dnsRecordUpdateSchema>;
+
+export const dnsRecordDeleteSchema = z.object({ name: recordName, data: dnsRecordDataSchema });
+export type DnsRecordDeleteInput = z.infer<typeof dnsRecordDeleteSchema>;
+
+/** Response of every record write; the audit log stores it as the "after" snapshot. */
+export interface DnsRecordWriteResult {
+  /** `<zone>/<fqdn>/<type>` — audit resource id. */
+  id: string;
+  zone: string;
+  before: DnsRecord | null;
+  after: DnsRecord | null;
+}
 
 export const dnsTopEntrySchema = z.object({
   name: z.string(),

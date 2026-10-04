@@ -22,6 +22,9 @@ const VALID_KINDS: SearchKind[] = [
   "cisco_mac",
   "cisco_arp",
   "cisco_vlan",
+  "ipam_subnet",
+  "ipam_host",
+  "dns_record",
 ];
 
 @Controller("search")
