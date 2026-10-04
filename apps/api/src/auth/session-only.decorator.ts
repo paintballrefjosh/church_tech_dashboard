@@ -9,3 +9,13 @@ export const SESSION_ONLY_KEY = "auth:sessionOnly";
  * tokens, changing the password, email or 2FA.
  */
 export const SessionOnly = () => SetMetadata(SESSION_ONLY_KEY, true);
+
+export const READ_ONLY_PER_OPERATION_KEY = "auth:readOnlyPerOperation";
+
+/**
+ * Let read-only API tokens reach a non-GET route that multiplexes reads and
+ * writes over one method (the MCP endpoint: every call is a POST). The route
+ * must then refuse writes itself (`user.apiToken.readOnly`); SessionGuard
+ * otherwise rejects every non-GET request from a read-only token.
+ */
+export const ReadOnlyPerOperation = () => SetMetadata(READ_ONLY_PER_OPERATION_KEY, true);

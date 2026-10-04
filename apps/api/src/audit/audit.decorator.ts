@@ -27,6 +27,33 @@ export interface AuditMeta {
 export const Audited = (meta: AuditMeta) =>
   SetMetadata(AUDIT_KEY, { captureAfter: true, ...meta });
 
+/** Request property holding entries recorded by recordAuditEntry(). */
+export const AUDIT_ENTRIES_KEY = "auditEntries";
+
+/** One audit row a handler decided on at runtime (see recordAuditEntry). */
+export interface DynamicAuditEntry {
+  action: string;
+  resourceType: string;
+  resourceId?: string | null;
+  after?: unknown;
+}
+
+/**
+ * For handlers whose audit action depends on what the request turned out to
+ * do (the MCP endpoint multiplexes reads and writes over one POST). Call
+ * `startDynamicAudit(req)` first: from then on the interceptor writes exactly
+ * the recorded entries instead of the route-level row, so a request that only
+ * read something writes none. The interceptor stays the only audit writer.
+ */
+export function startDynamicAudit(req: object): void {
+  (req as { [AUDIT_ENTRIES_KEY]?: DynamicAuditEntry[] })[AUDIT_ENTRIES_KEY] = [];
+}
+
+export function recordAuditEntry(req: object, entry: DynamicAuditEntry): void {
+  const r = req as { [AUDIT_ENTRIES_KEY]?: DynamicAuditEntry[] };
+  (r[AUDIT_ENTRIES_KEY] ??= []).push(entry);
+}
+
 /**
  * Opt a mutating route OUT of auditing. Reserve for high-volume reads-pretending-
  * to-be-writes (notification mark-read), liveness pings, and anything else where

@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from "@nestjs/common";
 import { and, asc, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
@@ -293,7 +294,17 @@ export class WikiService {
     return page;
   }
 
-  async update(user: AuthenticatedUser, id: string, input: UpdateWikiPageInput) {
+  /**
+   * `expectedUpdatedAt` (optional) is an edit-conflict guard: the update is
+   * refused with 409 when the page changed since the caller read it, so an
+   * agent editing from a stale copy can't overwrite someone else's edit.
+   */
+  async update(
+    user: AuthenticatedUser,
+    id: string,
+    input: UpdateWikiPageInput,
+    opts: { expectedUpdatedAt?: Date } = {},
+  ) {
     const ok = await this.canWritePage(user, id);
     if (!ok) throw new ForbiddenException("Cannot edit this page");
     const [existing] = await this.db
@@ -302,6 +313,11 @@ export class WikiService {
       .where(eq(wikiPages.id, id))
       .limit(1);
     if (!existing) throw new NotFoundException("Wiki page not found");
+    if (opts.expectedUpdatedAt && existing.updatedAt.getTime() !== opts.expectedUpdatedAt.getTime()) {
+      throw new ConflictException(
+        `Page changed since it was read (now updatedAt ${existing.updatedAt.toISOString()}). Re-read it and apply your edit again.`,
+      );
+    }
 
     // visibility + ACL changes are owner/admin-only — collaborators with edit
     // access don't get to widen or narrow who else can see the page.

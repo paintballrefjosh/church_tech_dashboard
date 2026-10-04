@@ -346,6 +346,35 @@ Every mutating action (POST/PUT/PATCH/DELETE that hits an audited route) writes 
 resource_type, resource_id, before, after, ip, user_agent, ts)`. Do **not** bypass the
 interceptor; if you find yourself needing to, fix the interceptor instead.
 
+A handler whose action depends on what the request turned out to do (the MCP
+endpoint multiplexes reads and writes over one POST) calls
+`startDynamicAudit(req)` and then `recordAuditEntry(req, {...})` per change
+(`audit/audit.decorator.ts`); the interceptor then writes exactly those
+entries instead of the route-level row, so a read-only request writes none.
+
+## MCP server
+
+`/api/v1/mcp` (`apps/api/src/mcp/`) is a Streamable HTTP MCP server for agents,
+e.g. a Claude Code session documenting systems in the wiki. Stateless: each POST
+builds a fresh low-level SDK `Server` + transport bound to the caller and answers
+with plain JSON (GET/DELETE 405). **API tokens only**: the controller refuses a
+request without `user.apiToken` (i.e. a browser session). Every call is a POST,
+so the route carries `@ReadOnlyPerOperation()` to let read-only tokens past
+SessionGuard's method check, and `McpToolsService.call` refuses any tool not
+annotated `readOnlyHint: true` for them. Module-limited tokens need nothing
+extra: SessionGuard already narrowed `user.permissions`. Tools
+(`mcp.tools.ts`) call the same services as the REST routes (`WikiService`,
+`WikiWritesService`, `WikiFoldersService`), so permissions, page ACLs, revisions,
+search, realtime and notifications match the UI; each tool also checks a
+permission string against `user.permissions`. Audit entries carry the token id
+like every other token request. `wiki_update_page` requires
+`expectedUpdatedAt` (WikiService.update refuses with 409 if the page changed).
+No delete tool by design. The SDK sees hand-written JSON Schemas; inputs are
+validated with zod in the tool (the SDK needs zod >= 3.25, hence the workspace
+pin). Tests: `apps/api/test/mcp-tools.test.ts` (incl. the SDK client over HTTP).
+When adding a tool: JSON Schema + zod args + permission + `recordAuditEntry`
+for writes.
+
 ## Search
 
 Global search ("Search everything…" in the top bar + the Cmd/Ctrl-K palette) is
@@ -499,7 +528,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 0 — done** — auth, access control, audit log, theme shell, compose stack, regression suite
 - **Phase 1 — done** — helpdesk/tickets (+SLAs), notes, wiki (+attachments/ACLs), modular dashboard tiles, notification centre + SMTP (per-category in-app/email)
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
-- **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **Still open: the AI/LLM/MCP module.**
+- **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)

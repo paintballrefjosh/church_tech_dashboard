@@ -8,7 +8,13 @@ import { Reflector } from "@nestjs/core";
 import { tap } from "rxjs/operators";
 import type { Observable } from "rxjs";
 import { AuditService } from "./audit.service";
-import { AUDIT_KEY, SKIP_AUDIT_KEY, type AuditMeta } from "./audit.decorator";
+import {
+  AUDIT_KEY,
+  AUDIT_ENTRIES_KEY,
+  SKIP_AUDIT_KEY,
+  type AuditMeta,
+  type DynamicAuditEntry,
+} from "./audit.decorator";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 
 const METHOD_VERB: Record<string, string> = {
@@ -52,6 +58,31 @@ export class AuditInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap((response) => {
+        // A handler that multiplexes several operations over one request (the
+        // MCP endpoint: a tool call might be a read or a page edit) records
+        // what it actually changed via recordAuditEntry(); those entries
+        // replace the route-level row, and an empty list writes nothing.
+        const entries = (req as { [AUDIT_ENTRIES_KEY]?: DynamicAuditEntry[] })[AUDIT_ENTRIES_KEY];
+        if (Array.isArray(entries)) {
+          for (const e of entries) {
+            this.audit
+              .write({
+                actorUserId: user?.id ?? null,
+                actorEmail: user?.email ?? null,
+                action: e.action,
+                resourceType: e.resourceType,
+                resourceId: e.resourceId ?? null,
+                before: null,
+                after: e.after ?? null,
+                ip: typeof ip === "string" ? ip : null,
+                userAgent,
+                apiTokenId: user?.apiToken?.id ?? null,
+              })
+              .catch(() => undefined);
+          }
+          return;
+        }
+
         const resourceId =
           (typeof response === "object" && response !== null && "id" in response
             ? String((response as { id: unknown }).id)

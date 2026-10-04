@@ -37,6 +37,7 @@ import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
 import { DnsModule } from "./dns/dns.module";
 import { ApiTokensModule } from "./api-tokens/api-tokens.module";
+import { McpModule } from "./mcp/mcp.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
 import { AuditInterceptor } from "./audit/audit.interceptor";
@@ -88,6 +89,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     UpsModule,
     DnsModule,
     ApiTokensModule,
+    McpModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: SessionGuard },

@@ -2,7 +2,7 @@ import { Injectable, type CanActivate, type ExecutionContext, UnauthorizedExcept
 import { Reflector } from "@nestjs/core";
 import { decode } from "@auth/core/jwt";
 import { IS_PUBLIC_KEY } from "./public.decorator";
-import { SESSION_ONLY_KEY } from "./session-only.decorator";
+import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
 import { isReadMethod } from "./api-token-scope";
 import { AuthService } from "./auth.service";
 import type { AuthenticatedUser } from "./current-user.decorator";
@@ -150,7 +150,13 @@ export class SessionGuard implements CanActivate {
       // can't enrol, and minting a token is session-only, so it already
       // passed that gate.
       if (user.apiToken?.readOnly && !isReadMethod(req.method)) {
-        throw new ForbiddenException("This API token is read-only");
+        // A route that multiplexes reads and writes over POST (the MCP
+        // endpoint) opts out and refuses writes per operation instead.
+        const perOperation = this.reflector.getAllAndOverride<boolean>(READ_ONLY_PER_OPERATION_KEY, [
+          ctx.getHandler(),
+          ctx.getClass(),
+        ]);
+        if (!perOperation) throw new ForbiddenException("This API token is read-only");
       }
       return true;
     }

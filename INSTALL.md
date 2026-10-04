@@ -178,6 +178,62 @@ Behind your load balancer, terminate TLS and proxy HTTP to the host's `:EXTERNAL
 Set `X-Forwarded-Proto: https` and `X-Forwarded-For: <client ip>` on the LB; Caddy
 trusts these by default in our config.
 
+## Connecting Claude (MCP)
+
+The dashboard is an [MCP](https://modelcontextprotocol.io) server at `/api/v1/mcp`,
+so an AI agent such as a Claude Code session can read and write the wiki, for example
+to document the systems and services it works on. It uses the same wiki code as the web
+UI, so permissions, page ACLs, revisions, search and notifications all behave the same.
+
+1. **Create a user for the agent** at `/admin/users`, e.g. "Claude (docs)", so its edits
+   are attributed to it rather than to you. Give it a long random password (it never
+   signs in) and put it in a group that has the wiki module. At the wiki *user* tier
+   it can create pages and edit the ones it created (or ones whose access list gives
+   its group edit rights). To let it update pages people wrote, give its group the
+   wiki *admin* tier.
+2. **Issue it an API token** limited to the wiki module, with read-write access. Until
+   the token page exists in the UI, run this in the browser console while signed in as
+   an admin (issuing needs a signed-in session, not a token), with the agent's email:
+
+   ```js
+   const email = "claude-docs@example.org";
+   const users = await (await fetch("/api/v1/users")).json();
+   const agent = users.find((u) => u.email === email);
+   await (await fetch(`/api/v1/admin/users/${agent.id}/api-tokens`, {
+     method: "POST",
+     headers: { "content-type": "application/json" },
+     body: JSON.stringify({ name: "Claude docs", readOnly: false, modules: ["wiki"], expiresInDays: 365 }),
+   })).json()
+   ```
+
+   Copy `token` from the result now; it's shown only once. A read-only token also works:
+   the agent can then search and read but every write tool is refused.
+3. **Connect the agent** from the machine it runs on:
+
+   ```bash
+   claude mcp add --transport http church https://<your-host>/api/v1/mcp \
+     --header "Authorization: Bearer <token>"
+   ```
+
+The endpoint only accepts API tokens; a browser session is refused. Set **Site URL** in
+`/admin/settings/site` so the links the tools return are absolute.
+
+| Tool | What it does |
+|---|---|
+| `wiki_search` | Find pages by words in the title or body |
+| `wiki_get_page` | Read one page (Markdown body, location, `updatedAt`) |
+| `wiki_tree` | The folder and page hierarchy |
+| `wiki_list_revisions` | A page's edit history |
+| `wiki_create_page` | Create a page, optionally in a folder or under a page |
+| `wiki_update_page` | Change a page's title, body or location |
+| `wiki_create_folder` | Create a folder |
+
+Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
+overwrite an edit made since. Every edit is a revision you can revert from the page's
+history, and there is no delete tool. To keep an agent inside one area, give its group
+edit rights only on pages in that area (page ACLs). Each change is audited as the agent's
+user; reads aren't.
+
 ## Dockerized commands (no Node on host)
 
 Every `make` target below can also be run via a one-off node container:

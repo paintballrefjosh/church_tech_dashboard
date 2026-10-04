@@ -24,21 +24,19 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { WikiService } from "./wiki.service";
+import { WikiWritesService } from "./wiki-writes.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService } from "../attachments/attachments.service";
-import { NotificationsService } from "../notifications/notifications.service";
-import { MentionsService } from "../mentions/mentions.service";
 import { WikiImportService } from "./import/wiki-import.service";
 
 @Controller("wiki")
 export class WikiController {
   constructor(
     private readonly wiki: WikiService,
+    private readonly writes: WikiWritesService,
     private readonly realtime: RealtimeGateway,
     private readonly attachments: AttachmentsService,
-    private readonly notifications: NotificationsService,
     private readonly wikiImport: WikiImportService,
-    private readonly mentions: MentionsService,
   ) {}
 
   @Get()
@@ -98,9 +96,7 @@ export class WikiController {
   async create(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     const parsed = createWikiPageSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const page = await this.wiki.create(user, parsed.data);
-    this.realtime.toUser(user.id, "wiki:created", page);
-    return page;
+    return this.writes.createPage(user, parsed.data);
   }
 
   // ---- file import (.docx / .txt / .pdf) ----
@@ -153,39 +149,11 @@ export class WikiController {
   ) {
     const parsed = updateWikiPageSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const page = await this.wiki.update(user, id, parsed.data);
-    this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
-
-    // Notify the owner + everyone with ACL access (excluding the actor). We
-    // skip email here — wiki edits can be high-volume and notifications
-    // already show up in the bell + (if open) the page room. Cheaper for the
-    // SMTP relay and friendlier to the recipient's inbox.
-    const recipients = await this.wiki.recipientsForPageChange(id);
-    void this.notifications.createMany(
-      recipients.map((rid) => ({
-        recipientUserId: rid,
-        kind: "wiki.updated",
-        title: `Wiki page updated: ${page.title}`,
-        body: parsed.data.summary ?? "",
-        link: `/wiki/${page.id}`,
-        excludeActorId: user.id,
-        email: false,
-      })),
-    );
-
-    // Fan out @mention notifications from the new body. We only mention on
-    // body changes (visibility/ACL-only edits don't trigger this).
-    if (parsed.data.body !== undefined) {
-      void this.mentions.notify({
-        body: parsed.data.body,
-        excludeUserId: user.id,
-        title: `Mentioned in wiki page: ${page.title}`,
-        summary: parsed.data.body,
-        link: `/wiki/${page.id}`,
-      });
-    }
-
-    return page;
+    // Realtime + page-change notifications live in WikiWritesService (shared
+    // with the MCP tools); @mentions are sent by WikiService.update, only when
+    // the body actually changed. (This route used to also send them for any
+    // body in the request, so every edit pinged mentioned users twice.)
+    return this.writes.updatePage(user, id, parsed.data);
   }
 
   @Delete(":id")
