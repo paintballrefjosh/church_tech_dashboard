@@ -1,10 +1,17 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createIpamSubnetSchema, updateIpamSubnetSchema, cidrSchema } from "@church/shared";
+import {
+  PERMISSIONS,
+  createIpamSubnetSchema,
+  updateIpamSubnetSchema,
+  updateIpamHostSchema,
+  cidrSchema,
+} from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { IpamService } from "./ipam.service";
 import { IpamScanner } from "./ipam.scanner";
+import { DnsSyncService } from "../dns/dns.sync";
 
 /**
  * IPAM API for the monitoring module's IPAM tab. Reads require the monitoring
@@ -29,6 +36,7 @@ export class IpamController {
   constructor(
     private readonly ipam: IpamService,
     private readonly scanner: IpamScanner,
+    private readonly dnsSync: DnsSyncService,
   ) {}
 
   @Get("summary")
@@ -67,7 +75,21 @@ export class IpamController {
   async updateSubnet(@Param("id") id: string, @Body() body: unknown) {
     const parsed = updateIpamSubnetSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    return this.ipam.update(id, parsed.data);
+    const subnet = await this.ipam.update(id, parsed.data);
+    // Publishing toggled: let the DNS sync catch up (no-op while sync is off).
+    if (parsed.data.dnsSync !== undefined) this.dnsSync.requestRun("ipam-edit");
+    return subnet;
+  }
+
+  @Patch("hosts/:id")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "ipam.host.update", resourceType: "ipam_host" })
+  async updateHost(@Param("id") id: string, @Body() body: unknown) {
+    const parsed = updateIpamHostSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const host = await this.ipam.updateHost(id, parsed.data);
+    if (parsed.data.dnsName !== undefined) this.dnsSync.requestRun("ipam-edit");
+    return host;
   }
 
   @Delete("subnets/:id")

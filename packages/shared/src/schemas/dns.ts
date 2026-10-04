@@ -209,3 +209,121 @@ export const dnsTestSchema = z.object({
   verifyTls: z.boolean().optional(),
 });
 export type DnsTestInput = z.infer<typeof dnsTestSchema>;
+
+// ---- IPAM -> DNS sync ----
+
+export const DNS_SYNC_TRIGGERS = ["timer", "manual", "ipam-scan", "ipam-edit"] as const;
+export type DnsSyncTrigger = (typeof DNS_SYNC_TRIGGERS)[number];
+
+/** Record types the sync writes. */
+export type DnsSyncRecordType = "A" | "PTR";
+
+/** One change the sync will make (plan) or made (run). */
+export interface DnsSyncAction {
+  op: "add" | "update" | "remove";
+  zone: string;
+  /** Fully qualified record name. */
+  name: string;
+  type: DnsSyncRecordType;
+  /** New value (add/update) or the value being removed. */
+  value: string;
+  /** Previous value for an update (an IP or TTL change). */
+  fromValue: string | null;
+  ttl: number;
+  ipamHostId: string | null;
+  /** Why a remove/update happens ("host stale", "address changed", …). */
+  reason: string;
+  /** Set on a run when Technitium refused this action. */
+  error?: string;
+}
+
+/** A record the sync wanted but didn't write, because a hand-made one is in the way. */
+export interface DnsSyncConflict {
+  zone: string;
+  name: string;
+  type: DnsSyncRecordType;
+  value: string;
+  ipamHostId: string;
+  /** The record(s) already there, rendered ("A 10.0.0.9"). */
+  existing: string;
+}
+
+/**
+ * Per-host outcome, shown beside each host on the IPAM tab.
+ * - ok: its records are in place (or will be, in a plan)
+ * - conflict: a hand-made record holds its name
+ * - error: Technitium refused a write for it
+ * - unnamed: no override, UniFi or NetBIOS name to publish
+ * - stale: not seen up within dns.stale_days
+ */
+export type DnsSyncHostState = "ok" | "conflict" | "error" | "unnamed" | "stale";
+
+export interface DnsSyncHostOutcome {
+  state: DnsSyncHostState;
+  /** The A record name it gets (or would get). */
+  fqdn: string | null;
+  message: string | null;
+}
+
+export interface DnsSyncPlan {
+  enabled: boolean;
+  zone: string;
+  ptr: boolean;
+  ttl: number;
+  actions: DnsSyncAction[];
+  conflicts: DnsSyncConflict[];
+  /** Reverse zones PTR records need but Technitium doesn't host (/24 suggestions). */
+  missingReverseZones: string[];
+  hosts: Record<string, DnsSyncHostOutcome>;
+  /** Records currently owned by the sync (carry the managed-by comment). */
+  managedCount: number;
+  /** Desired records already correct. */
+  unchanged: number;
+  /** Safety limit tripped: the run refuses to apply without force. */
+  blocked: string | null;
+}
+
+export interface DnsSyncRunDetails {
+  actions: DnsSyncAction[];
+  conflicts: DnsSyncConflict[];
+  missingReverseZones: string[];
+  hosts: Record<string, DnsSyncHostOutcome>;
+  blocked: string | null;
+}
+
+export interface DnsSyncRun {
+  id: string;
+  trigger: DnsSyncTrigger;
+  actorUserId: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  added: number;
+  updated: number;
+  removed: number;
+  conflicts: number;
+  failed: number;
+  error: string | null;
+}
+
+export interface DnsSyncStatus {
+  enabled: boolean;
+  zone: string;
+  lastRun: DnsSyncRun | null;
+  /** Per-host outcome from the last completed run, keyed by ipam host id. */
+  hosts: Record<string, DnsSyncHostOutcome>;
+}
+
+export const dnsSyncRunSchema = z.object({
+  /** Apply even when the safety limit trips (the operator confirmed). */
+  force: z.boolean().default(false),
+});
+export type DnsSyncRunInput = z.infer<typeof dnsSyncRunSchema>;
+
+export const dnsReverseZoneCreateSchema = z.object({
+  zone: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^(\d{1,3}\.){1,3}in-addr\.arpa$/, "Expected an IPv4 reverse zone like 10.0.10.in-addr.arpa"),
+});
+export type DnsReverseZoneCreateInput = z.infer<typeof dnsReverseZoneCreateSchema>;

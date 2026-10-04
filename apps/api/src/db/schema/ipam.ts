@@ -37,6 +37,9 @@ export const ipamSubnets = pgTable(
     // Free-form origin hint (switch hostname, UniFi network name, …).
     sourceDetail: text("source_detail"),
     scanEnabled: boolean("scan_enabled").notNull().default(true),
+    // Publish this subnet's named hosts to DNS (A + PTR) via the DNS sync.
+    // Opt-in so guest / IoT ranges never get records by accident.
+    dnsSync: boolean("dns_sync").notNull().default(false),
     // Poller-updated sweep state.
     lastScanStartedAt: timestamp("last_scan_started_at"),
     lastScanFinishedAt: timestamp("last_scan_finished_at"),
@@ -61,6 +64,8 @@ export const ipamHosts = pgTable(
     hostname: text("hostname"), // reverse DNS (PTR)
     netbiosName: text("netbios_name"),
     unifiName: text("unifi_name"), // UniFi client alias (name) or DHCP hostname
+    // Operator override for the DNS sync's record name; wins over discovered names.
+    dnsName: text("dns_name"),
     isUp: boolean("is_up").notNull().default(false),
     // How the host answered this scan: "icmp" | "tcp" | null (down).
     respondedVia: text("responded_via"),

@@ -31,6 +31,8 @@ export const ipamSubnetSchema = z.object({
   source: z.enum(IPAM_SUBNET_SOURCES),
   sourceDetail: z.string().nullable(),
   scanEnabled: z.boolean(),
+  /** Named hosts are published to DNS by the DNS sync. */
+  dnsSync: z.boolean(),
   lastScanStartedAt: z.string().datetime().nullable(),
   lastScanFinishedAt: z.string().datetime().nullable(),
   lastError: z.string().nullable(),
@@ -59,6 +61,7 @@ export const updateIpamSubnetSchema = z.object({
   vlanId: z.number().int().min(1).max(4094).nullable().optional(),
   gateway: z.string().max(45).nullable().optional(),
   scanEnabled: z.boolean().optional(),
+  dnsSync: z.boolean().optional(),
 });
 export type UpdateIpamSubnetInput = z.infer<typeof updateIpamSubnetSchema>;
 
@@ -70,6 +73,8 @@ export interface IpamHost {
   hostname: string | null;
   netbiosName: string | null;
   unifiName: string | null;
+  /** Operator override for the DNS sync's record name. */
+  dnsName: string | null;
   isUp: boolean;
   respondedVia: string | null;
   openPorts: number[];
@@ -77,6 +82,21 @@ export interface IpamHost {
   lastSeenAt: string | null;
   lastScanAt: string | null;
 }
+
+/**
+ * Host edits. `dnsName` is a single DNS label (letters, digits, hyphens) or
+ * null/empty to fall back to the discovered name.
+ */
+export const updateIpamHostSchema = z.object({
+  dnsName: z
+    .string()
+    .trim()
+    .max(63)
+    .regex(/^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$/i, "Use letters, digits and hyphens only (one DNS label)")
+    .nullable()
+    .optional(),
+});
+export type UpdateIpamHostInput = z.infer<typeof updateIpamHostSchema>;
 
 /**
  * A candidate range surfaced by discovery (derived from Cisco config/ARP or the

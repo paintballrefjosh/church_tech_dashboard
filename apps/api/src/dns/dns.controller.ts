@@ -6,12 +6,16 @@ import {
   dnsRecordCreateSchema,
   dnsRecordUpdateSchema,
   dnsRecordDeleteSchema,
+  dnsSyncRunSchema,
+  dnsReverseZoneCreateSchema,
   type DnsStatsRange,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
+import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { DnsService } from "./dns.service";
 import { DnsSearchIndexer } from "./dns.search-indexer";
+import { DnsSyncService } from "./dns.sync";
 
 /**
  * DNS API for the monitoring module's DNS tab. Reuses the monitoring
@@ -29,6 +33,7 @@ export class DnsController {
   constructor(
     private readonly dns: DnsService,
     private readonly indexer: DnsSearchIndexer,
+    private readonly sync: DnsSyncService,
   ) {}
 
   @Get("summary")
@@ -90,6 +95,61 @@ export class DnsController {
       throw new BadRequestException(`range must be one of ${DNS_STATS_RANGES.join(", ")}`);
     }
     return this.dns.stats(r);
+  }
+
+  // ---- IPAM -> DNS sync ----
+
+  /** What a sync would do right now (works while sync is off). */
+  @Get("sync/plan")
+  @RequirePermissions(READ)
+  syncPlan() {
+    return this.sync.plan();
+  }
+
+  @Get("sync/status")
+  @RequirePermissions(READ)
+  syncStatus() {
+    return this.sync.status();
+  }
+
+  @Get("sync/runs")
+  @RequirePermissions(READ)
+  syncRuns() {
+    return this.sync.runs();
+  }
+
+  @Get("sync/managed")
+  @RequirePermissions(READ)
+  syncManaged() {
+    return this.sync.managed();
+  }
+
+  @Post("sync")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "dns.sync.run", resourceType: "dns_sync_run" })
+  runSync(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    const parsed = dnsSyncRunSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.sync.run("manual", user?.id ?? null, parsed.data.force);
+  }
+
+  /** Strip the managed-by marker so the record becomes hand-owned. */
+  @Post("managed/:id/release")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "dns.managed.release", resourceType: "dns_record" })
+  async release(@Param("id") id: string) {
+    const res = await this.sync.release(id);
+    this.indexer.requestSync();
+    return res;
+  }
+
+  @Post("reverse-zones")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "dns.zone.create", resourceType: "dns_zone" })
+  createReverseZone(@Body() body: unknown) {
+    const parsed = dnsReverseZoneCreateSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.sync.createReverseZone(parsed.data.zone);
   }
 
   @Post("test")

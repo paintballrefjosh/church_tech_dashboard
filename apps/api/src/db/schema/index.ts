@@ -24,3 +24,4 @@ export * from "./cisco";
 export * from "./unifi";
 export * from "./ipam";
 export * from "./ups";
+export * from "./dns";

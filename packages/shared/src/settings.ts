@@ -399,6 +399,52 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: false,
     category: "monitoring",
   },
+  // IPAM -> DNS sync: A (+PTR) records for named hosts in subnets with
+  // "Publish to DNS" on. Records it writes carry a managed-by comment and are
+  // the only ones it ever changes.
+  {
+    key: "dns.sync_enabled",
+    type: "boolean",
+    label: "Sync IPAM hosts to DNS",
+    description:
+      "Write A (and PTR) records for named hosts in subnets with \"Publish to DNS\" on. Review the plan on the DNS tab's Sync view before turning this on.",
+    defaultValue: false,
+    category: "monitoring",
+  },
+  {
+    key: "dns.sync_zone",
+    type: "string",
+    label: "DNS sync zone",
+    description:
+      "Primary zone the sync writes A records into, e.g. int.example.org (avoid .local, which belongs to mDNS).",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
+    key: "dns.sync_ptr",
+    type: "boolean",
+    label: "Also write PTR records",
+    description:
+      "Write reverse (PTR) records into matching in-addr.arpa zones. A missing reverse zone is reported, never created silently.",
+    defaultValue: true,
+    category: "monitoring",
+  },
+  {
+    key: "dns.record_ttl",
+    type: "number",
+    label: "Synced record TTL (seconds)",
+    description: "TTL for records the sync writes. Short keeps DHCP address changes visible quickly.",
+    defaultValue: 300,
+    category: "monitoring",
+  },
+  {
+    key: "dns.stale_days",
+    type: "number",
+    label: "Remove synced records after (days unseen)",
+    description: "A synced record is removed once its host hasn't been seen up by the IPAM scanner for this many days.",
+    defaultValue: 14,
+    category: "monitoring",
+  },
   // Printers — SNMP defaults + polling cadence. Per-printer values on the
   // `printers` rows override these when set.
   {
@@ -712,6 +758,12 @@ export const TOGGLE_PREREQUISITES: ReadonlyArray<TogglePrerequisite> = [
     requires: ["microsoft.oauth.client_id", "microsoft.oauth.client_secret"],
     providerLabel: "Microsoft",
     categorySlug: "microsoft",
+  },
+  {
+    toggleKey: "dns.sync_enabled",
+    requires: ["dns.primary_url", "dns.api_token", "dns.sync_zone"],
+    providerLabel: "DNS sync",
+    categorySlug: "monitoring",
   },
 ];
 

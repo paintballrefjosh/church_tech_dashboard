@@ -167,9 +167,29 @@ so writes address a record by zone + name + structured `data` and re-read it
 first: that read is the audit "before", supplies the current TTL/disabled flag
 (an update that omits them resets TTL to 3600 and re-enables the record), and
 refuses (409) records whose comment carries `DNS_MANAGED_MARKER`. Same
-`monitors:*` permissions as cisco/ipam/ups. The planned IPAM→DNS sync (A/PTR for
-named hosts, opt-in per subnet, which will own those marked records) is not
-built yet.
+`monitors:*` permissions as cisco/ipam/ups.
+
+**IPAM→DNS sync** (`dns/dns.sync.ts`, `dns_*` settings, migration 0048): hosts
+in subnets with `ipam_subnets.dns_sync` on get an A record in `dns.sync_zone`
+(plus a PTR when a matching in-addr.arpa zone exists; missing reverse zones are
+reported and created only on request). The name is `ipam_hosts.dns_name`
+(override) → UniFi name → NetBIOS name, cleaned to one DNS label; **never** the
+scanner's reverse-DNS `hostname`, which would read back the sync's own PTRs.
+Collisions: an override wins, then the most recently seen host; others get
+`-<last octet>`. All the diffing is the pure `computeSyncPlan` in
+`dns/sync-plan.ts` (unit-tested in `apps/api/test/`); the preview, runs and tests
+share it. Ownership is the `DNS_MANAGED_MARKER` comment on the Technitium
+record, never the ledger: the sync only changes or removes marked records, and a
+hand-made record at a wanted name is a conflict (the host's PTR is skipped too).
+`dns_managed_records` is a ledger rebuilt each run for the UI; `dns_sync_runs`
+is the audit trail for background runs (the interceptor never sees them).
+Removals run after adds/updates because Technitium deletes the PTR pointing at
+an A record when that A is deleted; a remove that finds nothing counts as done.
+A run that would remove >20 records (or >25% of the managed set past 5) stops
+unless forced. Triggers: end of each IPAM scanner pass and IPAM edits
+(debounced), a 15-minute timer, and "Sync now"; background runs only while
+`dns.sync_enabled` is on. One run at a time via an in-process guard (single API
+process).
 
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi

@@ -10,6 +10,10 @@ import {
   type DnsEditableType,
   type DnsRecord,
   type DnsRecordData,
+  type DnsSyncAction,
+  type DnsSyncPlan,
+  type DnsSyncRun,
+  type DnsSyncStatus,
   type DnsStats,
   type DnsStatsRange,
   type DnsSummary,
@@ -18,7 +22,7 @@ import {
 } from "@church/shared";
 import { useCanWrite, inputCls, cardCls, fmtTime, StatusLine, Modal, Field } from "../network-cisco/cisco-ui";
 
-type View = "overview" | "records";
+type View = "overview" | "records" | "sync";
 
 const RANGE_LABELS: Record<DnsStatsRange, string> = {
   LastHour: "Last hour",
@@ -60,7 +64,8 @@ function DnsPageInner() {
   const params = useSearchParams();
   const paramZone = params.get("zone");
   const paramQ = params.get("q") ?? "";
-  const paramView: View = params.get("view") === "records" || paramZone ? "records" : "overview";
+  const rawView = params.get("view");
+  const paramView: View = rawView === "sync" ? "sync" : rawView === "records" || paramZone ? "records" : "overview";
   const [view, setView] = useState<View>(paramView);
   useEffect(() => setView(paramView), [paramView]);
 
@@ -99,7 +104,7 @@ function DnsPageInner() {
     setView(v);
     const url = new URL(window.location.href);
     url.searchParams.set("view", v);
-    if (v === "overview") {
+    if (v !== "records") {
       url.searchParams.delete("zone");
       url.searchParams.delete("q");
     }
@@ -111,7 +116,7 @@ function DnsPageInner() {
       <ServerHeader summary={summary} onRefresh={() => void loadSummary()} />
 
       <div className="flex gap-1 text-sm" role="tablist">
-        {(["overview", "records"] as const).map((v) => (
+        {(["overview", "records", "sync"] as const).map((v) => (
           <button
             key={v}
             role="tab"
@@ -123,13 +128,15 @@ function DnsPageInner() {
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             }`}
           >
-            {v === "overview" ? "Overview" : "Records"}
+            {v === "overview" ? "Overview" : v === "records" ? "Records" : "IPAM sync"}
           </button>
         ))}
       </div>
 
       {!summary.reachable ? null : view === "overview" ? (
         <Overview summary={summary} />
+      ) : view === "sync" ? (
+        <SyncView canWrite={canWrite} />
       ) : (
         <Records paramZone={paramZone} paramQ={paramQ} canWrite={canWrite} />
       )}
@@ -898,5 +905,389 @@ function RecordForm({
         </div>
       </form>
     </Modal>
+  );
+}
+
+// ---- IPAM -> DNS sync ----
+
+interface ManagedRow {
+  id: string;
+  ipamHostId: string | null;
+  zone: string;
+  name: string;
+  type: string;
+  value: string;
+  ttl: number;
+  state: string;
+  lastError: string | null;
+  lastSyncedAt: string | null;
+}
+
+const OP_CLS: Record<DnsSyncAction["op"], string> = {
+  add: "text-emerald-700 dark:text-emerald-300",
+  update: "text-amber-700 dark:text-amber-300",
+  remove: "text-rose-700 dark:text-rose-300",
+};
+
+const TRIGGER_LABEL: Record<DnsSyncRun["trigger"], string> = {
+  timer: "Timer",
+  manual: "Manual",
+  "ipam-scan": "IPAM scan",
+  "ipam-edit": "IPAM edit",
+};
+
+const thCls = "px-3 py-2";
+const tableWrap = "overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800";
+const theadCls = "bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400";
+const sectionTitle = "mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500";
+
+function SyncView({ canWrite }: { canWrite: boolean }) {
+  const [status, setStatus] = useState<DnsSyncStatus | null>(null);
+  const [plan, setPlan] = useState<DnsSyncPlan | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [runs, setRuns] = useState<DnsSyncRun[]>([]);
+  const [managed, setManaged] = useState<ManagedRow[]>([]);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Set when a run stopped at the safety limit, so the operator can confirm.
+  const [blocked, setBlocked] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [st, pl, rn, mg] = await Promise.all([
+      getJson<DnsSyncStatus>("/api/dns/sync/status"),
+      getJson<DnsSyncPlan>("/api/dns/sync/plan"),
+      getJson<DnsSyncRun[]>("/api/dns/sync/runs"),
+      getJson<ManagedRow[]>("/api/dns/sync/managed"),
+    ]);
+    if (st.ok) setStatus(st.data);
+    if (pl.ok) {
+      setPlan(pl.data);
+      setPlanError(null);
+    } else {
+      setPlan(null);
+      setPlanError(pl.error);
+    }
+    if (rn.ok) setRuns(rn.data);
+    if (mg.ok) setManaged(mg.data);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const runNow = async (force: boolean) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/dns/sync", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ force }),
+      });
+      const body = (await r.json().catch(() => null)) as (DnsSyncRun & { message?: unknown }) | null;
+      if (!r.ok) {
+        setMsg({ ok: false, text: errorText(body, r.status) });
+      } else if (body?.error) {
+        // Stopped at the safety limit: nothing applied.
+        setBlocked(body.error);
+      } else if (body) {
+        setBlocked(null);
+        setMsg({
+          ok: body.failed === 0,
+          text: `Sync done: ${body.added} added, ${body.updated} updated, ${body.removed} removed${
+            body.conflicts ? `, ${body.conflicts} conflicts` : ""
+          }${body.failed ? `, ${body.failed} failed` : ""}.`,
+        });
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createZone = async (zone: string) => {
+    const err = await sendJson("/api/dns/reverse-zones", "POST", { zone });
+    setMsg(err ? { ok: false, text: err } : { ok: true, text: `Created reverse zone ${zone}.` });
+    await load();
+  };
+
+  const release = async (m: ManagedRow) => {
+    if (!confirm(`Release ${m.type} ${m.name}? It becomes a hand-made record, and its host will show a conflict until you rename or remove it.`)) return;
+    const err = await sendJson(`/api/dns/managed/${m.id}/release`, "POST", {});
+    setMsg(err ? { ok: false, text: err } : { ok: true, text: `Released ${m.name}.` });
+    await load();
+  };
+
+  const last = status?.lastRun ?? null;
+  const counts = plan
+    ? {
+        add: plan.actions.filter((a) => a.op === "add").length,
+        update: plan.actions.filter((a) => a.op === "update").length,
+        remove: plan.actions.filter((a) => a.op === "remove").length,
+      }
+    : null;
+
+  return (
+    <div className="space-y-5">
+      <section className={`${cardCls} flex flex-wrap items-center justify-between gap-3`}>
+        <div className="text-sm">
+          <div className="font-medium">
+            {status?.enabled ? "Sync is on" : "Sync is off"}
+            {status?.zone ? <span className="ml-2 font-mono text-xs font-normal text-slate-500">{status.zone}</span> : null}
+          </div>
+          <div className="text-xs text-slate-500">
+            {last
+              ? `Last run ${fmtTime(last.startedAt)} (${TRIGGER_LABEL[last.trigger]})${
+                  last.error ? `: ${last.error}` : `: ${last.added} added, ${last.updated} updated, ${last.removed} removed`
+                }`
+              : "No runs yet."}
+            {!status?.enabled ? " Turn it on in Monitoring settings once the plan below looks right." : ""}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void load()}
+            title="Refresh plan"
+            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+          {canWrite && status?.enabled ? (
+            <button
+              onClick={() => void runNow(false)}
+              disabled={busy}
+              className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {busy ? "Syncing…" : "Sync now"}
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <StatusLine status={msg} />
+
+      {blocked ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          <p>{blocked}</p>
+          {canWrite ? (
+            <button
+              onClick={() => {
+                if (confirm("Apply the removals anyway?")) void runNow(true);
+              }}
+              disabled={busy}
+              className="mt-2 rounded-md border border-amber-400 px-3 py-1 text-xs font-medium hover:bg-amber-100 dark:border-amber-600 dark:hover:bg-amber-900"
+            >
+              Apply anyway
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {planError ? <p className="text-sm text-rose-600 dark:text-rose-400">{planError}</p> : null}
+
+      {plan ? (
+        <>
+          <section>
+            <h2 className={sectionTitle}>Plan</h2>
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">
+              {counts && counts.add + counts.update + counts.remove === 0
+                ? `Nothing to change. ${plan.unchanged} synced record${plan.unchanged === 1 ? " is" : "s are"} up to date.`
+                : `${counts?.add} to add, ${counts?.update} to update, ${counts?.remove} to remove; ${plan.unchanged} already correct.`}
+              {plan.ptr ? "" : " PTR records are off."}
+            </p>
+            {plan.blocked && !blocked ? (
+              <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                {plan.blocked}
+              </p>
+            ) : null}
+            {plan.actions.length > 0 ? (
+              <div className={tableWrap}>
+                <table className="w-full text-left text-sm">
+                  <thead className={theadCls}>
+                    <tr>
+                      <th className={thCls}>Change</th>
+                      <th className={thCls}>Type</th>
+                      <th className={thCls}>Name</th>
+                      <th className={thCls}>Value</th>
+                      <th className={thCls}>Why</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {plan.actions.map((a, i) => (
+                      <tr key={`${a.op}|${a.zone}|${a.name}|${a.type}|${i}`}>
+                        <td className={`px-3 py-1.5 text-xs font-medium capitalize ${OP_CLS[a.op]}`}>{a.op}</td>
+                        <td className="px-3 py-1.5 text-xs">{a.type}</td>
+                        <td className="px-3 py-1.5 font-mono text-xs">{a.name}</td>
+                        <td className="px-3 py-1.5 font-mono text-xs">
+                          {a.fromValue && a.fromValue !== a.value ? (
+                            <>
+                              <span className="text-slate-400 line-through">{a.fromValue}</span> {a.value}
+                            </>
+                          ) : (
+                            a.value
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs text-slate-500">{a.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
+
+          {plan.conflicts.length > 0 ? (
+            <section>
+              <h2 className={sectionTitle}>Conflicts</h2>
+              <p className="mb-2 text-xs text-slate-500">
+                A hand-made record already uses these names, so the sync leaves them alone. Delete or rename the
+                hand-made record, or give the host a different DNS name on its IPAM subnet page.
+              </p>
+              <div className={tableWrap}>
+                <table className="w-full text-left text-sm">
+                  <thead className={theadCls}>
+                    <tr>
+                      <th className={thCls}>Name</th>
+                      <th className={thCls}>Wanted</th>
+                      <th className={thCls}>Already there</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {plan.conflicts.map((c) => (
+                      <tr key={`${c.zone}|${c.name}|${c.type}`}>
+                        <td className="px-3 py-1.5 font-mono text-xs">{c.name}</td>
+                        <td className="px-3 py-1.5 font-mono text-xs">
+                          {c.type} {c.value}
+                        </td>
+                        <td className="px-3 py-1.5 font-mono text-xs text-rose-700 dark:text-rose-300">{c.existing}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {plan.missingReverseZones.length > 0 ? (
+            <section>
+              <h2 className={sectionTitle}>Missing reverse zones</h2>
+              <p className="mb-2 text-xs text-slate-500">
+                PTR records for these ranges are skipped until a reverse zone exists. The sync never creates zones by
+                itself.
+              </p>
+              <ul className="space-y-1">
+                {plan.missingReverseZones.map((z) => (
+                  <li key={z} className="flex items-center gap-3 text-sm">
+                    <span className="font-mono text-xs">{z}</span>
+                    {canWrite ? (
+                      <button
+                        onClick={() => void createZone(z)}
+                        className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                      >
+                        Create
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      <section>
+        <h2 className={sectionTitle}>Synced records ({managed.length})</h2>
+        {managed.length === 0 ? (
+          <p className="text-xs text-slate-500">None yet.</p>
+        ) : (
+          <div className={tableWrap}>
+            <table className="w-full text-left text-sm">
+              <thead className={theadCls}>
+                <tr>
+                  <th className={thCls}>Name</th>
+                  <th className={thCls}>Type</th>
+                  <th className={thCls}>Value</th>
+                  <th className={thCls}>State</th>
+                  {canWrite ? <th className={`${thCls} text-right`}>Actions</th> : null}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {managed.map((m) => (
+                  <tr key={m.id}>
+                    <td className="px-3 py-1.5 font-mono text-xs">{m.name}</td>
+                    <td className="px-3 py-1.5 text-xs">{m.type}</td>
+                    <td className="px-3 py-1.5 font-mono text-xs">{m.value}</td>
+                    <td className="px-3 py-1.5 text-xs" title={m.lastError ?? undefined}>
+                      {m.state === "ok" ? (
+                        <span className="text-emerald-700 dark:text-emerald-300">ok</span>
+                      ) : (
+                        <span className="text-rose-700 dark:text-rose-300">{m.lastError ?? m.state}</span>
+                      )}
+                    </td>
+                    {canWrite ? (
+                      <td className="px-3 py-1.5 text-right">
+                        <button
+                          onClick={() => void release(m)}
+                          className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                        >
+                          Release
+                        </button>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className={sectionTitle}>Recent runs</h2>
+        {runs.length === 0 ? (
+          <p className="text-xs text-slate-500">No runs yet.</p>
+        ) : (
+          <div className={tableWrap}>
+            <table className="w-full text-left text-sm">
+              <thead className={theadCls}>
+                <tr>
+                  <th className={thCls}>Started</th>
+                  <th className={thCls}>Trigger</th>
+                  <th className={`${thCls} text-right`}>Added</th>
+                  <th className={`${thCls} text-right`}>Updated</th>
+                  <th className={`${thCls} text-right`}>Removed</th>
+                  <th className={`${thCls} text-right`}>Conflicts</th>
+                  <th className={thCls}>Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {runs.map((r) => (
+                  <tr key={r.id}>
+                    <td className="px-3 py-1.5 text-xs text-slate-500">{fmtTime(r.startedAt)}</td>
+                    <td className="px-3 py-1.5 text-xs">{TRIGGER_LABEL[r.trigger]}</td>
+                    <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.added}</td>
+                    <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.updated}</td>
+                    <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.removed}</td>
+                    <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.conflicts}</td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {r.error ? (
+                        <span className="text-rose-700 dark:text-rose-300">{r.error}</span>
+                      ) : r.failed > 0 ? (
+                        <span className="text-rose-700 dark:text-rose-300">{r.failed} failed</span>
+                      ) : !r.finishedAt ? (
+                        <span className="text-slate-500">running…</span>
+                      ) : (
+                        <span className="text-emerald-700 dark:text-emerald-300">ok</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

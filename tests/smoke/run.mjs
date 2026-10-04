@@ -1497,6 +1497,33 @@ async function main() {
     });
     assert(res.status === 400, `status ${res.status}`);
   });
+  await test("GET /api/v1/dns/sync/status returns sync status", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dns/sync/status", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.enabled === "boolean" && typeof body.hosts === "object", `unexpected: ${JSON.stringify(body)}`);
+  });
+  await test("GET /api/v1/dns/sync/runs returns an array", async () => {
+    const { res } = await fetchWithCookies("/api/v1/dns/sync/runs", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    assert(Array.isArray(await res.json()), "expected an array");
+  });
+  await test("POST /api/v1/dns/reverse-zones rejects a forward zone name", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/dns/reverse-zones",
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ zone: "example.org" }) },
+      jar,
+    );
+    assert(res.status === 400, `status ${res.status}`);
+  });
+  await test("PATCH /api/v1/ipam/hosts/:id rejects a DNS name that isn't one label", async () => {
+    const { res } = await fetchWithCookies(
+      "/api/v1/ipam/hosts/00000000-0000-0000-0000-000000000000",
+      { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ dnsName: "two.labels" }) },
+      jar,
+    );
+    assert(res.status === 400, `status ${res.status}`);
+  });
   await test("DNS (unconfigured) zones are empty and records/stats return 503", async () => {
     if (dnsConfigured) return; // live cluster attached; nothing to assert here
     const { res: z } = await fetchWithCookies("/api/v1/dns/zones", {}, jar);

@@ -69,7 +69,8 @@ export class DnsService {
     return { baseUrl: baseUrl.trim().replace(/\/+$/, ""), apiToken, verifyTls };
   }
 
-  private async requireConfig(): Promise<TechnitiumConfig> {
+  /** The Technitium connection, or 503 when unconfigured. Shared with the IPAM sync. */
+  async requireConfig(): Promise<TechnitiumConfig> {
     const cfg = await this.config();
     if (!cfg) throw new ServiceUnavailableException("DNS is not configured");
     return cfg;

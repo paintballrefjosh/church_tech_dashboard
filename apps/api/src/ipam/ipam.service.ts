@@ -12,6 +12,7 @@ import type {
   IpamSubnetSource,
   CreateIpamSubnetInput,
   UpdateIpamSubnetInput,
+  UpdateIpamHostInput,
 } from "@church/shared";
 import { parseCidr, normalizeCidr, ipToInt, ipToSlash24 } from "./cidr";
 
@@ -149,6 +150,7 @@ export class IpamService {
     if (input.vlanId !== undefined) patch.vlanId = input.vlanId;
     if (input.gateway !== undefined) patch.gateway = input.gateway?.trim() || null;
     if (input.scanEnabled !== undefined) patch.scanEnabled = input.scanEnabled;
+    if (input.dnsSync !== undefined) patch.dnsSync = input.dnsSync;
     const [row] = await this.db.update(ipamSubnets).set(patch).where(eq(ipamSubnets.id, id)).returning();
     return toSubnet(row!);
   }
@@ -169,6 +171,15 @@ export class IpamService {
       .where(eq(ipamHosts.subnetId, subnetId))
       .orderBy(desc(ipamHosts.isUp), asc(sql`${ipamHosts.ipAddress}::inet`));
     return rows.map(toHost);
+  }
+
+  /** Host edits — currently just the DNS sync's name override. */
+  async updateHost(id: string, input: UpdateIpamHostInput): Promise<IpamHost> {
+    const patch: Partial<typeof ipamHosts.$inferInsert> = { updatedAt: new Date() };
+    if (input.dnsName !== undefined) patch.dnsName = input.dnsName?.trim().toLowerCase() || null;
+    const [row] = await this.db.update(ipamHosts).set(patch).where(eq(ipamHosts.id, id)).returning();
+    if (!row) throw new NotFoundException("Host not found");
+    return toHost(row);
   }
 
   // ---- summary (tab badge) ----
@@ -389,6 +400,7 @@ function toSubnet(r: SubnetRow): IpamSubnet {
     source: r.source as IpamSubnetSource,
     sourceDetail: r.sourceDetail,
     scanEnabled: r.scanEnabled,
+    dnsSync: r.dnsSync,
     lastScanStartedAt: r.lastScanStartedAt?.toISOString() ?? null,
     lastScanFinishedAt: r.lastScanFinishedAt?.toISOString() ?? null,
     lastError: r.lastError,
@@ -408,6 +420,7 @@ function toHost(r: HostRow): IpamHost {
     hostname: r.hostname,
     netbiosName: r.netbiosName,
     unifiName: r.unifiName,
+    dnsName: r.dnsName,
     isUp: r.isUp,
     respondedVia: r.respondedVia,
     openPorts: Array.isArray(r.openPorts) ? (r.openPorts as number[]) : [],
