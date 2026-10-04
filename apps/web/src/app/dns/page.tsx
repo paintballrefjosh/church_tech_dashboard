@@ -21,7 +21,7 @@ import {
   type DnsTopEntry,
   type DnsZone,
 } from "@church/shared";
-import { useCanWrite, inputCls, cardCls, fmtTime, StatusLine, Modal, Field } from "../network-cisco/cisco-ui";
+import { useCanWrite, inputCls, cardCls, fmtTime, StatusLine, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 
 type View = "overview" | "records" | "sync";
 

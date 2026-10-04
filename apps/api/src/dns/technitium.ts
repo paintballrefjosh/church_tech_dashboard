@@ -32,7 +32,7 @@ export class TechnitiumError extends Error {
   }
 }
 
-// Cap every call so the DNS tab, tab badge and Test button never hang on a
+// Cap every call so the DNS page, summary and Test button never hang on a
 // dead node.
 const REQUEST_TIMEOUT_MS = 8_000;
 

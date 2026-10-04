@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Trash2, Radar, Plus, ScanLine, Pencil } from "lucide-react";
 import type { IpamSubnet, IpamDiscoveredSubnet, IpamSummary } from "@church/shared";
-import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
-import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime, Modal, Field } from "../network-cisco/cisco-ui";
+import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 
 interface EditForm {
   id: string;
@@ -68,8 +67,6 @@ export default function IpamPage() {
     return () => clearInterval(t);
   }, [load]);
 
-  const refreshBadges = () => window.dispatchEvent(new Event(MONITORING_HEALTH_REFRESH));
-
   const addSubnet = async () => {
     if (!cidr.trim()) return;
     setBusy(true);
@@ -86,7 +83,6 @@ export default function IpamPage() {
         setLabel("");
         setStatus({ ok: true, text: `Added ${cidr.trim()} — scanning now.` });
         await load();
-        refreshBadges();
       } else {
         const body = (await r.json().catch(() => null)) as { message?: unknown } | null;
         setStatus({ ok: false, text: describeError(body) });
@@ -104,7 +100,6 @@ export default function IpamPage() {
       body: JSON.stringify({ scanEnabled: !s.scanEnabled }),
     });
     await load();
-    refreshBadges();
   };
 
   const scanNow = async (s: IpamSubnet) => {
@@ -118,7 +113,6 @@ export default function IpamPage() {
     if (!confirm(`Remove ${s.cidr} and its discovered hosts?`)) return;
     await fetch(`/api/ipam/subnets/${s.id}`, { method: "DELETE", credentials: "same-origin" });
     await load();
-    refreshBadges();
   };
 
   const openEdit = (s: IpamSubnet) => {
@@ -145,7 +139,6 @@ export default function IpamPage() {
         setStatus({ ok: true, text: `Saved ${editForm.cidr}.` });
         setEditForm(null);
         await load();
-        refreshBadges();
       } else {
         const body = (await r.json().catch(() => null)) as { message?: unknown } | null;
         setStatus({ ok: false, text: describeError(body) });
@@ -180,7 +173,6 @@ export default function IpamPage() {
       }),
     });
     await Promise.all([load(), discover()]);
-    refreshBadges();
   };
 
   if (!subnets) return <p className="text-sm text-slate-500">Loading…</p>;
@@ -328,7 +320,7 @@ export default function IpamPage() {
               {subnets.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                   <td className="px-3 py-2 font-mono text-xs">
-                    <Link href={`/monitoring/ipam/${s.id}`} className="text-brand-600 hover:underline">
+                    <Link href={`/ipam/${s.id}`} className="text-brand-600 hover:underline">
                       {s.cidr}
                     </Link>
                     {s.lastError ? (

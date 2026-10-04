@@ -121,7 +121,9 @@ which are raw-sample-only so they populate at the ≤2h range), **Network (UniFi
 poller for Cisco IOS/NX-OS switches with config backups, drift, MAC/ARP/VLAN
 caches; ported from the standalone `cisco-switch` app. Reads gate on
 `monitors:read:any`, writes on `monitors:write:any`), and **IPAM**
-(`/monitoring/ipam` — the `ipam` module: a lightweight IP-address manager. A
+(its own page, `/ipam` in the IT menu, not a Monitoring tab since 2026-10-04;
+`/monitoring/ipam*` redirects there via `next.config.mjs` — the `ipam` module: a
+lightweight IP-address manager. A
 background scanner (`ipam/ipam.scanner.ts`, same self-rescheduling `setTimeout`
 shape as the Cisco poller) sweeps managed subnets ICMP-first with a TCP-connect
 fallback — ICMP is `spawn`ed `ping`, so the api container has `cap_add: NET_RAW`
@@ -155,13 +157,14 @@ over UPS-MIB / RFC 1628, mirroring the `printers` module — `ups_devices` table
 `monitoring` permissions like cisco/ipam — reads `monitors:read:any`, writes
 `monitors:write:any`, no dedicated module/permission strings).
 
-There is also a **DNS** tab (`/monitoring/dns` — the `dns` module: a client for a
+There is also a **DNS** page (`/dns` in the IT menu, like IPAM not a Monitoring
+tab; `/monitoring/dns*` redirects — the `dns` module: a client for a
 Technitium DNS Server cluster running *outside* this stack, so port 53 never
 touches compose). `dns/technitium.ts` calls the Technitium HTTP API with the token
 as `Authorization: Bearer` (never in the URL); only the cluster **primary** is
 configured (`dns.primary_url`, `dns.api_token`, `dns.verify_tls` in the
 `monitoring` settings category) because it alone accepts zone edits and
-aggregates cluster stats (`node=cluster`). Summary/tab badge (primary
+aggregates cluster stats (`node=cluster`). Summary (primary
 unreachable = critical, a non-connected cluster node = degraded), cluster nodes,
 query stats, zones and records, plus audited record create/edit/delete
 (A/AAAA/CNAME/PTR/MX/TXT/SRV) on Primary zones. Technitium records have no id,

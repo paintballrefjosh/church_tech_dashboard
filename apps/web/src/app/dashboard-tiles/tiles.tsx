@@ -308,13 +308,13 @@ function buildOverviewRows(
   // without the node list, counts as one node.
   const n = dns as { configured?: boolean; reachable?: boolean; nodes?: unknown[] | null; unreachableNodes?: number } | null;
   if (!n || n.configured === false) {
-    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "unconfigured", note: "not configured" });
+    rows.push({ key: "dns", label: "DNS", href: "/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "unconfigured", note: "not configured" });
   } else if (n.reachable === false) {
-    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "error", note: "primary unreachable" });
+    rows.push({ key: "dns", label: "DNS", href: "/dns", Icon: Globe, up: 0, down: 0, total: 0, status: "error", note: "primary unreachable" });
   } else {
     const total = n.nodes?.length || 1;
     const down = n.unreachableNodes ?? 0;
-    rows.push({ key: "dns", label: "DNS", href: "/monitoring/dns", Icon: Globe, up: total - down, down, total, status: "ok" });
+    rows.push({ key: "dns", label: "DNS", href: "/dns", Icon: Globe, up: total - down, down, total, status: "ok" });
   }
 
   return rows;

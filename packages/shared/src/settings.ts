@@ -397,7 +397,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: false,
     category: "monitoring",
   },
-  // DNS (Monitoring → DNS). A Technitium DNS Server cluster, driven over its
+  // DNS (IT → DNS). A Technitium DNS Server cluster, driven over its
   // HTTP API. Only the cluster primary is configured here: it is the only node
   // that accepts zone edits, and it aggregates stats for the whole cluster.
   {
@@ -444,7 +444,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "boolean",
     label: "Sync IPAM hosts to DNS",
     description:
-      "Write A (and PTR) records for named hosts in subnets with \"Publish to DNS\" on. Review the plan on the DNS tab's Sync view before turning this on.",
+      "Write A (and PTR) records for named hosts in subnets with \"Publish to DNS\" on. Review the plan in the IPAM sync view on the DNS page before turning this on.",
     defaultValue: false,
     category: "monitoring",
   },

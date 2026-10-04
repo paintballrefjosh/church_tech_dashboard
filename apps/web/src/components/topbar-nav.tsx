@@ -22,6 +22,7 @@ import {
   Tags,
   ScrollText,
   Folder,
+  Boxes,
 } from "lucide-react";
 import { NavDropdown, type NavDropdownItem, type NavDropdownEntry } from "./nav-dropdown";
 
@@ -48,6 +49,9 @@ const IT_ITEMS: Item[] = [
   // Services, Infrastructure, and Network are tabs within the Monitoring
   // section now — one nav entry leads to all three.
   { href: "/monitoring", label: "Monitoring", Icon: Activity, module: "monitoring" },
+  // IPAM and DNS ride the monitoring module's permissions but are their own pages.
+  { href: "/ipam", label: "IPAM", Icon: Boxes, module: "monitoring" },
+  { href: "/dns", label: "DNS", Icon: Globe, module: "monitoring" },
 ];
 
 const DOCS_ITEMS: Item[] = [

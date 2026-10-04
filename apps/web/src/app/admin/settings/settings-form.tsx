@@ -324,8 +324,10 @@ function SettingField({
   /** Non-null for a toggle whose prerequisites aren't met: disables it and shows why. */
   locked: { hint: string; href: string } | null;
 }) {
+  // id = the setting key, so other pages can deep-link to a field
+  // (e.g. /admin/settings/monitoring#dns.primary_url, the DNS page's admin button).
   return (
-    <div className="grid gap-2 p-4 sm:grid-cols-[1fr_2fr]">
+    <div id={setting.key} className="grid gap-2 p-4 sm:grid-cols-[1fr_2fr]">
       <div>
         <div className="font-mono text-xs text-slate-500 dark:text-slate-400">{setting.key}</div>
         <div className="text-sm font-medium">{setting.label}</div>

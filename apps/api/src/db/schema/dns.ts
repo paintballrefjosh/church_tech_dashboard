@@ -3,7 +3,7 @@ import { ipamHosts } from "./ipam";
 import { users } from "./users";
 
 /**
- * DNS sync (Monitoring → DNS). Records live in Technitium; these tables only
+ * DNS sync (IT → DNS). Records live in Technitium; these tables only
  * hold what the IPAM→DNS sync needs to own its records safely.
  *
  * `dns_managed_records` is the ledger of records the sync wrote, one row per
@@ -13,7 +13,7 @@ import { users } from "./users";
  *
  * `dns_sync_runs` is the audit trail for the background sync, which the HTTP
  * audit interceptor never sees: what each run added/updated/removed, and the
- * per-host outcome (`details.hosts`) the IPAM tab shows next to each host.
+ * per-host outcome (`details.hosts`) the IPAM subnet page shows next to each host.
  */
 export const dnsManagedRecords = pgTable(
   "dns_managed_records",

@@ -117,16 +117,27 @@ export async function apiTokenTests({ test, assert, fetchWithCookies, jar }) {
     assert(res.status === 200, `status ${res.status}`);
   });
 
-  await test("tokens: create rejects unknown modules and over-long expiry", async () => {
+  await test("tokens: create rejects unknown modules, past dates and (when capped) over-long expiry", async () => {
+    // The lifetime cap is the operator's setting (auth.api_tokens_max_days);
+    // only assert the cap cases when one is set (0 = no cap, never allowed).
+    const pol = await session("/api/v1/me/api-tokens/policy");
+    assert(pol.res.status === 200, `policy status ${pol.res.status}`);
+    const { maxDays } = await pol.res.json();
     const bad = [
       { name: "x", modules: ["bogus"] },
-      { name: "x", expiresInDays: 3650 },
-      { name: "x", expiresAt: null },
       { name: "x", expiresAt: new Date(Date.now() - 60_000).toISOString() },
     ];
+    if (maxDays > 0) {
+      bad.push({ name: "x", expiresInDays: maxDays + 1 }, { name: "x", expiresAt: null });
+    }
     for (const body of bad) {
       const { res } = await session("/api/v1/me/api-tokens", { method: "POST", ...json(body) });
-      assert(res.status === 400, `${JSON.stringify(body)} -> ${res.status}`);
+      if (res.status === 201 || res.status === 200) {
+        // Don't leave a live token behind when the check fails.
+        const made = await res.json();
+        await session(`/api/v1/me/api-tokens/${made.id}`, { method: "DELETE" });
+      }
+      assert(res.status === 400, `${JSON.stringify(body)} -> ${res.status} (maxDays ${maxDays})`);
     }
   });
 

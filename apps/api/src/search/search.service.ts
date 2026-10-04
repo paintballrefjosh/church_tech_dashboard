@@ -609,7 +609,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         title: [r.cidr, r.label].filter(Boolean).join(" · "),
         body: [r.label, r.gateway, r.vlanId ? `vlan ${r.vlanId}` : null, r.source].filter(Boolean).join(" · "),
         extra: { source: r.source, scanEnabled: r.scanEnabled },
-        url: `/monitoring/ipam/${r.id}`,
+        url: `/ipam/${r.id}`,
         updatedAt: r.updatedAt.toISOString(),
       });
     }
@@ -623,7 +623,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         title: [r.ipAddress, r.unifiName].filter(Boolean).join(" · "),
         body: [r.unifiName, r.hostname, r.netbiosName, r.macAddress].filter(Boolean).join(" · "),
         extra: { subnetId: r.subnetId, isUp: r.isUp },
-        url: `/monitoring/ipam/${r.subnetId}`,
+        url: `/ipam/${r.subnetId}`,
         updatedAt: r.updatedAt.toISOString(),
       });
     }

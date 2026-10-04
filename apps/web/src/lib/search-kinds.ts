@@ -134,9 +134,9 @@ export function hrefForHit(h: SearchHit): string {
       return `/monitoring/network-cisco/vlans`;
     case "ipam_subnet":
     case "ipam_host":
-      return `/monitoring/ipam`;
+      return `/ipam`;
     case "dns_record":
-      return `/monitoring/dns?view=records`;
+      return `/dns?view=records`;
     default:
       return `/`;
   }

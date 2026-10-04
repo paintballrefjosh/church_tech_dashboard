@@ -102,7 +102,7 @@ export class DnsSearchIndexer implements OnModuleInit, OnModuleDestroy {
    * apex record ("@") has no useful filter and opens the zone unfiltered.
    */
   private recordUrl(zone: string, q: string): string {
-    const base = `/monitoring/dns?zone=${encodeURIComponent(zone)}`;
+    const base = `/dns?zone=${encodeURIComponent(zone)}`;
     return q === "@" ? base : `${base}&q=${encodeURIComponent(q)}`;
   }
 

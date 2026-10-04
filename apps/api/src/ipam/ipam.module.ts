@@ -6,7 +6,7 @@ import { IpamService } from "./ipam.service";
 import { IpamScanner } from "./ipam.scanner";
 
 /**
- * IPAM — the monitoring module's IPAM tab. A background scanner sweeps managed
+ * IPAM — the IPAM page (IT menu; monitoring module). A background scanner sweeps managed
  * subnets (added manually or discovered from Cisco config/ARP + UniFi) for live
  * hosts. DB + SettingsService are @Global; UnifiService comes from UnifiModule
  * (imported for its `networks()` discovery + client/device MAC map).

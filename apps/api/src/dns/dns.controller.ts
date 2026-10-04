@@ -20,7 +20,7 @@ import { DnsSyncService } from "./dns.sync";
 import { DnsHealthService } from "./dns.health";
 
 /**
- * DNS API for the monitoring module's DNS tab. Reuses the monitoring
+ * DNS API for the DNS page (part of the monitoring module). Reuses the monitoring
  * permissions like cisco/ipam/ups: reads need monitors:read:any; record writes
  * and the connection test (which can probe arbitrary URLs) need
  * monitors:write:any. Record writes are audited with a before/after snapshot

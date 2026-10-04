@@ -52,7 +52,7 @@ const HEALTHY_NODE_STATES = new Set(["Self", "Connected"]);
 const ZONE_NAME_RE = /^(?=.{1,253}$)[a-z0-9_-]+(\.[a-z0-9_-]+)*\.?$/i;
 
 /**
- * Monitoring → DNS. Read-only view over a Technitium DNS Server cluster
+ * IT → DNS. Read-only view over a Technitium DNS Server cluster
  * (phase 1): connection/cluster health, zones, records, query stats. Settings
  * are re-read on every request so a rotated token or a new primary URL after a
  * failover takes effect immediately.

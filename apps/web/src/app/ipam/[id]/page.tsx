@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, RefreshCw, Pencil, Check, X } from "lucide-react";
 import type { IpamSubnet, IpamHost, DnsSyncStatus, DnsSyncHostState } from "@church/shared";
-import { useCanWrite, cardCls, fmtTime, inputCls } from "../../network-cisco/cisco-ui";
+import { useCanWrite, cardCls, fmtTime, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
 
 const DNS_STATE: Record<DnsSyncHostState, { label: string; dot: string }> = {
   ok: { label: "Published", dot: "bg-emerald-500" },
@@ -104,7 +104,7 @@ export default function IpamSubnetPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/monitoring/ipam" className="mb-1 inline-flex items-center gap-1 text-xs text-slate-500 hover:underline">
+          <Link href="/ipam" className="mb-1 inline-flex items-center gap-1 text-xs text-slate-500 hover:underline">
             <ArrowLeft className="h-3.5 w-3.5" /> All subnets
           </Link>
           <h2 className="font-mono text-lg font-semibold">{subnet.cidr}</h2>
@@ -140,8 +140,8 @@ export default function IpamSubnetPage() {
       {subnet.dnsSync && dns && !dns.enabled ? (
         <p className="rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300">
           DNS sync is off, so nothing is written yet. Check the plan on the{" "}
-          <Link href="/monitoring/dns?view=sync" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
-            DNS tab
+          <Link href="/dns?view=sync" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
+            DNS page
           </Link>{" "}
           and turn it on in Monitoring settings.
         </p>

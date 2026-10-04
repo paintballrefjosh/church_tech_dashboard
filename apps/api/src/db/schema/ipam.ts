@@ -1,7 +1,7 @@
 import { pgTable, text, integer, boolean, timestamp, uuid, jsonb, index, unique } from "drizzle-orm/pg-core";
 
 /**
- * IPAM — a lightweight IP-address manager for the monitoring module's IPAM tab.
+ * IPAM — a lightweight IP-address manager for the IPAM page (monitoring module).
  *
  * `ipam_subnets` holds the CIDR ranges to sweep. Rows come from three places
  * (`source`): `manual` (an operator adds a range), `cisco` (derived from a

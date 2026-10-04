@@ -14,7 +14,7 @@ import { IpamScanner } from "./ipam.scanner";
 import { DnsSyncService } from "../dns/dns.sync";
 
 /**
- * IPAM API for the monitoring module's IPAM tab. Reads require the monitoring
+ * IPAM API for the IPAM page (part of the monitoring module). Reads require the monitoring
  * module at any tier (monitors:read:any); every mutation requires the admin
  * tier (monitors:write:any). Scans are fire-and-forget: the endpoint kicks the
  * sweep off in the background and returns immediately; the UI re-fetches.

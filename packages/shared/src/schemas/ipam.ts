@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * IPAM — request/response contracts shared by the API and web for the
- * monitoring module's IPAM tab (managed subnets + discovered hosts).
+ * IPAM page (IT menu; monitoring module) (managed subnets + discovered hosts).
  */
 
 /** IPv4 CIDR (e.g. "10.0.10.0/24"). Prefix bounded to keep a sweep tractable:
@@ -117,7 +117,7 @@ export interface IpamDiscoveredSubnet {
   existing: boolean;
 }
 
-/** IPAM tab badge summary. */
+/** IPAM summary counts. */
 export interface IpamSummary {
   enabled: boolean;
   subnets: number;

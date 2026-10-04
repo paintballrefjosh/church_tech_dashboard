@@ -60,7 +60,7 @@ type RunRow = typeof dnsSyncRuns.$inferSelect;
  * are ever changed or removed.
  *
  * Triggers: the end of every IPAM scanner pass and IPAM edits (debounced), a
- * 15-minute fallback timer, and the DNS tab's "Sync now". Background runs only
+ * 15-minute fallback timer, and the DNS page's "Sync now". Background runs only
  * happen while `dns.sync_enabled` is on. One run at a time (the API is a single
  * process, so an in-process guard is enough).
  *
@@ -352,7 +352,7 @@ export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
     return rows.map(toRun);
   }
 
-  /** Last completed run's per-host outcomes, for the IPAM tab. */
+  /** Last completed run's per-host outcomes, for the IPAM subnet page. */
   async status(): Promise<DnsSyncStatus> {
     const cfg = await this.syncConfig();
     // Host outcomes come from the newest finished run that computed a plan

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * DNS — the monitoring module's DNS tab, a client for a Technitium DNS Server
+ * DNS — the DNS page (IT menu; monitoring module), a client for a Technitium DNS Server
  * (v14+ cluster or a single node). The dashboard talks only to the configured
  * primary's HTTP API; records live in Technitium, not in this database.
  */
@@ -249,7 +249,7 @@ export interface DnsSyncConflict {
 }
 
 /**
- * Per-host outcome, shown beside each host on the IPAM tab.
+ * Per-host outcome, shown beside each host on the IPAM subnet page.
  * - ok: its records are in place (or will be, in a plan)
  * - conflict: a hand-made record holds its name
  * - error: Technitium refused a write for it

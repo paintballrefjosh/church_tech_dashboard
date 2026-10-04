@@ -116,7 +116,7 @@ export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
           kind: "dns.primary_unreachable",
           title,
           body,
-          link: "/monitoring/dns",
+          link: "/dns",
         })),
       );
     } catch (err) {

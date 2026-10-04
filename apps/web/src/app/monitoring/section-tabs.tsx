@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Server, Wifi, Network, Boxes, BatteryCharging, Globe } from "lucide-react";
+import { Activity, Server, Wifi, Network, BatteryCharging } from "lucide-react";
 import { MaintenanceControl } from "./maintenance-control";
 
 /**
  * Secondary navigation for the Monitoring section. Services (uptime monitors),
- * Infrastructure (host/Docker/Proxmox), Network (UniFi), and Network (Cisco)
- * are all facets of the same `monitoring` module, so they share one tabbed
- * shell rather than living as separate top-level pages.
+ * Infrastructure (host/Docker/Proxmox), Network (UniFi), Network (Cisco) and
+ * UPS are all facets of the same `monitoring` module, so they share one tabbed
+ * shell. IPAM and DNS are in the same module but are tools rather than
+ * monitoring views, so they have their own pages (/ipam, /dns) in the IT menu.
  *
  * Each tab carries a small badge counting problems in that area — amber for
  * degraded, red when anything is critical — so an operator can see at a glance
@@ -35,8 +36,6 @@ const TABS = [
       (p.startsWith("/monitoring/") &&
         !p.startsWith("/monitoring/infra") &&
         !p.startsWith("/monitoring/network") &&
-        !p.startsWith("/monitoring/ipam") &&
-        !p.startsWith("/monitoring/dns") &&
         !p.startsWith("/monitoring/ups")),
   },
   { key: "infra", href: "/monitoring/infra", label: "Infrastructure", Icon: Server, match: (p: string) => p.startsWith("/monitoring/infra") },
@@ -53,20 +52,6 @@ const TABS = [
     label: "Network (Cisco)",
     Icon: Network,
     match: (p: string) => p.startsWith("/monitoring/network-cisco"),
-  },
-  {
-    key: "ipam",
-    href: "/monitoring/ipam",
-    label: "IPAM",
-    Icon: Boxes,
-    match: (p: string) => p.startsWith("/monitoring/ipam"),
-  },
-  {
-    key: "dns",
-    href: "/monitoring/dns",
-    label: "DNS",
-    Icon: Globe,
-    match: (p: string) => p.startsWith("/monitoring/dns"),
   },
   {
     key: "ups",
@@ -168,13 +153,11 @@ async function loadHealth(): Promise<HealthMap> {
     }
   };
 
-  const [mon, infra, unifi, cisco, ipam, dns, ups] = await Promise.all([
+  const [mon, infra, unifi, cisco, ups] = await Promise.all([
     getJson("/api/monitors/summary"),
     getJson("/api/infra/summary"),
     getJson("/api/unifi/summary"),
     getJson("/api/cisco/switches"),
-    getJson("/api/ipam/summary"),
-    getJson("/api/dns/summary"),
     getJson("/api/ups/summary"),
   ]);
 
@@ -211,19 +194,6 @@ async function loadHealth(): Promise<HealthMap> {
       else if (sw.configDrift || (sw.checkPortState && (sw.portsDownEnabled ?? 0) > 0)) degraded++;
     }
     out.cisco = { critical, degraded };
-  }
-  if (ipam) {
-    // A subnet whose last sweep errored (e.g. truncated) reads as degraded.
-    const s = ipam as { errored?: number };
-    out.ipam = { critical: 0, degraded: s.errored ?? 0 };
-  }
-  if (dns) {
-    // Primary API unreachable = critical (no edits, no stats); a cluster
-    // member that isn't connected = degraded (the other node still answers).
-    const s = dns as { configured?: boolean; reachable?: boolean; unreachableNodes?: number };
-    if (s.configured) {
-      out.dns = { critical: s.reachable === false ? 1 : 0, degraded: s.unreachableNodes ?? 0 };
-    }
   }
   if (ups) {
     const s = ups as { red?: number; yellow?: number };
