@@ -1,8 +1,9 @@
-import { Injectable, Inject, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Inject, Logger, type OnModuleInit } from "@nestjs/common";
 import { desc, eq, and, lt, gte, getTableColumns, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { auditLog, apiTokens } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 
 export interface AuditWrite {
   actorUserId?: string | null;
@@ -19,31 +20,24 @@ export interface AuditWrite {
 }
 
 @Injectable()
-export class AuditService implements OnModuleInit, OnModuleDestroy {
+export class AuditService implements OnModuleInit {
   private readonly logger = new Logger(AuditService.name);
-  private pruneTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   /**
    * Schedule a daily prune of audit rows older than the configured retention
-   * window. Runs in-process; in a multi-replica deploy this would race
-   * harmlessly across replicas (deletes are idempotent). Skips when
+   * window. Runs as a cluster job, so one node at a time. Skips when
    * audit.retention_days is 0.
    */
   onModuleInit(): void {
-    // Stagger first run by 60s so concurrent replicas don't all prune at the
-    // same instant on cold start.
-    setTimeout(() => void this.pruneOnce(), 60_000);
-    // Then re-run every 24 hours. We don't bother locking to wall-clock 02:00
-    // — uniform-jitter is fine for an internal IT tool.
-    this.pruneTimer = setInterval(() => void this.pruneOnce(), 24 * 60 * 60 * 1000);
-  }
-  onModuleDestroy(): void {
-    if (this.pruneTimer) clearInterval(this.pruneTimer);
+    // First run 60s after boot, then every 24 hours. We don't bother locking to
+    // wall-clock 02:00 — uniform-jitter is fine for an internal IT tool.
+    this.jobs.register({ name: "audit-prune", everyMs: 24 * 60 * 60 * 1000, initialDelayMs: 60_000, run: () => this.pruneOnce() });
   }
 
   private async pruneOnce(): Promise<void> {

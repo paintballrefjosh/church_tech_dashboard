@@ -39,6 +39,10 @@ export const monitors = pgTable(
     // Denormalised current state. Defaults: status "unknown" (no checks yet).
     status: text("status").notNull().default("unknown"), // "up" | "down" | "unknown"
     lastCheckedAt: timestamp("last_checked_at"),
+    // A probe worker takes a monitor by setting this a minute ahead, so with several
+    // nodes each monitor is probed by one at a time; it is cleared when the check is
+    // recorded, and a worker that dies mid-probe only delays the check by that minute.
+    claimedUntil: timestamp("claimed_until", { withTimezone: true }),
     lastLatencyMs: integer("last_latency_ms"),
     consecutiveFails: integer("consecutive_fails").notNull().default(0),
     consecutiveOks: integer("consecutive_oks").notNull().default(0),

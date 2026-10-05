@@ -12,6 +12,8 @@ import { Logger, Inject } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
 import { decode } from "@auth/core/jwt";
 import { AuthService } from "../auth/auth.service";
+import { ClusterBus, INTERNAL_ROOM_PREFIX } from "../cluster/cluster-bus.service";
+import type { BusRow } from "../cluster/bus.store";
 
 /**
  * Rooms a client may `subscribe` to, and the permission each one requires.
@@ -75,7 +77,10 @@ function wsAllowedOrigin(
 
 @WebSocketGateway({
   cors: { origin: wsAllowedOrigin, credentials: true },
-  transports: ["websocket", "polling"],
+  // WebSocket only. Long-polling needs every request of a session to reach the same
+  // node, so it would force sticky sessions on the load balancer in front of several
+  // nodes. Clients that cannot open a WebSocket keep polling over plain HTTP instead.
+  transports: ["websocket"],
 })
 export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
@@ -83,7 +88,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   @WebSocketServer()
   server!: Server;
 
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    private readonly bus: ClusterBus,
+  ) {}
 
   /**
    * Authenticate during the handshake, NOT in handleConnection. The
@@ -93,6 +101,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
    * async DB call) instead races the first inbound message.
    */
   afterInit(server: Server): void {
+    // Events published by other nodes for this node's browsers, and this node's
+    // room sizes for theirs (presence). Replaced the Redis Socket.IO adapter.
+    this.bus.onEvent((row) => this.deliver(row));
+    this.bus.setPresenceSource(() => this.localPresence());
     server.use((socket, next) => {
       void this.authenticate(socket)
         .then((auth) => {
@@ -144,6 +156,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   handleDisconnect(socket: Socket): void {
     this.logger.debug(`ws disconnect sid=${socket.id}`);
+    this.bus.touchPresence();
   }
 
   /**
@@ -167,6 +180,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       await socket.join(room);
       joined.push(room);
     }
+    if (joined.length > 0) this.bus.touchPresence();
     return { joined };
   }
 
@@ -177,31 +191,74 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   ): Promise<{ left: string[] }> {
     const rooms = normaliseRooms(body);
     for (const room of rooms) await socket.leave(room);
+    this.bus.touchPresence();
     return { left: rooms };
   }
 
   /**
-   * Number of sockets joined to `room` on THIS node. Used by pollers to skip
-   * work when nobody's watching. Local-only by design: with the Redis adapter
-   * each replica polls independently for its own viewers, which bounds load to
-   * one poll per replica-with-viewers rather than fanning a cluster-wide count.
+   * Whether anyone, on any node, is watching `room`. Pollers use this to skip
+   * work when nobody is. Remote presence is as of the last bus poll (about a
+   * second old); a client that has just subscribed on another node is counted
+   * within a second or two.
    */
-  roomSize(room: string): number {
+  hasViewers(room: string): boolean {
+    return this.localRoomSize(room) > 0 || this.bus.remoteViewers(room);
+  }
+
+  /** Sockets joined to `room` on THIS node. */
+  localRoomSize(room: string): number {
     return this.server?.sockets?.adapter?.rooms?.get(room)?.size ?? 0;
   }
 
   /**
    * Emit an event to every socket joined to `user:{id}` (i.e. every browser
-   * tab that user has open). Safe to call before the server is up — falls
-   * silently to a no-op when `this.server` is undefined.
+   * tab that user has open), on this node and, through the bus, on the others.
+   * Safe to call before the server is up: falls silently to a no-op when
+   * `this.server` is undefined.
    */
   toUser(userId: string, event: string, payload: unknown): void {
-    this.server?.to(`user:${userId}`).emit(event, payload);
+    const room = `user:${userId}`;
+    this.server?.to(room).emit(event, payload);
+    // A user can be connected to any node, and the rooms are not tracked per
+    // user, so these always go out. They are infrequent (a notification, an edit).
+    this.bus.publish({ room, event, payload });
   }
 
-  /** Broadcast to a named room, e.g. `wiki:{id}` for a wiki page. */
+  /**
+   * Broadcast to a named room, e.g. `infra`. Sent to other nodes only while one
+   * of them has someone in the room.
+   */
   toRoom(room: string, event: string, payload: unknown): void {
     this.server?.to(room).emit(event, payload);
+    if (this.bus.remoteViewers(room)) this.bus.publish({ room, event, payload });
+  }
+
+  /**
+   * Like toRoom for a payload too big to ship on every change (the UniFi
+   * snapshot): other nodes are told to read the stored copy `kind`.
+   */
+  async toRoomSnapshot(room: string, event: string, kind: string, payload: unknown): Promise<void> {
+    this.server?.to(room).emit(event, payload);
+    if (this.bus.remoteViewers(room)) await this.bus.publishSnapshot(room, event, kind, payload);
+  }
+
+  /** Hand an event from another node to this node's sockets. */
+  private async deliver(row: BusRow): Promise<void> {
+    if (row.room.startsWith(INTERNAL_ROOM_PREFIX)) return;
+    const payload = row.ref ? await this.bus.readSnapshot(row.ref) : row.payload;
+    if (row.ref && payload === null) return; // the snapshot is gone; nothing to send
+    this.server?.to(row.room).emit(row.event, payload);
+  }
+
+  /** Room sizes on this node, for the rooms a client can subscribe to. */
+  private localPresence(): Map<string, number> {
+    const out = new Map<string, number>();
+    const rooms = this.server?.sockets?.adapter?.rooms;
+    if (!rooms) return out;
+    for (const [room, members] of rooms) {
+      if (requiredPermission(room) !== null && members.size > 0) out.set(room, members.size);
+    }
+    return out;
   }
 }
 

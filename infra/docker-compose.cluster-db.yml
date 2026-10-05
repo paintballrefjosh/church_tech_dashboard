@@ -1,0 +1,61 @@
+# Overlay for DEPLOY_MODE=cluster with DB_MODE=bundled (shape C): every node runs one CockroachDB
+# and the databases form one cluster. Added by scripts/compose.sh after docker-compose.cluster.yml.
+#
+# - cockroach: this node's member of the cluster, in secure mode (TLS + password sign-in),
+#   because its port is published on the host network. Only with the `cluster-db` profile;
+#   the single-node cockroach-1..3 services stay off in cluster mode.
+# - api, monitor, web: the database certificate authority is mounted so the app can verify the
+#   node's certificate (sslmode=verify-full); they wait for the local database to be healthy.
+
+services:
+  cockroach:
+    image: cockroachdb/cockroach:v24.2.0
+    profiles: [cluster-db]
+    restart: always
+    networks: [internal]
+    # --http-addr stays on the container's loopback: the admin UI is not published.
+    # --advertise-addr is how the other nodes (and their SQL clients) reach this one.
+    command: >-
+      start
+      --certs-dir=/certs
+      --listen-addr=0.0.0.0:26257
+      --http-addr=127.0.0.1:8080
+      --advertise-addr=${NODE_ADDR:?run compose via scripts/compose.sh}:${CLUSTER_DB_PORT:-26257}
+      --join=${CLUSTER_JOIN:?run compose via scripts/compose.sh}
+      --cache=.25
+      --max-sql-memory=.25
+    ports:
+      - "${CLUSTER_BIND_ADDR:-0.0.0.0}:${CLUSTER_DB_PORT:-26257}:26257"
+    volumes:
+      - ../data/cockroach:/cockroach/cockroach-data
+      - ../data/certs:/certs:ro
+    healthcheck:
+      # Unhealthy until the cluster has been initialised (scripts/cluster.sh init-db), on purpose.
+      test: ["CMD", "cockroach", "sql", "--certs-dir=/certs", "--host=127.0.0.1:26257", "-e", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    # A hung node is better restarted than left holding replicas it cannot serve.
+    stop_grace_period: 60s
+
+  api:
+    depends_on:
+      cockroach:
+        condition: service_healthy
+        # Only present with the cluster-db profile (DB_MODE=bundled).
+        required: false
+    volumes:
+      - ../data/certs/ca.crt:/certs/ca.crt:ro
+
+  monitor:
+    depends_on:
+      cockroach:
+        condition: service_healthy
+        required: false
+    volumes:
+      - ../data/certs/ca.crt:/certs/ca.crt:ro
+
+  web:
+    volumes:
+      - ../data/certs/ca.crt:/certs/ca.crt:ro

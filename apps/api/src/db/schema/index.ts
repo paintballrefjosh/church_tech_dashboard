@@ -25,3 +25,5 @@ export * from "./unifi";
 export * from "./ipam";
 export * from "./ups";
 export * from "./dns";
+export * from "./cluster";
+export * from "./backup";

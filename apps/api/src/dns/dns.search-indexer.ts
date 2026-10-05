@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
 import type { DnsRecord } from "@church/shared";
 import { SearchService, type SearchDoc } from "../search/search.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { DnsService } from "./dns.service";
 
 // Records live in Technitium, so nothing in this app sees edits made in its
@@ -32,24 +33,24 @@ export function ptrNameToIpv4(name: string): string | null {
 @Injectable()
 export class DnsSearchIndexer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DnsSearchIndexer.name);
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private startup: ReturnType<typeof setTimeout> | null = null;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private running = false;
 
   constructor(
     private readonly dns: DnsService,
     private readonly search: SearchService,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   onModuleInit(): void {
-    this.startup = setTimeout(() => void this.sync(), STARTUP_DELAY_MS);
-    this.timer = setInterval(() => void this.sync(), SYNC_MS);
+    // The periodic full read is a cluster job (one node reads Technitium). The
+    // debounced sync after a dashboard write runs on whichever node took the
+    // write. Either way the result goes to the shared live_search_docs table
+    // (only changed rows are written) and every node indexes it from there.
+    this.jobs.register({ name: "dns-search-index", everyMs: SYNC_MS, initialDelayMs: STARTUP_DELAY_MS, run: () => this.sync() });
   }
 
   onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
-    if (this.startup) clearTimeout(this.startup);
     if (this.debounce) clearTimeout(this.debounce);
   }
 

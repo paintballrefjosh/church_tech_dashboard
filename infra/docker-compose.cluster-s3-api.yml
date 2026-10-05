@@ -1,0 +1,10 @@
+# Added by scripts/compose.sh when CLUSTER_S3_API_PORT is set (cluster mode, bundled object
+# store): publishes this node's S3 API so files can be copied in from, or out to, another host
+# (scripts/s3-copy.sh), for instance when converting a single node install. Off by default: the
+# S3 port is otherwise reachable only inside the stack. The API is authenticated, but treat the
+# port like the other cluster ports: firewall it, and unset it when the copy is done.
+
+services:
+  garage:
+    ports:
+      - "${CLUSTER_BIND_ADDR:-0.0.0.0}:${CLUSTER_S3_API_PORT:?}:3900"

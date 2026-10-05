@@ -1,9 +1,8 @@
-import { Pool } from "pg";
+import { createPool } from "@church/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 
-// DATABASE_URL; COCKROACH_URL is the pre-Yugabyte name, still accepted.
-const url = process.env.DATABASE_URL || process.env.COCKROACH_URL;
-if (!url) throw new Error("DATABASE_URL is not set");
-
-export const pool = new Pool({ connectionString: url });
+// DATABASE_URL (or the old COCKROACH_URL). The shared factory adds an error
+// handler (a dying database node must not crash the worker), timeouts, retry of
+// statements that are safe to repeat, and TLS from the URL.
+export const pool = createPool({ name: "monitor", max: 5 });
 export const db = drizzle(pool);

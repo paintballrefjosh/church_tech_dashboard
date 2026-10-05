@@ -3,7 +3,7 @@
  * runtime (without editing files) goes here. Future Phase 1+ wiring reads
  * values from the `settings` table using these keys.
  *
- * Truly bootstrap-time things — DB URL, Redis URL, AUTH_SECRET — stay in env
+ * Truly bootstrap-time things — DB URL, AUTH_SECRET — stay in env
  * because they're needed before the DB is reachable. Everything else lives here.
  */
 

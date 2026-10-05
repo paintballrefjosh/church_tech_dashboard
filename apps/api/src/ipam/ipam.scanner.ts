@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, Inject, type OnModuleInit } from "@nestjs/common";
 import { and, eq, notInArray, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { ipamSubnets, ipamHosts, ciscoArpCache } from "../db/schema";
@@ -8,6 +8,7 @@ import { expandHosts, parseCidr } from "./cidr";
 import { pingHost, tcpProbe, reverseDns, netbiosName } from "./probe";
 import { IpamService } from "./ipam.service";
 import { DnsSyncService } from "../dns/dns.sync";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 
 /** Hard cap on hosts swept per subnet so a mistyped /16 can't melt the scanner. */
 const MAX_HOSTS = 8192;
@@ -47,9 +48,8 @@ type SubnetRow = typeof ipamSubnets.$inferSelect;
 
 /**
  * Background IP sweep for the IPAM tab. Mirrors the CiscoPoller shape: a
- * self-rescheduling `setTimeout` loop (no @nestjs/schedule) driven by lifecycle
- * hooks, re-reading its cadence from settings each tick so an operator can
- * retune without a restart.
+ * fixed-delay cluster job (see ClusterJobs; no @nestjs/schedule) re-reading its
+ * cadence from settings each tick so an operator can retune without a restart.
  *
  * Each enabled subnet is expanded to host addresses and probed ICMP-first with
  * a TCP-connect fallback (see probe.ts). Live hosts are upserted into
@@ -64,9 +64,8 @@ type SubnetRow = typeof ipamSubnets.$inferSelect;
  * read, unlike the host sweep which respects `monitoring.ipam_scan_enabled`.
  */
 @Injectable()
-export class IpamScanner implements OnModuleInit, OnModuleDestroy {
+export class IpamScanner implements OnModuleInit {
   private readonly logger = new Logger(IpamScanner.name);
-  private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly inFlight = new Set<string>();
 
   constructor(
@@ -75,14 +74,20 @@ export class IpamScanner implements OnModuleInit, OnModuleDestroy {
     private readonly unifi: UnifiService,
     private readonly ipam: IpamService,
     private readonly dnsSync: DnsSyncService,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   onModuleInit(): void {
-    this.timer = setTimeout(() => void this.tick(), 20_000);
+    // A cluster job: one node sweeps at a time. The cadence is re-read from
+    // settings before each wait, so a change applies without a restart.
+    this.jobs.register({
+      name: "ipam-scan",
+      everyMs: () => this.intervalMs().catch(() => DEFAULT_INTERVAL_MIN * 60_000),
+      initialDelayMs: 20_000,
+      schedule: "fixed-delay",
+      run: () => this.tick(),
+    });
     this.logger.log("IPAM scanner scheduled");
-  }
-  onModuleDestroy(): void {
-    if (this.timer) clearTimeout(this.timer);
   }
 
   private async intervalMs(): Promise<number> {
@@ -103,8 +108,6 @@ export class IpamScanner implements OnModuleInit, OnModuleDestroy {
       if (enabled) await this.scanAllDue();
     } catch (err) {
       this.logger.warn(`ipam tick failed: ${(err as Error).message}`);
-    } finally {
-      this.timer = setTimeout(() => void this.tick(), await this.intervalMs().catch(() => DEFAULT_INTERVAL_MIN * 60_000));
     }
   }
 

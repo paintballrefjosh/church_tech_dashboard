@@ -27,7 +27,7 @@ import {
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
-import { SearchService, searchDocId } from "../search/search.service";
+import { SearchService } from "../search/search.service";
 import { ActivityService } from "../activity/activity.service";
 import { MentionsService } from "../mentions/mentions.service";
 import { WikiFoldersService } from "./wiki-folders.service";
@@ -62,29 +62,10 @@ export class WikiService {
     private readonly folders: WikiFoldersService,
   ) {}
 
-  private async indexPage(row: typeof wikiPages.$inferSelect) {
-    // Pull the ACL groups so the search filter can scope correctly. Empty
-    // when the page is public.
-    const acl =
-      row.visibility === "group"
-        ? await this.db
-            .select({ groupId: wikiPageAcl.groupId })
-            .from(wikiPageAcl)
-            .where(eq(wikiPageAcl.pageId, row.id))
-        : [];
-    void this.search.upsert({
-      id: searchDocId("wiki", row.id),
-      kind: "wiki",
-      resourceId: row.id,
-      ownerUserId: row.ownerUserId,
-      visibility: row.visibility as "public" | "group",
-      aclGroupIds: acl.map((a) => a.groupId),
-      title: row.title,
-      body: row.body,
-      updatedAt: row.updatedAt.toISOString(),
-    });
+  /** The page was created, edited or had its access changed: refresh its search document on every node. */
+  private indexPage(row: typeof wikiPages.$inferSelect): void {
+    void this.search.changed("wiki", row.id);
   }
-
 
   /**
    * SQL predicate matching the rows of `wiki_pages` the given user is allowed
@@ -389,7 +370,7 @@ export class WikiService {
     // Cascade attachments (MinIO + DB) before dropping the page row.
     await this.attachments.deleteAllForParent("wiki_page", id);
     await this.db.delete(wikiPages).where(eq(wikiPages.id, id));
-    void this.search.remove(searchDocId("wiki", id));
+    void this.search.changed("wiki", id);
     return { ok: true, id };
   }
 

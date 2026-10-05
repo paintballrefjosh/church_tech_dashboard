@@ -35,12 +35,16 @@ abstractions. If multi-tenancy is ever needed it will be a separate, explicit ph
                                        │  ## Database)       │ │
                                        └─────────────────────┘ │
                                                                │
-                       ┌─────────┐  ┌─────────────┐  ┌─────────▼────┐
-                       │  redis  │  │  meilisearch│  │  minio (S3)  │
-                       └─────────┘  └─────────────┘  └──────────────┘
-                       (sessions,    (search across   (attachments,
-                        WS pub/sub,   wiki/notes/      note images,
-                        job queue)    tickets)         wiki uploads)
+                                      ┌─────────────┐  ┌──────────────┐
+                                      │  meilisearch│  │ garage (S3)  │
+                                      └─────────────┘  └──────────────┘
+                                       (search across   (attachments,
+                                        wiki/notes/      note images,
+                                        tickets)         wiki uploads)
+
+  No Redis: realtime fan-out between nodes, the mail queue, cache
+  invalidation and the strict rate limits live in the database (see
+  ## Cluster coordination).
 ```
 
 The `monitor` probe worker runs as its own service in the dev/prod stack (it is
@@ -58,9 +62,9 @@ services in compose.
 | DB | CockroachDB v24 or YugabyteDB YSQL (2024.2+) | Postgres wire; SQL must run on both (see ## Database) |
 | ORM | Drizzle ORM + drizzle-kit | Schema-as-code TS; migrations checked into `apps/api/migrations/` |
 | Auth | Auth.js v5 (NextAuth) | Google + Microsoft Entra OAuth + Credentials (argon2id) + TOTP; providers configured in DB `settings`, not env |
-| Realtime | Socket.io 4 + Redis adapter | Rooms per resource (`ticket:{id}`) and per user (`user:{id}`) |
+| Realtime | Socket.io 4 (in-process adapter) + `ClusterBus` over the DB between nodes | Rooms per resource (`ticket:{id}`) and per user (`user:{id}`) |
 | Search | Meilisearch v1 | Single `content` index, kind-discriminated; permission-filtered at query time (see ## Search) |
-| File storage | MinIO (S3-compatible) | Behind API only, never exposed via proxy |
+| File storage | Garage (S3-compatible), or any external S3 store | Behind API only, never exposed via proxy. Was MinIO until its images were withdrawn from the registries (2026-10-04). |
 | Reverse proxy | Caddy 2 | Only ingress; serves :8100 |
 | Monorepo | pnpm 9 + Turborepo | `pnpm -w` for workspace commands |
 
@@ -70,7 +74,8 @@ services in compose.
 apps/
   web/        Next.js — UI, Auth.js routes, theme, PWA
   api/        NestJS — REST + WS, access guards, audit, DB access
-              (drizzle schema in src/db/schema/, migrations in apps/api/migrations/)
+              (drizzle schema in src/db/schema/, migrations in apps/api/migrations/;
+              backups and restores in src/backup/)
 services/
   monitor/    ICMP/TCP/HTTP probe worker (its own compose service)
 packages/
@@ -398,36 +403,67 @@ a Cisco MAC → the lookup page) route correctly without the frontend hard-codin
 cases. The web side shares one `apps/web/src/lib/search-kinds.ts` for
 labels/icons/colours/routing across both search surfaces.
 
-Indexed kinds (see `SearchKind` in
-[apps/api/src/search/search.service.ts](apps/api/src/search/search.service.ts)):
+**One Meilisearch per node, derived from the database.** Meilisearch cannot be
+clustered, so each node runs its own and keeps it in step; nothing in the index
+is the only copy of anything, and any node can rebuild its index from the
+database (admin **Reindex**, or the reconcile at start). Code is split across
+`search.service.ts` (the service), `search-types.ts` (kinds, `SearchDoc`,
+`searchDocId`; re-exported from the service), `search-sources.ts` (where
+documents come from: `DbSearchSources`, plus the ticket/note/wiki doc builders),
+`search-helpers.ts` (`docRev`, `diffDocs`) and `live-search.store.ts`.
 
-- **Content:** `ticket`, `note`, `wiki` — upserted incrementally by their
-  services on create/update.
+Every document carries `rev`, a hash of its content (not its `updatedAt`). A
+**reconcile** compares each indexed doc's `rev` with the desired one and writes
+or deletes only the difference, so documents never vanish and reappear.
+**Never write to Meilisearch directly from a feature**; go through the service.
+
+Indexed kinds (see `SearchKind` in
+[apps/api/src/search/search-types.ts](apps/api/src/search/search-types.ts)):
+
+- **Content:** `ticket`, `note`, `wiki`. After the database write, a service
+  calls `search.changed(kind, id)` (deleting counts as "changed" too). That node
+  re-reads the resource from the database and updates its index at once, and
+  tells the other nodes over the cluster bus (internal room `__search`), which
+  re-read it themselves, so a change always lands as the current database
+  content, never as a payload. A full reconcile of the content kinds also runs at
+  start and every 10 minutes (`SEARCH_CONTENT_RECONCILE_MS`) to heal anything the
+  bus missed.
 - **Monitoring (DB-backed):** `monitor`, `infra_target`, `infra_entity`,
   `cisco_switch`, `cisco_port`, `cisco_mac`, `cisco_arp`, `cisco_vlan`,
-  `ipam_subnet`, `ipam_host`.
-  Reconciled by `syncMonitoringDbSources()` — a **scoped** clear-and-rebuild that
-  deletes only the monitoring kinds by filter then re-adds them, leaving
-  content/UniFi docs untouched. Runs on startup, on a timer
+  `ipam_subnet`, `ipam_host`. Each node reconciles these from the database
+  itself (`syncMonitoringDbSources()`): on startup, on a timer
   (`SEARCH_MONITORING_SYNC_MS`, default 120s, so poller churn is picked up
-  without a manual reindex), and from the admin Reindex button.
-- **DNS (live, in Technitium):** `dns_record`. `DnsSearchIndexer` replaces the
-  whole kind from a full read of every zone on a timer (`DNS_SEARCH_SYNC_MS`,
-  default 300s) and shortly after each dashboard write; an unconfigured server
-  clears it, an unreachable one keeps the last set. Kept out of
-  `MONITORING_KINDS` (whose sync rebuilds from the DB) but gated the same way.
-- **UniFi (live, not in the DB):** `unifi_device`, `unifi_client`. Pushed by the
-  `UnifiPoller` via `syncUnifi()` on each poll; the poller also self-refreshes on
-  an idle cadence (`UNIFI_SEARCH_SYNC_MS`, default 300s) so devices/clients stay
-  searchable even with nobody viewing the Network page and alerting off.
+  without a manual reindex), and from Reindex. Not event-driven, so two nodes
+  can differ by a poller's latest changes for up to that long.
+- **Live kinds, not in the database** (`LIVE_KINDS`): `dns_record` and
+  `unifi_device`/`unifi_client`. The one node that reads the source publishes
+  the current set with `syncDns()` / `syncUnifi()`, which writes only changed
+  rows to the `live_search_docs` table and tells the other nodes; every node
+  indexes from that table, so a node never needs to reach Technitium or the UniFi
+  controller to search them, and a new node has them straight away.
+  `DnsSearchIndexer` does a full read of every zone on a timer
+  (`DNS_SEARCH_SYNC_MS`, default 300s) and shortly after each dashboard write; an
+  unconfigured server clears the kind, an unreachable one keeps the last set. The
+  `UnifiPoller` pushes on each poll and self-refreshes on an idle cadence
+  (`UNIFI_SEARCH_SYNC_MS`, default 300s). Right after upgrading from a version
+  without the table, these documents are absent until the next poll (under a
+  minute for DNS, one poll for UniFi).
+
+Search is **eventually consistent across nodes** (about a second): a ticket
+created on one node can be missing from a search answered by another for a
+moment. A freshly started node answers searches only after its first reconcile
+(up to 8 seconds' wait, then it answers anyway). Admin **Reindex** rebuilds this
+node's index and asks every other node to rebuild theirs (bus event `reindex`).
 
 **Permission gating happens in the query filter, never at index time** (so a
 permission change takes effect immediately): monitoring kinds require
 `monitors:read:any` (as does `dns_record`), UniFi kinds require `unifi:read:any`, tickets/wiki apply
 their own read scoping. A user without a permission simply never gets those
 kinds in the filter — nothing leaks through the index. When adding a new
-searchable resource: add the `SearchKind`, a doc builder (with `url`), the query
-gate, and an entry in `search-kinds.ts`.
+searchable resource: add the `SearchKind`, a doc builder in `search-sources.ts`
+(with `url`) and the code that calls `search.changed` (or, for a source outside
+the database, a publisher through `live_search_docs`), the query gate, and an
+entry in `search-kinds.ts`.
 
 ## Database
 
@@ -467,6 +503,215 @@ Portability rules for new SQL (verified against Cockroach 24.2, YugabyteDB
   Cockroach-only syntax (`UPSERT`, `STRING`, `AS OF SYSTEM TIME`, `crdb_internal`).
 - `count(*)::int` comes back as a string on Cockroach (INT8) and a number on
   YugabyteDB/Postgres (INT4): wrap with `Number()` when the value matters.
+
+## Cluster coordination (multi-node)
+
+The app runs as several peer nodes behind an external load balancer
+(`DEPLOY_MODE=cluster`); the plan, status and decisions are in
+[docs/multi-node.md](docs/multi-node.md). Shape C (bundled database on every node) is
+implemented and tested on a simulated cluster; shape D (remote database) is implemented
+but not yet proven end to end. New code must keep a second node working:
+
+- **Periodic work goes through `ClusterJobs.register(...)`**
+  (`apps/api/src/cluster/`), never a bare `setInterval`/`setTimeout` loop. Every
+  node runs every timer; only the node holding the job's `job:<name>` database
+  lease does the work. On one node it is always the leader, so behaviour is
+  unchanged. `schedule: "fixed-delay"` replaces a self-rescheduling
+  `setTimeout`; the default `fixed-rate` replaces `setInterval`. Per-node work
+  (rebuilding that node's own search index) is the exception and is not leased.
+- **"Only one of these at a time" is a lease, not a boolean field.** A unit of
+  work any node may start (a button press, an edit trigger) uses
+  `LeaseService.acquireMutex` / `withMutex`; the DNS sync is the example.
+- **State a job must keep across a handover** (alert baselines, failure
+  counters) goes in `job_state` via `JobStateService`, not a `Map` on the
+  service. Small JSON only.
+- **Leases are judged by the database clock** (`now()`), never `Date.now()` on a
+  node. Node identity is `NODE_ID` (compose defaults it to `main`); it must be
+  unique per node.
+- **Migrations must work with the previous release** (expand/contract): nodes
+  upgrade one at a time, so for a while the old code runs against the new
+  schema. Add columns and tables first; remove or rename in a later release.
+  `migrate.js` holds the `migrate` lease, so concurrent runs serialise.
+- `main.ts` enables shutdown hooks, so `onModuleDestroy` runs on SIGTERM; the DB
+  pool closes in `onApplicationShutdown`, after it. Put cleanup that needs the
+  database in `onModuleDestroy`. `ClusterJobs` waits (up to 6s) for jobs that
+  are mid-run before the pool closes, then releases the leases.
+- **Realtime across nodes** goes through `RealtimeGateway` (`toUser`, `toRoom`,
+  `toRoomSnapshot`), which emits to this node's sockets and, through
+  `ClusterBus` (`realtime_events`, polled about once a second), to the other
+  nodes'. User-room events always go out; resource rooms go out only while
+  another node has a viewer (`realtime_presence`). Ask "is anyone watching?"
+  with `realtime.hasViewers(room)` (any node), never a local socket count. A
+  payload too big to send on every change (the UniFi snapshot) goes through
+  `toRoomSnapshot`: stored once in `live_snapshots`, other nodes get a pointer.
+  Delivery is best effort, like the Redis pub/sub it replaced; nothing stored
+  may depend on it.
+- **In-memory caches** (user permissions, settings) are dropped on other nodes
+  by publishing on `CACHE_ROOM`; do the same for any new per-process cache that
+  a write must invalidate.
+- **Outgoing email** goes through `MailQueue` and the `mail_outbox` table (any
+  node claims, 5 attempts with backoff, at-least-once). Call
+  `MailerService.sendBestEffort`; do not send inline.
+- **Strict rate limits** (sign-in, TOTP, password change) set
+  `config.rateLimit.shared`, which counts in `rate_limit_buckets`; the general
+  per-IP limit stays per node.
+- **Open database pools only with `createPool` from `@church/shared/db`**, never
+  `new Pool(...)`. It adds the `error` handler (a plain pool exits the process when
+  a database node dies and an idle connection breaks), named connections
+  (`application_name`), timeouts, a 30-minute connection lifetime, TLS from the
+  URL, and automatic retry of statements that are safe to repeat. `@church/shared/db`
+  is a separate entry point (not the main index) so browser bundles never pull in
+  `pg`; classic-resolution packages find it through `packages/shared/db/package.json`.
+- **What the pool retries:** anything that never reached the database or that the
+  database rolled back (40001, 40P01), and a plain SELECT/SHOW/EXPLAIN whose
+  connection broke. **An ambiguous write is never retried** (it may have applied):
+  it fails and the caller or user retries, so make a write that matters idempotent.
+  A `WITH` counts as a write. Wrap a whole idempotent operation with `withRetry`
+  if it needs more.
+- **Database TLS:** `?sslmode=verify-full&sslrootcert=/path/ca.crt` in the URL, with a
+  **host name, not an IP** (pg treats `require`/`verify-ca` as `verify-full`;
+  `HostCheckingClient` checks the certificate against the real host even for an IP, but
+  names are what certificates carry).
+- **The `monitor` worker shares work through claims:** `claimDueMonitors`
+  (`services/monitor/src/claim.ts`) takes due monitors with `monitors.claimed_until`;
+  the claim is cleared when the check is recorded. Anything new the worker does that
+  must happen once per cluster needs a lease (`acquireLease`, as its prune does).
+  `scripts/rebuild.sh` rebuilds `monitor` as well as `api` and `web`.
+- **Every node must run the same build.** The web app's static files and (in other
+  setups) Server Action IDs are named by the build, so a page from one node and a
+  request answered by another must come from the same one. `scripts/build-id.sh`
+  gives the id (the commit, or `<commit>-<hash of uncommitted changes>`); compose
+  passes it as `BUILD_ID` to the api, web and monitor images; `next.config.mjs`
+  uses it as the Next build id and `deploymentId`; `scripts/release.sh` builds the
+  images once for a cluster to share. Builds of the same clean commit are
+  byte-for-byte alike.
+- **Server Action IDs are salted by a fixed build-time key** (the web Dockerfile), so
+  they are identical in every build. The key that really encrypts action closures
+  is derived from `AUTH_SECRET` at start (`apps/web/entrypoint.sh`); do not add a
+  separate secret for it. Never remove the fixed build key: Next otherwise makes a
+  random one per build and two nodes stop agreeing (measured: no IDs in common).
+- **Realtime is WebSocket only** (gateway and clients), so the load balancer needs no
+  sticky sessions. Do not add `polling` back.
+- **Load balancer contract:** `/healthz` on the proxy (200 with `X-Church-Node` while
+  the API reaches the database, 503 otherwise, 503 `draining` while
+  `data/caddy/drain` exists; `scripts/cluster.sh drain|undrain|status`).
+  `TRUSTED_PROXIES` (the balancer's CIDRs) turns on strict `X-Forwarded-For`
+  parsing in the proxy; unset keeps the old trust-everyone behaviour on purpose.
+  The API's `/api/v1/readyz` answers 503 when degraded; keep it that way.
+- **`scripts/rebuild.sh`** rebuilds api, web and monitor and recreates/restarts the
+  proxy when its config changes. A new service or a new config file needs adding
+  to it, or `make rebuild` will silently not apply it.
+- **Object storage is configured through `resolveS3Config`** (`attachments/s3.config.ts`) and
+  `getS3()`; never read `MINIO_*` / `S3_*` directly. `S3_*` names win, `MINIO_*` are the
+  fallback. `S3_MODE=bundled|external` (decided in `scripts/compose.sh`) controls the bundled
+  Garage profile (`bundled-s3`). Only path-style addressing is tested. **Never use `mc` with the
+  keys in a URL** (`MC_HOST_*`): it does not decode percent-encoding and keys contain `/+=`;
+  `mc` also compares only name and size, so verify content by hash (`scripts/s3-copy.cjs`).
+- **The bundled store is Garage** (`infra/garage/`: a small image that adds a shell to the
+  static binary, a config, an entrypoint, an idempotent `garage-init`). MinIO was dropped
+  because `minio/minio` and `minio/mc` can no longer be pulled from Docker Hub or quay.io. Rules:
+  (1) Garage accepts only its own key format (`GK` + 24 hex, 64-hex secret), so
+  `scripts/compose.sh` **derives the key, secret and RPC secret from `AUTH_SECRET`** (explicit
+  values must match the format); nothing for the operator to set, and every node of a cluster
+  gets the same ones. A key from before an `AUTH_SECRET` change stays valid. (2) Its metadata
+  is LMDB and **must not be on NFS/SMB**: the entrypoint refuses to start there; `GARAGE_META_DIR`
+  moves it. This repo's `./data` IS on NFS on the dev host, so `.env` sets `GARAGE_META_DIR`
+  to a local folder. (3) The app region for the bundled store is `garage`. (4) Compose
+  interpolates inactive-profile services too, so any `${VAR:?}` in a profile service needs a value
+  exported by `compose.sh` in the other mode (see `GARAGE_RPC_SECRET`). (5) Use
+  `scripts/compose.sh --s3-env` to learn what the app uses; do not re-derive it elsewhere.
+- **Cluster mode is a compose overlay, chosen by `scripts/compose.sh`.** `DEPLOY_MODE=cluster`
+  (production stack only) adds `infra/docker-compose.cluster.yml` (publishes Garage's RPC
+  port), `docker-compose.cluster-db.yml` when `DB_MODE=bundled` (one secure `cockroach` service,
+  profile `cluster-db`, plus the CA mounted into api/monitor/web) and
+  `docker-compose.cluster-s3-api.yml` when `CLUSTER_S3_API_PORT` is set. compose.sh validates
+  (NODE_ID, NODE_ADDR, CLUSTER_PEERS, role/mode combinations) and prints what it resolved with
+  `--cluster-env`: scripts use that, never re-parse `.env`. Only the shell environment's and
+  `.env`'s values reach compose interpolation, so a new knob is read with `conf` in compose.sh
+  and `export`ed there. `CLUSTER_PEERS` entries may be `host:dbport:rpcport` (several nodes on one
+  host, as in tests).
+- **Bundled cluster database is secure Cockroach.** The app signs in as user `church` (password
+  `derive_ns db/password` from `AUTH_SECRET`, created by `cluster.sh init-db`) over
+  `sslmode=verify-full` against `data/certs/ca.crt`; each app talks to its own node's database. The
+  CA key (`data/cluster-certs/ca.key`) never goes on a node (`install-certs` refuses a bundle that
+  has it). The admin UI is not published. The cockroach healthcheck is unhealthy until `init-db`,
+  by design, so a new node's first start is `cluster.sh start-data` (not `up`), then `init-db`,
+  `garage-bootstrap`, `migrate`, `seed`, `up`. **`derive`/`derive_ns` strings never change** (they
+  are live credentials).
+- **Migrate and seed in a cluster use a one-off container** (`cluster.sh migrate|seed`, i.e.
+  `run --no-deps api ...`): the app cannot start on an empty database, so `exec api` is not
+  available on a first install.
+- **Readiness must touch a range.** `/api/v1/readyz` reads a real table under a server-side
+  `statement_timeout` (on CockroachDB `SELECT 1` is answered without any range, so a node that lost
+  its quorum would pass it). `SettingsService.get` serves a stale cached value when a refresh is slow
+  (one refresh in flight per key): the rate limiter reads a setting on every request, and without
+  this a stalled database stalled the liveness endpoint too.
+- **Garage's config is a template** (`infra/garage/garage.toml.tpl`, rendered by
+  `garage-render.sh` from `GARAGE_RPC_PUBLIC_ADDR` / `GARAGE_REPLICATION_FACTOR`); run the CLI as
+  `garage -c /tmp/garage.toml`. The copy count is fixed at creation (3 with 3+ nodes, else 2). The
+  layout across nodes is formed by `cluster.sh garage-bootstrap`, never by `garage-init` (which in
+  cluster mode only does key and bucket). Replacing a dead node is **one** layout change
+  (`garage-join ... --replace <old id>`: assign the new node, remove the old, apply, then
+  `skip-dead-nodes --version N`); doing it in two steps leaves versions the dead node can never
+  acknowledge and writes fail with "Could not reach quorum". A restore replaces the database for all
+  nodes, so `db-s3.sh restore` refuses while another node's app is up, and hands the restored tables
+  to the `church` user.
+- **Cluster tests: `tests/cluster/`** (`sim.sh` builds N nodes on one host from copies of the repo,
+  each with its own `.env`, `data/` and compose project; `cross-node.mjs`, `failover.sh`,
+  `replace-node.sh`). **Never run the production stack from this checkout on the dev host**
+  (`make prod-up`, `compose.sh --prod up`): it bind-mounts the same `./data` directories as the live
+  dev stack. Use the simulator, or `compose.sh --prod config` to look.
+- **Raw `pool.query` returns timestamps as strings.** `drizzle()` replaces pg's
+  timestamp parsers for the whole process. In raw SQL return epoch milliseconds
+  (`extract(epoch FROM ts) * 1000`) instead of relying on `Date`. The
+  integration test calls `drizzle(pool)` for the same reason.
+- **Search changes** go through `SearchService.changed()` (content) or
+  `syncUnifi`/`syncDns` (live kinds); see ## Search. Do not add a node-local
+  update path for the index.
+- **Real-database tests**: `test/db-stores.integration.test.ts` runs the stores'
+  SQL against a real engine when `TEST_DATABASE_URL` points at a migrated
+  scratch database (it empties the cluster tables). Run it on Cockroach and
+  YugabyteDB when changing that SQL.
+
+## Backups and restores (admin > Backups)
+
+Admin > Backups (`apps/api/src/backup/`, pages in `apps/web/src/app/admin/backups/`, `site:admin`,
+`@SessionOnly`) makes logical backups of the app's own data, schedules them, and restores them with a
+comparison report. Operator docs: INSTALL.md "Backups and restores in the app". Rules for changing it:
+
+- **Every table needs a decision in `backup/table-registry.ts`** (`data` = saved and restored, `skip` =
+  neither). A unit test (`backup-registry.test.ts`) fails when a table is added without one, when a
+  `data` table has a foreign key to a `skip` table (a restore could break it), or when a registry entry
+  names a column that is gone. `volatile` columns (rewritten by pollers) are ignored by the comparison
+  and left alone by a restore; `sensitive` ones are never shown; `sequences` are moved past restored
+  values (`tickets_number_seq`). Never put the audit log, runtime state or the `backup*` tables in a backup.
+- **The archive format is an order contract** (`archive.ts`): manifest, tables (parents first, every
+  table at least one part), `files.json`, files, `summary.json`. Readers stop at the first file when they
+  only need rows. Change the format only with a new `ARCHIVE_VERSION` and a reader for the old one.
+- **A restore is a sync inside one transaction** (`backup-restore.ts`): `computeDiff` (stream the
+  archive against the live tables, fingerprint rows) produces both the report and the plan; `applyRestore`
+  follows the plan (delete children first, upsert parents first, self-referencing tables ordered, a
+  cycle filled in afterwards). Any failure rolls everything back. Rows are written with typed casts from
+  the Drizzle column types (`row-codec.ts`): timestamps and bigints travel as text, `jsonb` as JSON, and
+  the session time zone is UTC for every read, or fingerprints would differ.
+- **Anything that writes in the background must honour the restore gate**: a restore holds the
+  `mutex:restore` lease (`RestoreGate`, `restoreInProgress` in `@church/shared/db`). The API refuses
+  non-GET requests (`RestoreWriteGuard`), `ClusterJobs` skips runs and the monitor worker pauses. A new
+  poller or worker outside those must check it too. The gate opens, and its one-second cache is waited
+  out, before the operation reports success.
+- **One operation at a time, cluster-wide** (`mutex:backup`), with progress in `backup_operations`; a
+  running row that stops updating belongs to a dead node and is failed by the scheduler job. Steps after
+  the restore's commit are best effort (warnings), never a failure of a committed restore.
+- **Object store**: use `removeObject` per key. minio's `removeObjects` is refused by Garage ("Invalid
+  delete XML query"), and swallowing delete errors had leaked archives; `removeBackup` keeps the row when
+  the delete fails and `sweepOrphans` cleans up archives with no row.
+- **Downloads are two steps** (an audited POST makes an HMAC-signed link, then a GET): the token is a
+  query parameter because Fastify drops path parameters longer than 100 characters (404). Uploads use
+  `req.file({ limits })` to lift the global 10 MiB multipart cap.
+- **Never restore in the smoke or e2e suites against the live stack** (it rewinds data the rest of the
+  suite uses). Restores are tested by `apps/api/test/backup.integration.test.ts` (run it on CockroachDB
+  and YugabyteDB with `TEST_DATABASE_URL`), `backup.scale.test.ts` (`BACKUP_SCALE=1`) and
+  `tests/cluster/backup-restore.sh` on the throwaway cluster.
 
 ## Conventions
 
@@ -625,15 +870,18 @@ compose — that would defeat the single-ingress design.
   10/min bucket. The smoke client waits out 429s via `retry-after`.
 - **Configuration:** anything an operator might want to change at runtime (Google OAuth
   client, SMTP, site name, etc.) lives in the `settings` table and is editable at
-  `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`,
-  Redis URL) stay in `.env`. `KNOWN_SETTINGS` in `packages/shared/src/settings.ts`
+  `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`)
+  stay in `.env`. `KNOWN_SETTINGS` in `packages/shared/src/settings.ts`
   is the catalogue.
 - **Volumes:** all stateful services bind-mount into `./data/<service>/` at the repo
   root. Backup = `tar -czf data/`. `make init-data` creates the dirs with the right
-  perms (Redis and Meilisearch need world-writable).
+  perms (Meilisearch needs a world-writable dir).
 
 ## Things to never do
 
+- Restore a backup in a test against the live dev stack (use the throwaway cluster)
+- Start the production compose stack from this checkout on the dev host (it shares `./data` with the
+  live dev stack): use `tests/cluster/sim.sh`
 - Add `tenant_id` columns
 - Bypass the audit interceptor
 - Set HTTPS/HSTS/TLS config inside the app (it's offloaded upstream)
@@ -643,3 +891,4 @@ compose — that would defeat the single-ingress design.
 - Add Phase 4 church-specific modules without an explicit user ask
 - Commit emojis in code or generated files
 - Re-introduce env-based config for things in `KNOWN_SETTINGS` — they belong in the DB
+- Add a bare `setInterval`/`setTimeout` loop for work that must not run twice at once — use `ClusterJobs` (see ## Cluster coordination)

@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
+// One id for the whole build, set by the build (compose passes BUILD_ID), the same on every
+// node that runs this release. Next would otherwise invent a random build id on every build.
+// `deploymentId` makes the browser send the id as an `x-deployment-id` header and add
+// `?dpl=<id>` to its script and style URLs. Self-hosted Next does nothing else with it (it
+// does not reload on a mismatch), but a load balancer can route on it to keep a browser on
+// the build that served its page during a rolling upgrade.
+const buildId = process.env.BUILD_ID && process.env.BUILD_ID !== "dev" ? process.env.BUILD_ID : undefined;
+
 const nextConfig = {
   output: "standalone",
+  generateBuildId: async () => buildId ?? null,
+  ...(buildId ? { deploymentId: buildId } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   // Allow building inside the docker context without writing to other workspace dirs.

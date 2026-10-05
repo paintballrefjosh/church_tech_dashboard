@@ -1,145 +1,93 @@
 import { Injectable, Inject, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import { asc, eq } from "drizzle-orm";
 import { MeiliSearch, type Index } from "meilisearch";
-import { DB, type Db } from "../db/db.module";
+import { ClusterBus, INTERNAL_ROOM_PREFIX } from "../cluster/cluster-bus.service";
+import type { BusRow } from "../cluster/bus.store";
+import { LIVE_SEARCH_STORE, type LiveSearchStore } from "./live-search.store";
+import { diffDocs, withRev } from "./search-helpers";
+import { SEARCH_SOURCES, type SearchSources } from "./search-sources";
 import {
-  tickets,
-  notes,
-  wikiPages,
-  wikiPageAcl,
-  monitors,
-  infraTargets,
-  infraEntities,
-  ciscoSwitches,
-  ciscoPorts,
-  ciscoMacTable,
-  ciscoArpCache,
-  ciscoVlanDb,
-  ipamSubnets,
-  ipamHosts,
-} from "../db/schema";
+  CONTENT_KINDS,
+  DNS_KINDS,
+  LIVE_KINDS,
+  MONITORING_KINDS,
+  UNIFI_KINDS,
+  searchDocId,
+  type ContentKind,
+  type SearchDoc,
+  type SearchKind,
+  type SearchResult,
+} from "./search-types";
 
-/**
- * Type discriminator stamped on every indexed document. Drives the result
- * label/colour on the frontend.
- */
-export type SearchKind =
-  | "ticket"
-  | "note"
-  | "wiki"
-  | "monitor"
-  | "infra_target"
-  | "infra_entity"
-  | "unifi_device"
-  | "unifi_client"
-  | "cisco_switch"
-  | "cisco_port"
-  | "cisco_mac"
-  | "cisco_arp"
-  | "cisco_vlan"
-  | "ipam_subnet"
-  | "ipam_host"
-  | "dns_record";
-
-/**
- * Monitoring kinds visible to anyone with `monitors:read:any` (the `monitoring`
- * module read tier). UniFi kinds ride `unifi:read:any` separately — see
- * UNIFI_KINDS. Cisco reads also gate on `monitors:read:any` per the module doc.
- */
-export const MONITORING_KINDS: SearchKind[] = [
-  "monitor",
-  "infra_target",
-  "infra_entity",
-  "cisco_switch",
-  "cisco_port",
-  "cisco_mac",
-  "cisco_arp",
-  "cisco_vlan",
-  "ipam_subnet",
-  "ipam_host",
-];
-export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
-/**
- * DNS records live in Technitium, not the DB, so they're kept out of
- * MONITORING_KINDS (whose periodic sync clears and rebuilds from the DB) and
- * pushed by the DNS module's indexer instead. Same monitors:read:any gate.
- */
-export const DNS_KINDS: SearchKind[] = ["dns_record"];
-
-/**
- * Build a Meilisearch document id from a kind + resource id.
- *
- * Meilisearch primary keys are restricted to alphanumerics, hyphens, and
- * underscores — a colon is rejected and the whole document-addition task fails
- * asynchronously (never surfaced to the enqueuing call). Join with `_` so the
- * id stays valid; resource UUIDs already contain hyphens, which are allowed.
- * The raw resource id is stored separately in `resourceId` for deep links.
- */
-export function searchDocId(kind: SearchKind, resourceId: string): string {
-  // Meilisearch primary keys allow only [A-Za-z0-9_-]; UUIDs already qualify,
-  // but MAC-address-keyed docs (UniFi devices/clients) contain colons, so
-  // sanitise. The raw value is preserved separately in `resourceId`.
-  const safe = resourceId.replace(/[^A-Za-z0-9_-]/g, "_");
-  return `${kind}_${safe}`;
-}
-
-export interface SearchDoc {
-  /** "<kind>:<resourceId>" — stable across edits so an update overwrites in place. */
-  id: string;
-  kind: SearchKind;
-  /** Resource UUID/key — what the UI uses to build a deep link. */
-  resourceId: string;
-  ownerUserId?: string | null;
-  visibility?: "public" | "group" | "private" | null;
-  /** Permission-bearing ACL — wiki pages store group ids here. Empty for everyone-readable. */
-  aclGroupIds?: string[];
-  title: string;
-  body: string;
-  tagIds?: string[];
-  /** Free-form extra fields the frontend can render (e.g. ticket number, note color). */
-  extra?: Record<string, unknown>;
-  /**
-   * Deep link for this result. Set at index time so kinds whose link target
-   * differs from `resourceId` (e.g. an infra entity links to its parent target,
-   * a Cisco MAC links to the lookup page) route correctly without the frontend
-   * hard-coding every case.
-   */
-  url?: string;
-  /** Document timestamp; we sort by recency as a secondary signal. */
-  updatedAt: string;
-}
-
-export interface SearchResult extends SearchDoc {
-  _formatted?: Partial<SearchDoc>;
-}
+// The document shapes, kind lists and `searchDocId` live in search-types.ts and
+// are re-exported so existing imports from this file keep working.
+export * from "./search-types";
 
 const INDEX_NAME = "content";
+
+/** Internal bus channel carrying search change notices between nodes. */
+export const SEARCH_ROOM = `${INTERNAL_ROOM_PREFIX}search`;
 
 /**
  * Wraps the Meilisearch client. A single index (`content`) holds all kinds;
  * filterable attributes let us scope queries per request (per kind, owner,
  * ACL) without fanning out across indexes.
  *
- * Indexing is best-effort and never blocks the caller — failures are logged
- * but the underlying mutation still succeeds. The data-of-record is the DB;
- * Meilisearch can be wiped and re-built any time.
+ * Every node runs its own Meilisearch (it cannot be clustered), and each index
+ * is derived entirely from the database, so any node can rebuild its own:
+ *
+ *  - Tickets, notes and wiki pages: a service that changes one calls `changed`.
+ *    This node re-reads that resource from the database and updates its index
+ *    at once; the other nodes are told over the cluster bus and do the same.
+ *    A periodic reconcile heals anything the bus missed (an outage, a Meili wipe).
+ *  - Monitoring kinds (monitors, infra, Cisco, IPAM): each node rebuilds them
+ *    from the database on a timer.
+ *  - Live kinds (UniFi, DNS): the one node that reads the source writes the
+ *    current set to `live_search_docs` (`syncUnifi`, `syncDns`); every node
+ *    reconciles its index from that table.
+ *
+ * "Reconcile" compares each indexed document's content hash (`rev`) with the
+ * desired one and writes or deletes only the difference. Search is therefore
+ * eventually consistent across nodes (about a second or two): something created
+ * on one node may be missing from a search served by another for a moment.
+ *
+ * Indexing is best-effort and never blocks the caller: failures are logged but
+ * the underlying mutation still succeeds. The data-of-record is the DB.
  */
 // Periodic refresh of the DB-backed monitoring kinds (infra + cisco caches are
-// written by their pollers; this picks up their churn without a manual reindex).
-// UniFi kinds are pushed live by the UnifiPoller instead (they aren't in the DB).
+// written by their pollers; this picks up their churn without a manual reindex)
+// and of the live kinds from their table (the backstop for a missed bus event).
 const MONITORING_SYNC_MS = Math.max(
   60_000,
   parseInt(process.env.SEARCH_MONITORING_SYNC_MS ?? "120000", 10) || 120_000,
 );
+/** How often the content kinds are compared against the database in full. */
+const CONTENT_RECONCILE_MS = Math.max(
+  60_000,
+  parseInt(process.env.SEARCH_CONTENT_RECONCILE_MS ?? "600000", 10) || 600_000,
+);
+/** A search waits at most this long for the start-up reconcile before answering anyway. */
+const READY_WAIT_MS = 8_000;
+const DELETE_CHUNK = 1_000;
 
 @Injectable()
 export class SearchService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SearchService.name);
   private client: MeiliSearch | null = null;
   private indexPromise: Promise<Index> | null = null;
-  private monitoringTimer: ReturnType<typeof setInterval> | null = null;
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
+  private contentTimer: ReturnType<typeof setInterval> | null = null;
+  private offBus: (() => void) | null = null;
+  /** Resolves when the first full reconcile has finished (or failed). */
+  private initial: Promise<void> = Promise.resolve();
+  private ready = false;
+  /** Index-changing work runs one piece at a time, so reconciles never interleave. */
+  private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(SEARCH_SOURCES) private readonly sources: SearchSources,
+    @Inject(LIVE_SEARCH_STORE) private readonly live: LiveSearchStore,
+    private readonly bus: ClusterBus,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const host = process.env.MEILI_URL;
@@ -148,25 +96,68 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     this.client = new MeiliSearch({ host, apiKey: process.env.MEILI_MASTER_KEY });
+    this.offBus = this.bus.onEvent((row) => this.onBusEvent(row));
     // Bootstrap the index + settings on startup. Idempotent — Meilisearch
     // ignores updates that match the current state. Background-await so a
     // slow Meili boot doesn't delay the API's own readiness.
     this.indexPromise = this.bootstrap();
-    void this.indexPromise
-      .then(() => this.syncMonitoringDbSources())
-      .catch((err) => {
+    // Then bring the index in line with the database. A new or restarted node
+    // starts from whatever its Meilisearch happened to hold (nothing, for a new
+    // node); searches wait briefly for this (see search()).
+    this.initial = this.indexPromise
+      .then(() => this.reconcileEverything())
+      .catch((err: unknown) => {
         this.logger.warn(`search bootstrap failed: ${(err as Error).message}`);
+      })
+      .finally(() => {
+        this.ready = true;
       });
-    // Keep the DB-backed monitoring kinds fresh without a manual reindex.
-    this.monitoringTimer = setInterval(() => {
-      void this.syncMonitoringDbSources().catch((err) =>
-        this.logger.debug(`monitoring sync failed: ${(err as Error).message}`),
+    this.syncTimer = setInterval(() => {
+      void this.syncPeriodic().catch((err: unknown) =>
+        this.logger.debug(`periodic search sync failed: ${(err as Error).message}`),
       );
     }, MONITORING_SYNC_MS);
+    this.syncTimer.unref();
+    this.contentTimer = setInterval(() => {
+      void this.reconcileContent().catch((err: unknown) =>
+        this.logger.debug(`content reconcile failed: ${(err as Error).message}`),
+      );
+    }, CONTENT_RECONCILE_MS);
+    this.contentTimer.unref();
   }
 
   onModuleDestroy(): void {
-    if (this.monitoringTimer) clearInterval(this.monitoringTimer);
+    if (this.syncTimer) clearInterval(this.syncTimer);
+    if (this.contentTimer) clearInterval(this.contentTimer);
+    this.offBus?.();
+  }
+
+  // ---- change notices from other nodes ----
+
+  private onBusEvent(row: BusRow): void {
+    if (row.room !== SEARCH_ROOM) return;
+    const p = (row.payload ?? {}) as { kind?: string; id?: string };
+    if (row.event === "changed") {
+      if (typeof p.id === "string" && CONTENT_KINDS.includes(p.kind as ContentKind)) {
+        void this.applyChange(p.kind as ContentKind, p.id);
+      }
+    } else if (row.event === "live") {
+      void this.reconcileLive().catch((err: unknown) => this.logger.debug(`live reconcile failed: ${(err as Error).message}`));
+    } else if (row.event === "reindex") {
+      this.logger.log("reindex requested from another node");
+      void this.reindexAll().catch((err: unknown) => this.logger.warn(`reindex failed: ${(err as Error).message}`));
+    }
+  }
+
+  // ---- plumbing ----
+
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn, fn);
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   private async bootstrap(): Promise<Index> {
@@ -225,14 +216,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
   }
 
   async upsert(doc: SearchDoc): Promise<void> {
-    const idx = await this.indexOrNull();
-    if (!idx) return;
-    try {
-      const task = await idx.addDocuments([doc]);
-      this.watchTask(task.taskUid, `search.upsert ${doc.id}`);
-    } catch (err) {
-      this.logger.warn(`search.upsert ${doc.id} failed: ${(err as Error).message}`);
-    }
+    await this.upsertMany([doc]);
   }
 
   async upsertMany(docs: SearchDoc[]): Promise<void> {
@@ -240,7 +224,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     const idx = await this.indexOrNull();
     if (!idx) return;
     try {
-      const task = await idx.addDocuments(docs);
+      const task = await idx.addDocuments(docs.map(withRev));
       this.watchTask(task.taskUid, `search.upsertMany (${docs.length})`);
     } catch (err) {
       this.logger.warn(`search.upsertMany (${docs.length}) failed: ${(err as Error).message}`);
@@ -255,6 +239,120 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.warn(`search.remove ${id} failed: ${(err as Error).message}`);
     }
+  }
+
+  /** Dump everything for a kind — used by the reindex script. */
+  async clear(): Promise<void> {
+    const idx = await this.indexOrNull();
+    if (!idx) return;
+    await idx.deleteAllDocuments();
+  }
+
+  // ---- reconcile ----
+
+  /** id -> rev for every indexed document of `kinds`. */
+  private async existingRevs(idx: Index, kinds: SearchKind[]): Promise<Map<string, string | undefined>> {
+    const filter = `kind IN [${kinds.map((k) => `"${k}"`).join(",")}]`;
+    const out = new Map<string, string | undefined>();
+    const limit = 1_000;
+    for (let offset = 0; ; offset += limit) {
+      const page = await idx.getDocuments<{ id: string; rev?: string }>({ filter, fields: ["id", "rev"], limit, offset });
+      for (const d of page.results) out.set(d.id, d.rev);
+      if (page.results.length < limit) break;
+    }
+    return out;
+  }
+
+  /**
+   * Make the index hold exactly `desired` for `kinds`: write the documents whose
+   * content hash differs, delete the ones that should not be there. Everything
+   * else is left alone, so there is no window in which they vanish and reappear.
+   */
+  private async reconcileKinds(kinds: SearchKind[], desired: SearchDoc[]): Promise<{ upserted: number; deleted: number }> {
+    const idx = await this.indexOrNull();
+    if (!idx) return { upserted: 0, deleted: 0 };
+    const { upserts, deletes } = diffDocs(await this.existingRevs(idx, kinds), desired);
+    for (let i = 0; i < deletes.length; i += DELETE_CHUNK) {
+      const task = await idx.deleteDocuments(deletes.slice(i, i + DELETE_CHUNK));
+      this.watchTask(task.taskUid, `search.reconcile delete (${Math.min(DELETE_CHUNK, deletes.length - i)})`);
+    }
+    if (upserts.length) await this.upsertMany(upserts);
+    return { upserted: upserts.length, deleted: deletes.length };
+  }
+
+  private async loadAllContent(): Promise<SearchDoc[]> {
+    const parts = await Promise.all(CONTENT_KINDS.map((k) => this.sources.loadContentDocs(k)));
+    return parts.flat();
+  }
+
+  private async reconcileEverything(): Promise<void> {
+    await this.serial(async () => {
+      const content = await this.reconcileKinds(CONTENT_KINDS, await this.loadAllContent());
+      const monitoring = await this.reconcileKinds(MONITORING_KINDS, await this.sources.loadMonitoringDocs());
+      const live = await this.reconcileKinds(LIVE_KINDS, await this.live.load(LIVE_KINDS));
+      const n = (r: { upserted: number; deleted: number }) => `${r.upserted} written, ${r.deleted} removed`;
+      this.logger.log(`search index reconciled: content ${n(content)}; monitoring ${n(monitoring)}; live ${n(live)}`);
+    });
+  }
+
+  /** Compare tickets, notes and wiki pages against the database in full. */
+  reconcileContent(): Promise<void> {
+    return this.serial(async () => {
+      await this.reconcileKinds(CONTENT_KINDS, await this.loadAllContent());
+    });
+  }
+
+  /**
+   * Reconcile the DB-backed monitoring kinds (service monitors, infra, Cisco,
+   * IPAM). Called on startup, on a timer, and by reindexAll.
+   */
+  syncMonitoringDbSources(): Promise<{ total: number; monitors: number }> {
+    return this.serial(async () => {
+      const idx = await this.indexOrNull();
+      if (!idx) return { total: 0, monitors: 0 };
+      const docs = await this.sources.loadMonitoringDocs();
+      await this.reconcileKinds(MONITORING_KINDS, docs);
+      return { total: docs.length, monitors: docs.filter((d) => d.kind === "monitor").length };
+    });
+  }
+
+  /** Bring the UniFi and DNS kinds in line with `live_search_docs`. */
+  reconcileLive(): Promise<void> {
+    return this.serial(async () => {
+      await this.reconcileKinds(LIVE_KINDS, await this.live.load(LIVE_KINDS));
+    });
+  }
+
+  private async syncPeriodic(): Promise<void> {
+    await this.syncMonitoringDbSources();
+    await this.reconcileLive();
+  }
+
+  // ---- content changes ----
+
+  /**
+   * A ticket, note or wiki page was created, edited, deleted or had its access
+   * changed. Call after the database write. This node's index is updated from
+   * the database right away (so the writer finds its own change), and the other
+   * nodes are told to do the same. Deleting is "changed" too: the resource is
+   * no longer there, so its document goes. Never throws.
+   */
+  async changed(kind: ContentKind, id: string): Promise<void> {
+    this.bus.publish({ room: SEARCH_ROOM, event: "changed", payload: { kind, id } });
+    await this.applyChange(kind, id);
+  }
+
+  private applyChange(kind: ContentKind, id: string): Promise<void> {
+    return this.serial(async () => {
+      try {
+        if (!(await this.indexOrNull())) return;
+        const doc = await this.sources.loadContentDoc(kind, id);
+        if (doc) await this.upsertMany([doc]);
+        else await this.remove(searchDocId(kind, id));
+      } catch (err) {
+        this.logger.warn(`search update for ${kind} ${id} failed: ${(err as Error).message}`);
+      }
+    });
   }
 
   /**
@@ -278,6 +376,9 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
   }): Promise<SearchResult[]> {
     const idx = await this.indexOrNull();
     if (!idx) return [];
+    // A node that has only just started is still bringing its index up to date;
+    // wait a few seconds for that rather than answer from a half-built index.
+    if (!this.ready) await Promise.race([this.initial, new Promise((r) => setTimeout(r, READY_WAIT_MS))]);
 
     const orParts: string[] = [];
 
@@ -345,332 +446,71 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Dump everything for a kind — used by the reindex script. */
-  async clear(): Promise<void> {
-    const idx = await this.indexOrNull();
-    if (!idx) return;
-    await idx.deleteAllDocuments();
-  }
 
-  /**
-   * Full reindex: clear the index, then walk every searchable source table
-   * (tickets / notes / wiki / monitors) and re-upsert. Used by the admin
-   * "Reindex Meilisearch" button — last-resort recovery when the index gets
-   * out of sync (Meili wipe, mid-write crash, etc.).
-   *
-   * Walks tables in pages of 500 to keep memory bounded; emits a progress
-   * shape the caller can return verbatim to the UI.
-   */
-  async reindexAll(): Promise<{
+  /** Dump and rebuild this node's index from the database. */
+  reindexAll(): Promise<{
     tickets: number;
     notes: number;
     wikiPages: number;
     monitors: number;
     monitoring: number;
   }> {
-    await this.clear();
-
-    let countTickets = 0;
-    let countNotes = 0;
-    let countWiki = 0;
-
-    // Tickets.
-    {
-      const rows = await this.db.select().from(tickets).orderBy(asc(tickets.id));
-      const docs = rows.map((row) => ({
-        id: searchDocId("ticket", row.id),
-        kind: "ticket" as const,
-        resourceId: row.id,
-        ownerUserId: row.createdByUserId,
-        title: row.title,
-        body: row.description ?? "",
-        extra: { number: row.number, status: row.status, priority: row.priority },
-        url: `/tickets/${row.id}`,
-        updatedAt: row.updatedAt.toISOString(),
-      }));
-      if (docs.length) await this.upsertMany(docs);
-      countTickets = docs.length;
-    }
-
-    // Notes (private to owner — search filter still enforced at query time).
-    {
-      const rows = await this.db.select().from(notes).orderBy(asc(notes.id));
-      const docs = rows.map((row) => ({
-        id: searchDocId("note", row.id),
-        kind: "note" as const,
-        resourceId: row.id,
-        ownerUserId: row.ownerUserId,
-        title: row.title || "(untitled)",
-        body: row.body,
-        extra: { color: row.color, pinned: row.pinned, archived: row.archived },
-        url: `/notes`,
-        updatedAt: row.updatedAt.toISOString(),
-      }));
-      if (docs.length) await this.upsertMany(docs);
-      countNotes = docs.length;
-    }
-
-    // Wiki — also pre-loads per-page ACL group ids for the search-time filter.
-    {
-      const [pageRows, aclRows] = await Promise.all([
-        this.db.select().from(wikiPages).orderBy(asc(wikiPages.id)),
-        this.db.select().from(wikiPageAcl),
-      ]);
-      const aclByPage = new Map<string, string[]>();
-      for (const a of aclRows) {
-        const cur = aclByPage.get(a.pageId) ?? [];
-        cur.push(a.groupId);
-        aclByPage.set(a.pageId, cur);
+    return this.serial(async () => {
+      await this.clear();
+      const counts = { tickets: 0, notes: 0, wikiPages: 0, monitors: 0, monitoring: 0 };
+      const byKind: Record<ContentKind, "tickets" | "notes" | "wikiPages"> = {
+        ticket: "tickets",
+        note: "notes",
+        wiki: "wikiPages",
+      };
+      for (const kind of CONTENT_KINDS) {
+        const docs = await this.sources.loadContentDocs(kind);
+        await this.upsertMany(docs);
+        counts[byKind[kind]] = docs.length;
       }
-      const docs = pageRows.map((row) => ({
-        id: searchDocId("wiki", row.id),
-        kind: "wiki" as const,
-        resourceId: row.id,
-        ownerUserId: row.ownerUserId,
-        visibility: row.visibility as "public" | "group",
-        aclGroupIds: row.visibility === "group" ? aclByPage.get(row.id) ?? [] : [],
-        title: row.title,
-        body: row.body ?? "",
-        url: `/wiki/${row.id}`,
-        updatedAt: row.updatedAt.toISOString(),
-      }));
-      if (docs.length) await this.upsertMany(docs);
-      countWiki = docs.length;
-    }
-
-    // Monitoring (service monitors + infra + cisco). UniFi is pushed live by
-    // the poller, so it isn't part of the batch walk — it stays current on its
-    // own poll cadence.
-    const monitoring = await this.syncMonitoringDbSources();
-
-    return {
-      tickets: countTickets,
-      notes: countNotes,
-      wikiPages: countWiki,
-      monitors: monitoring.monitors,
-      monitoring: monitoring.total,
-    };
-  }
-
-  /** Timestamp helper — cache tables (cisco) carry no updatedAt, so freshness
-   * is "now" each sync; DB entities use their own updatedAt where present. */
-  private nowIso(): string {
-    return new Date().toISOString();
+      const monitoring = await this.sources.loadMonitoringDocs();
+      await this.upsertMany(monitoring);
+      counts.monitoring = monitoring.length;
+      counts.monitors = monitoring.filter((d) => d.kind === "monitor").length;
+      // UniFi and DNS documents come back from their table, not from waiting for the next poll.
+      await this.upsertMany(await this.live.load(LIVE_KINDS));
+      return counts;
+    });
   }
 
   /**
-   * Build the searchable documents for every DB-backed monitoring source:
-   * service monitors, infra targets + present entities, and the Cisco caches
-   * (switches, ports, MAC table, ARP cache, VLAN DB). UniFi lives outside the
-   * DB and is handled by `syncUnifi`.
+   * Admin "Reindex": rebuild this node's index and ask every other node to
+   * rebuild theirs. Returns this node's counts.
    */
-  private async buildMonitoringDbDocs(): Promise<SearchDoc[]> {
-    const [monRows, targetRows, entityRows, switchRows, portRows, macRows, arpRows, vlanRows, ipamSubnetRows, ipamHostRows] =
-      await Promise.all([
-        this.db.select().from(monitors),
-        this.db.select().from(infraTargets),
-        this.db.select().from(infraEntities).where(eq(infraEntities.present, true)),
-        this.db.select().from(ciscoSwitches),
-        this.db.select().from(ciscoPorts),
-        this.db.select().from(ciscoMacTable),
-        this.db.select().from(ciscoArpCache),
-        this.db.select().from(ciscoVlanDb),
-        this.db.select().from(ipamSubnets),
-        this.db.select().from(ipamHosts),
-      ]);
-
-    const swName = new Map(switchRows.map((s) => [s.id, s.hostname]));
-    const now = this.nowIso();
-    const docs: SearchDoc[] = [];
-
-    for (const r of monRows) {
-      docs.push({
-        id: searchDocId("monitor", r.id),
-        kind: "monitor",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.name,
-        body: r.target,
-        extra: { kind: r.kind, status: r.status },
-        url: `/monitoring/${r.id}`,
-        updatedAt: r.updatedAt.toISOString(),
-      });
-    }
-
-    for (const r of targetRows) {
-      docs.push({
-        id: searchDocId("infra_target", r.id),
-        kind: "infra_target",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.name,
-        body: [r.host, r.kind, r.os].filter(Boolean).join(" · "),
-        extra: { status: r.status, kind: r.kind },
-        url: `/monitoring/infra/${r.id}`,
-        updatedAt: r.updatedAt.toISOString(),
-      });
-    }
-
-    for (const r of entityRows) {
-      docs.push({
-        id: searchDocId("infra_entity", r.id),
-        kind: "infra_entity",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.name,
-        body: [r.entityKind, r.groupKey, r.status].filter(Boolean).join(" · "),
-        extra: { entityKind: r.entityKind, status: r.status, targetId: r.targetId },
-        // Entities live under their parent target's detail page.
-        url: `/monitoring/infra/${r.targetId}`,
-        updatedAt: r.lastSeenAt.toISOString(),
-      });
-    }
-
-    for (const r of switchRows) {
-      docs.push({
-        id: searchDocId("cisco_switch", r.id),
-        kind: "cisco_switch",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.hostname,
-        body: [r.ipAddress, r.model, r.location].filter(Boolean).join(" · "),
-        extra: { reachable: r.reachable, model: r.model },
-        url: `/monitoring/network-cisco/switches/${r.id}`,
-        updatedAt: now,
-      });
-    }
-
-    for (const r of portRows) {
-      const host = swName.get(r.switchId) ?? "";
-      docs.push({
-        id: searchDocId("cisco_port", r.id),
-        kind: "cisco_port",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: [host, r.portId].filter(Boolean).join(" "),
-        body: [r.description, `vlan ${r.accessVlan}`, r.neighborHostname].filter(Boolean).join(" · "),
-        extra: { switchId: r.switchId, portId: r.portId },
-        url: `/monitoring/network-cisco/switches/${r.switchId}`,
-        updatedAt: now,
-      });
-    }
-
-    for (const r of macRows) {
-      const host = swName.get(r.switchId) ?? "";
-      docs.push({
-        id: searchDocId("cisco_mac", r.id),
-        kind: "cisco_mac",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.macAddress,
-        body: [`vlan ${r.vlan ?? "?"}`, r.portId, host].filter(Boolean).join(" · "),
-        extra: { switchId: r.switchId, vlan: r.vlan },
-        url: `/monitoring/network-cisco/lookup`,
-        updatedAt: now,
-      });
-    }
-
-    for (const r of arpRows) {
-      const host = swName.get(r.switchId) ?? "";
-      docs.push({
-        id: searchDocId("cisco_arp", r.id),
-        kind: "cisco_arp",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: r.ipAddress,
-        body: [r.macAddress, r.rdnsName, r.interface, host].filter(Boolean).join(" · "),
-        extra: { switchId: r.switchId, mac: r.macAddress },
-        url: `/monitoring/network-cisco/lookup`,
-        updatedAt: now,
-      });
-    }
-
-    for (const r of vlanRows) {
-      const host = swName.get(r.switchId) ?? "";
-      docs.push({
-        id: searchDocId("cisco_vlan", r.id),
-        kind: "cisco_vlan",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: [`VLAN ${r.vlanId}`, r.vlanName].filter(Boolean).join(" "),
-        body: [r.vlanStatus, host].filter(Boolean).join(" · "),
-        extra: { switchId: r.switchId, vlanId: r.vlanId },
-        url: `/monitoring/network-cisco/vlans`,
-        updatedAt: now,
-      });
-    }
-
-    for (const r of ipamSubnetRows) {
-      docs.push({
-        id: searchDocId("ipam_subnet", r.id),
-        kind: "ipam_subnet",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: [r.cidr, r.label].filter(Boolean).join(" · "),
-        body: [r.label, r.gateway, r.vlanId ? `vlan ${r.vlanId}` : null, r.source].filter(Boolean).join(" · "),
-        extra: { source: r.source, scanEnabled: r.scanEnabled },
-        url: `/ipam/${r.id}`,
-        updatedAt: r.updatedAt.toISOString(),
-      });
-    }
-
-    for (const r of ipamHostRows) {
-      docs.push({
-        id: searchDocId("ipam_host", r.id),
-        kind: "ipam_host",
-        resourceId: r.id,
-        ownerUserId: null,
-        title: [r.ipAddress, r.unifiName].filter(Boolean).join(" · "),
-        body: [r.unifiName, r.hostname, r.netbiosName, r.macAddress].filter(Boolean).join(" · "),
-        extra: { subnetId: r.subnetId, isUp: r.isUp },
-        url: `/ipam/${r.subnetId}`,
-        updatedAt: r.updatedAt.toISOString(),
-      });
-    }
-
-    return docs;
+  async reindexEverywhere(): ReturnType<SearchService["reindexAll"]> {
+    this.bus.publish({ room: SEARCH_ROOM, event: "reindex" });
+    return this.reindexAll();
   }
 
-  /** Delete every indexed doc whose kind is in `kinds` (scoped clear). */
-  private async deleteByKinds(kinds: SearchKind[]): Promise<void> {
-    const idx = await this.indexOrNull();
-    if (!idx || kinds.length === 0) return;
-    const filter = `kind IN [${kinds.map((k) => `"${k}"`).join(",")}]`;
-    try {
-      const task = await idx.deleteDocuments({ filter });
-      await this.client?.waitForTask(task.taskUid, { timeOutMs: 30_000 });
-    } catch (err) {
-      this.logger.warn(`search.deleteByKinds failed: ${(err as Error).message}`);
-    }
-  }
+  // ---- live kinds (not in the database) ----
 
   /**
-   * Reconcile the DB-backed monitoring kinds: clear them, then re-add the
-   * current set. Called on startup, on a timer, and by reindexAll. Clearing by
-   * kind (rather than the whole index) leaves tickets/notes/wiki/UniFi intact.
+   * Write the current set of `kinds` to the shared table and, if it changed, tell
+   * the other nodes. Writes only the rows whose content changed. Then bring this
+   * node's own index in line.
    */
-  async syncMonitoringDbSources(): Promise<{ total: number; monitors: number }> {
-    const idx = await this.indexOrNull();
-    if (!idx) return { total: 0, monitors: 0 };
-    const docs = await this.buildMonitoringDbDocs();
-    await this.deleteByKinds(MONITORING_KINDS);
-    if (docs.length) await this.upsertMany(docs);
-    const monitors = docs.filter((d) => d.kind === "monitor").length;
-    return { total: docs.length, monitors };
+  private async publishLive(kinds: SearchKind[], docs: SearchDoc[]): Promise<void> {
+    const changed = await this.live.replace(kinds, docs);
+    if (!changed) return;
+    this.bus.publish({ room: SEARCH_ROOM, event: "live", payload: { kinds } });
+    await this.reconcileLive();
   }
 
   /**
-   * Reconcile the live UniFi kinds from a poller snapshot. Devices/clients
-   * aren't in the DB, so the UnifiPoller pushes the current set here each poll;
-   * we clear the UniFi kinds and re-add. Keyed by MAC.
+   * Publish the live UniFi kinds from a poller snapshot. Devices/clients aren't
+   * in the DB, so the one node running the UnifiPoller pushes the current set
+   * here each poll. Keyed by MAC.
    */
   async syncUnifi(
     devices: Array<{ mac?: string; name?: string; model?: string; ip?: string; state?: number; type?: string }>,
     clients: Array<{ mac?: string; name?: string; hostname?: string; ip?: string; network?: string }>,
   ): Promise<void> {
-    const idx = await this.indexOrNull();
-    if (!idx) return;
-    const now = this.nowIso();
+    const now = new Date().toISOString();
     const docs: SearchDoc[] = [];
     for (const d of devices) {
       if (!d.mac) continue;
@@ -700,18 +540,14 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         updatedAt: now,
       });
     }
-    await this.deleteByKinds(UNIFI_KINDS);
-    if (docs.length) await this.upsertMany(docs);
+    await this.publishLive(UNIFI_KINDS, docs);
   }
 
   /**
-   * Replace every indexed DNS record with `docs` (built by the DNS module's
-   * indexer from a full read of the Technitium zones).
+   * Publish every DNS record (built by the DNS module's indexer from a full read
+   * of the Technitium zones) as the current set.
    */
   async syncDns(docs: SearchDoc[]): Promise<void> {
-    const idx = await this.indexOrNull();
-    if (!idx) return;
-    await this.deleteByKinds(DNS_KINDS);
-    if (docs.length) await this.upsertMany(docs);
+    await this.publishLive(DNS_KINDS, docs);
   }
 }

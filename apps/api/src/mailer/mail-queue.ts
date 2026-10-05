@@ -1,90 +1,119 @@
-import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
-import { Queue, Worker, type Job } from "bullmq";
-import Redis, { type Redis as RedisClient } from "ioredis";
+import { Inject, Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { MAIL_OUTBOX_STORE, type ClaimedMail, type MailOutboxStore } from "./mail-outbox.store";
 import { MailerService, type MailMessage } from "./mailer.service";
 
-const QUEUE_NAME = "mail";
-const ATTEMPTS = 5;
+/** Attempts per message, counting the first. */
+export const MAIL_ATTEMPTS = 5;
+/** Backoff before attempt n+1 is `MAIL_BACKOFF_SEC * 2^(n-1)`: 5s, 10s, 20s, 40s. */
+export const MAIL_BACKOFF_SEC = 5;
+/** How long a node holds a message it is sending before another may take it. */
+const CLAIM_SEC = 120;
+/** How often a node looks for mail that is due (retries, or a node that died mid-send). */
+const POLL_MS = 2_000;
+const BATCH = 5;
 
 /**
- * BullMQ-backed retry queue for outbound email. Replaces the previous
- * fire-and-forget `mailer.sendBestEffort()` for production usage; if Redis
- * isn't available we degrade gracefully and call the underlying mailer
- * synchronously (single-replica dev still works fine).
+ * Retry queue for outbound email, kept in the database (`mail_outbox`; this
+ * replaced a BullMQ queue in Redis). Every node runs the same worker and claims
+ * what is due, so mail keeps going out if a node stops, and a message is sent
+ * by one node. Delivery is at least once: a node that dies after the SMTP server
+ * accepted a message but before recording it will see it sent again.
  *
- * Retry policy: 5 attempts with exponential backoff starting at 5 s. A
- * dropped SMTP connection or a transient outage at the relay rolls into
- * the retry naturally; a permanent failure (bad From: address, blocked
- * recipient) eventually surfaces in the BullMQ dead-letter pattern.
+ * Retry policy as before: 5 attempts with exponential backoff from 5 seconds.
+ * A message that fails every attempt stays in the table as `failed` for a day.
  */
 @Injectable()
 export class MailQueue implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MailQueue.name);
-  private queue: Queue | null = null;
-  private worker: Worker | null = null;
-  private redis: RedisClient | null = null;
+  private timer: NodeJS.Timeout | null = null;
+  private draining: Promise<void> | null = null;
+  private stopped = false;
 
-  constructor(private readonly mailer: MailerService) {
+  constructor(
+    private readonly mailer: MailerService,
+    @Inject(MAIL_OUTBOX_STORE) private readonly store: MailOutboxStore,
+    private readonly jobs: ClusterJobs,
+  ) {
     // Setter injection in the reverse direction so MailerService.sendBestEffort
-    // routes through us when we're up.
+    // routes through us.
     this.mailer.setQueue(this);
   }
 
-  async onModuleInit(): Promise<void> {
-    const url = process.env.REDIS_URL;
-    if (!url) {
-      this.logger.warn("REDIS_URL not set; mail queue disabled, sends are immediate.");
-      return;
-    }
-    try {
-      // BullMQ requires maxRetriesPerRequest=null and enableReadyCheck=false
-      // for blocking commands. We deliberately don't share this client with
-      // anything else for that reason.
-      this.redis = new Redis(url, { maxRetriesPerRequest: null, enableReadyCheck: false });
-      this.queue = new Queue(QUEUE_NAME, { connection: this.redis });
-      this.worker = new Worker(
-        QUEUE_NAME,
-        async (job: Job<MailMessage>) => {
-          await this.mailer.sendNow(job.data);
-        },
-        {
-          connection: this.redis,
-          // Match attempts/backoff with what enqueue() requests below.
-          autorun: true,
-        },
-      );
-      this.worker.on("failed", (job, err) => {
-        this.logger.warn(`mail job ${job?.id ?? "?"} failed (attempt ${job?.attemptsMade ?? "?"}): ${err.message}`);
-      });
-      this.logger.log("Mail queue connected (BullMQ + Redis)");
-    } catch (err) {
-      this.logger.warn(`Mail queue unavailable: ${(err as Error).message}; falling back to inline sends.`);
-      this.queue = null;
-    }
+  onModuleInit(): void {
+    this.timer = setInterval(() => this.kick(), POLL_MS);
+    this.timer.unref();
+    this.jobs.register({
+      name: "mail-outbox-prune",
+      everyMs: 60 * 60_000,
+      initialDelayMs: 5 * 60_000,
+      run: () => this.store.prune(24),
+    });
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.worker?.close().catch(() => undefined);
-    await this.queue?.close().catch(() => undefined);
-    this.redis?.disconnect();
+    this.stopped = true;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    // Let a send that is under way finish; give up waiting after a few seconds.
+    if (this.draining) await Promise.race([this.draining, new Promise((r) => setTimeout(r, 5000))]);
   }
 
   /**
-   * Enqueue a message. If the queue is unavailable (Redis down at boot)
-   * we send inline so the caller still gets best-effort delivery.
+   * Queue a message and start sending it now. If the database will not take it,
+   * send inline so the caller still gets best-effort delivery.
    */
   async enqueue(msg: MailMessage): Promise<void> {
-    if (!this.queue) {
-      await this.mailer.sendNow(msg).catch((err) => {
-        this.logger.warn(`inline send failed: ${(err as Error).message}`);
+    try {
+      await this.store.add(msg);
+    } catch (err) {
+      this.logger.warn(`could not queue mail (${(err as Error).message}); sending inline`);
+      await this.mailer.sendNow(msg).catch((e: unknown) => {
+        this.logger.warn(`inline send failed: ${(e as Error).message}`);
       });
       return;
     }
-    await this.queue.add("send", msg, {
-      attempts: ATTEMPTS,
-      backoff: { type: "exponential", delay: 5_000 },
-      removeOnComplete: { age: 3600, count: 500 },
-      removeOnFail: { age: 24 * 3600 },
+    this.kick();
+  }
+
+  /** Start a drain unless one is already running. */
+  kick(): void {
+    if (this.stopped || this.draining) return;
+    this.draining = this.drain().finally(() => {
+      this.draining = null;
     });
+  }
+
+  private async drain(): Promise<void> {
+    for (;;) {
+      let batch: ClaimedMail[];
+      try {
+        batch = await this.store.claim(BATCH, CLAIM_SEC);
+      } catch (err) {
+        // Including a collision with another node's claim: just try again next poll.
+        this.logger.debug(`mail claim failed: ${(err as Error).message}`);
+        return;
+      }
+      if (batch.length === 0) return;
+      await Promise.all(batch.map((m) => this.deliver(m)));
+      if (this.stopped) return;
+    }
+  }
+
+  private async deliver(m: ClaimedMail): Promise<void> {
+    try {
+      await this.mailer.sendNow(m.message);
+      await this.store.sent(m.id);
+    } catch (err) {
+      const msg = (err as Error).message;
+      this.logger.warn(`mail ${m.id} failed (attempt ${m.attempts}/${MAIL_ATTEMPTS}): ${msg}`);
+      try {
+        if (m.attempts >= MAIL_ATTEMPTS) await this.store.giveUp(m.id, msg);
+        else await this.store.retryLater(m.id, MAIL_BACKOFF_SEC * 2 ** (m.attempts - 1), msg);
+      } catch (e) {
+        // The claim lapses on its own and the message comes round again.
+        this.logger.warn(`could not record the failure of mail ${m.id}: ${(e as Error).message}`);
+      }
+    }
   }
 }

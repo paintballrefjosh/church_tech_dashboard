@@ -26,6 +26,7 @@ export const monitors = pgTable("monitors", {
   enabled: boolean("enabled").notNull(),
   status: text("status").notNull(),
   lastCheckedAt: timestamp("last_checked_at"),
+  claimedUntil: timestamp("claimed_until", { withTimezone: true }),
   lastLatencyMs: integer("last_latency_ms"),
   consecutiveFails: integer("consecutive_fails").notNull(),
   consecutiveOks: integer("consecutive_oks").notNull(),

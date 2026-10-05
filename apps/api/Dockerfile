@@ -33,6 +33,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 FROM base AS runner
 ENV NODE_ENV=production
+# Shown as this node's version on the cluster heartbeat.
+ARG BUILD_ID=dev
+ENV BUILD_ID=$BUILD_ID
 WORKDIR /app
 # pnpm deploy flattens the @church/api package into /app: package.json sits
 # at /app/package.json, node_modules at /app/node_modules. Workspace deps

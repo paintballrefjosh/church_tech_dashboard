@@ -1,9 +1,11 @@
-import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { SettingsService } from "../settings/settings.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SearchService } from "../search/search.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { JobStateService } from "../cluster/job-state.service";
 import { UnifiService } from "./unifi.service";
 
 // UniFi has no push API — the controller is polled. We poll when either (a)
@@ -30,9 +32,8 @@ interface DeviceState {
  * admins on offline/recovery.
  */
 @Injectable()
-export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
+export class UnifiPoller implements OnModuleInit {
   private readonly logger = new Logger(UnifiPoller.name);
-  private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
   private seeded = false;
   private lastSearchSyncAt = 0;
@@ -45,19 +46,22 @@ export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
     private readonly notifications: NotificationsService,
     private readonly infra: InfraService,
     private readonly search: SearchService,
+    private readonly jobs: ClusterJobs,
+    private readonly jobState: JobStateService,
   ) {}
 
   onModuleInit(): void {
-    this.timer = setInterval(() => void this.tick(), POLL_SEC * 1000);
+    // A cluster job: one node polls the controller at a time. If leadership moves,
+    // the new leader picks the alert baseline up from job_state (see
+    // evaluateDeviceAlerts) instead of starting blind.
+    this.jobs.register({ name: "unifi-poll", everyMs: POLL_SEC * 1000, run: () => this.tick() });
     this.logger.log(`UniFi poller scheduling every ${POLL_SEC}s`);
-  }
-  onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
   }
 
   private async tick(): Promise<void> {
     if (this.busy) return; // don't stack a slow controller behind the interval
-    const viewers = this.realtime.roomSize(ROOM) > 0;
+    // Anyone on any node: the poll runs on one node, the Network tab may be open on another.
+    const viewers = this.realtime.hasViewers(ROOM);
     const alertEnabled = (await this.settings.get("unifi.alert_device_offline")) === true;
     // Even with nobody watching and alerting off, refresh the search index on a
     // slow cadence so UniFi devices/clients stay searchable (they live only on
@@ -73,7 +77,12 @@ export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
     this.busy = true;
     try {
       const snapshot = await this.unifi.snapshot();
-      if (viewers) this.realtime.toRoom(ROOM, "network:snapshot", snapshot);
+      if (viewers) {
+        // Large, so other nodes get a pointer to the stored copy, not the payload itself.
+        void this.realtime
+          .toRoomSnapshot(ROOM, "network:snapshot", "unifi:network", snapshot)
+          .catch((err: unknown) => this.logger.debug(`UniFi snapshot publish failed: ${(err as Error).message}`));
+      }
       if (alertEnabled) await this.evaluateDeviceAlerts(snapshot);
       // Keep the search index's UniFi kinds current. Skip on an unreachable read
       // so a transient outage doesn't wipe the docs. Fire and forget — indexing
@@ -106,10 +115,21 @@ export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
     }
     if (next.size === 0) return; // nothing usable this tick
 
-    // First good read establishes the baseline; no alerts on it.
+    // The baseline lives in job_state, so it follows the job between nodes: read
+    // it every pass rather than trusting memory, since another node may have led
+    // (and alerted on transitions) since we last did. That also means a device
+    // that went offline during a handover is alerted on, not silently absorbed.
+    // In-memory state is only the fallback when the database is unreachable.
+    const persisted = await this.loadBaseline();
+    if (persisted) {
+      this.deviceStates = persisted;
+      this.seeded = true;
+    }
+    // First good read with no baseline anywhere establishes it; no alerts on it.
     if (!this.seeded) {
       this.deviceStates = next;
       this.seeded = true;
+      await this.saveBaseline(next);
       return;
     }
 
@@ -123,6 +143,7 @@ export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
     }
     // Devices that vanished from the list are treated as removed (not offline).
     this.deviceStates = next;
+    await this.saveBaseline(next);
 
     const jobs: Promise<void>[] = [];
     if (wentOffline.length > OFFLINE_ALERT_CAP) {
@@ -134,6 +155,28 @@ export class UnifiPoller implements OnModuleInit, OnModuleDestroy {
     }
     for (const name of cameOnline) jobs.push(this.fanOut(`UniFi device recovered: ${name}`, `${name} is back online.`));
     await Promise.all(jobs);
+  }
+
+  /** Only trust a baseline written within this long: older than that and alerting was likely off. */
+  private static readonly BASELINE_MAX_AGE_MS = 5 * 60_000;
+
+  private async loadBaseline(): Promise<Map<string, DeviceState> | null> {
+    try {
+      const row = await this.jobState.get<Record<string, DeviceState>>("unifi-poll", "devices");
+      if (!row || row.ageMs > UnifiPoller.BASELINE_MAX_AGE_MS) return null;
+      return new Map(Object.entries(row.value));
+    } catch (err) {
+      this.logger.debug(`UniFi baseline load failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private async saveBaseline(states: Map<string, DeviceState>): Promise<void> {
+    try {
+      await this.jobState.set("unifi-poll", "devices", Object.fromEntries(states));
+    } catch (err) {
+      this.logger.debug(`UniFi baseline save failed: ${(err as Error).message}`);
+    }
   }
 
   private async fanOut(title: string, body: string): Promise<void> {

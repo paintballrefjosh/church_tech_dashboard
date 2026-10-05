@@ -22,6 +22,8 @@ import {
 import { DB, type Db } from "../db/db.module";
 import { dnsManagedRecords, dnsSyncRuns, ipamHosts, ipamSubnets } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { LeaseService } from "../cluster/lease.service";
 import { DnsService } from "./dns.service";
 import { DnsSearchIndexer } from "./dns.search-indexer";
 import {
@@ -36,6 +38,13 @@ import {
   type TZone,
 } from "./technitium";
 import { computeSyncPlan, recordKey, type ComputedSyncPlan, type ExistingRecord } from "./sync-plan";
+
+/** A sync is already running somewhere in the cluster. */
+class AlreadyRunningError extends BadRequestException {
+  constructor() {
+    super("A DNS sync is already running");
+  }
+}
 
 // Fallback cadence; the IPAM scanner and IPAM edits trigger runs sooner.
 const TIMER_MS = 15 * 60_000;
@@ -61,8 +70,9 @@ type RunRow = typeof dnsSyncRuns.$inferSelect;
  *
  * Triggers: the end of every IPAM scanner pass and IPAM edits (debounced), a
  * 15-minute fallback timer, and the DNS page's "Sync now". Background runs only
- * happen while `dns.sync_enabled` is on. One run at a time (the API is a single
- * process, so an in-process guard is enough).
+ * happen while `dns.sync_enabled` is on. One run at a time across the whole
+ * cluster: the 15-minute timer is a cluster job (one node), and every run, from
+ * any node and any trigger, holds the `dns-sync` mutex lease while it works.
  *
  * Background changes never pass through the HTTP audit interceptor, so
  * `dns_sync_runs` is their audit trail: every applied action, and who pressed
@@ -71,27 +81,28 @@ type RunRow = typeof dnsSyncRuns.$inferSelect;
 @Injectable()
 export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DnsSyncService.name);
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private startup: ReturnType<typeof setTimeout> | null = null;
   private debounce: ReturnType<typeof setTimeout> | null = null;
   private pendingTrigger: DnsSyncTrigger = "timer";
-  private running = false;
 
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
     private readonly dns: DnsService,
     private readonly indexer: DnsSearchIndexer,
+    private readonly jobs: ClusterJobs,
+    private readonly leases: LeaseService,
   ) {}
 
   onModuleInit(): void {
-    this.startup = setTimeout(() => this.requestRun("timer"), STARTUP_DELAY_MS);
-    this.timer = setInterval(() => this.requestRun("timer"), TIMER_MS);
+    this.jobs.register({
+      name: "dns-sync",
+      everyMs: TIMER_MS,
+      initialDelayMs: STARTUP_DELAY_MS,
+      run: () => this.backgroundRun("timer"),
+    });
   }
 
   onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
-    if (this.startup) clearTimeout(this.startup);
     if (this.debounce) clearTimeout(this.debounce);
   }
 
@@ -99,15 +110,18 @@ export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
   requestRun(trigger: Exclude<DnsSyncTrigger, "manual">): void {
     this.pendingTrigger = trigger;
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => {
-      void (async () => {
-        const cfg = await this.syncConfig();
-        if (!cfg.enabled || !cfg.zone) return;
-        await this.run(this.pendingTrigger, null, false).catch((err: unknown) =>
-          this.logger.warn(`dns sync (${this.pendingTrigger}) failed: ${(err as Error).message}`),
-        );
-      })();
-    }, DEBOUNCE_MS);
+    this.debounce = setTimeout(() => void this.backgroundRun(this.pendingTrigger), DEBOUNCE_MS);
+  }
+
+  /** One background run: skipped while sync is off or unconfigured; failures are logged. */
+  private async backgroundRun(trigger: DnsSyncTrigger): Promise<void> {
+    const cfg = await this.syncConfig();
+    if (!cfg.enabled || !cfg.zone) return;
+    await this.run(trigger, null, false).catch((err: unknown) => {
+      // Another run (any node) holding the lock is normal, not a failure.
+      if (err instanceof AlreadyRunningError) this.logger.debug(`dns sync (${trigger}) skipped: already running`);
+      else this.logger.warn(`dns sync (${trigger}) failed: ${(err as Error).message}`);
+    });
   }
 
   private async syncConfig(): Promise<SyncConfig> {
@@ -212,15 +226,22 @@ export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
    * look before enabling. `force` applies past the safety limit.
    */
   async run(trigger: DnsSyncTrigger, actorUserId: string | null, force: boolean): Promise<DnsSyncRun> {
-    if (this.running) throw new BadRequestException("A DNS sync is already running");
     if (!(await this.syncConfig()).enabled) {
       throw new BadRequestException('Turn on "Sync IPAM hosts to DNS" in Monitoring settings first');
     }
-    this.running = true;
-    const [runRow] = await this.db
-      .insert(dnsSyncRuns)
-      .values({ trigger, actorUserId, startedAt: new Date() })
-      .returning();
+    // One run at a time across all nodes. 120s TTL, renewed while the run works.
+    const mutex = await this.leases.acquireMutex("dns-sync", 120);
+    if (!mutex) throw new AlreadyRunningError();
+    let runRow: typeof dnsSyncRuns.$inferSelect | undefined;
+    try {
+      [runRow] = await this.db
+        .insert(dnsSyncRuns)
+        .values({ trigger, actorUserId, startedAt: new Date() })
+        .returning();
+    } catch (err) {
+      await mutex.release();
+      throw err;
+    }
     const runId = runRow!.id;
     try {
       const { plan, cfg, conn } = await this.compute();
@@ -239,6 +260,8 @@ export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
       const hosts: Record<string, DnsSyncHostOutcome> = { ...plan.hosts };
       const failedKeys = new Map<string, string>();
       for (const a of plan.actions) {
+        // If a stall let another node take the lock, stop rather than write alongside it.
+        if (mutex.lost) throw new Error("The DNS sync lock was lost to another node; stopping");
         try {
           await this.apply(conn, a);
           applied.push(a);
@@ -277,7 +300,7 @@ export class DnsSyncService implements OnModuleInit, OnModuleDestroy {
       await this.finish(runId, { error: msg, details: { actions: [], conflicts: [], missingReverseZones: [], hosts: {}, blocked: null } });
       throw err;
     } finally {
-      this.running = false;
+      await mutex.release();
       void this.prune();
     }
   }

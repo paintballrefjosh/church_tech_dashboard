@@ -17,7 +17,7 @@ import {
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
-import { SearchService, searchDocId } from "../search/search.service";
+import { SearchService } from "../search/search.service";
 import { ActivityService } from "../activity/activity.service";
 import { MentionsService } from "../mentions/mentions.service";
 
@@ -44,19 +44,6 @@ export class TicketsService {
     private readonly activity: ActivityService,
     private readonly mentions: MentionsService,
   ) {}
-
-  private toSearchDoc(row: typeof tickets.$inferSelect) {
-    return {
-      id: searchDocId("ticket", row.id),
-      kind: "ticket" as const,
-      resourceId: row.id,
-      ownerUserId: row.createdByUserId,
-      title: row.title,
-      body: row.description ?? "",
-      extra: { number: row.number, status: row.status, priority: row.priority },
-      updatedAt: row.updatedAt.toISOString(),
-    };
-  }
 
   private hasAnyRead(user: AuthenticatedUser): boolean {
     return user.permissions.includes(PERMISSIONS.TICKETS_READ_ANY);
@@ -149,7 +136,7 @@ export class TicketsService {
       })
       .returning();
     if (!row) throw new Error("Insert failed");
-    void this.search.upsert(this.toSearchDoc(row));
+    void this.search.changed("ticket", row.id);
     void this.activity.record({
       actorUserId: user.id,
       action: "ticket.created",
@@ -219,7 +206,7 @@ export class TicketsService {
     }
 
     const [row] = await this.db.update(tickets).set(patch).where(eq(tickets.id, id)).returning();
-    if (row) void this.search.upsert(this.toSearchDoc(row));
+    if (row) void this.search.changed("ticket", row.id);
 
     const actor = user.name ?? user.email;
     if (input.title !== undefined && input.title.trim() !== existing.title) {
@@ -249,7 +236,7 @@ export class TicketsService {
     await this.attachments.deleteAllForParent("ticket", id);
     const [row] = await this.db.delete(tickets).where(eq(tickets.id, id)).returning();
     if (!row) throw new NotFoundException("Ticket not found");
-    void this.search.remove(searchDocId("ticket", id));
+    void this.search.changed("ticket", id);
     return row;
   }
 

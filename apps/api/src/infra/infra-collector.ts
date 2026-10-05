@@ -5,7 +5,6 @@ import {
   NotFoundException,
   BadRequestException,
   type OnModuleInit,
-  type OnModuleDestroy,
 } from "@nestjs/common";
 import { eq, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
@@ -13,6 +12,7 @@ import { infraTargets, infraMetricSamples, infraEntities, monitorIncidents } fro
 import { NotificationsService } from "../notifications/notifications.service";
 import { ActivityService } from "../activity/activity.service";
 import { SettingsService } from "../settings/settings.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { InfraService } from "./infra.service";
 import { collect, discoverServices as discoverHostServices } from "./collectors/dispatch";
@@ -42,11 +42,8 @@ interface AlertEntry {
 }
 
 @Injectable()
-export class InfraCollector implements OnModuleInit, OnModuleDestroy {
+export class InfraCollector implements OnModuleInit {
   private readonly logger = new Logger(InfraCollector.name);
-  private tickTimer: NodeJS.Timeout | null = null;
-  private rollupTimer: NodeJS.Timeout | null = null;
-  private pruneTimer: NodeJS.Timeout | null = null;
   private readonly inFlight = new Set<string>();
   /** Previous poll's raw counters per target, for net/disk-IO rate math. */
   private readonly prev = new Map<string, Record<string, unknown>>();
@@ -59,6 +56,7 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
     private readonly activity: ActivityService,
     private readonly settings: SettingsService,
     private readonly realtime: RealtimeGateway,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -66,29 +64,18 @@ export class InfraCollector implements OnModuleInit, OnModuleDestroy {
     // mirroring PrintersService — a settings change takes effect on restart.
     const tickSec = await this.getNumberSetting("monitoring.tick_seconds", DEFAULT_TICK_SEC);
     this.concurrency = await this.getNumberSetting("monitoring.poll_concurrency", DEFAULT_CONCURRENCY);
-    // Stagger the first tick so we don't compete with boot / readiness.
-    setTimeout(() => void this.tick().catch((e) => this.logger.warn(e)), 8_000);
-    this.tickTimer = setInterval(
-      () => void this.tick().catch((e) => this.logger.warn(e)),
-      Math.max(5_000, tickSec * 1000),
-    );
-    this.rollupTimer = setInterval(
-      () => void this.rollup().catch((e) => this.logger.warn(e)),
-      ROLLUP_MS,
-    );
-    setTimeout(() => void this.prune().catch((e) => this.logger.warn(e)), 5 * 60_000);
-    this.pruneTimer = setInterval(() => void this.prune().catch((e) => this.logger.warn(e)), PRUNE_MS);
+    // Three cluster jobs, so each runs on one node at a time. `tick` is fixed-rate
+    // on purpose: it can overlap itself and relies on the per-target inFlight set,
+    // so one slow host never holds up the rest. Stagger the first tick so we
+    // don't compete with boot / readiness.
+    this.jobs.register({ name: "infra-tick", everyMs: Math.max(5_000, tickSec * 1000), initialDelayMs: 8_000, run: () => this.tick() });
+    this.jobs.register({ name: "infra-rollup", everyMs: ROLLUP_MS, run: () => this.rollup() });
+    this.jobs.register({ name: "infra-prune", everyMs: PRUNE_MS, initialDelayMs: 5 * 60_000, run: () => this.prune() });
   }
 
   private async getNumberSetting(key: string, fallback: number): Promise<number> {
     const raw = await this.settings.get(key);
     return typeof raw === "number" && Number.isFinite(raw) ? raw : fallback;
-  }
-
-  onModuleDestroy(): void {
-    if (this.tickTimer) clearInterval(this.tickTimer);
-    if (this.rollupTimer) clearInterval(this.rollupTimer);
-    if (this.pruneTimer) clearInterval(this.pruneTimer);
   }
 
   private async tick(): Promise<void> {

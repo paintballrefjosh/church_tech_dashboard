@@ -22,6 +22,7 @@ export const NOTIFICATION_KINDS = [
   "cisco.uptime_change",
   "unifi.device_offline",
   "dns.primary_unreachable",
+  "backup.failed",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

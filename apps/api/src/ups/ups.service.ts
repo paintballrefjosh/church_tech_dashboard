@@ -4,12 +4,12 @@ import {
   NotFoundException,
   Logger,
   type OnModuleInit,
-  type OnModuleDestroy,
 } from "@nestjs/common";
 import { eq, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { upsDevices } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import type {
   CreateUpsInput,
   UpdateUpsInput,
@@ -28,13 +28,13 @@ const FALLBACK_SNMP_TIMEOUT_MS = 3000;
 const FALLBACK_POLL_INTERVAL_MIN = 5;
 
 @Injectable()
-export class UpsService implements OnModuleInit, OnModuleDestroy {
+export class UpsService implements OnModuleInit {
   private readonly logger = new Logger(UpsService.name);
-  private timer: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   // ---- lifecycle: background poller ----
@@ -45,16 +45,13 @@ export class UpsService implements OnModuleInit, OnModuleDestroy {
       FALLBACK_POLL_INTERVAL_MIN,
     );
     // Skip the first 30s after boot so we don't block the readiness probe.
-    setTimeout(() => void this.pollAll().catch((e) => this.logger.warn(e)), 30_000);
-    this.timer = setInterval(
-      () => void this.pollAll().catch((e) => this.logger.warn(e)),
-      Math.max(60_000, minutes * 60_000),
-    );
-  }
-
-  onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
+    // A cluster job, so only one node polls at a time.
+    this.jobs.register({
+      name: "ups-poll",
+      everyMs: Math.max(60_000, minutes * 60_000),
+      initialDelayMs: 30_000,
+      run: () => this.pollAll(),
+    });
   }
 
   // ---- CRUD ----

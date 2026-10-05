@@ -1,4 +1,5 @@
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { createPool, databaseUrlFromEnv } from "@church/shared/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./db-schema";
 
@@ -7,10 +8,9 @@ let _db: NodePgDatabase<typeof schema> | null = null;
 
 function getPool(): Pool {
   if (_pool) return _pool;
-  // DATABASE_URL; COCKROACH_URL is the pre-Yugabyte name, still accepted.
-  const url = process.env.DATABASE_URL || process.env.COCKROACH_URL;
-  if (!url) throw new Error("DATABASE_URL is required");
-  _pool = new Pool({ connectionString: url, max: 5 });
+  // Error handler, timeouts, retry of safe statements and TLS from the URL all
+  // come from the shared factory (a dying database node must not crash Next).
+  _pool = createPool({ name: "web", url: databaseUrlFromEnv(), max: 5 });
   return _pool;
 }
 

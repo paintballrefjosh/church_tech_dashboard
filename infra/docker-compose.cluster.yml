@@ -1,0 +1,14 @@
+# Overlay for DEPLOY_MODE=cluster: one node of several (docs/multi-node.md). scripts/compose.sh
+# adds it after docker-compose.prod.yml and exports everything interpolated here; do not use it
+# by hand. Single node installs never load it. docker-compose.cluster-db.yml is added as well
+# when the database is bundled.
+#
+# - garage: the same service as the base file, with its RPC port published so the other nodes
+#   can reach it. Garage's configuration (replication factor, public address) comes from the
+#   variables compose.sh exports; the layout across nodes is formed by `scripts/cluster.sh
+#   garage-bootstrap`. Inactive (and so harmless) with S3_MODE=external.
+
+services:
+  garage:
+    ports:
+      - "${CLUSTER_BIND_ADDR:-0.0.0.0}:${CLUSTER_S3_RPC_PORT:-3901}:3901"

@@ -212,7 +212,9 @@ function KindIcon({ kind }: { kind: string }) {
     case "postgresql":
     case "database":
       return <Database className={cls} aria-hidden />;
+    case "garage":
     case "minio":
+    case "s3":
       return <HardDrive className={cls} aria-hidden />;
     case "meilisearch":
       return <Search className={cls} aria-hidden />;

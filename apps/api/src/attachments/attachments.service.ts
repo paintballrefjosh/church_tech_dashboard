@@ -13,7 +13,7 @@ import {
 } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { attachments } from "../db/schema";
-import { getMinio } from "./minio.client";
+import { getS3 } from "./s3.client";
 import { reconcileMime } from "./magic-bytes";
 
 export interface IncomingFile {
@@ -77,7 +77,7 @@ export class AttachmentsService {
     const ext = extOf(filename);
     const storageKey = `attachments/${parentType}/${id}${ext}`;
 
-    const { client, bucket } = getMinio();
+    const { client, bucket } = getS3();
     await ensureBucket(client, bucket);
 
     await client.putObject(bucket, storageKey, buf, buf.length, {
@@ -130,7 +130,7 @@ export class AttachmentsService {
   }
 
   async openStream(storageKey: string): Promise<Readable> {
-    const { client, bucket } = getMinio();
+    const { client, bucket } = getS3();
     return client.getObject(bucket, storageKey);
   }
 
@@ -140,7 +140,7 @@ export class AttachmentsService {
     attachmentId: string,
   ): Promise<void> {
     const { storageKey } = await this.getOne(parentType, parentId, attachmentId);
-    const { client, bucket } = getMinio();
+    const { client, bucket } = getS3();
     // Remove from DB first so a failed object-remove doesn't leak FK pointing
     // at a deleted blob — but tolerate the object already being gone.
     await this.db.delete(attachments).where(eq(attachments.id, attachmentId));
@@ -161,7 +161,7 @@ export class AttachmentsService {
     await this.db
       .delete(attachments)
       .where(and(eq(attachments.parentType, parentType), eq(attachments.parentId, parentId)));
-    const { client, bucket } = getMinio();
+    const { client, bucket } = getS3();
     for (const r of rows) {
       try {
         await client.removeObject(bucket, r.storageKey);

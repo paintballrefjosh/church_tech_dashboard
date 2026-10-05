@@ -16,6 +16,8 @@ RUN pnpm --filter @church/shared build && pnpm --filter @church/monitor build
 
 FROM base AS runner
 ENV NODE_ENV=production
+ARG BUILD_ID=dev
+ENV BUILD_ID=$BUILD_ID
 # Alpine's busybox provides a `ping` capable of unprivileged ICMP via
 # SOCK_DGRAM, which is what our probe spawns. No extra package needed; if
 # DNS reaches alpinelinux.org, `apk add iputils` would give a feature-rich

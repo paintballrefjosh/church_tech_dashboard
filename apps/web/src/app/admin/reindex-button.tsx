@@ -28,7 +28,7 @@ export function ReindexButton() {
   async function go() {
     if (
       !confirm(
-        "Reindex Meilisearch from the database? This clears the current index and rebuilds it. Search will momentarily return fewer results.",
+        "Reindex Meilisearch from the database? This clears the current index (on every node) and rebuilds it. Search will momentarily return fewer results.",
       )
     )
       return;
@@ -57,8 +57,9 @@ export function ReindexButton() {
           <p className="text-sm font-medium">Reindex Meilisearch</p>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             Walk the database and re-push every ticket, note, wiki page, and monitoring data point
-            (monitors, infrastructure, Cisco) to the search index. UniFi devices/clients are kept
-            current by the poller.
+            (monitors, infrastructure, Cisco) to the search index, along with the UniFi and DNS
+            entries last seen. With several nodes, every node rebuilds its own index; the counts
+            below are from the node that handled this request.
           </p>
         </div>
         <button

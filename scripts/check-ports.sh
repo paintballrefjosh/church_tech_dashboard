@@ -29,8 +29,20 @@ COCKROACH_UI_PORT=$(load_var COCKROACH_UI_PORT 8180)
 declare -a CHECKS=(
   "Caddy proxy (browser entrypoint):EXTERNAL_PORT:${EXTERNAL_PORT}"
 )
-# The Cockroach admin UI port only exists with the bundled database.
-if [ "$(bash "$(dirname "$0")/compose.sh" --db-mode)" = bundled ]; then
+# A cluster node publishes its database and object-store RPC ports for the other nodes (the
+# admin UI is not published there); a single node publishes only the dev admin UI port.
+CLUSTER_ENV="$(bash "$(dirname "$0")/compose.sh" --prod --cluster-env 2>/dev/null || true)"
+if [ "$(sed -n 's/^DEPLOY_MODE=//p' <<<"$CLUSTER_ENV")" = cluster ]; then
+  if [ "$(sed -n 's/^DB_MODE=//p' <<<"$CLUSTER_ENV")" = bundled ]; then
+    CHECKS+=("Cluster database:CLUSTER_DB_PORT:$(sed -n 's/^CLUSTER_DB_PORT=//p' <<<"$CLUSTER_ENV")")
+  fi
+  if [ "$(sed -n 's/^S3_MODE=//p' <<<"$CLUSTER_ENV")" = bundled ]; then
+    CHECKS+=("Cluster object store RPC:CLUSTER_S3_RPC_PORT:$(sed -n 's/^CLUSTER_S3_RPC_PORT=//p' <<<"$CLUSTER_ENV")")
+    api_port="$(sed -n 's/^CLUSTER_S3_API_PORT=//p' <<<"$CLUSTER_ENV")"
+    [ -z "$api_port" ] || CHECKS+=("Cluster object store S3 API:CLUSTER_S3_API_PORT:$api_port")
+  fi
+elif [ "$(bash "$(dirname "$0")/compose.sh" --db-mode)" = bundled ]; then
+  # The Cockroach admin UI port only exists with the bundled database.
   CHECKS+=("Cockroach admin UI:COCKROACH_UI_PORT:${COCKROACH_UI_PORT}")
 fi
 

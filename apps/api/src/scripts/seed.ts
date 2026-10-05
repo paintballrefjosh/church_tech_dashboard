@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { createPool } from "@church/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
@@ -29,7 +30,7 @@ import { databaseUrl } from "../db/connection";
 async function main() {
   const url = databaseUrl();
 
-  const pool = new Pool({ connectionString: url });
+  const pool = createPool({ name: "seed", url: url, max: 4 });
   const db = drizzle(pool, { schema });
 
   console.log("[seed] permissions");

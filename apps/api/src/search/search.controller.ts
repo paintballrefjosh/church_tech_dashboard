@@ -80,7 +80,7 @@ export class SearchController {
   @RequirePermissions(PERMISSIONS.SITE_ADMIN)
   @Audited({ action: "search.reindex", resourceType: "search" })
   async reindex() {
-    const counts = await this.search.reindexAll();
+    const counts = await this.search.reindexEverywhere();
     return { ok: true, counts };
   }
 }

@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@church/shared": "workspace:*",
     "drizzle-orm": "0.34.0",
     "pg": "8.13.0"
   },

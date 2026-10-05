@@ -4,7 +4,6 @@ import {
   Logger,
   BadRequestException,
   type OnModuleInit,
-  type OnModuleDestroy,
 } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import {
@@ -18,6 +17,8 @@ import { SettingsService } from "../settings/settings.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { MonitorsService } from "../monitors/monitors.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { JobStateService } from "../cluster/job-state.service";
 import { DnsService } from "./dns.service";
 import { technitiumCall, TechnitiumError, type TechnitiumConfig, type TRecord, type TZone } from "./technitium";
 
@@ -42,9 +43,8 @@ const CANARY_COMMENT = `Health canary for the dashboard's DNS monitors (${DNS_MA
  * which the monitor worker probes like any other uptime monitor.
  */
 @Injectable()
-export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
+export class DnsHealthService implements OnModuleInit {
   private readonly logger = new Logger(DnsHealthService.name);
-  private timer: ReturnType<typeof setInterval> | null = null;
   private failures = 0;
   private alerted = false;
   private polling = false;
@@ -56,20 +56,43 @@ export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
     private readonly infra: InfraService,
     private readonly monitorsService: MonitorsService,
     private readonly dns: DnsService,
+    private readonly jobs: ClusterJobs,
+    private readonly jobState: JobStateService,
   ) {}
 
   onModuleInit(): void {
-    this.timer = setInterval(() => void this.poll(), POLL_MS);
+    // A cluster job: one node watches the primary. The failure count and whether
+    // an alert is open live in job_state, so a new leader neither re-alerts nor
+    // loses track of an outage in progress.
+    this.jobs.register({ name: "dns-health", everyMs: POLL_MS, run: () => this.poll() });
   }
 
-  onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
+  /** Re-read each poll: another node may have led (and moved the counters on) since our last one. */
+  private async loadState(): Promise<void> {
+    try {
+      const row = await this.jobState.get<{ failures: number; alerted: boolean }>("dns-health", "state");
+      if (row) {
+        this.failures = row.value.failures;
+        this.alerted = row.value.alerted;
+      }
+    } catch (err) {
+      this.logger.debug(`dns health state load failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async saveState(): Promise<void> {
+    try {
+      await this.jobState.set("dns-health", "state", { failures: this.failures, alerted: this.alerted });
+    } catch (err) {
+      this.logger.debug(`dns health state save failed: ${(err as Error).message}`);
+    }
   }
 
   private async poll(): Promise<void> {
     if (this.polling) return;
     this.polling = true;
     try {
+      await this.loadState();
       const enabled = (await this.settings.get("dns.alert_unreachable")) === true;
       const summary = enabled ? await this.dns.summary() : null;
       if (!summary?.configured) {
@@ -77,6 +100,7 @@ export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
         // on doesn't fire a stale "recovered".
         this.failures = 0;
         this.alerted = false;
+        await this.saveState();
         return;
       }
       if (summary.reachable) {
@@ -85,6 +109,7 @@ export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
         }
         this.failures = 0;
         this.alerted = false;
+        await this.saveState();
         return;
       }
       this.failures++;
@@ -96,6 +121,7 @@ export class DnsHealthService implements OnModuleInit, OnModuleDestroy {
             "Lookups continue on the secondary, but record edits and the IPAM sync are stopped until it recovers or a secondary is promoted.",
         );
       }
+      await this.saveState();
     } catch (err) {
       this.logger.debug(`dns health poll failed: ${(err as Error).message}`);
     } finally {

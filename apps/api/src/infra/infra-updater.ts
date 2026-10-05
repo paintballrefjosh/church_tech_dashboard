@@ -7,11 +7,13 @@ import {
   NotFoundException,
   type OnModuleInit,
 } from "@nestjs/common";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, notInArray, or } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { infraTargets, infraUpdateRuns, users } from "../db/schema";
 import { NotificationsService } from "../notifications/notifications.service";
 import { ActivityService } from "../activity/activity.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { NodeService } from "../cluster/node.service";
 import { InfraService } from "./infra.service";
 import { InfraCollector } from "./infra-collector";
 import { sshExec } from "./collectors/ssh";
@@ -40,6 +42,8 @@ export class InfraUpdaterService implements OnModuleInit {
     private readonly collector: InfraCollector,
     private readonly notifications: NotificationsService,
     private readonly activity: ActivityService,
+    private readonly jobs: ClusterJobs,
+    private readonly node: NodeService,
   ) {}
 
   /**
@@ -50,18 +54,42 @@ export class InfraUpdaterService implements OnModuleInit {
    * status='running' forever: nothing else will ever move it, and it also
    * permanently blocks start()'s one-run-per-target check for that host.
    * Since a freshly-started process has no in-flight runs of its own yet,
-   * any row still "running" at boot must be exactly this — reconcile them
-   * once at startup rather than letting them accumulate.
+   * any row this node (or a pre-cluster install) left "running" at boot must be
+   * exactly this — reconcile them once at startup rather than letting them
+   * accumulate.
+   *
+   * With several nodes, "running" rows owned by *another live node* are that
+   * node's business and are left alone. Rows owned by a node that has gone are
+   * reconciled by a cluster job (`infra-update-reconcile`), since the node that
+   * died is not around to do it at boot.
    */
   async onModuleInit(): Promise<void> {
+    // Non-fatal: before the migration that adds node_id has run, this query fails,
+    // and that must not stop the API from starting.
+    await this.failOrphans(
+      or(eq(infraUpdateRuns.nodeId, this.node.identity.nodeId), isNull(infraUpdateRuns.nodeId)),
+      "Run was interrupted by a server restart before it could finish — unknown outcome on the host.",
+    ).catch((err: unknown) => this.logger.warn(`boot reconcile of update runs failed: ${(err as Error).message}`));
+    this.jobs.register({
+      name: "infra-update-reconcile",
+      everyMs: 60_000,
+      initialDelayMs: 90_000,
+      run: async () => {
+        const live = new Set(await this.node.liveNodeIds());
+        live.add(this.node.identity.nodeId);
+        await this.failOrphans(
+          and(notInArray(infraUpdateRuns.nodeId, [...live])),
+          "The node running this update stopped before it finished — unknown outcome on the host.",
+        );
+      },
+    });
+  }
+
+  private async failOrphans(where: ReturnType<typeof or>, error: string): Promise<void> {
     const orphaned = await this.db
       .update(infraUpdateRuns)
-      .set({
-        status: "failed",
-        error: "Run was interrupted by a server restart before it could finish — unknown outcome on the host.",
-        finishedAt: new Date(),
-      })
-      .where(eq(infraUpdateRuns.status, "running"))
+      .set({ status: "failed", error, finishedAt: new Date() })
+      .where(and(eq(infraUpdateRuns.status, "running"), where))
       .returning({ id: infraUpdateRuns.id });
     if (orphaned.length) {
       this.logger.warn(`reconciled ${orphaned.length} update run(s) orphaned by a previous process lifetime`);
@@ -116,7 +144,7 @@ export class InfraUpdaterService implements OnModuleInit {
 
     const [run] = await this.db
       .insert(infraUpdateRuns)
-      .values({ targetId, triggeredByUserId: user.id, rebootRequested: reboot, fullUpgrade, includePhased })
+      .values({ targetId, triggeredByUserId: user.id, rebootRequested: reboot, fullUpgrade, includePhased, nodeId: this.node.identity.nodeId })
       .returning();
     if (!run) throw new Error("Insert failed");
 

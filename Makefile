@@ -6,7 +6,7 @@ COMPOSE_PROD := bash scripts/compose.sh --prod
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
-.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore prod-up prod-down prod-logs rebuild rebuild-all
+.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore db-backup-s3 db-list-s3 db-restore-s3 prod-up prod-down prod-logs prod-migrate prod-seed rebuild rebuild-all
 
 help:
 	@echo "Common targets:"
@@ -40,9 +40,9 @@ init-env:
 	fi
 
 init-data:
-	@mkdir -p data/cockroach-1 data/cockroach-2 data/cockroach-3 data/redis data/minio data/meili data/caddy data/caddy-config backups
-	@# Redis (uid 999) and Meilisearch (uid 1001) need writable dirs; chmod is simplest.
-	@chmod 0777 data/redis data/meili 2>/dev/null || true
+	@mkdir -p data/cockroach-1 data/cockroach-2 data/cockroach-3 data/cockroach data/certs data/garage/data data/meili data/caddy data/caddy-config backups
+	@# Meilisearch (uid 1001) needs a writable dir; chmod is simplest.
+	@chmod 0777 data/meili 2>/dev/null || true
 	@echo "data/ ready (bind-mount targets created)"
 
 check-ports:
@@ -166,6 +166,16 @@ db-backup:
 	  if [ $$status -ne 0 ]; then rm -f backups/$$TS.tgz; echo "backup failed"; exit $$status; fi; \
 	  echo "wrote backups/$$TS.tgz"
 
+# The same through the object store (scripts/db-s3.sh), so a backup is not tied to
+# one node's disk: any node can restore it. `make db-backup-s3`, `make db-restore-s3
+# CONFIRM=yes`, `make db-list-s3`; add PROD=1 for the prod stack.
+db-backup-s3:
+	@bash scripts/db-s3.sh $(if $(PROD),--prod) backup
+db-list-s3:
+	@bash scripts/db-s3.sh $(if $(PROD),--prod) list
+db-restore-s3:
+	@bash scripts/db-s3.sh $(if $(PROD),--prod) restore $(if $(filter yes,$(CONFIRM)),--confirm)
+
 # Replaces the live `church` database with the backup: stops api/web/monitor,
 # restores into church_restoring, and only once that succeeded drops church and
 # renames the copy into place (a failed restore leaves church untouched), then
@@ -194,10 +204,22 @@ db-restore:
 	  echo "restored church from $(FILE)"
 
 prod-up: init-env init-data check-ports
+	@if [ "$$(bash scripts/compose.sh --prod --deploy-mode)" = cluster ]; then \
+	  echo "DEPLOY_MODE=cluster: start this node with scripts/cluster.sh (see INSTALL.md, shape C):"; \
+	  echo "  first time: start-data, init-db, garage-bootstrap, migrate, seed, then up"; \
+	  echo "  afterwards: scripts/cluster.sh up"; \
+	  exit 1; \
+	fi
 	$(COMPOSE_PROD) up -d --build
 
 prod-down:
 	$(COMPOSE_PROD) down
+
+prod-migrate:
+	$(COMPOSE_PROD) exec api node dist/scripts/migrate.js
+
+prod-seed:
+	$(COMPOSE_PROD) exec api node dist/scripts/seed.js
 
 prod-logs:
 	$(COMPOSE_PROD) logs -f --tail=200

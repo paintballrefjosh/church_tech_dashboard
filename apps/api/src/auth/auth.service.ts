@@ -1,8 +1,9 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
 import { eq, inArray } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import argon2 from "argon2";
 import { DB, type Db } from "../db/db.module";
+import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
 import {
   users,
   totpSecrets,
@@ -30,18 +31,33 @@ import {
  * that touch a user's perms (group membership / module access / user fields)
  * call `invalidateUser()` so admin edits take effect immediately.
  *
- * In-memory (per-process) rather than Redis: a single-replica deploy doesn't
- * need cross-process consistency, and the perf review's Redis recommendation
- * trades simplicity for future-proofing. When we go multi-replica, swap this
- * Map for a Redis-backed cache with the same shape.
+ * In-memory (per-process). With several nodes, an invalidation is also sent over
+ * the cluster bus so the other nodes drop their copy within about a second
+ * rather than when the 30s TTL runs out; that matters for revoking access.
  */
 const USER_CACHE_TTL_MS = 30_000;
 /** How stale a token's last_used_at may get before a request rewrites it. */
 const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
 @Injectable()
-export class AuthService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+export class AuthService implements OnModuleInit {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly bus: ClusterBus,
+  ) {}
+
+  onModuleInit(): void {
+    // Another node changed a user (or many): forget our copy. Local only, so it never echoes.
+    this.bus.onEvent((row) => {
+      if (row.room !== CACHE_ROOM) return;
+      if (row.event === "user") {
+        const id = (row.payload as { id?: string } | null)?.id;
+        if (id) this.userCache.delete(id);
+      } else if (row.event === "users") {
+        this.userCache.clear();
+      }
+    });
+  }
 
   private userCache = new Map<string, { at: number; user: AuthenticatedUser }>();
 
@@ -178,12 +194,14 @@ export class AuthService {
    */
   invalidateUser(userId: string): void {
     this.userCache.delete(userId);
+    this.bus.publish({ room: CACHE_ROOM, event: "user", payload: { id: userId } });
   }
 
   /** Drop every cached user. Use sparingly — e.g. when bulk perm changes
    *  cross every user (admin-group reseed). */
   invalidateAllUsers(): void {
     this.userCache.clear();
+    this.bus.publish({ room: CACHE_ROOM, event: "users" });
   }
 
   async getTotpSecret(userId: string): Promise<string | null> {

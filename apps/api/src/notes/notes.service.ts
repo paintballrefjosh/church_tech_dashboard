@@ -4,7 +4,7 @@ import { DB, type Db } from "../db/db.module";
 import { notes, tagAssignments } from "../db/schema";
 import type { CreateNoteInput, UpdateNoteInput, NoteListQuery } from "@church/shared";
 import { AttachmentsService } from "../attachments/attachments.service";
-import { SearchService, searchDocId } from "../search/search.service";
+import { SearchService } from "../search/search.service";
 import { ActivityService } from "../activity/activity.service";
 
 @Injectable()
@@ -15,19 +15,6 @@ export class NotesService {
     private readonly search: SearchService,
     private readonly activity: ActivityService,
   ) {}
-
-  private toSearchDoc(row: typeof notes.$inferSelect) {
-    return {
-      id: searchDocId("note", row.id),
-      kind: "note" as const,
-      resourceId: row.id,
-      ownerUserId: row.ownerUserId,
-      title: row.title || "(untitled)",
-      body: row.body,
-      extra: { color: row.color, pinned: row.pinned, archived: row.archived },
-      updatedAt: row.updatedAt.toISOString(),
-    };
-  }
 
   async list(ownerUserId: string, query: NoteListQuery) {
     const conditions: SQL[] = [eq(notes.ownerUserId, ownerUserId)];
@@ -79,7 +66,7 @@ export class NotesService {
       })
       .returning();
     if (!row) throw new Error("Insert failed");
-    void this.search.upsert(this.toSearchDoc(row));
+    void this.search.changed("note", row.id);
     void this.activity.record({
       actorUserId: ownerUserId,
       action: "note.created",
@@ -112,7 +99,7 @@ export class NotesService {
       .where(eq(notes.id, id))
       .returning();
     if (!row) throw new NotFoundException("Note not found");
-    void this.search.upsert(this.toSearchDoc(row));
+    void this.search.changed("note", row.id);
     return row;
   }
 
@@ -123,7 +110,7 @@ export class NotesService {
     // up later (future reaper job).
     await this.attachments.deleteAllForParent("note", id);
     const [row] = await this.db.delete(notes).where(eq(notes.id, id)).returning();
-    void this.search.remove(searchDocId("note", id));
+    void this.search.changed("note", id);
     return row;
   }
 

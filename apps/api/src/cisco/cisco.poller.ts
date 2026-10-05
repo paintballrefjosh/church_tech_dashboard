@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy, Inject } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit, Inject } from "@nestjs/common";
 import { and, eq, inArray, isNull, desc, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { DB, type Db } from "../db/db.module";
@@ -17,6 +17,7 @@ import { decryptSecret } from "../settings/crypto";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SettingsService } from "../settings/settings.service";
+import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { normalizePrefs } from "./cisco.service";
 import { sshShell, stripAnsi } from "./ssh";
 import {
@@ -79,9 +80,8 @@ function uptimeToSec(s: string | null | undefined): number {
 }
 
 @Injectable()
-export class CiscoPoller implements OnModuleInit, OnModuleDestroy {
+export class CiscoPoller implements OnModuleInit {
   private readonly logger = new Logger(CiscoPoller.name);
-  private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly inFlight = new Set<string>();
 
   constructor(
@@ -89,24 +89,20 @@ export class CiscoPoller implements OnModuleInit, OnModuleDestroy {
     private readonly notifications: NotificationsService,
     private readonly infra: InfraService,
     private readonly settings: SettingsService,
+    private readonly jobs: ClusterJobs,
   ) {}
 
   onModuleInit(): void {
-    this.timer = setTimeout(() => void this.tick(), 10_000);
+    // A cluster job: one node polls the switches at a time. Waits POLL_SEC after
+    // each pass finishes, like the self-rescheduling timer it replaces.
+    this.jobs.register({
+      name: "cisco-poll",
+      everyMs: POLL_SEC * 1000,
+      initialDelayMs: 10_000,
+      schedule: "fixed-delay",
+      run: () => this.pollAll(),
+    });
     this.logger.log(`Cisco poller scheduling every ${POLL_SEC}s`);
-  }
-  onModuleDestroy(): void {
-    if (this.timer) clearTimeout(this.timer);
-  }
-
-  private async tick(): Promise<void> {
-    try {
-      await this.pollAll();
-    } catch (err) {
-      this.logger.warn(`poll tick failed: ${(err as Error).message}`);
-    } finally {
-      this.timer = setTimeout(() => void this.tick(), POLL_SEC * 1000);
-    }
   }
 
   async pollAll(): Promise<void> {

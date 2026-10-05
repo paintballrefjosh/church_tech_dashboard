@@ -1,6 +1,10 @@
 /* eslint-disable no-console */
-import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
+import { acquireLease, restoreInProgress } from "@church/shared/db";
 import { db, pool } from "./db";
+import { claimDueMonitors, releaseMonitorClaim } from "./claim";
 import {
   monitors,
   monitorChecks,
@@ -19,7 +23,17 @@ const POLL_MS = parseInt(process.env.MONITOR_POLL_MS ?? "5000", 10);
 const PRUNE_KEEP_DAYS = parseInt(process.env.MONITOR_PRUNE_DAYS ?? "30", 10);
 const PRUNE_EVERY_MS = parseInt(process.env.MONITOR_PRUNE_MS ?? `${60 * 60_000}`, 10);
 
+// How long a worker holds a monitor it has taken. Longer than any probe (their own
+// timeouts are well under this), so a monitor is never probed twice at once; if a
+// worker dies mid-probe the check is late by at most this long.
+const CLAIM_SEC = parseInt(process.env.MONITOR_CLAIM_SEC ?? "60", 10);
+// Monitors taken per tick. Bounded so one worker does not take the whole fleet.
+const CLAIM_BATCH = parseInt(process.env.MONITOR_CLAIM_BATCH ?? "50", 10);
+// Identifies this worker among the others sharing the database.
+const WORKER_ID = `monitor/${hostname()}/${randomUUID().slice(0, 8)}`;
+
 // In-flight set so a slow probe doesn't get re-launched on the next tick.
+// (Claims already keep other workers off a monitor; this is the local guard.)
 const inFlight = new Set<string>();
 
 async function runProbe(kind: string, target: string, options: Record<string, unknown>): Promise<ProbeResult> {
@@ -137,6 +151,8 @@ async function applyResult(
       consecutiveFails: nextFails,
       consecutiveOks: nextOks,
       updatedAt: now,
+      // The check is recorded: give the monitor back.
+      claimedUntil: null,
     })
     .where(eq(monitors.id, monitor.id));
 
@@ -206,33 +222,21 @@ async function applyResult(
   }
 }
 
-async function selectDueMonitors() {
-  const now = new Date();
-  // A monitor is due when its next check would be before "now".
-  // lastCheckedAt + intervalSec * 1000 < now
-  return db
-    .select()
-    .from(monitors)
-    .where(
-      and(
-        eq(monitors.enabled, true),
-        or(
-          isNull(monitors.lastCheckedAt),
-          lte(
-            // Use a raw SQL fragment for the date math so we don't have to
-            // pull every row into Node just to compare.
-            sql<Date>`${monitors.lastCheckedAt} + (${monitors.intervalSec} || ' seconds')::interval`,
-            now,
-          ),
-        ),
-      ),
-    );
-}
-
 async function tick() {
-  let due: Awaited<ReturnType<typeof selectDueMonitors>>;
+  // A backup restore is rewriting the database: stand back until it is done, so nothing this
+  // worker writes (check results, incidents) can collide with it. Checks resume on the next tick.
   try {
-    due = await selectDueMonitors();
+    if (await restoreInProgress(pool)) return;
+  } catch {
+    // The database cannot be asked; the claim below will say the same, and is handled.
+  }
+  let due: Array<typeof monitors.$inferSelect>;
+  try {
+    // Take what is due. With several nodes each running a worker, only one of
+    // them gets any given monitor.
+    const ids = await claimDueMonitors(pool, CLAIM_BATCH, CLAIM_SEC);
+    if (ids.length === 0) return;
+    due = await db.select().from(monitors).where(inArray(monitors.id, ids));
   } catch (err) {
     console.error("[monitor] select failed", (err as Error).message);
     return;
@@ -246,6 +250,8 @@ async function tick() {
         await applyResult(m, result);
       } catch (err) {
         console.error(`[monitor] ${m.name} (${m.id}) probe error`, (err as Error).message);
+        // The check was not recorded: hand the monitor back so it is retried at its next interval.
+        await releaseMonitorClaim(pool, m.id).catch(() => { /* the claim lapses on its own */ });
       } finally {
         inFlight.delete(m.id);
       }
@@ -255,6 +261,11 @@ async function tick() {
 
 async function prune() {
   try {
+    // Every node runs a worker; one pruning per period is enough. The lease lasts
+    // most of the period and is not released, so the others skip until it lapses
+    // (or this worker dies).
+    const ttlSec = Math.max(60, Math.floor((PRUNE_EVERY_MS / 1000) * 0.9));
+    if (!(await acquireLease(pool, "job:monitor-prune", WORKER_ID, ttlSec))) return;
     const cutoff = new Date(Date.now() - PRUNE_KEEP_DAYS * 86_400_000);
     const r = await db.delete(monitorChecks).where(lt(monitorChecks.ts, cutoff));
     console.log(`[monitor] pruned checks older than ${PRUNE_KEEP_DAYS}d (${(r as { rowCount?: number }).rowCount ?? "?"} rows)`);
@@ -274,6 +285,9 @@ async function main() {
   // graceful shutdown
   const shutdown = async (sig: string) => {
     console.log(`[monitor] received ${sig}, shutting down`);
+    // Hand back the monitors still being probed, so another worker (or this one,
+    // restarted) takes them at once instead of after the claim lapses.
+    await Promise.all([...inFlight].map((id) => releaseMonitorClaim(pool, id).catch(() => undefined)));
     try { await pool.end(); } catch { /* ignore */ }
     process.exit(0);
   };

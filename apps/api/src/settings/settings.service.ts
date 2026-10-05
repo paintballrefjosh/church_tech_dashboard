@@ -1,7 +1,8 @@
-import { Injectable, Inject, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
 import { findKnownSetting, findTogglePrerequisite } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
+import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
 import { settings } from "../db/schema";
 import { encryptSecret, decryptSecret, isEncrypted } from "./crypto";
 
@@ -15,17 +16,42 @@ function isSecretKey(key: string): boolean {
  * per external API call. They change rarely, so a short TTL is fine; writes
  * invalidate the per-key entry immediately so admin edits feel instant.
  *
- * In-memory (per-process) rather than Redis because settings are small and
- * universally read; the consistency window is comfortably narrow even with a
- * 60-second TTL.
+ * In-memory (per-process) because settings are small and universally read. A
+ * write is also announced on the cluster bus so other nodes drop their copy
+ * within about a second instead of waiting out the 60-second TTL.
  */
 const TTL_MS = 60_000;
+/**
+ * How long the one request that refreshes an expired entry waits for the database before it
+ * serves the old value instead. Every request reads a setting (the rate limiter), so without
+ * this a database that stops answering stalls the whole API, liveness check included.
+ */
+const STALE_WAIT_MS = 1_500;
 
 @Injectable()
-export class SettingsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+export class SettingsService implements OnModuleInit {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly bus: ClusterBus,
+  ) {}
+
+  onModuleInit(): void {
+    // Another node changed a setting: forget our copy. Local only, so it never echoes.
+    this.bus.onEvent((row) => {
+      if (row.room !== CACHE_ROOM) return;
+      if (row.event === "settings") {
+        this.cache.clear();
+        return;
+      }
+      if (row.event !== "setting") return;
+      const key = (row.payload as { key?: string } | null)?.key;
+      if (key) this.cache.delete(key);
+    });
+  }
 
   private cache = new Map<string, { at: number; value: unknown }>();
+  /** One refresh per key at a time, so a stalled database holds at most one query per key. */
+  private refreshing = new Map<string, Promise<unknown>>();
 
   async list(): Promise<Array<{ key: string; value: unknown; updatedAt: Date; updatedBy: string | null }>> {
     const rows = await this.db.select().from(settings).orderBy(asc(settings.key));
@@ -35,13 +61,31 @@ export class SettingsService {
   }
 
   async get(key: string): Promise<unknown> {
-    const now = Date.now();
     const cached = this.cache.get(key);
-    if (cached && now - cached.at < TTL_MS) return cached.value;
-    const [row] = await this.db.select().from(settings).where(eq(settings.key, key)).limit(1);
-    const value = this.decryptIfNeeded(key, row?.value);
-    this.cache.set(key, { at: now, value });
-    return value;
+    if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+    const running = this.refreshing.get(key);
+    // A refresh is already waiting on the database: the old value is the answer, at once.
+    if (running && cached) return cached.value;
+    const refresh = running ?? this.refresh(key);
+    // Nothing to fall back on: wait for the database (the caller handles a failure).
+    if (!cached) return refresh;
+    // Something to fall back on: give the database a moment, then serve the old value rather than
+    // stall (the refresh carries on and lands in the cache when the database answers).
+    return Promise.race([
+      refresh.catch(() => cached.value),
+      new Promise<unknown>((resolve) => setTimeout(() => resolve(cached.value), STALE_WAIT_MS).unref()),
+    ]);
+  }
+
+  private refresh(key: string): Promise<unknown> {
+    const p = (async () => {
+      const [row] = await this.db.select().from(settings).where(eq(settings.key, key)).limit(1);
+      const value = this.decryptIfNeeded(key, row?.value);
+      this.cache.set(key, { at: Date.now(), value });
+      return value;
+    })().finally(() => this.refreshing.delete(key));
+    this.refreshing.set(key, p);
+    return p;
   }
 
   /**
@@ -82,6 +126,7 @@ export class SettingsService {
         set: { value: storedValue as never, updatedBy: byUserId, updatedAt: new Date() },
       });
     this.cache.delete(key);
+    this.bus.publish({ room: CACHE_ROOM, event: "setting", payload: { key } });
   }
 
   /**
@@ -124,6 +169,13 @@ export class SettingsService {
   async delete(key: string): Promise<void> {
     await this.db.delete(settings).where(eq(settings.key, key));
     this.cache.delete(key);
+    this.bus.publish({ room: CACHE_ROOM, event: "setting", payload: { key } });
+  }
+
+  /** Every setting may have changed at once (a backup was restored): forget all cached values, here and on the other nodes. */
+  invalidateAll(): void {
+    this.cache.clear();
+    this.bus.publish({ room: CACHE_ROOM, event: "settings" });
   }
 
   /** Drop the entire cache. Used by tests; not on any hot path. */

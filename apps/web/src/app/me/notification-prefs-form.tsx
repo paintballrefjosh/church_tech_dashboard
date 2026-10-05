@@ -68,6 +68,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "DNS primary unreachable",
     hint: "The Technitium primary's API stops answering (or recovers). Enable in Monitoring & Network settings.",
   },
+  "backup.failed": {
+    title: "Scheduled backup failed",
+    hint: "A scheduled backup could not be made. (Admins only.)",
+  },
 };
 
 interface Pref {

@@ -1907,6 +1907,10 @@ async function main() {
   const { apiTokenTests } = await import("./api-tokens.mjs");
   await apiTokenTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- backups (tests/smoke/backups.mjs) ----
+  const { backupTests } = await import("./backups.mjs");
+  await backupTests({ test, assert, fetchWithCookies, jar });
+
   // ---- summary ----
   log("");
   log(`smoke: ${pass} passed, ${fail} failed`);

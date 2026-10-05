@@ -1,11 +1,12 @@
-import { Controller, Get, Inject } from "@nestjs/common";
+import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
 import { desc, eq, gte, sql, count } from "drizzle-orm";
 import { PERMISSIONS } from "@church/shared";
 import { Public } from "../auth/public.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { DB, type Db } from "../db/db.module";
 import { monitorChecks, monitors } from "../db/schema";
-import { getMinio } from "../attachments/minio.client";
+import { getS3 } from "../attachments/s3.client";
+import { describeS3, resolveS3Config } from "../attachments/s3.config";
 import { engineFromVersion, engineLabel } from "../db/connection";
 
 type ServiceStatus = "ok" | "degraded" | "down" | "unknown";
@@ -26,6 +27,8 @@ interface ServiceReport {
 }
 
 const PROBE_TIMEOUT_MS = 2000;
+/** Outer bound for the readiness read; the query itself is cancelled by the server at 2 s. */
+const READY_TIMEOUT_MS = 3000;
 
 @Controller()
 export class HealthController {
@@ -42,13 +45,28 @@ export class HealthController {
   async readiness() {
     const checks: Record<string, string> = {};
     try {
-      await this.db.execute(sql`SELECT 1`);
+      // A real read, with a server-side timeout. `SELECT 1` is answered by the SQL layer alone,
+      // so a CockroachDB node whose cluster lost its majority would still pass it while every
+      // actual query hangs; reading a table is what notices. The timeout also cancels the query,
+      // so a stuck check cannot hold a pooled connection each time the load balancer asks.
+      await withTimeout(
+        this.db.transaction(async (tx) => {
+          await tx.execute(sql`SET LOCAL statement_timeout = 2000`);
+          await tx.execute(sql`SELECT 1 FROM cluster_nodes LIMIT 1`);
+        }),
+        READY_TIMEOUT_MS,
+        "database read timed out",
+      );
       checks.db = "ok";
     } catch (err) {
       checks.db = `error: ${(err as Error).message}`;
     }
     const ok = Object.values(checks).every((v) => v === "ok");
-    return { status: ok ? "ok" : "degraded", checks, ts: new Date().toISOString() };
+    const body = { status: ok ? "ok" : "degraded", checks, ts: new Date().toISOString() };
+    // A load balancer health-checks this (through the proxy's /healthz), so a node that
+    // cannot reach the database must answer with an error status, not 200.
+    if (!ok) throw new ServiceUnavailableException(body);
+    return body;
   }
 
   /**
@@ -110,36 +128,32 @@ export class HealthController {
 
   private async probeStorage(): Promise<ServiceReport> {
     const t0 = Date.now();
-    const endpoint = process.env.MINIO_ENDPOINT ?? "(env unset)";
-    const bucket = process.env.MINIO_BUCKET ?? "(env unset)";
+    let details: Record<string, string> = {};
+    let kind = "garage";
     try {
-      const { client, bucket: b } = getMinio();
-      const exists = await withTimeout(
-        client.bucketExists(b),
-        PROBE_TIMEOUT_MS,
-        "minio probe timeout",
-      );
+      const cfg = resolveS3Config();
+      details = describeS3(cfg);
+      // The bundled store is Garage; anything else is "an S3 store", whatever it is.
+      kind = cfg.endPoint === "garage" ? "garage" : "s3";
+      const { client, bucket } = getS3();
+      const exists = await withTimeout(client.bucketExists(bucket), PROBE_TIMEOUT_MS, "object store probe timeout");
       const latencyMs = Date.now() - t0;
       return {
         name: "Storage",
-        kind: "minio",
-        status: "ok",
+        kind,
+        status: exists ? "ok" : "degraded",
         latencyMs,
-        details: {
-          endpoint,
-          bucket,
-          "bucket exists": String(exists),
-          "probe latency": `${latencyMs} ms`,
-        },
+        message: exists ? undefined : `bucket "${bucket}" does not exist (create it, or give the credentials permission to)`,
+        details: { ...details, "bucket exists": String(exists), "probe latency": `${latencyMs} ms` },
       };
     } catch (err) {
       return {
         name: "Storage",
-        kind: "minio",
+        kind,
         status: "down",
         latencyMs: Date.now() - t0,
         message: (err as Error).message,
-        details: { endpoint, bucket, error: (err as Error).message },
+        details: { ...details, error: (err as Error).message },
       };
     }
   }

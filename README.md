@@ -30,18 +30,19 @@ Planning Center, volunteer checklists, and the rest.
 | Volunteer checklists | 3 | ready |
 | Full-text search (wiki / notes / tickets) | 3 | ready |
 | @mentions, tags, activity feed, saved views | 3 | ready |
+| Backups and restore (scheduled, downloadable, with a change report) | 3 | ready |
 | AI / LLM / MCP module | 3 | planned |
 
 ## Architecture in one paragraph
 
 Next.js 15 frontend + NestJS backend + CockroachDB (multi-master, Postgres-wire) +
-Redis + MinIO + Meilisearch, all behind Caddy on a single host port (default **:8100**,
+an S3-compatible object store (Garage) + Meilisearch, all behind Caddy on a single host port (default **:8100**,
 HTTP only — terminate HTTPS upstream). Auth.js handles Google and Microsoft Entra SSO
 plus local accounts with optional/required TOTP; OAuth providers are configured at
 runtime in the database, not in env. Access control is group-based with per-module
 tiers (`user` / `moderator` / `admin`) that resolve to the permission strings the API
 guards on. Every mutating action lands in the `audit_log` table via a NestJS
-interceptor. Realtime updates push over Socket.io with a Redis pub/sub adapter.
+interceptor. Realtime updates push over Socket.io; between app nodes they travel through the database.
 
 ## Quick start
 

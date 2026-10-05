@@ -209,6 +209,10 @@ export const infraUpdateRuns = pgTable(
     exitCode: integer("exit_code"),
     output: text("output"), // combined stdout+stderr, truncated (see MAX_OUTPUT_CHARS)
     error: text("error"), // set on failure/timeout; distinct from a non-zero exitCode
+    // The app node (NODE_ID) running this update. Boot-time reconciliation only
+    // fails rows owned by a node that is gone, so a node restarting does not
+    // clobber an update another node is still running. Null on pre-cluster rows.
+    nodeId: text("node_id"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     finishedAt: timestamp("finished_at"),
   },

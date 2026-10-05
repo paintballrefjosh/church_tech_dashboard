@@ -1,0 +1,6 @@
+{
+  "name": "@church/shared-db",
+  "private": true,
+  "main": "../dist/db/index.js",
+  "types": "../dist/db/index.d.ts"
+}

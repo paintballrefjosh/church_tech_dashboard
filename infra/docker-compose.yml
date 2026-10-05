@@ -5,6 +5,12 @@ services:
     image: caddy:2.8-alpine
     ports:
       - "${EXTERNAL_PORT:-8100}:8100"
+    environment:
+      # Named in the /healthz response header, and which peers may set X-Forwarded-For
+      # (see the Caddyfile). Strict parsing is switched on only when a list is given.
+      NODE_ID: ${NODE_ID:-main}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-0.0.0.0/0}
+      TRUSTED_PROXIES_STRICT: ${TRUSTED_PROXIES:+trusted_proxies_strict}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ../data/caddy:/data
@@ -56,46 +62,62 @@ services:
     restart: "no"
     networks: [internal]
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - ../data/redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: always
-    networks: [internal]
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  # Bundled object store (Garage, S3-compatible): only with the `bundled-s3` profile
+  # (S3_MODE=bundled, the default). With S3_MODE=external the api uses S3_ENDPOINT instead.
+  # See scripts/compose.sh, which derives the keys and RPC secret from AUTH_SECRET.
+  garage:
+    image: ${GARAGE_IMAGE:-church-garage}
+    build:
+      context: ./garage
+    profiles: [bundled-s3]
+    entrypoint: ["sh", "/usr/local/bin/garage-entrypoint.sh"]
+    command: ["garage", "-c", "/tmp/garage.toml", "server"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-churchadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-please}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?run compose via scripts/compose.sh, or export GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
+      # The config is a template; these fill it in (single node: the defaults).
+      GARAGE_RPC_PUBLIC_ADDR: ${GARAGE_RPC_PUBLIC_ADDR:-garage:3901}
+      GARAGE_REPLICATION_FACTOR: ${GARAGE_REPLICATION_FACTOR:-1}
     volumes:
-      - ../data/minio:/data
-    # MinIO console is reachable inside the compose network only.
-    # If you need it from the host, add `- "${MINIO_CONSOLE_PORT:-19090}:9001"` here.
+      - ./garage/garage.toml.tpl:/etc/garage.toml.tpl:ro
+      - ./garage/garage-render.sh:/usr/local/bin/garage-render.sh:ro
+      - ./garage/garage-entrypoint.sh:/usr/local/bin/garage-entrypoint.sh:ro
+      # Metadata is an LMDB database: it must be on LOCAL disk, never NFS/SMB. If ./data is on
+      # a network share, set GARAGE_META_DIR in .env to a local folder.
+      - ${GARAGE_META_DIR:-../data/garage/meta}:/var/lib/garage/meta
+      - ../data/garage/data:/var/lib/garage/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
+      # The ports answer before the node has a role in the layout; garage-init gives it one.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3900 && nc -z 127.0.0.1 3901"]
+      interval: 3s
       timeout: 3s
-      retries: 20
+      retries: 30
     restart: always
     networks: [internal]
 
-  minio-init:
-    image: minio/mc:latest
+  garage-init:
+    image: ${GARAGE_IMAGE:-church-garage}
+    build:
+      context: ./garage
+    profiles: [bundled-s3]
     depends_on:
-      minio:
+      garage:
         condition: service_healthy
-    entrypoint: /bin/sh
-    command:
-      - "-c"
-      - "mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-churchadmin} ${MINIO_ROOT_PASSWORD:-change-me-please} && mc mb --ignore-existing local/${MINIO_BUCKET:-church-files}"
+    entrypoint: ["sh", "/usr/local/bin/garage-init.sh"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?run compose via scripts/compose.sh, or export GARAGE_RPC_SECRET}
+      GARAGE_RPC_PUBLIC_ADDR: ${GARAGE_RPC_PUBLIC_ADDR:-garage:3901}
+      GARAGE_REPLICATION_FACTOR: ${GARAGE_REPLICATION_FACTOR:-1}
+      GARAGE_CLUSTER: ${GARAGE_CLUSTER:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run compose via scripts/compose.sh, or export S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?run compose via scripts/compose.sh, or export S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-${MINIO_BUCKET:-church-files}}
+    volumes:
+      - ./garage/garage.toml.tpl:/etc/garage.toml.tpl:ro
+      - ./garage/garage-render.sh:/usr/local/bin/garage-render.sh:ro
+      - ./garage/garage-init.sh:/usr/local/bin/garage-init.sh:ro
+      - ${GARAGE_META_DIR:-../data/garage/meta}:/var/lib/garage/meta
+      - ../data/garage/data:/var/lib/garage/data
     restart: "no"
     networks: [internal]
 
@@ -115,9 +137,14 @@ services:
     networks: [internal]
 
   api:
+    # The image name can be set (`API_IMAGE`) to run an image built once elsewhere instead
+    # of building on this node: every node must run the same build (docs/multi-node.md).
+    image: ${API_IMAGE:-church-api}
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
+      args:
+        BUILD_ID: ${BUILD_ID:-dev}
     # NET_RAW lets the IPAM scanner send ICMP echo (via busybox `ping`) for its
     # host sweep. Node can't open raw sockets itself; without this the scanner
     # silently falls back to its TCP-connect probe.
@@ -130,20 +157,28 @@ services:
       # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
       # Cockroach, or an external YugabyteDB/CockroachDB).
       DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
-      REDIS_URL: redis://redis:6379
+      # Identity of this app node, stable across container recreates (the default
+      # would be the container id). Must be unique per node in a multi-node setup;
+      # see docs/multi-node.md.
+      NODE_ID: ${NODE_ID:-main}
       MEILI_URL: http://meilisearch:7700
-      MINIO_ENDPOINT: minio:9000
+      # Set by scripts/compose.sh: the bundled Garage (keys derived from AUTH_SECRET), or
+      # your S3-compatible store from .env.
+      S3_ENDPOINT: ${S3_ENDPOINT:-garage:3900}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
     depends_on:
       cockroach-init:
         condition: service_completed_successfully
         # Only present with the bundled-db profile (DB_MODE=bundled).
         required: false
-      redis:
-        condition: service_healthy
       meilisearch:
         condition: service_healthy
-      minio-init:
+      garage-init:
         condition: service_completed_successfully
+        # Only present with the bundled-s3 profile (S3_MODE=bundled).
+        required: false
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/v1/healthz"]
       interval: 5s
@@ -153,9 +188,14 @@ services:
     networks: [internal]
 
   monitor:
+    # The image name can be set (`MONITOR_IMAGE`) to run an image built once elsewhere instead
+    # of building on this node: every node must run the same build (docs/multi-node.md).
+    image: ${MONITOR_IMAGE:-church-monitor}
     build:
       context: ..
       dockerfile: services/monitor/Dockerfile
+      args:
+        BUILD_ID: ${BUILD_ID:-dev}
     env_file: ../.env
     environment:
       NODE_ENV: development
@@ -175,9 +215,14 @@ services:
     networks: [internal]
 
   web:
+    # The image name can be set (`WEB_IMAGE`) to run an image built once elsewhere instead
+    # of building on this node: every node must run the same build (docs/multi-node.md).
+    image: ${WEB_IMAGE:-church-web}
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+      args:
+        BUILD_ID: ${BUILD_ID:-dev}
     env_file: ../.env
     environment:
       NODE_ENV: development

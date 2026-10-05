@@ -17,6 +17,7 @@ import {
   Printer,
   Server,
   Presentation,
+  DatabaseBackup,
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
@@ -105,6 +106,14 @@ const CARDS: AdminCard[] = [
     description: "Every user's API tokens: who owns them, what they can reach, when they were last used. Revoke any.",
     section: "admin",
     perm: "user:admin",
+  },
+  {
+    href: "/admin/backups",
+    label: "Backups",
+    Icon: DatabaseBackup,
+    description: "Back up all site data on a schedule or on demand, download copies, and restore (roll back) with a report of what would change.",
+    section: "admin",
+    perm: "site:admin",
   },
   {
     href: "/admin/settings/auth",

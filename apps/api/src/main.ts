@@ -7,7 +7,8 @@ import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
 import { MAX_ATTACHMENT_BYTES } from "@church/shared";
 import { AppModule } from "./app.module";
-import { RedisIoAdapter } from "./realtime/redis-io-adapter";
+import { IoAdapter } from "@nestjs/platform-socket.io";
+import { RateLimitService } from "./cluster/rate-limit.service";
 import { SettingsService } from "./settings/settings.service";
 
 const DEFAULT_RATE_LIMIT_PER_MIN = 1200;
@@ -69,6 +70,9 @@ async function bootstrap() {
       }
     },
     timeWindow: "1 minute",
+    // The general limit counts per node in memory; routes that set `shared` (the
+    // auth ones below) count in the database so the limit holds across nodes.
+    store: app.get(RateLimitService).storeClass(),
     // Allow per-route overrides via @nestjs route config.
     skipOnError: true,
   });
@@ -83,17 +87,20 @@ async function bootstrap() {
       path.includes("/auth/totp/") ||
       path.includes("/me/change-password")
     ) {
-      (route.config as { rateLimit?: { max: number; timeWindow: string } }).rateLimit = {
+      (route.config as { rateLimit?: { max: number; timeWindow: string; shared: boolean; skipOnError: boolean } }).rateLimit = {
         max: 10,
         timeWindow: "1 minute",
+        shared: true,
+        // These counters are the brute-force defence: if the database cannot
+        // count a hit, refuse the request rather than let it through uncounted.
+        skipOnError: false,
       };
     }
   });
 
-  // Socket.IO Redis adapter so emit-to-user works across API replicas.
-  const ioAdapter = new RedisIoAdapter(app);
-  await ioAdapter.connect();
-  app.useWebSocketAdapter(ioAdapter);
+  // Socket.IO's default in-process adapter: events for browsers on other nodes
+  // travel through the database (ClusterBus), not a Redis pub/sub.
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   app.setGlobalPrefix("api/v1");
   // CORS: same-origin requests through the Caddy proxy (no Origin header)
@@ -107,6 +114,12 @@ async function bootstrap() {
     origin: buildCorsOrigin(),
     credentials: true,
   });
+
+  // Run the modules' onModuleDestroy hooks on SIGTERM/SIGINT. Besides closing
+  // things cleanly, this is how a stopping node releases its cluster leases and
+  // heartbeat row so another node can take over at once (docs/multi-node.md)
+  // instead of waiting out the lease TTL.
+  app.enableShutdownHooks();
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port, "0.0.0.0");

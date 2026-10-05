@@ -3,9 +3,22 @@
 	# We listen plain HTTP on :8100 only; no auto-TLS.
 	auto_https off
 
-	# Trust X-Forwarded-* headers. Lock this down at the LB, not here.
+	# Which peers may set X-Forwarded-For / -Proto / -Host. TRUSTED_PROXIES is a
+	# space-separated list of CIDRs: set it to your load balancer's addresses so the
+	# client IP in the audit log and the rate limits is the real one and cannot be
+	# spoofed with a forged header. When it is set, compose also turns on
+	# `trusted_proxies_strict` (TRUSTED_PROXIES_STRICT), which reads the header right
+	# to left and takes the first address that is not a trusted proxy, so entries a
+	# client adds on the left are never believed.
+	#
+	# Unset, the default trusts every peer and takes the leftmost entry, as before:
+	# fine only when something upstream already overwrites X-Forwarded-For (a client
+	# can otherwise choose the IP that is logged). Strict mode is not on by default
+	# because with everything trusted it would report the proxy's own address for
+	# every user.
 	servers {
-		trusted_proxies static 0.0.0.0/0
+		trusted_proxies static {$TRUSTED_PROXIES:0.0.0.0/0}
+		{$TRUSTED_PROXIES_STRICT:}
 	}
 
 	log default {
@@ -50,6 +63,25 @@
 	# Caddy v2's default is to rewrite Host to the upstream address (e.g.
 	# web:3000). The `header_up Host {host}` lines below override that so the
 	# upstream sees the same Host the client sent.
+
+	# Load balancer health check. 200 only while this node's API can reach the
+	# database (the API's readiness answers 503 otherwise, and a dead API gives
+	# 502). It answers 503 "draining" while the flag file data/caddy/drain exists
+	# (`scripts/cluster.sh drain`), so a node can be taken out of rotation before
+	# an upgrade without touching the load balancer. The node name is returned in
+	# a header to make a check easy to attribute.
+	handle /healthz {
+		header X-Church-Node "{$NODE_ID:unknown}"
+		@draining file {
+			root /data
+			try_files drain
+		}
+		respond @draining "draining" 503
+		rewrite * /api/v1/readyz
+		reverse_proxy api:3001 {
+			header_up Host {host}
+		}
+	}
 
 	# Internal-only endpoints that hand out secrets (OAuth client_id/secret) or
 	# accept un-authenticated state mutations. The web container reaches these

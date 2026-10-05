@@ -58,7 +58,8 @@ export function PendingClient({ email }: { email: string }) {
     try {
       socket = io({
         path: "/socket.io",
-        transports: ["websocket", "polling"],
+        // WebSocket only: long-polling would need a sticky load balancer across nodes.
+        transports: ["websocket"],
         withCredentials: true,
         reconnection: true,
       });

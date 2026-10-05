@@ -1,5 +1,6 @@
-import { Module, Global, type OnModuleDestroy, Inject } from "@nestjs/common";
-import { Pool } from "pg";
+import { Module, Global, type OnApplicationShutdown, Inject } from "@nestjs/common";
+import type { Pool } from "pg";
+import { createPool } from "@church/shared/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { databaseUrl } from "./connection";
@@ -15,7 +16,7 @@ export type Db = NodePgDatabase<typeof schema>;
     {
       provide: DB_POOL,
       useFactory: () => {
-        return new Pool({ connectionString: databaseUrl(), max: 10 });
+        return createPool({ name: "api", url: databaseUrl(), max: 10 });
       },
     },
     {
@@ -26,9 +27,11 @@ export type Db = NodePgDatabase<typeof schema>;
   ],
   exports: [DB, DB_POOL],
 })
-export class DbModule implements OnModuleDestroy {
+export class DbModule implements OnApplicationShutdown {
   constructor(@Inject(DB_POOL) private readonly pool: Pool) {}
-  async onModuleDestroy() {
+  // After every module's onModuleDestroy, so those hooks can still use the
+  // database (the cluster module releases its leases there).
+  async onApplicationShutdown() {
     await this.pool.end();
   }
 }

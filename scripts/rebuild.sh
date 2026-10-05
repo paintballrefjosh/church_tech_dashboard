@@ -48,31 +48,46 @@ needs_rebuild() {
   find "$path" -type f \( \
       -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.mjs' \
       -o -name '*.json' -o -name '*.css' -o -name 'Dockerfile' -o -name '*.sql' \
+      -o -name '*.yml' -o -name 'Caddyfile' -o -name '*.sh' \
     \) -newer "$REBUILD_MARKER" -print -quit 2>/dev/null | grep -q .
 }
 
+# The proxy is not built, but its config (the Caddyfile and its environment in compose)
+# is read at start: a change needs the proxy recreated or restarted.
+proxy_changed=0
+needs_rebuild infra && proxy_changed=1
+[ "$FORCE_ALL" = 1 ] && proxy_changed=1
+
 services=()
 if [ "$FORCE_ALL" = 1 ]; then
-  services=(api web)
+  services=(api web monitor)
 else
   # apps/api OR packages/shared change → rebuild api.
   # apps/web OR packages/shared change → rebuild web.
-  # (shared is consumed by both apps, so a shared edit invalidates both.)
+  # services/monitor OR packages/shared change → rebuild monitor.
+  # (shared is consumed by all three, so a shared edit invalidates them all.)
   api_changed=0
   web_changed=0
+  monitor_changed=0
   needs_rebuild apps/api && api_changed=1
   needs_rebuild apps/web && web_changed=1
+  needs_rebuild services/monitor && monitor_changed=1
   if needs_rebuild packages/shared; then
     api_changed=1
     web_changed=1
+    monitor_changed=1
   fi
   # Dockerfile or compose changes touch everything.
-  if needs_rebuild infra || needs_rebuild apps/api/Dockerfile || needs_rebuild apps/web/Dockerfile; then
+  if needs_rebuild infra/docker-compose.yml || needs_rebuild infra/docker-compose.prod.yml \
+    || needs_rebuild apps/api/Dockerfile || needs_rebuild apps/web/Dockerfile \
+    || needs_rebuild services/monitor/Dockerfile || needs_rebuild apps/web/entrypoint.sh; then
     api_changed=1
     web_changed=1
+    monitor_changed=1
   fi
   [ "$api_changed" = 1 ] && services+=(api)
   [ "$web_changed" = 1 ] && services+=(web)
+  [ "$monitor_changed" = 1 ] && services+=(monitor)
 fi
 
 migrations_pending() {
@@ -105,8 +120,13 @@ fi
 if [ ${#services[@]} -eq 0 ]; then
   echo "==> No source changes detected since $(stat -c %y "$REBUILD_MARKER" 2>/dev/null || echo never)."
   echo "    Ensuring containers are running (no rebuild)."
-  "${COMPOSE[@]}" up -d api web
+  "${COMPOSE[@]}" up -d api web monitor
 else
   "${COMPOSE[@]}" up -d "${services[@]}"
+fi
+if [ "$proxy_changed" = 1 ]; then
+  echo "==> Proxy config changed: recreating/restarting the proxy"
+  "${COMPOSE[@]}" up -d proxy
+  "${COMPOSE[@]}" restart proxy
 fi
 touch "$REBUILD_MARKER"

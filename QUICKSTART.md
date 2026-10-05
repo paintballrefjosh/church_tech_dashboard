@@ -28,7 +28,8 @@ The default needs no changes. For any other option, edit `.env` as shown.
 | Option | Pick it when | What to do |
 |---|---|---|
 | Bundled CockroachDB, single node | You're trying it out or running a small install: everything lives in one stack | Nothing. It's the default. |
-| Bundled CockroachDB, 3 nodes | You want the production compose file. All three nodes run on this one host, so it uses more memory without real host-level resilience. | Set real values for `MINIO_ROOT_PASSWORD` and `MEILI_MASTER_KEY` in `.env`. |
+| Bundled CockroachDB, 3 nodes | You want the production compose file. All three nodes run on this one host, so it uses more memory without real host-level resilience. | Set a real `MEILI_MASTER_KEY` in `.env` (the object store's keys are derived from `AUTH_SECRET`). |
+| Several nodes, each with its own bundled CockroachDB (a cluster behind your load balancer) | You need more than one machine serving the app, with real failover | Not a quick start: follow [Shape C](./INSTALL.md#shape-c-bundled-database-on-every-node) in INSTALL.md (`DEPLOY_MODE=cluster` and `scripts/cluster.sh`). |
 | External YugabyteDB | You already run YugabyteDB, or want to avoid CockroachDB's licence terms | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:5433/church`. Create the `church` database first; on 2024.2 LTS the user must be allowed to enable `pgcrypto`. |
 | External CockroachDB | You already run a CockroachDB cluster | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:26257/church`. Create the `church` database first. |
 
@@ -54,8 +55,8 @@ Bundled 3 nodes (the production compose file):
 
 ```bash
 make prod-up
-scripts/compose.sh --prod exec api node dist/scripts/migrate.js
-scripts/compose.sh --prod exec api node dist/scripts/seed.js
+make prod-migrate
+make prod-seed
 ```
 
 If `make migrate` says the api container isn't running, give it a minute to finish
