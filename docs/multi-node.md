@@ -1,9 +1,9 @@
 # Multi-node deployment: design and work plan
 
-Status: **phases 0 (coordination foundation), 1 (Redis removed), 2 (search per node), 3 (monitor claim, database hardening), 4 (web tier and proxy), 5 (object store), 6 (Garage) and 7 (bundled cluster, shape C) are implemented and tested; phase 8 (visibility page, two-stack harness, final docs) is not.** Shape C has run on a simulated three-node cluster on one host; shape D is code-complete but unproven until phase 8's harness.
+Status: **all eight phases are implemented and tested.** Shape C (bundled database on every node) has run on a simulated three-node cluster and shape D (your own database and object store) as two nodes behind a load balancer, on CockroachDB and on YugabyteDB, with the smoke and browser suites passing through the balancer. Everything ran on one host: no real network between nodes was tried.
 Written 2026-10-04. When a phase ships, tick it in [Phases](#phases) and make sure
 INSTALL.md and CLAUDE.md describe what actually exists. Items marked **(done)** below are
-in the code; see [Phase 0 notes](#phase-0-notes), [Phase 1 notes](#phase-1-notes), [Phase 2 notes](#phase-2-notes), [Phase 3 notes](#phase-3-notes), [Phase 4 notes](#phase-4-notes), [Phase 5 notes](#phase-5-notes), [Phase 6 notes](#phase-6-notes) and [Phase 7 notes](#phase-7-notes).
+in the code; see [Phase 0 notes](#phase-0-notes), [Phase 1 notes](#phase-1-notes), [Phase 2 notes](#phase-2-notes), [Phase 3 notes](#phase-3-notes), [Phase 4 notes](#phase-4-notes), [Phase 5 notes](#phase-5-notes), [Phase 6 notes](#phase-6-notes), [Phase 7 notes](#phase-7-notes) and [Phase 8 notes](#phase-8-notes).
 
 ## Goal
 
@@ -229,12 +229,12 @@ A ticket created on node A can be missing from a search served by node B for a m
 
 | # | Change | Size |
 |---|---|---|
-| 8.1 | Admin **Cluster** page (and a Monitoring tile): nodes with last heartbeat, version, role; which node holds each job lease; DB engine and node count; object-store layout status. An alert when a node's heartbeat goes stale, raised by the other nodes. | M |
-| 8.2 | **Two-node test harness**: two compose projects on one host with different ports, a small Caddy as the "external load balancer", the smoke suite run through it, plus a read-after-write check across nodes. | L |
-| 8.3 | Unit tests: lease contention, expiry takeover and fencing; outbox claim races; realtime dedupe and ordering; cache invalidation. | M |
-| 8.4 | Failure tests: stop a node and check jobs move within one lease TTL, no mail is sent twice, realtime keeps reaching clients on the surviving node, search converges. | M |
-| 8.5 | Regression: the full existing suite passes in shape A after Redis removal, and fresh installs on Cockroach and Yugabyte pass for every new migration. | M |
-| 8.6 | Documentation: INSTALL.md (already drafted for the target shapes, see below), CLAUDE.md, `.env.example`. CLAUDE.md changes: Redis removed from the architecture diagram and stack table; the "single port 8100" and "expose nothing but Caddy" rules gain an explicit cluster-mode exception; a new rule that **no new in-process timers or in-memory shared state**, use `ClusterJobs` and the DB; the expand/contract migration rule. | M |
+| 8.1 **(done)** | Admin **Cluster** page (and a Monitoring tile): nodes with last heartbeat, version, role; which node holds each job lease; DB engine and node count; object-store layout status. An alert when a node's heartbeat goes stale, raised by the other nodes. | M |
+| 8.2 **(done)** | **Two-node test harness**: two compose projects on one host with different ports, a small Caddy as the "external load balancer", the smoke suite run through it, plus a read-after-write check across nodes. | L |
+| 8.3 **(done across phases 0-8)** | Unit tests: lease contention, expiry takeover and fencing; outbox claim races; realtime dedupe and ordering; cache invalidation. | M |
+| 8.4 **(done across phases 3-8)** | Failure tests: stop a node and check jobs move within one lease TTL, no mail is sent twice, realtime keeps reaching clients on the surviving node, search converges. | M |
+| 8.5 **(done)** | Regression: the full existing suite passes in shape A after Redis removal, and fresh installs on Cockroach and Yugabyte pass for every new migration. | M |
+| 8.6 **(done)** | Documentation: INSTALL.md (already drafted for the target shapes, see below), CLAUDE.md, `.env.example`. CLAUDE.md changes: Redis removed from the architecture diagram and stack table; the "single port 8100" and "expose nothing but Caddy" rules gain an explicit cluster-mode exception; a new rule that **no new in-process timers or in-memory shared state**, use `ClusterJobs` and the DB; the expand/contract migration rule. | M |
 
 ## Phases
 
@@ -247,13 +247,13 @@ Order matters. Each phase leaves shape A working and shippable.
 - [x] **4. Web tier** (5.1-5.5). Done 2026-10-04, see [Phase 4 notes](#phase-4-notes).
 - [x] **5. Object store** (6.1, 6.3, 6.4 partly): enough for external S3. Done 2026-10-04, see [Phase 5 notes](#phase-5-notes).
 
-**Milestone M1: shape D works** (multi-node with a remote DB and external S3) after phases 0-5.
+**Milestone M1: shape D works** (multi-node with a remote DB and external S3) after phases 0-5. Reached: proven in phase 8.
 
 - [x] **6. Garage** (6.2): single node in phase 6, clustered with phase 7. Done 2026-10-04, see [Phase 6 notes](#phase-6-notes) and [Phase 7 notes](#phase-7-notes).
 - [x] **7. Bundled cluster** (7.1-7.5). Done 2026-10-04, see [Phase 7 notes](#phase-7-notes).
-- [ ] **8. Visibility, harness, docs** (8.1-8.6; 8.2 and 8.3 should start with phase 0)
+- [x] **8. Visibility, harness, docs** (8.1-8.6). Done 2026-10-05, see [Phase 8 notes](#phase-8-notes).
 
-**Milestone M2: shape C works** after phases 6-8.
+**Milestone M2: shape C works** after phases 6-8. Reached.
 
 Phases 1, 2 and 3 can run in parallel after phase 0.
 
@@ -638,7 +638,7 @@ same in every build).
 
 **Not done / still open.**
 
-- **Milestone M1 (shape D) is code-complete but not declared supported.** Phases 0-5 now give a node everything it needs
+- **(Closed in phase 8.) Milestone M1 (shape D) was code-complete but not declared supported.** Phases 0-5 now give a node everything it needs
   to run against a remote database and an external store (`DB_MODE=external`, `S3_MODE=external`, per-node search, shared
   jobs, realtime and cache invalidation through the database, one build, a drainable `/healthz`). What is missing is the
   end-to-end proof: two full stacks behind a load balancer on one database and one store, running the smoke suite and
@@ -813,6 +813,66 @@ procedure in INSTALL.md followed from empty):
 - The simulation shares one certificate bundle between its nodes (one address), so it does not
   exercise a per-node certificate; the SAN list is checked only by the `verify-full` connections.
 
+## Phase 8 notes (visibility, shape D proof, docs)
+
+**Built.**
+
+- **Admin Cluster page** (`/admin/cluster`, `apps/api/src/cluster-admin/`, `site:admin`): every app node (live or
+  stopped, address, build, started, last check-in, how many jobs it leads, a Forget button for a dead one), which
+  node leads each background job and how often it changed hands, the database (engine, answer time), the object
+  store (reachability, and for the bundled Garage each node's up/down, zone, offered capacity and free disk from
+  Garage's admin API, which `compose.sh` now hands the API), one-off leases (a backup or restore in progress) and a
+  list of problems from the pure `findProblems` (stale node, differing builds, a job nobody leads, slow or
+  unreachable database or store, a Garage node down or draining). Refreshes every 5 s.
+- **Node watch**: the `cluster-watch` job notifies the administrators when a node stops checking in for a minute
+  and again when it returns (`cluster.node_down` notification kind, baseline in `job_state` so a new leader does
+  not repeat it, silenced by maintenance mode).
+- **Read your own writes across nodes** (`cluster/read-your-writes.ts`, `ClusterBus.flushNow` / `syncSince`): see
+  Findings. Only active when `DEPLOY_MODE=cluster`.
+- **Shape D harness** (`tests/cluster/shape-d.sh up cockroach|yugabyte | test | down`, extending `sim.sh`): a throwaway
+  CockroachDB or YugabyteDB container and a standalone Garage as "your own" services, two app nodes configured exactly
+  as INSTALL.md says (DEPLOY_MODE=cluster, DB_MODE=external, S3_MODE=external, nothing else cluster-specific), and a stock
+  Caddy round-robin balancer using the documented `/healthz` contract. `node-watch.mjs` drives the alert check.
+
+**Verified**, on both engines (all nine checks of `shape-d.sh test` pass on each):
+
+- the whole smoke suite (186) through the balancer, requests alternating between the nodes; both nodes answer
+  (6 and 6 of 12 health checks); `cross-node.mjs` (sessions across nodes, read-after-write, a 6 MB upload read from both,
+  each node's own search); backup on one node, compare and restore on the other with writes probed through it, undo,
+  upload (12 checks); node 1 stopped (10 of 10 health checks answered by node 2, the smoke suite passes again, node 1
+  rejoins); the Cluster page data (both nodes live, 20 of 20 jobs led, database and store ok, no problems); a node killed
+  for real (the admins were told 58 s after the kill, once, and again 15 s after the restart, and the problem
+  cleared from the page); and the full Playwright suite (28) through the balancer, pages, Server Actions, static files
+  and WebSockets served by whichever node the balancer picked.
+- the dev single-node stack: `make regression` (186 smoke, 28 browser), 212 unit tests; shape C was re-run after the
+  bus change (cross-node, backup-restore, failover, node death).
+
+**Findings.**
+
+- **A change was not visible on the other node.** The first run through the balancer failed 11 of 186 smoke tests:
+  after a password change on one node the next write, served by the other, was refused with 403 (its cached user still
+  had `mustChangePassword`), and the same stale window showed in TOTP enrolment, settings and a notes update. The
+  bus invalidates other nodes' caches, but only on their next poll (up to a second), and a balancer without stickiness
+  sends the very next request anywhere. Fixed with a consistency token: a mutating response first flushes its
+  invalidation events and sets a 10 s cookie holding the time; a request with that cookie makes its node poll once if
+  its last poll began before then (shared by concurrent requests, capped at 1.5 s). The web tier's proxy relays the cookie.
+  After it: 185 of 186, the last being a bearer-token call (no cookie jar, so it sees the change within about a
+  second); that check now allows for it. Unit tests cover the cookie, the shared poll, the cap and the hooks.
+- Harness bugs found on the way (all in the tests, not the app): `reset_user` used the node being stopped, `tee
+  /dev/stderr` truncated its own log, the clipboard API needs a secure context so the browser suite must address the
+  balancer as `localhost`, a smoke assertion assumed a non-empty `settings` table, `cluster.sh migrate` ran a stale
+  image (fixed in phase 7), and a single-node Cockroach container refuses a `--listen-addr` that is not local. One app fix from the shape C re-run: `garage-init` failed with "Could not reach quorum" when a node's Garage was recreated while its peers were still reconnecting; it now retries for about a minute.
+
+**Not done, and limits.**
+
+- **No Monitoring tile and no database node count.** The plan asked for both. A tile would repeat the page's data in
+  a second place; a database member count needs a Cockroach-only catalog read, which the portability rules forbid, so
+  the page shows the engine and the answer time (the bundled cluster's members are in `cluster.sh status`).
+- **Server actions** that call the API with `apiFetch` do not relay the consistency cookie to the browser (the route
+  handlers do). No current server action both changes cached state and is followed by a read on another node within a
+  second, but a new one could; CLAUDE.md says so.
+- Still one host: no latency, partitions or asymmetric failures. Real AWS S3 and virtual-hosted addressing are untried.
+
 ## Risks and open items
 
 - **Two nodes is not HA** for the bundled database. This is a property of quorum, not of
@@ -840,6 +900,7 @@ procedure in INSTALL.md followed from empty):
   Recommend one LAN or a low-latency link; do not promise geo-distribution.
 - **Clock skew.** A Cockroach node whose clock drifts past the maximum offset (500 ms by
   default) shuts itself down. Require NTP on every node. Leases use the database clock so they do not depend on it.
+  The read-your-writes cookie compares wall clocks between nodes (with a 250 ms allowance), so it relies on NTP too.
 - **Rolling upgrade skew.** Between the first and last node upgrading, a user can be served
   HTML from one build and static assets from another (4 of 279 files differ per build id, measured).
   Draining a node before upgrading it (`scripts/cluster.sh drain`) shortens the window; routing

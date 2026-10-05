@@ -53,6 +53,22 @@ write_node() {
     echo "EXTERNAL_PORT=$(ext_port "$n")"
     echo "DEPLOY_MODE=cluster"
     echo "NODE_ID=sim-$n"
+    if [[ "${SIM_SHAPE:-c}" == d ]]; then
+      # Shape D (tests/cluster/shape-d.sh): the database and the object store are somebody else's, so a
+      # node needs no cluster addresses at all, only where to find them.
+      echo "COMPOSE_PROJECT_NAME=sim$n"
+      echo "DB_MODE=external"
+      echo "DATABASE_URL=${SIM_D_DATABASE_URL:?}"
+      echo "S3_MODE=external"
+      echo "S3_ENDPOINT=${SIM_D_S3_ENDPOINT:?}"
+      echo "S3_REGION=garage"
+      echo "S3_BUCKET=church-files"
+      echo "S3_ACCESS_KEY=${SIM_D_S3_ACCESS_KEY:?}"
+      echo "S3_SECRET_KEY=${SIM_D_S3_SECRET_KEY:?}"
+      echo "API_IMAGE=church-sim-api"
+      echo "WEB_IMAGE=church-sim-web"
+      echo "MONITOR_IMAGE=church-sim-monitor"
+    else
     echo "NODE_ADDR=$SIM_HOST"
     echo "CLUSTER_PEERS=$peers"
     echo "CLUSTER_DB_PORT=$(db_port "$n")"
@@ -65,6 +81,7 @@ write_node() {
     echo "API_IMAGE=church-sim-api"
     echo "WEB_IMAGE=church-sim-web"
     echo "MONITOR_IMAGE=church-sim-monitor"
+    fi
   } >"$d/.env"
   (cd "$d" && make -s init-data && mkdir -p garage-meta)
   ensure_net "$n"

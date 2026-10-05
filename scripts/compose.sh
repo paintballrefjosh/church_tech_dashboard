@@ -186,6 +186,7 @@ GARAGE_CLUSTER=""
 GARAGE_RPC_PUBLIC_ADDR="garage:3901"
 GARAGE_REPLICATION_FACTOR=1
 GARAGE_ADMIN_TOKEN=""
+GARAGE_ADMIN_URL=""
 case "$S3_MODE" in
   bundled)
     bundled_s3_endpoint "$S3_ENDPOINT" || die "S3_MODE=bundled, but S3_ENDPOINT points somewhere else. Set S3_MODE=external to use that store, or remove S3_ENDPOINT."
@@ -204,6 +205,7 @@ case "$S3_MODE" in
     GARAGE_RPC_SECRET="${GARAGE_RPC_SECRET:-$(env_get GARAGE_RPC_SECRET)}"
     GARAGE_RPC_SECRET="${GARAGE_RPC_SECRET:-$(derive rpc)}"
     GARAGE_ADMIN_TOKEN="$(derive admin)"
+    GARAGE_ADMIN_URL="http://garage:3903"
     if [[ "$DEPLOY_MODE" == cluster ]]; then
       [[ -n "$NODE_ADDR" ]] || die "DEPLOY_MODE=cluster with S3_MODE=bundled needs NODE_ADDR in .env: the address the other nodes reach this one on."
       [[ -n "$CLUSTER_PEERS" ]] || die "DEPLOY_MODE=cluster with S3_MODE=bundled needs CLUSTER_PEERS in .env: the other nodes' addresses, comma separated."
@@ -281,7 +283,7 @@ fi
 
 export DATABASE_URL
 export S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY S3_REGION GARAGE_RPC_SECRET
-export GARAGE_CLUSTER GARAGE_RPC_PUBLIC_ADDR GARAGE_REPLICATION_FACTOR GARAGE_ADMIN_TOKEN
+export GARAGE_CLUSTER GARAGE_RPC_PUBLIC_ADDR GARAGE_REPLICATION_FACTOR GARAGE_ADMIN_TOKEN GARAGE_ADMIN_URL
 # Interpolated by infra/docker-compose.cluster.yml (harmless defaults in single mode).
 export NODE_ADDR CLUSTER_BIND_ADDR CLUSTER_DB_PORT CLUSTER_S3_RPC_PORT CLUSTER_S3_API_PORT CLUSTER_JOIN="${CLUSTER_JOIN:-}"
 # The build id of this source tree, passed to the image builds (see scripts/build-id.sh).

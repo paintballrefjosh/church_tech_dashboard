@@ -18,6 +18,7 @@ import {
   Server,
   Presentation,
   DatabaseBackup,
+  Network,
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
@@ -113,6 +114,14 @@ const CARDS: AdminCard[] = [
     Icon: DatabaseBackup,
     description: "Back up all site data on a schedule or on demand, download copies, and restore (roll back) with a report of what would change.",
     section: "admin",
+    perm: "site:admin",
+  },
+  {
+    href: "/admin/cluster",
+    label: "Cluster",
+    Icon: Network,
+    description: "App nodes and when they last checked in, which node runs each background job, and the health of the database and object store.",
+    section: "reporting",
     perm: "site:admin",
   },
   {

@@ -23,3 +23,4 @@ export * from "./schemas/ups";
 export * from "./schemas/dns";
 export * from "./schemas/api-token";
 export * from "./schemas/backup";
+export * from "./schemas/cluster";

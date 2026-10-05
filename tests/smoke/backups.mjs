@@ -52,7 +52,7 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     made.push(first.id);
     assert(first.status === "ready" && first.kind === "manual", `backup: ${JSON.stringify(first)}`);
     assert(first.sizeBytes > 1000, `size ${first.sizeBytes}`);
-    assert(first.tableCounts.users >= 1 && first.tableCounts.settings >= 1, `counts ${JSON.stringify(first.tableCounts)}`);
+    assert(first.tableCounts.users >= 1 && first.tableCounts.groups >= 1 && first.tableCounts.permissions >= 1, `counts ${JSON.stringify(first.tableCounts)}`);
     assert(first.schemaMigrations > 0, `migrations ${first.schemaMigrations}`);
     assert(!("audit_log" in first.tableCounts), "the audit log must not be in a backup");
     assert(first.createdBy && first.createdBy.email, "no creator");

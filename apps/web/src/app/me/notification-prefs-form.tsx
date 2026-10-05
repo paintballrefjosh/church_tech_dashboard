@@ -68,6 +68,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "DNS primary unreachable",
     hint: "The Technitium primary's API stops answering (or recovers). Enable in Monitoring & Network settings.",
   },
+  "cluster.node_down": {
+    title: "App node stopped",
+    hint: "In a multi node deployment, a node stops checking in (or comes back). Silenced by maintenance mode. (Admins only.)",
+  },
   "backup.failed": {
     title: "Scheduled backup failed",
     hint: "A scheduled backup could not be made. (Admins only.)",

@@ -23,6 +23,7 @@ export const NOTIFICATION_KINDS = [
   "unifi.device_offline",
   "dns.primary_unreachable",
   "backup.failed",
+  "cluster.node_down",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

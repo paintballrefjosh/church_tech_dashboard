@@ -53,13 +53,24 @@ elif $G status 2>/dev/null | grep -q "NO ROLE ASSIGNED"; then
   quiet $G layout apply --version "$(( $(layout_version || echo 0) + 1 ))"
 fi
 
-if ! $G key info "$S3_ACCESS_KEY" >/dev/null 2>&1; then
-  echo "garage-init: importing the access key"
-  quiet $G key import --yes -n church "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
-fi
-if ! $G bucket info "$BUCKET" >/dev/null 2>&1; then
-  echo "garage-init: creating bucket $BUCKET"
-  quiet $G bucket create "$BUCKET"
-fi
-quiet $G bucket allow --read --write --owner "$BUCKET" --key "$S3_ACCESS_KEY"
+# The key and bucket steps are replicated writes. Right after this node (re)starts, its peers are
+# not connected yet and Garage answers "Could not reach quorum"; keep trying for a while.
+setup() {
+  if ! $G key info "$S3_ACCESS_KEY" >/dev/null 2>&1; then
+    echo "garage-init: importing the access key"
+    quiet $G key import --yes -n church "$S3_ACCESS_KEY" "$S3_SECRET_KEY" || return 1
+  fi
+  if ! $G bucket info "$BUCKET" >/dev/null 2>&1; then
+    echo "garage-init: creating bucket $BUCKET"
+    quiet $G bucket create "$BUCKET" || return 1
+  fi
+  quiet $G bucket allow --read --write --owner "$BUCKET" --key "$S3_ACCESS_KEY"
+}
+tries=0
+until setup; do
+  tries=$((tries + 1))
+  [ "$tries" -ge 12 ] && { echo "garage-init: giving up after $tries tries" >&2; exit 1; }
+  echo "garage-init: retrying in 5s (the other Garage nodes may still be connecting)"
+  sleep 5
+done
 echo "garage-init: ready (bucket $BUCKET)"

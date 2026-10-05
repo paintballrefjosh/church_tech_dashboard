@@ -508,9 +508,10 @@ Portability rules for new SQL (verified against Cockroach 24.2, YugabyteDB
 
 The app runs as several peer nodes behind an external load balancer
 (`DEPLOY_MODE=cluster`); the plan, status and decisions are in
-[docs/multi-node.md](docs/multi-node.md). Shape C (bundled database on every node) is
-implemented and tested on a simulated cluster; shape D (remote database) is implemented
-but not yet proven end to end. New code must keep a second node working:
+[docs/multi-node.md](docs/multi-node.md). Shape C (bundled database on every node) and shape D
+(your own database and object store) have both run end to end on one host, D on CockroachDB and on
+YugabyteDB (`tests/cluster/`); real multi-host behaviour (latency, partitions) is untried. New code
+must keep a second node working:
 
 - **Periodic work goes through `ClusterJobs.register(...)`**
   (`apps/api/src/cluster/`), never a bare `setInterval`/`setTimeout` loop. Every
@@ -661,6 +662,27 @@ but not yet proven end to end. New code must keep a second node working:
   `replace-node.sh`). **Never run the production stack from this checkout on the dev host**
   (`make prod-up`, `compose.sh --prod up`): it bind-mounts the same `./data` directories as the live
   dev stack. Use the simulator, or `compose.sh --prod config` to look.
+- **A change must be visible on every node at once** (`cluster/read-your-writes.ts`). A per-process cache
+  that a write must invalidate drops the other nodes' copies through `CACHE_ROOM` (see the cache rule
+  above); the ordering guarantee is separate: in a cluster every mutating response first flushes the bus
+  (`ClusterBus.flushNow`) and sets a 10 s `church_rv` cookie, and a request carrying it makes its node run
+  a poll first (`ClusterBus.syncSince`). Without that the smoke suite fails through a load balancer
+  (password change then write: 403, settings, TOTP). Next route handlers that proxy the API must relay the
+  cookie (`forwardToApi` does); server actions calling `apiFetch` do not yet. Cookie-less clients (API
+  tokens) get "within about a second": write tests for them to allow for it.
+- **The admin Cluster page** (`apps/api/src/cluster-admin/`, `/admin/cluster`) reads the same tables the
+  coordination uses (`cluster_nodes`, `cluster_leases`) plus a database and object-store probe and, for the
+  bundled Garage, its admin API (`GARAGE_ADMIN_URL`/`TOKEN`, set by `compose.sh`). What counts as a problem
+  is the pure `findProblems` (unit-tested); a new background job appears there by registering with
+  `ClusterJobs` (its name lists the job). The `cluster-watch` job notifies admins when a node stops
+  checking in and when it returns (baseline in `job_state`, silenced by maintenance mode).
+- **Cluster tests live in `tests/cluster/`**: `sim.sh` (shape C), `shape-d.sh up|test|down` (shape D:
+  a throwaway database, a standalone Garage, two nodes, a Caddy load balancer; runs smoke and the browser
+  suite through the balancer, which is what found the read-your-writes gap), `failover.sh`,
+  `replace-node.sh`, `witness.sh`, `restore-node-death.py`, `node-watch.mjs`, `backup-restore.{sh,mjs}`,
+  `compose-config.sh`. Address the balancer as `localhost` for browser tests (the clipboard API needs a
+  secure context). Never `tee /dev/stderr` into a log (it truncates the file); never `pkill -f` a pattern
+  that appears in your own command.
 - **Raw `pool.query` returns timestamps as strings.** `drizzle()` replaces pg's
   timestamp parsers for the whole process. In raw SQL return epoch milliseconds
   (`extract(epoch FROM ts) * 1000`) instead of relying on `Date`. The

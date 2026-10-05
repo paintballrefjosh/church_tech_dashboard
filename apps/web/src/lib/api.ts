@@ -64,8 +64,12 @@ export async function forwardToApi(req: Request, upstream: string): Promise<Resp
     if (body) init.body = body;
   }
   const res = await apiFetch(`${upstream}${search}`, init);
-  return new Response(await res.text(), {
+  const out = new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
   });
+  // The API's "read your own writes" cookie (api cluster/read-your-writes.ts) must reach the browser,
+  // or the next request, which may land on another node, would not ask that node to catch up.
+  for (const c of res.headers.getSetCookie?.() ?? []) if (c.startsWith("church_rv=")) out.headers.append("set-cookie", c);
+  return out;
 }

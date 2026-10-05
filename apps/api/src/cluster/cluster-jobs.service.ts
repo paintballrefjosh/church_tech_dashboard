@@ -96,6 +96,11 @@ export class ClusterJobs implements OnModuleDestroy {
     return !!e && this.clock() < e.leaderUntil;
   }
 
+  /** Names of every job this release registers (the same on every node). */
+  jobNames(): string[] {
+    return [...this.jobs.keys()].sort();
+  }
+
   /** Names of the jobs this node currently leads. */
   leading(): string[] {
     return [...this.jobs.keys()].filter((n) => this.isLeader(n));

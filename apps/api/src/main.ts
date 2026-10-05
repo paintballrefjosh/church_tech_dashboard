@@ -9,6 +9,8 @@ import { MAX_ATTACHMENT_BYTES } from "@church/shared";
 import { AppModule } from "./app.module";
 import { IoAdapter } from "@nestjs/platform-socket.io";
 import { RateLimitService } from "./cluster/rate-limit.service";
+import { ClusterBus } from "./cluster/cluster-bus.service";
+import { registerReadYourWrites } from "./cluster/read-your-writes";
 import { SettingsService } from "./settings/settings.service";
 
 const DEFAULT_RATE_LIMIT_PER_MIN = 1200;
@@ -43,6 +45,13 @@ async function bootstrap() {
   });
 
   await app.register(fastifyCookie as never);
+  // After a change, a request that lands on another node first waits for that node to hear of it
+  // (see cluster/read-your-writes.ts). Only in a cluster.
+  registerReadYourWrites(
+    app.getHttpAdapter().getInstance() as never,
+    app.get(ClusterBus),
+    (process.env.DEPLOY_MODE ?? "").trim().toLowerCase() === "cluster",
+  );
   await app.register(fastifyMultipart as never, {
     limits: {
       fileSize: MAX_ATTACHMENT_BYTES,

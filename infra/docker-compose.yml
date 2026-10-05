@@ -168,6 +168,9 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      # Garage's admin API, for the admin Cluster page (the bundled store only; empty otherwise).
+      GARAGE_ADMIN_URL: ${GARAGE_ADMIN_URL:-}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
     depends_on:
       cockroach-init:
         condition: service_completed_successfully

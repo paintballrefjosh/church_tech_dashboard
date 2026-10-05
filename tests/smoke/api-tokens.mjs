@@ -157,6 +157,20 @@ export async function apiTokenTests({ test, assert, fetchWithCookies, jar }) {
     assert(res.status === 401, `status ${res.status}`);
   });
 
+  // A bearer request carries no cookie, so on a multi node stack (where this suite is also run, through a
+  // load balancer) it cannot ask the node it lands on to catch up with a setting changed through another
+  // node: it sees the change within about a second (the bus poll). Allow for that; on a single node the
+  // first answer is already the right one.
+  const settles = async (expected, call, seconds = 4) => {
+    let last;
+    for (let i = 0; i <= seconds * 4; i++) {
+      last = (await call()).res.status;
+      if (last === expected) return last;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return last;
+  };
+
   await test("tokens: turning auth.api_tokens_enabled off stops existing tokens", async () => {
     const live = await createToken({ name: "smoke switch", expiresInDays: 1 });
     const setEnabled = (value) =>
@@ -164,8 +178,8 @@ export async function apiTokenTests({ test, assert, fetchWithCookies, jar }) {
     try {
       const off = await setEnabled(false);
       assert(off.res.status === 200, `PUT setting status ${off.res.status}`);
-      const blocked = await bearer(live.token, "/api/v1/me");
-      assert(blocked.res.status === 401, `token while off: ${blocked.res.status}`);
+      const blocked = await settles(401, () => bearer(live.token, "/api/v1/me"));
+      assert(blocked === 401, `token while off: ${blocked}`);
       const create = await session("/api/v1/me/api-tokens", { method: "POST", ...json({ name: "while off" }) });
       assert(create.res.status === 403, `create while off: ${create.res.status}`);
     } finally {
@@ -174,8 +188,8 @@ export async function apiTokenTests({ test, assert, fetchWithCookies, jar }) {
       await session("/api/v1/settings/auth.api_tokens_enabled", { method: "DELETE" });
       await session(`/api/v1/me/api-tokens/${live.id}`, { method: "DELETE" });
     }
-    const back = await bearer(notesToken.token, "/api/v1/me");
-    assert(back.res.status === 200, `token after switching back on: ${back.res.status}`);
+    const back = await settles(200, () => bearer(notesToken.token, "/api/v1/me"));
+    assert(back === 200, `token after switching back on: ${back}`);
   });
 
   let issued;

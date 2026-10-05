@@ -41,6 +41,7 @@ import { DnsModule } from "./dns/dns.module";
 import { ApiTokensModule } from "./api-tokens/api-tokens.module";
 import { McpModule } from "./mcp/mcp.module";
 import { BackupModule } from "./backup/backup.module";
+import { ClusterAdminModule } from "./cluster-admin/cluster-admin.module";
 import { SessionGuard } from "./auth/session.guard";
 import { PermissionsGuard } from "./auth/permissions.guard";
 import { AuditInterceptor } from "./audit/audit.interceptor";
@@ -95,6 +96,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     ApiTokensModule,
     McpModule,
     BackupModule,
+    ClusterAdminModule,
   ],
   providers: [
     // First, so a change is refused before anything else looks at it while a backup is being restored.

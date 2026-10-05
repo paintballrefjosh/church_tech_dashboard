@@ -189,13 +189,15 @@ There are four supported shapes. You choose one with configuration; the app is t
 | **Single node** | **A.** One host runs everything, including CockroachDB | **B.** One host runs the app; you run the database |
 | **Multi node** (2 or more) | **C.** Every node runs the full stack including a local CockroachDB; the databases form one cluster | **D.** Every node runs the app; you run the database cluster |
 
-> **Status.** Shapes **A and B** are the long-standing single node installs. **Shape C**
-> (bundled database on every node) is implemented and has been exercised on a simulated
-> three node cluster, including a node being killed, a loss of the database majority, a
-> rolling upgrade and replacing a node that lost its disks (`tests/cluster/`). **Shape D**
-> (remote database on every node) is implemented but has not yet been proven end to end:
-> treat it as unverified until [docs/multi-node.md](docs/multi-node.md) says otherwise. The
-> design and the work breakdown are in that document.
+> **Status.** Shapes **A and B** are the long-standing single node installs. **Shapes C and D**
+> (several nodes behind your load balancer, with a bundled or your own database) are implemented
+> and have been run end to end on one host (`tests/cluster/`): C as a simulated three node cluster,
+> D as two nodes behind a load balancer sharing a database and an object store they do not run,
+> on both CockroachDB and YugabyteDB, including the full smoke and browser suites through the
+> balancer, a node being killed, a lost database majority, a rolling upgrade, replacing a node and
+> backups and restores across nodes. What that does not cover is several real machines: no network
+> latency, partitions or asymmetric failures were tried. The design and work breakdown are in
+> [docs/multi-node.md](docs/multi-node.md).
 
 ### Single node (shapes A and B)
 
@@ -426,21 +428,23 @@ TLS. The object store's RPC is authenticated and encrypted with the secret deriv
 
 #### Shape D: remote database on every node
 
-1. Provide the database cluster and a stable address in front of it, as for shape B. Create
-   the database.
-2. Provide an S3-compatible bucket and credentials (`S3_MODE=external`), or run the bundled
-   object store as for shape C (then each node also needs `NODE_ADDR` and `CLUSTER_PEERS`, and
-   steps 5 of shape C apply).
-3. On every node: `.env` with the shared secrets, `DEPLOY_MODE=cluster`, `DB_MODE=external`,
-   `DATABASE_URL`, the S3 settings and `NODE_ID`. With an external database and an external
-   object store no `CLUSTER_*` settings are needed: nodes find each other through the
-   database.
-4. Run the migrations and seed once (`make prod-migrate prod-seed`, or
-   `scripts/compose.sh --prod run --rm --no-deps api node dist/scripts/migrate.js` and
-   `.../seed.js`), start every node (`scripts/compose.sh --prod up -d --build`) and add the
-   nodes to the load balancer.
+1. Provide the database (CockroachDB or YugabyteDB) with a stable address in front of it, as for
+   shape B, and create the `church` database (and `pgcrypto` on YugabyteDB 2024.2).
+2. Provide an S3-compatible bucket and credentials (`S3_MODE=external`; the bucket must exist),
+   or run the bundled object store as for shape C (then each node also needs `NODE_ADDR` and
+   `CLUSTER_PEERS`, and step 5 of shape C applies).
+3. On every node: `.env` with the shared secrets (`AUTH_SECRET`, `MEILI_MASTER_KEY`),
+   `DEPLOY_MODE=cluster`, a different `NODE_ID`, `DB_MODE=external`, `DATABASE_URL` and the S3
+   settings. With an external database and an external object store nothing else is needed: no
+   `NODE_ADDR`, no `CLUSTER_*`; nodes find each other through the database. Set `TRUSTED_PROXIES`
+   to your load balancer's addresses.
+4. Once, on one node: `scripts/cluster.sh migrate` and `scripts/cluster.sh seed`.
+5. On every node: `scripts/cluster.sh up`. Add each node to the load balancer (health check
+   `/healthz`).
 
-This shape has not been proven end to end yet (see the status note above).
+`tests/cluster/shape-d.sh up cockroach|yugabyte` builds exactly this on one host (two app nodes,
+a throwaway database and a standalone Garage as "your" services, and a stock Caddy as the load
+balancer) and `tests/cluster/shape-d.sh test` runs everything against it.
 
 #### Certificates (shape C)
 
@@ -594,16 +598,45 @@ and `db-s3.sh` only when the old install is the production stack.
   seconds). Rejoining it is automatic: start it again. A node whose database has lost its
   majority answers `/healthz` with 503 within a few seconds, so the load balancer stops using
   it, instead of keeping it in rotation while every request hangs.
-- **Backups**: shape C backs up the database to the shared object store, so any node can
-  restore it (see [Backups](#backups)). In shape D the database backups are yours.
-- **Visibility**: `scripts/cluster.sh status` on a node shows its health check, the database
-  members and the object store nodes. An admin Cluster page (every node, its last heartbeat and
-  version, and which node runs each background job) is planned and not built yet; the data is
-  in the `cluster_nodes` and `cluster_leases` tables meanwhile.
-- **Known behaviours**: realtime updates from another node can arrive up to a second
-  later; search can lag by a second or two across nodes; the general API rate limit is per
-  node (the sign-in limit is cluster-wide); a mail may be sent by a different node than the
-  one that accepted the request.
+- **Backups**: [Backups and restores in the app](#backups-and-restores-in-the-app-admin--backups)
+  works the same in every shape (it reads and writes rows, so it does not care which database
+  or how many nodes) and is stored in the shared object store, so any node can restore it. The
+  operator-level database backups under [Backups](#backups) are for shape C (the object-store form);
+  in shape D they are your database's own tooling.
+- **Visibility**: **Admin > Cluster** lists every app node (status, address, build, when it started
+  and last checked in), which node leads each background job (and how often a job has changed hands),
+  the database (engine, answer time), the object store (and, for the bundled Garage, each of its nodes:
+  up or down, zone, disk free) and a list of problems: a node that stopped checking in, nodes on
+  different builds (expected only during a rolling upgrade), a job nobody leads, a slow or unreachable
+  database or store. It refreshes every few seconds. A node that crashes stays listed as stopped, with
+  a **Forget** button, until it returns or an hour has passed; one that is stopped cleanly removes itself.
+  The node that notices a stop notifies the administrators (the `cluster.node_down` notification kind;
+  silenced by maintenance mode), and again when the node is back. `scripts/cluster.sh status` shows the
+  same from a shell.
+- **Known behaviours**:
+  - **Your own writes are visible on every node.** After a change the answering node sends its cache
+    invalidations before it replies and sets a ten second cookie (`church_rv`); a request carrying the
+    cookie that lands on another node makes that node catch up first, so changing a password, a setting or
+    a profile is seen by the very next page whichever node serves it. A client that does not keep cookies
+    (a script with an API token) sees another node's change within about a second instead.
+  - Realtime updates from another node can arrive up to a second later; search can lag by a second or
+    two across nodes; the general API rate limit is per node (the sign-in limit is cluster-wide); a
+    mail may be sent by a different node than the one that accepted the request.
+  - Nodes' clocks must agree to within a fraction of a second (NTP): the cookie compares times.
+
+#### Trying it on one machine
+
+`tests/cluster/` simulates clusters on a single host, each node a copy of the repository with its own
+`.env`, data and compose project, so the real scripts are what runs:
+
+- `sim.sh up 3` builds shape C (three nodes), `failover.sh`, `replace-node.sh`, `witness.sh`,
+  `restore-node-death.py`, `backup-restore.sh` and `cross-node.mjs` exercise it;
+- `shape-d.sh up cockroach|yugabyte` builds shape D and `shape-d.sh test` runs the smoke and browser
+  suites through its load balancer plus the cross-node, backup, node-kill, failover and Cluster page checks;
+- `compose-config.sh` checks what `scripts/compose.sh` accepts and rejects without starting anything.
+
+Never run the production stack from a working checkout that also runs the dev stack (they share `./data`):
+use these.
 
 ## Environment variables
 

@@ -48,17 +48,27 @@ async function req(base, path, jar, init = {}) {
 const json = (r) => r.json();
 const sha = (buf) => createHash("sha256").update(buf).digest("hex");
 
-async function signIn(base) {
+async function login(base, password) {
   const jar = new Map();
   const { csrfToken } = await json(await req(base, "/api/auth/csrf", jar));
   const res = await req(base, "/api/auth/callback/credentials", jar, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ csrfToken, email: EMAIL, password: PASSWORD, callbackUrl: base + "/", json: "true" }).toString(),
+    body: new URLSearchParams({ csrfToken, email: EMAIL, password, callbackUrl: base + "/", json: "true" }).toString(),
   });
-  assert(res.status === 200 || res.status === 302, `sign-in status ${res.status}`);
-  assert([...jar.keys()].some((k) => k.includes("session-token")), "no session cookie");
-  return jar;
+  if (res.status !== 200 && res.status !== 302) return null;
+  return [...jar.keys()].some((k) => k.includes("session-token")) ? jar : null;
+}
+
+/** Signs in with the usual test password; a freshly reset test user still has the default one and must change it first. */
+async function signIn(base) {
+  const ready = await login(base, PASSWORD);
+  if (ready) return ready;
+  const fresh = await login(base, "regression-default-pwd");
+  assert(fresh, `could not sign in to ${base} (run reset-test-user in that stack first)`);
+  const changed = await req(base, "/api/v1/me/change-password", fresh, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ newPassword: PASSWORD }) });
+  assert(changed.status === 200 || changed.status === 201, `password change gave ${changed.status}`);
+  return fresh;
 }
 
 const MODE = process.env.MODE ?? "full";

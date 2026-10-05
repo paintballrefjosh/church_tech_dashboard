@@ -27,6 +27,13 @@ const INSERT_CHUNK = 200;
 /** An event bigger than this is delivered on this node only (see publish). */
 export const MAX_EVENT_BYTES = 512_000;
 const MAX_BUFFER = 5_000;
+/**
+ * Allowance for the nodes' clocks differing a little (NTP keeps them within milliseconds): a poll counts
+ * as "after" a moment only if it started this much later.
+ */
+const SYNC_SKEW_MS = 250;
+/** The longest a request waits for a forced poll before carrying on with what it has. */
+const SYNC_MAX_WAIT_MS = 1_500;
 
 /** Rooms starting with this are internal channels, not Socket.IO rooms. */
 export const INTERNAL_ROOM_PREFIX = "__";
@@ -80,6 +87,9 @@ export class ClusterBus implements OnModuleInit, OnModuleDestroy {
   private remote = new Map<string, number>();
   private stopped = false;
   private failing = false;
+  /** Wall clock (this node's) at which the latest poll began. */
+  private lastPollStartedAt = 0;
+  private inflight: Promise<boolean> | null = null;
 
   constructor(
     @Inject(BUS_STORE) private readonly store: BusStore,
@@ -177,6 +187,33 @@ export class ClusterBus implements OnModuleInit, OnModuleDestroy {
     this.presenceSoon.unref();
   }
 
+  /** Write what has been published so far, now, rather than at the next batch tick. */
+  async flushNow(): Promise<void> {
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    await this.flush();
+  }
+
+  /**
+   * Make sure events other nodes wrote before `sinceMs` (wall clock) have been delivered here.
+   * That is what lets a user read their own write on a different node: the node that took the
+   * write publishes its cache invalidations (and flushes them before answering); the user's next
+   * request, which may land on another node, carries the time of that write and calls this, so
+   * the stale cache entry is gone before it is read. Costs nothing when a poll started since; at
+   * most one extra query otherwise, shared by every request waiting. Gives up after a moment
+   * rather than hold a request up.
+   */
+  async syncSince(sinceMs: number): Promise<void> {
+    if (this.stopped) return;
+    const need = sinceMs + SYNC_SKEW_MS;
+    if (this.lastPollStartedAt > need) return;
+    const work = (async () => {
+      if (this.inflight) await this.inflight.catch(() => undefined);
+      if (this.lastPollStartedAt > need) return;
+      await this.runPoll();
+    })();
+    await Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, SYNC_MAX_WAIT_MS).unref())]);
+  }
+
   // ---- internals ----
 
   private arm(): void {
@@ -217,8 +254,30 @@ export class ClusterBus implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** The timer's poll: one round, then the next is scheduled (straight away when a page was full). */
   private async poll(): Promise<void> {
     let more = false;
+    try {
+      more = await this.runPoll();
+    } finally {
+      if (more) void this.poll();
+      else this.arm();
+    }
+  }
+
+  /** One round of fetching and delivering, one at a time. True when the page was full and there is more. */
+  private runPoll(): Promise<boolean> {
+    if (this.inflight) return this.inflight;
+    const p = this.pollOnce().finally(() => {
+      if (this.inflight === p) this.inflight = null;
+    });
+    this.inflight = p;
+    return p;
+  }
+
+  private async pollOnce(): Promise<boolean> {
+    let more = false;
+    this.lastPollStartedAt = Date.now();
     try {
       const dbNow = await this.store.now();
       // Only what happens after this node started, so a restarted node does not
@@ -249,10 +308,8 @@ export class ClusterBus implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       if (!this.failing) this.logger.warn(`event poll failed: ${(err as Error).message}`);
       this.failing = true;
-    } finally {
-      if (more) void this.poll();
-      else this.arm();
     }
+    return more;
   }
 
   private async dispatch(row: BusRow): Promise<void> {
