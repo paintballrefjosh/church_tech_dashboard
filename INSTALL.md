@@ -28,6 +28,20 @@ cd church-dashboard
 ./install.sh
 ```
 
+**Versions.** Every node must run the same code, and the installer checks it:
+
+- At the start it fetches and, if this checkout is behind its upstream, offers to update it (`git pull`,
+  fast-forward only, then it restarts itself). It will not touch a checkout with uncommitted changes or commits
+  of its own: it says so and carries on.
+- An SSH install copies the first machine's files, so every machine runs exactly its version (the build ids are
+  compared before anything is built). A `--join` on a machine whose checkout differs offers to check out the
+  first node's exact commit (`git fetch`, then fast-forward or check out that commit; never discarding
+  uncommitted changes) and carries on with the updated installer. If the first node is at a commit that was
+  never pushed, it says so: push it, or use the SSH install.
+- If the code changed between two runs (you updated, then ran `./install.sh` again), the steps that depend on
+  it (packages, the copies on the other machines, builds, migrations) are redone, and the packages are always
+  made fresh: an older package would carry an older commit.
+
 **Requirements.** It checks that `make`, `git`, `tar`, Docker (Compose 2.20 or newer) and permission to use Docker
 are there, on this machine and, for an SSH install, on every other machine. For anything missing it explains what
 to do and, **only if you agree**, can do it:
@@ -117,7 +131,8 @@ is logged to `.install.log`). `--fresh` forgets the progress.
 (each other node's object-store id), `REMOTE_MODE` (`ssh`|`manual`), `REMOTE_DIR`, `SSH_KEY`, `SSH_USER`,
 `SSH_PORT`, `SSH_SAME`, `NODE_<n>_SSH_HOST` / `_SSH_USER` / `_SSH_PORT` / `_SSH_DIR`, `REMOTE_GARAGE_META_DIR`,
 `SSH_EXTRA_OPTS` (extra `ssh -o` options), `NODE_<n>_ANS_<KEY>` (an answer for the `--join` run on node *n*),
-`AUTO_INSTALL_DEPS` / `AUTO_INSTALL_DOCKER` / `AUTO_DOCKER_GROUP` (yes/no: install missing requirements), `CONFIRM`,
+`AUTO_INSTALL_DEPS` / `AUTO_INSTALL_DOCKER` / `AUTO_DOCKER_GROUP` (yes/no: install missing requirements),
+`UPDATE_SELF` (pull a newer version first), `JOIN_UPDATE` (match the first node's commit), `JOIN_COMMIT_OK`, `CONFIRM`,
 `NOWAIT` (do not pause for the other machines), and `ENV_<NAME>` to write any `<NAME>=value` to `.env`.
 
 **What it does not do.** It does not set up your HTTPS load balancer, firewall, DNS or NTP; it does

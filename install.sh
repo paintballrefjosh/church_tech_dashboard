@@ -23,6 +23,8 @@
 # ENV_<NAME>=value answer is written to .env as <NAME>=value (for example ENV_API_IMAGE).
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+SELF="$PWD/$(basename "${BASH_SOURCE[0]}")"
+ORIG_ARGS=("$@")
 
 if (( BASH_VERSINFO[0] < 4 )); then
   echo "install.sh needs bash 4 or newer (this is $BASH_VERSION)." >&2
@@ -414,6 +416,69 @@ wait_for() { # "what" seconds cmd...
 # ---------------------------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+# Versions: every node must run the same code
+# ---------------------------------------------------------------------------------------------
+in_git_checkout() { command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; }
+
+# Start this installer again, from the (possibly changed) files on disk. The running script must not
+# be edited under bash's feet, so after an update it is replaced by a fresh run with the same arguments.
+restart_installer() {
+  say
+  ok "Restarting the installer with the updated version."
+  exec bash "$SELF" "${ORIG_ARGS[@]}"
+}
+
+# Make this checkout exactly commit $1 (the first node's), without discarding anything of yours.
+sync_to_commit() {
+  local sha=$1
+  in_git_checkout || { fail "This is not a git checkout, so it cannot be updated."; return 1; }
+  if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
+    fail "This checkout has uncommitted changes, so it was not touched. Commit or stash them (git status), then run again."
+    return 1
+  fi
+  if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+    GIT_TERMINAL_PROMPT=0 git fetch --quiet origin >>"$LOG" 2>&1 || true
+  fi
+  if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+    GIT_TERMINAL_PROMPT=0 git fetch --quiet origin "$sha" >>"$LOG" 2>&1 || true
+  fi
+  if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+    fail "This checkout does not have commit ${sha:0:10} even after fetching. The first node may be at a commit that was never pushed: push it there, or use the SSH install, which copies the first node's files."
+    return 1
+  fi
+  if git merge-base --is-ancestor HEAD "$sha" 2>/dev/null; then
+    git merge --quiet --ff-only "$sha" >>"$LOG" 2>&1 || { fail "Could not fast-forward to ${sha:0:10} (see $LOG)."; return 1; }
+  else
+    warn "This checkout has commits that commit ${sha:0:10} does not: switching to it leaves them on their branch."
+    git checkout --quiet --detach "$sha" >>"$LOG" 2>&1 || { fail "Could not check out ${sha:0:10} (see $LOG)."; return 1; }
+  fi
+  ok "This checkout is now at ${sha:0:10}"
+}
+
+# At the start: is a newer version of the installer available? Offer to pull it. Quiet and quick when
+# there is no network, no upstream, or nothing new.
+offer_self_update() {
+  in_git_checkout || return 0
+  git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || return 0
+  GIT_TERMINAL_PROMPT=0 timeout 10 git fetch --quiet >>"$LOG" 2>&1 || return 0
+  local behind; behind=$(git rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)
+  [[ $behind =~ ^[0-9]+$ ]] && (( behind > 0 )) || return 0
+  info "A newer version is available: $behind new commit(s) on $(git rev-parse --abbrev-ref '@{u}')."
+  if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
+    warn "This checkout has uncommitted changes, so it cannot be updated automatically (git pull)."
+    return 0
+  fi
+  if ! git merge-base --is-ancestor HEAD '@{u}' 2>/dev/null; then
+    warn "This checkout has commits of its own, so it cannot be fast-forwarded: update it by hand."
+    return 0
+  fi
+  ask_yn UPDATE_SELF "Update to the latest version now (git pull)? Every other machine must run the same version, so update this one first." yes
+  [[ $(ans UPDATE_SELF) == yes ]] || return 0
+  git merge --quiet --ff-only '@{u}' >>"$LOG" 2>&1 || { fail "Could not update (see $LOG). Carrying on with this version."; return 0; }
+  restart_installer
+}
+
 # ---------------------------------------------------------------------------------------------
 # Requirements: check, and with your consent install what is missing (this machine or, over SSH, another)
 # ---------------------------------------------------------------------------------------------
@@ -1157,11 +1222,29 @@ st_release_peers() {
   pause "The cluster is ready. Now press Enter on each of the other nodes so they start their application, then continue here."
 }
 
+# A package records the commit it was made at, and the remote copies and images were made from the code of
+# the time. After the code changed (a git pull between two runs), those steps must be done again.
+forget_stale_progress() {
+  local now old
+  now=$(bash scripts/build-id.sh 2>/dev/null || echo dev)
+  old=$(sed -n 's/^buildid://p' "$STATE" 2>/dev/null | tail -n 1)
+  if [[ -n $old && $old != "$now" ]]; then
+    warn "The code changed since an earlier run ($old -> $now): redoing the steps that depend on it."
+    local st
+    for st in packages remote-prepare remote-start build migrate seed up remote-finish release health; do sed -i "/^$st\$/d" "$STATE"; done
+  fi
+  # packages are cheap and hold the secrets: always make fresh ones
+  sed -i '/^packages$/d' "$STATE" 2>/dev/null
+  sed -i '/^buildid:/d' "$STATE" 2>/dev/null
+  echo "buildid:$now" >>"$STATE"
+}
+
 run_first_node() {
   setup_compose
   run_stage prep "Preparing" st_prep
   run_stage ports "Checking ports" st_ports
   bundled_db && run_stage certs "Creating certificates" st_certs
+  forget_stale_progress
   run_stage packages "Packaging the other nodes" st_packages
   if remote_ssh; then
     run_stage remote-prepare "Connecting to the other machines and copying what they need" st_remote_prepare
@@ -1253,6 +1336,7 @@ copy_checkout() { # node
 remote_answers() { # node -> stdout
   local i=$1 k
   echo "NOWAIT=yes"
+  echo "JOIN_COMMIT_OK=yes"   # the files were copied from here and their build id was compared
   echo "EXTERNAL_PORT=${ANS[NODE_${i}_ANS_EXTERNAL_PORT]:-$(ans EXTERNAL_PORT)}"
   local meta=${ANS[NODE_${i}_ANS_GARAGE_META_DIR]:-$(ans REMOTE_GARAGE_META_DIR)}
   [[ -z $meta ]] || echo "GARAGE_META_DIR=$meta"
@@ -1357,10 +1441,22 @@ st_join_env() {
   [[ -f $tmp/.env && -f $tmp/COMMIT ]] || { fail "$JOIN_PKG is not a node package from ./install.sh."; return 1; }
   local want have_commit
   want=$(cut -d' ' -f1 "$tmp/COMMIT"); have_commit=$(git rev-parse HEAD 2>/dev/null || echo unknown)
-  if [[ $want != unknown && $want != "$have_commit" ]]; then
+  if [[ $want != unknown && $want != "$have_commit" && $(ans JOIN_COMMIT_OK) != yes ]]; then
     warn "This checkout is at ${have_commit:0:10} but the first node is at ${want:0:10}. Every node must run the same build."
-    ask_yn JOIN_COMMIT_OK "Continue anyway?" no
-    [[ $(ans JOIN_COMMIT_OK) == yes ]] || { fail "Check out the same commit (git checkout $want) and run again."; return 1; }
+    if in_git_checkout && { [[ -t 0 ]] || have JOIN_UPDATE; }; then
+      ask_yn JOIN_UPDATE "Make this checkout match the first node's version now (git fetch, then check out ${want:0:10})?" yes
+      if [[ $(ans JOIN_UPDATE) == yes ]]; then
+        rm -rf "$tmp"
+        sync_to_commit "$want" || return 1
+        restart_installer
+      fi
+    fi
+    if [[ ! -t 0 ]] && ! have JOIN_COMMIT_OK; then
+      fail "Not continuing: the versions differ and there is no terminal to ask. Match them (git fetch && git checkout $want) or set JOIN_COMMIT_OK=yes."
+      return 1
+    fi
+    ask_yn JOIN_COMMIT_OK "Continue with the different version anyway?" no
+    [[ $(ans JOIN_COMMIT_OK) == yes ]] || { fail "Check out the same commit (git fetch && git checkout $want) and run again."; return 1; }
   fi
   [[ $(cut -d' ' -f2 "$tmp/COMMIT") != dirty ]] || warn "The first node had uncommitted changes, so a different checkout may build differently."
   if [[ -f .env ]]; then cp -p .env ".env.bak-$(date +%Y%m%d-%H%M%S)"; ok "The existing .env was saved as .env.bak-*"; fi
@@ -1538,6 +1634,8 @@ if [[ -n $CHECK_REMOTE ]]; then
   remote_preflight "$CHECK_REMOTE" || exit 1
   exit 0
 fi
+
+[[ -n $JOIN_PKG || -n $PRESET_FILE ]] || offer_self_update
 
 if [[ -n $PRESET_FILE ]]; then
   :

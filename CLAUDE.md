@@ -739,6 +739,14 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   re-run, and a stage that needs another machine uses `pause` (skipped by `NOWAIT=yes` in tests). A single
   server follows the cluster order, not `make up`: the API cannot start on an empty database, so it starts
   the database, runs migrate and seed in one-off containers (`run --rm --no-deps api`), then `up`.
+- **Versions are checked, and a mismatch is offered a fix, never forced** (`offer_self_update`, `sync_to_commit`,
+  `restart_installer`, `forget_stale_progress`): a newer upstream is offered as a fast-forward `git pull`; a `--join` whose
+  commit differs from the package's is offered `git fetch` + fast-forward/checkout of THAT commit (not "latest": the first
+  node's exact version); both refuse a checkout with uncommitted changes. After changing files the installer `exec`s
+  itself again (`ORIG_ARGS`, `SELF`): never carry on running a script that was replaced under bash. A package records its
+  commit, so packages are rebuilt on every first-node run and the code-dependent stages are dropped when
+  `scripts/build-id.sh` changed since the state file's `buildid:` line. SSH installs set `JOIN_COMMIT_OK=yes` remotely
+  because the files were copied and the build ids compared. `tests/installer/update.sh` uses real throwaway git repos.
 - **Missing requirements are offered, never silently installed** (`ensure_requirements`, `FACTS_SCRIPT`, `priv_exec`):
   one facts script (package manager, root/sudo state, what is missing) runs locally or over ssh; make/git/tar go in
   through the package manager after a yes/no (`AUTO_INSTALL_DEPS`), Docker only through Docker's own script after a
@@ -761,7 +769,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).
