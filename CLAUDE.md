@@ -731,6 +731,11 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   Backspace/arrow keys edit the answer; a bare `read` stores the erase key as a literal `^H`. Saying no at the
   review re-asks everything that was asked at a prompt (`ASKED`); answers from `--answers` are kept.
   `tests/installer/pty-edit.py` types a typo and fixes it with both `^H` and DEL in a real pty.
+- **`sslmode` means something different in this app than in psql.** pg 8 treats `require`/`prefer`/`verify-ca` as
+  `verify-full`; only `no-verify` skips the check. The wizard offers verify-full / no-verify / disable, its connection test
+  translates the URL for psql so it behaves like the app (`test_url_for_psql`: a test that passes where the app fails is
+  worse than none), and an untrusted certificate offers `no-verify` (never applied silently). An old saved `DB_SSL=require`
+  becomes verify-full. `tests/installer/db-tls.sh` runs it against a PostgreSQL container with a self-signed certificate.
 - **Values go into `.env` unquoted**, so `v_envsafe` rejects whitespace, quotes, backslashes, backticks, `#`
   and `$`; the database URL's user and password are percent-encoded (`urlenc`), because compose interpolates
   `$` in env files.
@@ -772,7 +777,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).

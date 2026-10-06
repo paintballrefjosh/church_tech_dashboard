@@ -62,6 +62,7 @@ FRESH=0
 DEPS_ONLY=0
 CHECK_REMOTE=""
 SSH_TEST=""
+CHECK_DB=0
 JOIN_PKG=""
 PRESET_FILE=""
 
@@ -678,15 +679,32 @@ url_with_host() { # url host:port
   printf '%s%s%s%s' "$scheme" "$userinfo" "$2" "$tail"
 }
 
-test_one_host() { # full url with ONE host; prints the first line of output, returns psql's status
-  local script
-  script=$'psql "$DBURL" -Atc "select version()" || exit 1\npsql "$DBURL" -Atc "select count(*) from pg_extension where extname = \'pgcrypto\'" 2>/dev/null || echo skip'
-  DBURL=$1 docker run --rm -e DBURL -e PGCONNECT_TIMEOUT=10 postgres:16-alpine sh -c "$script" 2>&1
+# The app's Postgres driver (pg 8) reads sslmode differently from psql: require, prefer and verify-ca all mean
+# verify-full (the certificate must be trusted and name the host); only no-verify means "encrypt, do not check".
+# The connection test must behave like the app, or it passes where the app then fails, so translate for psql.
+test_url_for_psql() { # url -> the url as psql must see it to behave like the app
+  local url=$1 mode
+  mode=$(sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$url")
+  case $mode in
+    no-verify) sed 's/\([?&]sslmode=\)no-verify/\1require/' <<<"$url" ;;
+    require|prefer|verify-ca|verify-full)
+      url=$(sed "s/\([?&]sslmode=\)$mode/\1verify-full/" <<<"$url")
+      [[ $url == *sslrootcert=* ]] || url="$url&sslrootcert=system"
+      printf '%s' "$url" ;;
+    *) printf '%s' "$url" ;;
+  esac
 }
 
+test_one_host() { # full url with ONE host; prints the output, returns psql's status
+  local script
+  script=$'psql "$DBURL" -Atc "select version()" || exit 1\npsql "$DBURL" -Atc "select count(*) from pg_extension where extname = \'pgcrypto\'" 2>/dev/null || echo skip'
+  DBURL=$(test_url_for_psql "$1") docker run --rm -e DBURL -e PGCONNECT_TIMEOUT=10 postgres:16-alpine sh -c "$script" 2>&1
+}
+
+DB_TEST_OUT=""   # what the failing host(s) said, for deciding what to suggest
 test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
   local url hostline out rc up=0 total=0 ver first_out=''
-  url=$(ans DATABASE_URL)
+  url=$(ans DATABASE_URL); DB_TEST_OUT=""
   logrun "Fetching a small postgres client image" docker pull -q postgres:16-alpine || return 1
   while IFS= read -r hostline; do
     [[ -n $hostline ]] || continue
@@ -697,6 +715,7 @@ test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
       ok "$hostline answers"
     else
       fail "$hostline did not answer:"
+      DB_TEST_OUT+="$out"$'\n'
       printf '%s\n' "$out" | sed -E 's#postgres(ql)?://[^ ]*#<url hidden>#g; s/^/      /' >&2
     fi
   done < <(url_hosts "$url")
@@ -712,6 +731,22 @@ test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
   return 0
 }
 
+# The URL from the pieces asked for: every host (the default port for those without one), the login, the
+# database and the encryption choice.
+build_db_url() {
+  local hostlist='' entry
+  IFS=, read -ra entries <<<"$(ans DB_HOST)"
+  for entry in "${entries[@]}"; do
+    entry=${entry// /}
+    [[ $entry == *:* ]] || entry="$entry:$(ans DB_PORT)"
+    hostlist+="${hostlist:+,}$entry"
+  done
+  printf 'postgresql://%s:%s@%s/%s?sslmode=%s' "$(urlenc "$(ans DB_USER)")" "$(urlenc "$(ans DB_PASSWORD)")" "$hostlist" "$(urlenc "$(ans DB_NAME)")" "$(ans DB_SSL)"
+}
+
+# A certificate the containers do not trust: the failure that has an easy, informed way out.
+db_cert_untrusted() { grep -qiE 'certificate verify failed|self[- ]signed|unable to get (local )?issuer|certificate has expired|SSL error' <<<"$DB_TEST_OUT"; }
+
 ask_database() {
   heading "Database"
   ask_choice DB_MODE "Where should the database live?" bundled \
@@ -722,7 +757,7 @@ ask_database() {
   while :; do
     ask_choice DB_INPUT "How do you want to give the connection details?" parts \
       "parts|Fill in host, port, user and password|The installer builds the connection URL for you." \
-      "url|Paste a connection URL|postgresql://user:password@host:5433/church?sslmode=require (several hosts: host1:5433,host2:5433,host3:5433)"
+      "url|Paste a connection URL|postgresql://user:password@host:5433/church?sslmode=verify-full (several hosts: host1:5433,host2:5433,host3:5433)"
     if [[ $(ans DB_INPUT) == parts ]]; then
       ask_choice DB_ENGINE "Which database is it?" yugabyte \
         "yugabyte|YugabyteDB|YSQL, port 5433 by default" \
@@ -735,24 +770,30 @@ ask_database() {
       ask_text DB_NAME "Database name (it must already exist)" church v_envsafe
       ask_text DB_USER "Database user" church v_envsafe
       ask_secret DB_PASSWORD "Database password" v_nonempty
-      ask_choice DB_SSL "Encrypt the connection?" require \
-        "require|Yes, encrypted (certificate not verified)|Recommended when the database speaks TLS." \
-        "disable|No|Only on a network you trust."
-      local hostlist='' entry
-      IFS=, read -ra entries <<<"$(ans DB_HOST)"
-      for entry in "${entries[@]}"; do
-        entry=${entry// /}
-        [[ $entry == *:* ]] || entry="$entry:$(ans DB_PORT)"
-        hostlist+="${hostlist:+,}$entry"
-      done
-      ANS[DATABASE_URL]="postgresql://$(urlenc "$(ans DB_USER)"):$(urlenc "$(ans DB_PASSWORD)")@$hostlist/$(urlenc "$(ans DB_NAME)")?sslmode=$(ans DB_SSL)"
+      ask_choice DB_SSL "Encrypt the connection?" verify-full \
+        "verify-full|Yes, and check the certificate|The safe choice. The database's certificate must be from a CA the containers trust (a public one, such as Let's Encrypt) and name the host you gave." \
+        "no-verify|Yes, but do not check the certificate|For a database with a self-signed certificate or a private CA. The traffic is encrypted, but a machine pretending to be the database would not be noticed." \
+        "disable|No encryption|Only on a network you trust."
+      ANS[DATABASE_URL]=$(build_db_url)
     else
       ask_text DATABASE_URL "Connection URL" "" v_url
+      case $(sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$(ans DATABASE_URL)") in
+        require|prefer|verify-ca)
+          warn "sslmode=$(sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$(ans DATABASE_URL)") means VERIFY the certificate in this app (unlike psql). For encryption without checking it, use sslmode=no-verify." ;;
+      esac
     fi
     if (( DRY_RUN )); then break; fi
     ask_yn DB_TEST "Test the connection now? (starts a small postgres client container)" yes
     [[ $(ans DB_TEST) == yes ]] || break
     test_db && break
+    if [[ $(ans DB_INPUT) == parts && $(ans DB_SSL) == verify-full ]] && db_cert_untrusted; then
+      info "The database answered, but its certificate is not trusted (self-signed, or from a private CA)."
+      ask_yn DB_SSL_FALLBACK "Encrypt the connection without checking the certificate instead?" yes
+      if [[ $(ans DB_SSL_FALLBACK) == yes ]]; then
+        ANS[DB_SSL]=no-verify; ANS[DATABASE_URL]=$(build_db_url)
+        test_db && break
+      fi
+    fi
     ask_choice DB_FAIL "What now?" again \
       "again|Enter the details again|" \
       "continue|Continue anyway|You can fix the database later and run ./install.sh again." \
@@ -761,7 +802,7 @@ ask_database() {
       continue) break ;;
       abort) die "Stopped. Nothing has been started." ;;
     esac
-    forget DB_INPUT DB_ENGINE DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD DB_SSL DATABASE_URL DB_TEST DB_FAIL
+    forget DB_INPUT DB_ENGINE DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD DB_SSL DATABASE_URL DB_TEST DB_FAIL DB_SSL_FALLBACK
   done
 }
 
@@ -1639,6 +1680,7 @@ while (( $# )); do
     --dry-run) DRY_RUN=1; shift ;;
     --fresh) FRESH=1; shift ;;
     --check-requirements) DEPS_ONLY=1; shift ;;
+    --check-database) CHECK_DB=1; shift ;;
     --ssh-test) SSH_TEST=${2:-}; [[ $SSH_TEST =~ ^[0-9]+$ ]] || die "--ssh-test needs a node number (with --answers)."; shift 2 ;;
     --check-remote) CHECK_REMOTE=${2:-}; [[ $CHECK_REMOTE =~ ^[0-9]+$ ]] || die "--check-remote needs a node number (with --answers)."; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -1651,8 +1693,15 @@ say "This asks a few questions, then installs. Press Ctrl-C at any time; running
 
 (( FRESH )) && rm -f "$STATE"
 [[ -z $PRESET_FILE ]] || load_answers "$PRESET_FILE"
+if [[ $(ans DB_SSL) == require ]]; then
+  warn "DB_SSL=require is now verify-full (that is what the app always did with it); use no-verify to encrypt without checking the certificate."
+  ANS[DB_SSL]=verify-full
+fi
 preflight
 (( DEPS_ONLY )) && { ok "Everything this installer needs is here."; exit 0; }
+if (( CHECK_DB )); then   # ask the database questions (and test the connection), print the URL, stop
+  ask_database; printf 'DATABASE_URL=%s\n' "$(ans DATABASE_URL)"; exit 0
+fi
 if [[ -n $SSH_TEST ]]; then   # test hook: open the shared connections as a resumed run would, then use them
   ANS[NODES]=$SSH_TEST
   remote_connect_all || exit 1

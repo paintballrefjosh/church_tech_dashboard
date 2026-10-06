@@ -63,7 +63,7 @@ What it asks, in order:
 | Section | Questions |
 |---|---|
 | How | One server, or several behind a load balancer. For several: is this the first machine, or are you adding one (`--join`)? |
-| Database | Bundled CockroachDB, or your own YugabyteDB/CockroachDB: host(s), port, name, user, password, encryption (or paste a URL). For a database cluster you list **every node** (comma separated); the app then connects to whichever answers and fails over by itself, with no load balancer in between. It offers to test the login on each host with a small `postgres` container and tells you which engine answered. |
+| Database | Bundled CockroachDB, or your own YugabyteDB/CockroachDB: host(s), port, name, user, password, encryption (verified, not verified, or none; or paste a URL). For a database cluster you list **every node** (comma separated); the app then connects to whichever answers and fails over by itself, with no load balancer in between. It offers to test the login on each host with a small `postgres` container and tells you which engine answered. |
 | File storage | Bundled Garage, or your own S3-compatible store: endpoint, bucket, keys, region, addressing style. On a network file system (NFS/SMB) it asks for a local folder for Garage's metadata, which must be on local disk. |
 | Network | The port to serve on, and (several servers, or behind a proxy) your load balancer's addresses for `TRUSTED_PROXIES`. |
 | Stack (one server) | The production stack (three database containers when the database is bundled) or the standard one (one). It suggests the standard one below 6 GB of memory. |
@@ -123,7 +123,7 @@ is logged to `.install.log`). `--fresh` forgets the progress.
 **Answer keys** (for `--answers`; values are the menu's value, `yes`/`no`, or text):
 `SETUP` (`single`|`cluster`), `CLUSTER_ROLE` (`first`|`join`), `DB_MODE` (`bundled`|`external`),
 `DB_INPUT` (`parts`|`url`), `DB_ENGINE`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
-`DB_SSL` (`require`|`disable`), `DATABASE_URL`, `DB_TEST`, `S3_MODE`, `GARAGE_META_DIR`, `S3_ENDPOINT`,
+`DB_SSL` (`verify-full`|`no-verify`|`disable`), `DB_SSL_FALLBACK`, `DATABASE_URL`, `DB_TEST`, `S3_MODE`, `GARAGE_META_DIR`, `S3_ENDPOINT`,
 `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PATH_STYLE`, `EXTERNAL_PORT`, `BEHIND_LB`,
 `TRUSTED_PROXIES`, `STACK` (`production`|`standard`), `NODES`, `WITNESS`, `NODE_<n>_ID`, `NODE_<n>_ADDR`
 (`host`, or `host:dbport:rpcport` when several nodes share one machine), `NODE_<n>_ROLE`
@@ -198,7 +198,14 @@ service health. For an external database:
   `gen_random_uuid()`. `make migrate` enables it if the user is allowed to; otherwise
   have the DBA run `CREATE EXTENSION IF NOT EXISTS pgcrypto;` once. Newer YugabyteDB
   releases have it built in.
-- **TLS.** Put the options in the URL:
+- **TLS: this app does not read `sslmode` the way `psql` does.** `require`, `prefer` and `verify-ca` all mean
+  `verify-full` here: the certificate must be trusted and name the host. So a database with a **self-signed
+  certificate or a private CA** fails with `SELF_SIGNED_CERT_IN_CHAIN` (or `DEPTH_ZERO_SELF_SIGNED_CERT`) even though
+  `psql ... sslmode=require` connects. Your choices: `sslmode=verify-full` (the safe one, for a certificate from a CA
+  the containers trust), **`sslmode=no-verify`** (encrypted, but the certificate is not checked, so an impostor would
+  not be noticed: for a self-signed or private-CA database on a network you control), or `sslmode=disable`. The
+  guided installer asks which, tests the connection exactly the way the app will, and offers `no-verify` when a
+  certificate is untrusted. Put the options in the URL:
   `postgresql://user:pass@db.example.org:26257/church?sslmode=verify-full&sslrootcert=/certs/ca.crt`
   (`sslcert` and `sslkey` for client certificates). Mount the certificate files into the
   `api`, `web` and `monitor` containers. Use `sslmode=verify-full` and name the server by
@@ -208,7 +215,7 @@ service health. For an external database:
   network only.
 - **A database that is a cluster: list every node in the URL.** Put all the hosts in the one
   `DATABASE_URL`, comma separated, the same syntax `psql` accepts:
-  `postgresql://user:pass@yb1:5433,yb2:5433,yb3:5433/church?sslmode=require`. Each new connection
+  `postgresql://user:pass@yb1:5433,yb2:5433,yb3:5433/church?sslmode=verify-full`. Each new connection
   goes to the host with the fewest connections from that process, so the load spreads over the nodes;
   a host that refuses or does not answer is left out for 5 seconds (doubling to 60 on repeated
   failures) and the attempt is retried on another; a process that starts while one node is down
