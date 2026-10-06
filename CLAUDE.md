@@ -198,8 +198,9 @@ an A record when that A is deleted; a remove that finds nothing counts as done.
 A run that would remove >20 records (or >25% of the managed set past 5) stops
 unless forced. Triggers: end of each IPAM scanner pass and IPAM edits
 (debounced), a 15-minute timer, and "Sync now"; background runs only while
-`dns.sync_enabled` is on. One run at a time via an in-process guard (single API
-process).
+`dns.sync_enabled` is on. One run at a time across all nodes via the `dns-sync` lease
+(`LeaseService.acquireMutex`, 120 s, renewed while it works); a second
+request gets `AlreadyRunningError`.
 
 **DNS health** (`dns/dns.health.ts`): "Create health monitors" on the Overview
 adds one `dns` uptime monitor per node (cluster node IPs, or typed in) that

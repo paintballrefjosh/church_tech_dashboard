@@ -3,7 +3,7 @@ node_modules/
 dist/
 .next/
 .turbo/
-.tsbuildinfo
+*.tsbuildinfo
 *.log
 .DS_Store
 
