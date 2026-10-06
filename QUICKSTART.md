@@ -21,6 +21,11 @@ cd church-dashboard
 make init-env      # writes .env with a random AUTH_SECRET
 ```
 
+> **Prefer questions to editing files?** Run `./install.sh` from here. It asks the same things as
+> steps 3 and 4 (database, file storage, port, one server or several), writes `.env`, starts
+> everything, migrates and seeds, and prints the address to open. Then skip to
+> [step 5](#5-sign-in). Details: [Guided installer](./INSTALL.md#guided-installer).
+
 ## 3. Pick a database
 
 The default needs no changes. For any other option, edit `.env` as shown.

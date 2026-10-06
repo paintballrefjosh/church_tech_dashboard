@@ -32,3 +32,9 @@ test-results/
 # rebuild script markers (see scripts/rebuild.sh)
 .last-rebuild
 .last-migrate
+
+# guided installer (install.sh): saved answers (contain secrets), progress, log, replaced .env copies
+.install-answers
+.install-state
+.install.log
+.env.bak-*

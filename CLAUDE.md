@@ -80,6 +80,7 @@ services/
   monitor/    ICMP/TCP/HTTP probe worker (its own compose service)
 packages/
   shared/     Zod schemas, modules/permissions/settings catalogues, audit types
+install.sh                   guided installer (wizard; every deployment shape, see ## Guided installer)
 infra/
   docker-compose.yml         dev (bundled single Cockroach node, or external DB)
   docker-compose.prod.yml    prod (bundled 3-node Cockroach, or external DB)
@@ -87,6 +88,8 @@ infra/
 tests/
   e2e/        Playwright suite (runs against the live compose stack)
   smoke/      API/HTTP regression suite (Node, runs against live stack)
+  cluster/    multi-node harnesses (sim.sh, shape-d.sh, failover, backup-restore ...)
+  installer/  install.sh tests: dry-run.sh (no docker), e2e.sh (real installs in throwaway copies)
 ```
 
 ## Access control: groups + module tiers
@@ -695,6 +698,33 @@ must keep a second node working:
   SQL against a real engine when `TEST_DATABASE_URL` points at a migrated
   scratch database (it empties the cluster tables). Run it on Cockroach and
   YugabyteDB when changing that SQL.
+
+## Guided installer (`install.sh`)
+
+`./install.sh` (repo root, bash 4+, no Node needed) is the supported way to install: it asks, writes
+`.env` and runs the real steps (`scripts/compose.sh`, `scripts/cluster.sh`), so it never has its own
+copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for changing it:
+
+- **A new bootstrap setting in `.env.example`, or a new install step, needs the installer updated** in the
+  same change: a question (`ask_*`), `write_env`, and a case in `tests/installer/dry-run.sh`. Keep every
+  question answerable from `--answers` (the keys are the `ANS[...]` names; `ENV_<NAME>` writes any `.env`
+  key) so tests and unattended installs work; never read a prompt without going through `ask_*`.
+- **Values go into `.env` unquoted**, so `v_envsafe` rejects whitespace, quotes, backslashes, backticks, `#`
+  and `$`; the database URL's user and password are percent-encoded (`urlenc`), because compose interpolates
+  `$` in env files.
+  Secrets never go on a command line (`docker run -e NAME`, not `-e NAME=value`) or into `.install.log`.
+- **Steps are stages** (`run_stage name desc fn`, recorded in `.install-state`): idempotent, skipped on a
+  re-run, and a stage that needs another machine uses `pause` (skipped by `NOWAIT=yes` in tests). A single
+  server follows the cluster order, not `make up`: the API cannot start on an empty database, so it starts
+  the database, runs migrate and seed in one-off containers (`run --rm --no-deps api`), then `up`.
+- **A cluster's other nodes get a package** (`data/cluster-packages/`, mode 600: that node's `.env` with the
+  secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
+  refuses a different commit unless told otherwise: every node must run the same build.
+- **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
+  a pipe) and `tests/installer/e2e.sh single|cluster|down` (real installs in `~/church-wiz`, own ports,
+  project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
+  `tests/cluster/cross-node.mjs` against all three nodes).
+  Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).
 
 ## Backups and restores (admin > Backups)
 

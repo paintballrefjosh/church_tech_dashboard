@@ -9,10 +9,88 @@
   also run with local accounts only and add OAuth later. It's all configured in the
   browser at `/admin/settings`, not in files.
 
-Want the shortest path instead? See [QUICKSTART.md](./QUICKSTART.md).
+Want the shortest path instead? Run the [guided installer](#guided-installer) (`./install.sh`), or see [QUICKSTART.md](./QUICKSTART.md).
 
 You do **not** need Node.js or pnpm on the host. Every dev/admin command has a
 docker-only equivalent — see [the dockerized commands section](#dockerized-commands-no-node-on-host).
+
+## Guided installer
+
+`./install.sh` is the easiest way to get running. It asks a few questions (multiple choice, or
+a value with a sensible default), checks the machine, writes `.env`, then builds and starts
+everything, migrates the database and creates the default groups and the `admin` account.
+It covers every [deployment shape](#deployment-shapes-single-node-and-multi-node): one server
+or several, the bundled database or your own, the bundled object store or your own.
+
+```bash
+git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
+cd church-dashboard
+./install.sh
+```
+
+What it asks, in order:
+
+| Section | Questions |
+|---|---|
+| How | One server, or several behind a load balancer. For several: is this the first machine, or are you adding one (`--join`)? |
+| Database | Bundled CockroachDB, or your own YugabyteDB/CockroachDB: host, port, name, user, password, encryption (or paste a URL). It offers to test the login with a small `postgres` container and tells you which engine answered. |
+| File storage | Bundled Garage, or your own S3-compatible store: endpoint, bucket, keys, region, addressing style. On a network file system (NFS/SMB) it asks for a local folder for Garage's metadata, which must be on local disk. |
+| Network | The port to serve on, and (several servers, or behind a proxy) your load balancer's addresses for `TRUSTED_PROXIES`. |
+| Stack (one server) | The production stack (three database containers when the database is bundled) or the standard one (one). It suggests the standard one below 6 GB of memory. |
+| Nodes (several servers) | How many, each node's name and address, a witness if there are two, how much disk each offers for uploads. |
+| Secrets | Generated for you (`AUTH_SECRET`, the search key). If you are restoring a backup or moving servers it asks for the `AUTH_SECRET` you already have. An existing `.env`'s secrets are kept. |
+
+It then shows a review, and only after you confirm does it write anything. The existing `.env`, if
+there is one and it changes, is copied to `.env.bak-<time>` first.
+
+**Several servers.** The installer runs on every machine, and the first one hands the others
+what they need:
+
+1. On the first machine, `./install.sh`, choose "several servers" and "this is the first machine".
+   It writes this node's `.env`, makes the certificate authority and one certificate bundle per node
+   (shape C), and writes a package per other node to `data/cluster-packages/church-node-<name>.tar.gz`.
+   Each package holds that node's `.env` (with the secrets) and its certificates.
+2. Copy each package to its machine (a channel you trust: `scp`, a USB stick) and, there, with the
+   repository at **the same commit**, run `./install.sh --join church-node-<name>.tar.gz`. It builds,
+   starts the node's database and object store and prints the node's object-store id (also in
+   `data/node-id.txt`), then waits.
+3. Back on the first machine, continue: it waits until the other nodes' ports answer, forms the
+   database cluster and the object store (asking you to paste each node's id), migrates, seeds, starts
+   its application and tells you when to press Enter on the others, which then start theirs.
+4. Add every node to your load balancer (health check `GET /healthz`). The closing summary lists the
+   clean-up: delete the packages, keep `data/cluster-certs/ca.key` safe and off the nodes, firewall the
+   cluster ports, run NTP.
+
+Closing the installer part way is fine: run the same command again and finished steps are skipped
+(progress is in `.install-state`, the answers in `.install-answers`, mode 600, and everything it ran
+is logged to `.install.log`). `--fresh` forgets the progress.
+
+**Options.**
+
+| | |
+|---|---|
+| `--join <package>` | Add this machine to a cluster the first machine set up |
+| `--answers FILE` | Take answers from `FILE` (`KEY=value` lines) instead of asking; whatever is missing is still asked, and with no terminal a missing answer is an error. Unattended installs and the tests use this |
+| `--dry-run` | Ask and validate, write `.env` (and, for a cluster, a preview of each node's `.env` in `data/cluster-packages/preview-*.env`), start nothing and touch no docker |
+| `--fresh` | Forget the progress of an earlier run |
+
+**Answer keys** (for `--answers`; values are the menu's value, `yes`/`no`, or text):
+`SETUP` (`single`|`cluster`), `CLUSTER_ROLE` (`first`|`join`), `DB_MODE` (`bundled`|`external`),
+`DB_INPUT` (`parts`|`url`), `DB_ENGINE`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
+`DB_SSL` (`require`|`disable`), `DATABASE_URL`, `DB_TEST`, `S3_MODE`, `GARAGE_META_DIR`, `S3_ENDPOINT`,
+`S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PATH_STYLE`, `EXTERNAL_PORT`, `BEHIND_LB`,
+`TRUSTED_PROXIES`, `STACK` (`production`|`standard`), `NODES`, `WITNESS`, `NODE_<n>_ID`, `NODE_<n>_ADDR`
+(`host`, or `host:dbport:rpcport` when several nodes share one machine), `NODE_<n>_ROLE`
+(`full`|`data`), `CLUSTER_S3_CAPACITY`, `REUSE_SECRET`, `AUTH_SECRET`, `MEILI_MASTER_KEY`, `PEERID_<n>`
+(each other node's object-store id), `CONFIRM`, `NOWAIT` (do not pause for the other machines), and
+`ENV_<NAME>` to write any `<NAME>=value` to `.env`.
+
+**What it does not do.** It does not set up your HTTPS load balancer, firewall, DNS or NTP; it does
+not create the database or the bucket for an external store (it checks the database login, not the
+bucket); and it never changes anything outside this folder except an optional local folder for
+Garage's metadata. The settings that live in the database (SMTP, sign-in providers, site name) are
+configured in the browser afterwards at `/admin/settings`. The manual steps below are what it runs, if
+you want to do them yourself or understand a step.
 
 ## Quick start (dev)
 

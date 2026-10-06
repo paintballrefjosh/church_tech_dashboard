@@ -47,7 +47,18 @@ interceptor. Realtime updates push over Socket.io; between app nodes they travel
 ## Quick start
 
 **[QUICKSTART.md](./QUICKSTART.md)** goes from a bare Linux host to a signed-in dashboard
-in six steps, including choosing a database. In short, with the default bundled database:
+in six steps, including choosing a database.
+
+**Easiest: the guided installer.** It asks a few questions (one server or several, which database,
+which file storage, which port), writes `.env`, starts everything and prints the address to open:
+
+```bash
+git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
+cd church-dashboard
+./install.sh
+```
+
+Or by hand, with the default bundled database:
 
 ```bash
 git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
