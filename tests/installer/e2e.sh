@@ -8,6 +8,9 @@
 #   tests/installer/e2e.sh external   shape B, production stack: the database is a throwaway CockroachDB
 #                                     container published on the host's address (like a real external
 #                                     one); includes the wizard's connection test; then the smoke suite
+#   tests/installer/e2e.sh external-cluster
+#                                     shape B against a three node YugabyteDB: the wizard is given all three
+#                                     hosts, the smoke suite runs, then again with one database node stopped
 #   tests/installer/e2e.sh cluster    shape C: three nodes on this host, driven the way three people
 #                                     would (first node, then --join on the others), then
 #                                     tests/cluster/cross-node.mjs against all three
@@ -93,6 +96,40 @@ case "${1:-}" in
       -e BASE="http://localhost:$(ext_port 1)" node:20-alpine node tests/smoke/run.mjs | tail -n 3)
     ;;
 
+  external-cluster)
+    d="$(ndir 1)"; rm -rf "$d"; copy_repo "$d"; mkdir -p "$d/garage-meta"
+    ensure_net wiz1 101
+    docker rm -f wizyb1 wizyb2 wizyb3 >/dev/null 2>&1 || true
+    docker network inspect wizyb >/dev/null 2>&1 || docker network create --subnet 10.98.110.0/24 wizyb >/dev/null
+    img=yugabytedb/yugabyte:2024.2.3.0-b116
+    for i in 1 2 3; do
+      args=(--advertise_address="10.98.110.1$i")
+      if [[ $i -gt 1 ]]; then args+=(--join=10.98.110.11); fi
+      docker run -d --name "wizyb$i" --net wizyb --ip "10.98.110.1$i" -p "1543$((2 + i)):5433" "$img" bin/yugabyted start "${args[@]}" --background=false >/dev/null
+      # the others join an existing node: wait until the first answers
+      if [[ $i -eq 1 ]]; then until docker exec wizyb1 bin/ysqlsh -h 10.98.110.11 -Atc 'select 1' >/dev/null 2>&1; do sleep 2; done; fi
+    done
+    until docker exec wizyb1 bin/ysqlsh -h 10.98.110.11 -Atc 'select count(*) from yb_servers()' 2>/dev/null | grep -q '^3$'; do sleep 3; done
+    docker exec wizyb1 bin/ysqlsh -h 10.98.110.11 -c 'CREATE DATABASE church' >/dev/null
+    sleep 30
+    {
+      node_answers 1
+      echo SETUP=single; echo DB_MODE=external; echo DB_INPUT=parts; echo DB_ENGINE=yugabyte
+      echo "DB_HOST=$WIZ_HOST:15433,$WIZ_HOST:15434,$WIZ_HOST:15435"; echo DB_PORT=5433; echo DB_NAME=church
+      echo DB_USER=yugabyte; echo DB_PASSWORD=yugabyte; echo DB_SSL=disable; echo DB_TEST=yes
+      echo S3_MODE=bundled; echo BEHIND_LB=no; echo STACK=production
+    } >"$d/answers"
+    (cd "$d" && NO_COLOR=1 ./install.sh --answers answers)
+    smoke() { (cd "$d" && docker run --rm --network=host -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" -e HOME=/tmp \
+      -e BASE="http://localhost:$(ext_port 1)" node:20-alpine node tests/smoke/run.mjs | tail -n 3); }
+    (cd "$d" && COMPOSE_PROJECT_NAME=wiz1 bash scripts/compose.sh --prod exec -T api node dist/scripts/reset-test-user.js >/dev/null)
+    echo "e2e: installed against a three node YugabyteDB; smoke with all nodes up"; smoke
+    echo "e2e: stopping one database node (wizyb2) and running the smoke suite again"
+    docker stop wizyb2 >/dev/null
+    (cd "$d" && COMPOSE_PROJECT_NAME=wiz1 bash scripts/compose.sh --prod exec -T api node dist/scripts/reset-test-user.js >/dev/null)
+    smoke
+    ;;
+
   cluster)
     for n in 1 2 3; do d="$(ndir "$n")"; rm -rf "$d"; copy_repo "$d"; mkdir -p "$d/garage-meta"; ensure_net "wiz$n" $((100 + n)); done
     # Node 1: everything up to the point where it needs the others (the wizard's own steps, in order).
@@ -127,7 +164,8 @@ case "${1:-}" in
     ;;
 
   down)
-    docker rm -f wizdb >/dev/null 2>&1 || true
+    docker rm -f wizdb wizyb1 wizyb2 wizyb3 >/dev/null 2>&1 || true
+    docker network rm wizyb >/dev/null 2>&1 || true
     for n in 1 2 3; do
       d="$(ndir "$n")"
       if [[ -d $d ]]; then

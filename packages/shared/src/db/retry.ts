@@ -33,6 +33,7 @@ const AMBIGUOUS_MESSAGES = [
   /operation expired/i, // YugabyteDB
   /restart read required/i, // YugabyteDB
   /connection (is )?closed/i,
+  /query read timeout/i, // pg: no answer within query_timeout; the statement may have run
 ];
 
 /** The class of a retryable database error, or null if retrying will not help. */

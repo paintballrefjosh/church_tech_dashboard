@@ -873,6 +873,46 @@ procedure in INSTALL.md followed from empty):
   second, but a new one could; CLAUDE.md says so.
 - Still one host: no latency, partitions or asymmetric failures. Real AWS S3 and virtual-hosted addressing are untried.
 
+## Database failover: several hosts in the URL, and why not the smart driver
+
+A database that is itself a cluster (shape B/D with your own YugabyteDB or CockroachDB) needs the app to move to
+another node when one fails. Two ways were tried against a real three node YugabyteDB 2024.2 (containers on one
+host, `tests/db/yb-failover.sh`):
+
+- **YugabyteDB's smart driver** (`@yugabytedb/pg` 8.7.3-yb-11, a fork of node-postgres that discovers the nodes
+  and balances connections). Built in behind `loadBalance=true`, then removed. With the driver completely
+  unwrapped (a plain `Pool`, nothing of ours), isolating the node a connection was using left the traffic
+  stalled for the whole 45 s observed in 3 of 5 trials (the other 2 recovered in about 15 s). The debug trace
+  shows the cause: when a new connection first picks a dead node, the driver marks it failed, switches to another
+  host ("Ignoring 'end' from orphan connection") and the new attempt then never completes and never times out;
+  its connects also go through one global lock, so one stuck attempt blocks every new connection. It also keeps
+  its failed hosts out of use until its next topology refresh (default 300 s) and reads `LOG_LEVEL`, which the
+  app uses too.
+- **Several hosts in `DATABASE_URL`, handled by our own pool** (`HostSet` in `packages/shared/src/db/pool.ts`), on
+  the plain `pg` driver. Each new connection goes to the host with the fewest open connections from the process; a
+  host that failed a connect is left out for 5 s, doubling to 60 s; the failed connect is a "never reached the
+  database" error, so the existing retry rules (also now wrapped around `pool.connect()`) try the next host.
+  Nodes are not discovered, they are the ones in the URL. This is what shipped.
+
+A second finding, independent of the driver: **a host that hangs or loses power leaves its connections open and
+silent**, and a statement on one then waits for TCP to give up (many minutes; the first test runs sat for 10
+minutes). Every pool now has a client-side `query_timeout` (`DB_QUERY_TIMEOUT_MS`, default 60 s, off for
+migrations); a timed-out statement drops its connection and is retried if it is a read.
+
+**Results** (`tests/db/yb-failover.sh`, 4 workers doing a write and a read every ~100 ms for 15 minutes, 15 s
+query timeout; faults injected through `tests/db/tcp-fault-proxy.mjs`): a node that hangs (the middle node, then the
+first host of the URL), a node that refuses and resets, and a node really stopped (`docker stop`). 6,570 requests,
+7 failed, one stretch of 14 s with no successful request, no acknowledged write missing afterwards, all three nodes
+served traffic, a process started while the first host hung connected from another host. Each hang or stop costs
+about 10-15 s for the statements on that node's connections (the connect or query timeout), not for the rest. With
+the whole stack on a three node YugabyteDB, the smoke suite passes (186) with all nodes up and again with one node
+stopped (`tests/installer/e2e.sh external-cluster`).
+
+Not covered: CockroachDB through the same failover test (the code path is the same, only YugabyteDB was run), a
+node added later (it has to be added to the URL), real network partitions, and TLS with several hosts. Freezing
+(`docker pause`) or detaching the network of a YugabyteDB container breaks YugabyteDB itself, so the tests inject
+faults in front of the nodes instead.
+
 ## Risks and open items
 
 - **Two nodes is not HA** for the bundled database. This is a property of quorum, not of

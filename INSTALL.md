@@ -33,7 +33,7 @@ What it asks, in order:
 | Section | Questions |
 |---|---|
 | How | One server, or several behind a load balancer. For several: is this the first machine, or are you adding one (`--join`)? |
-| Database | Bundled CockroachDB, or your own YugabyteDB/CockroachDB: host, port, name, user, password, encryption (or paste a URL). It offers to test the login with a small `postgres` container and tells you which engine answered. |
+| Database | Bundled CockroachDB, or your own YugabyteDB/CockroachDB: host(s), port, name, user, password, encryption (or paste a URL). For a database cluster you list **every node** (comma separated); the app then connects to whichever answers and fails over by itself, with no load balancer in between. It offers to test the login on each host with a small `postgres` container and tells you which engine answered. |
 | File storage | Bundled Garage, or your own S3-compatible store: endpoint, bucket, keys, region, addressing style. On a network file system (NFS/SMB) it asks for a local folder for Garage's metadata, which must be on local disk. |
 | Network | The port to serve on, and (several servers, or behind a proxy) your load balancer's addresses for `TRUSTED_PROXIES`. |
 | Stack (one server) | The production stack (three database containers when the database is bundled) or the standard one (one). It suggests the standard one below 6 GB of memory. |
@@ -133,7 +133,7 @@ The app talks to its database over the PostgreSQL wire protocol and runs on
 | Setup | `.env` | Notes |
 |---|---|---|
 | Bundled CockroachDB (default) | `DB_MODE=bundled` | Runs inside the stack: one node in dev, three in prod. Nothing else to set. |
-| External YugabyteDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@yb-host:5433/church` | YSQL listens on port 5433. Tested on 2024.2 LTS and 2026.1. |
+| External YugabyteDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@yb-host:5433/church` | YSQL listens on port 5433. Tested on 2024.2 LTS and 2026.1. For a cluster, list every node: see below. |
 | External CockroachDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@crdb-host:26257/church?sslmode=verify-full` | Your own cluster, licensed as you see fit. |
 
 You never say which engine an external database is: the app detects it from
@@ -156,6 +156,24 @@ service health. For an external database:
   `require` and `verify-ca` as `verify-full` too, and a server certificate that does not name
   the host you connected to is refused. `sslmode=disable` is for a database on a trusted
   network only.
+- **A database that is a cluster: list every node in the URL.** Put all the hosts in the one
+  `DATABASE_URL`, comma separated, the same syntax `psql` accepts:
+  `postgresql://user:pass@yb1:5433,yb2:5433,yb3:5433/church?sslmode=require`. Each new connection
+  goes to the host with the fewest connections from that process, so the load spreads over the nodes;
+  a host that refuses or does not answer is left out for 5 seconds (doubling to 60 on repeated
+  failures) and the attempt is retried on another; a process that starts while one node is down
+  still starts. **No load balancer, proxy or virtual IP is needed in between**, and it works the
+  same for YugabyteDB and CockroachDB. The list is exactly what you write: a node you add later
+  has to be added to the URL (and the nodes restarted) before it is used, and with only one host
+  listed that host is a single point of failure unless its address is a load balancer's. The
+  [guided installer](#guided-installer) asks for all the hosts. (YugabyteDB's own "smart driver"
+  discovers the nodes itself, but it was tried and left out: against a real three node cluster its
+  failover hung for good in three of five runs, see docs/multi-node.md.)
+- **A host that hangs rather than fails.** A node that loses power or hangs does not close its
+  connections, and without a timeout the statements on them would wait for TCP to give up, which
+  takes many minutes. Every statement therefore has `DB_QUERY_TIMEOUT_MS` (default 60 seconds) to be
+  answered; after that the connection is dropped and a statement that is safe to repeat is retried
+  on another host. Set it in `.env`; migrations ignore it.
 - **What the app does when a database node fails.** Every process opens its connections
   through one shared factory: a broken idle connection is replaced rather than crashing the
   process, connections are named (`church-api`, `church-web`, `church-monitor`) so you can
@@ -295,14 +313,15 @@ The prod compose file's three Cockroach containers are a cluster for process-lev
 resilience only. They run side by side on one host under one project directory, so treat
 the host as a single failure domain.
 
-**Putting a multi-host database behind shape B.** The app's Postgres driver takes a single
-host in `DATABASE_URL`; it does not fail over between several. Put a TCP load balancer
-(HAProxy, a cloud NLB) or a virtual IP in front of the database nodes and point
-`DATABASE_URL` at that. CockroachDB nodes listen on `:26257`, YugabyteDB YSQL on `:5433`.
-Without it, pointing at one node leaves that node as a single point of failure even though
-the cluster behind it is redundant. Use at least 3 database hosts, and create the database
-(and `pgcrypto` on YugabyteDB 2024.2) as described under "Choosing a database". Replication
-is not a backup.
+**Putting a multi-host database behind shape B.** List every database node in
+`DATABASE_URL` (`postgresql://user:pass@db1:5433,db2:5433,db3:5433/church`): the app spreads its
+connections over them and moves to another when one fails, with nothing in between (see
+[Choosing a database](#choosing-a-database)). A TCP load balancer or virtual IP in front of the
+nodes, with its address as the single host, works too. CockroachDB nodes listen on `:26257`,
+YugabyteDB YSQL on `:5433`. Pointing at just one node leaves that node as a single point of
+failure even though the cluster behind it is redundant. Use at least 3 database hosts, and create
+the database (and `pgcrypto` on YugabyteDB 2024.2) as described under "Choosing a database".
+Replication is not a backup.
 
 #### What is not redundant on a single node
 

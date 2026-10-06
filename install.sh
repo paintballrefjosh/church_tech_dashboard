@@ -31,10 +31,16 @@ fi
 # ---------------------------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------------------------
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+# Colours: questions stand out in cyan, what you type is green, defaults and explanations are dim.
+# INSTALL_COLOR=1 forces colour (for tests), NO_COLOR=1 turns it off.
+if [[ -z "${NO_COLOR:-}" && ( -t 1 || -n "${INSTALL_COLOR:-}" ) ]]; then
   B=$'\e[1m'; D=$'\e[2m'; R=$'\e[31m'; G=$'\e[32m'; Y=$'\e[33m'; Z=$'\e[0m'
+  QC=$'\e[1;36m'   # a question
+  HC=$'\e[1;35m'   # a section heading
+  NC=$'\e[36m'     # a menu number
+  IC=$'\e[1;32m'   # what you type
 else
-  B=''; D=''; R=''; G=''; Y=''; Z=''
+  B=''; D=''; R=''; G=''; Y=''; Z=''; QC=''; HC=''; NC=''; IC=''
 fi
 say()  { printf '%s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -42,7 +48,7 @@ ok()   { printf '  %s[ok]%s %s\n' "$G" "$Z" "$*"; }
 warn() { printf '  %s[!]%s %s\n' "$Y" "$Z" "$*" >&2; }
 fail() { printf '  %s[x]%s %s\n' "$R" "$Z" "$*" >&2; }
 die()  { fail "$*"; exit 1; }
-heading() { printf '\n%s== %s ==%s\n' "$B" "$*" "$Z"; }
+heading() { printf '\n%s== %s ==%s\n' "$HC" "$*" "$Z"; }
 hint() { printf '  %s%s%s\n' "$D" "$*" "$Z"; }
 
 LOG=.install.log
@@ -101,10 +107,10 @@ ask_text() {
   while :; do
     printf '\n'
     [[ -n $h ]] && hint "$h"
-    printf '%s%s%s' "$B" "$q" "$Z"
-    [[ -n $def ]] && printf ' [%s]' "$def"
-    printf ': '
-    read_line; v=${REPLY_LINE:-$def}
+    printf '%s? %s%s' "$QC" "$q" "$Z"
+    [[ -n $def ]] && printf ' %s[%s]%s' "$D" "$def" "$Z"
+    printf '\n%s>%s %s' "$IC" "$Z" "$IC"
+    read_line; printf '%s' "$Z"; v=${REPLY_LINE:-$def}
     if [[ -n $validator ]] && ! "$validator" "$v"; then continue; fi
     break
   done
@@ -120,7 +126,7 @@ ask_secret() {
     return 0
   fi
   while :; do
-    printf '\n%s%s%s: ' "$B" "$q" "$Z"
+    printf '\n%s? %s%s %s(hidden)%s\n%s>%s ' "$QC" "$q" "$Z" "$D" "$Z" "$IC" "$Z"
     if [[ -t 0 ]]; then IFS= read -rs v || die "No input left."; printf '\n'; else read_line; v=$REPLY_LINE; fi
     if [[ -n $validator ]] && ! "$validator" "$v"; then continue; fi
     break
@@ -137,8 +143,8 @@ ask_yn() {
   fi
   [[ $def == yes ]] && shown='Y/n' || shown='y/N'
   while :; do
-    printf '\n%s%s%s [%s]: ' "$B" "$q" "$Z" "$shown"
-    read_line; v=${REPLY_LINE:-$def}
+    printf '\n%s? %s%s %s[%s]%s\n%s>%s %s' "$QC" "$q" "$Z" "$D" "$shown" "$Z" "$IC" "$Z" "$IC"
+    read_line; printf '%s' "$Z"; v=${REPLY_LINE:-$def}
     case "$v" in y|Y|yes|YES) ANS[$key]=yes; return 0 ;; n|N|no|NO) ANS[$key]=no; return 0 ;; esac
     warn "Please answer yes or no."
   done
@@ -159,13 +165,13 @@ ask_choice() {
     die "The answer $key='${ANS[$key]}' must be one of: ${vals[*]}"
   fi
   while :; do
-    printf '\n%s%s%s\n' "$B" "$q" "$Z"
+    printf '\n%s? %s%s\n' "$QC" "$q" "$Z"
     for i in "${!vals[@]}"; do
-      printf '  %d) %s%s%s\n' $((i + 1)) "$B" "${labs[i]}" "$Z"
+      printf '  %s%d)%s %s%s%s\n' "$NC" $((i + 1)) "$Z" "$B" "${labs[i]}" "$Z"
       [[ -n ${descs[i]} ]] && printf '     %s%s%s\n' "$D" "${descs[i]}" "$Z"
     done
-    printf 'Choose [%s]: ' "$defidx"
-    read_line; reply=${REPLY_LINE:-$defidx}
+    printf '%sChoose a number%s %s[%s]%s\n%s>%s %s' "$QC" "$Z" "$D" "$defidx" "$Z" "$IC" "$Z" "$IC"
+    read_line; printf '%s' "$Z"; reply=${REPLY_LINE:-$defidx}
     if [[ $reply =~ ^[0-9]+$ ]] && (( reply >= 1 && reply <= ${#vals[@]} )); then ANS[$key]=${vals[reply-1]}; return 0; fi
     for v in "${vals[@]}"; do [[ $v == "$reply" ]] && { ANS[$key]=$v; return 0; }; done
     warn "Please enter a number from 1 to ${#vals[@]}."
@@ -214,9 +220,26 @@ v_envsafe() {
   fi
 }
 v_secretkey() { v_nonempty "$1" && v_envsafe "$1"; }
+# One or more database hosts: host or host:port, comma separated. None may be the container itself.
+v_dbhosts() {
+  local entry h
+  [[ -n $1 ]] || { fail "Enter at least one host."; return 1; }
+  IFS=, read -ra entries <<<"$1"
+  for entry in "${entries[@]}"; do
+    [[ $entry =~ ^[[:space:]]*(.*[^[:space:]])[[:space:]]*$ ]] && entry=${BASH_REMATCH[1]}
+    h=${entry%%:*}
+    [[ $entry =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]+)?$ ]] || { fail "'$entry' is not a host name or IP address (optionally :port)."; return 1; }
+    v_dbhost "$h" || return 1
+  done
+}
 v_url() {
-  [[ $1 =~ ^postgres(ql)?://[^[:space:]]+@[^[:space:]/]+/[^[:space:]]+$ ]] || { fail "Expected postgresql://user:password@host:port/database"; return 1; }
-  case "$1" in *@localhost[:/]*|*@127.*|*@cockroach-1[:/]*) fail "The containers cannot reach localhost. Use the server's real address."; return 1 ;; esac
+  [[ $1 =~ ^postgres(ql)?://[^[:space:]]+@[^[:space:]/]+/[^[:space:]]+$ ]] || { fail "Expected postgresql://user:password@host:port/database (several hosts: host1:port,host2:port)"; return 1; }
+  local authority hostlist h
+  authority=${1#*://}; authority=${authority%%/*}; hostlist=${authority##*@}
+  IFS=, read -ra entries <<<"$hostlist"
+  for h in "${entries[@]}"; do
+    case "${h%%:*}" in localhost|127.*|cockroach-1|cockroach) fail "The containers cannot reach '${h%%:*}'. Use the server's real address."; return 1 ;; esac
+  done
 }
 v_endpoint() {
   v_envsafe "$1" || return 1
@@ -347,7 +370,7 @@ run_stage() {
 
 pause() {
   if [[ $(ans NOWAIT) == yes ]]; then info "(not waiting: NOWAIT=yes)"; return 0; fi
-  printf '\n%s%s%s\nPress Enter to continue: ' "$B" "$*" "$Z"
+  printf '\n%s? %s%s\n%sPress Enter to continue%s\n%s>%s ' "$QC" "$*" "$Z" "$D" "$Z" "$IC" "$Z"
   read_line
 }
 
@@ -397,23 +420,51 @@ preflight() {
 # ---------------------------------------------------------------------------------------------
 # Questions
 # ---------------------------------------------------------------------------------------------
-test_db() { # DATABASE_URL in ANS; 0 = connected
-  local out rc script
-  logrun "Fetching a small postgres client image" docker pull -q postgres:16-alpine || return 1
+# The hosts of a postgres URL, one URL per host (the same credentials and database).
+url_hosts() { # url -> lines "host:port"
+  local rest=${1#*://} userinfo='' authority hostlist
+  authority=${rest%%/*}; hostlist=${authority##*@}
+  tr ',' '\n' <<<"$hostlist"
+}
+url_with_host() { # url host:port
+  local scheme=${1%%://*}:// rest=${1#*://} userinfo='' authority tail
+  authority=${rest%%/*}; tail=${rest#"$authority"}
+  [[ $authority == *@* ]] && userinfo=${authority%@*}@
+  printf '%s%s%s%s' "$scheme" "$userinfo" "$2" "$tail"
+}
+
+test_one_host() { # full url with ONE host; prints the first line of output, returns psql's status
+  local script
   script=$'psql "$DBURL" -Atc "select version()" || exit 1\npsql "$DBURL" -Atc "select count(*) from pg_extension where extname = \'pgcrypto\'" 2>/dev/null || echo skip'
-  out=$(DBURL=$(ans DATABASE_URL) docker run --rm -e DBURL -e PGCONNECT_TIMEOUT=10 postgres:16-alpine sh -c "$script" 2>&1); rc=$?
-  if (( rc != 0 )); then
-    fail "Could not connect:"
-    printf '%s\n' "$out" | sed -E 's#postgres(ql)?://[^ ]*#<url hidden>#g; s/^/      /' >&2
-    return 1
-  fi
-  local ver; ver=$(printf '%s\n' "$out" | head -n 1)
+  DBURL=$1 docker run --rm -e DBURL -e PGCONNECT_TIMEOUT=10 postgres:16-alpine sh -c "$script" 2>&1
+}
+
+test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
+  local url hostline out rc up=0 total=0 ver first_out=''
+  url=$(ans DATABASE_URL)
+  logrun "Fetching a small postgres client image" docker pull -q postgres:16-alpine || return 1
+  while IFS= read -r hostline; do
+    [[ -n $hostline ]] || continue
+    total=$((total + 1))
+    out=$(test_one_host "$(url_with_host "$url" "$hostline")"); rc=$?
+    if (( rc == 0 )); then
+      up=$((up + 1)); [[ -n $first_out ]] || first_out=$out
+      ok "$hostline answers"
+    else
+      fail "$hostline did not answer:"
+      printf '%s\n' "$out" | sed -E 's#postgres(ql)?://[^ ]*#<url hidden>#g; s/^/      /' >&2
+    fi
+  done < <(url_hosts "$url")
+  (( up > 0 )) || return 1
+  ver=$(printf '%s\n' "$first_out" | head -n 1)
   case "$ver" in
-    *CockroachDB*) ok "Connected: CockroachDB" ;;
-    *-YB-*) ok "Connected: YugabyteDB"
-      [[ $(printf '%s\n' "$out" | tail -n 1) == 0 ]] && warn "YugabyteDB 2024.2 needs the pgcrypto extension. The migrations enable it if this login may CREATE EXTENSION; otherwise ask the DBA to run: CREATE EXTENSION IF NOT EXISTS pgcrypto;" ;;
-    *) ok "Connected: ${ver:0:60}" ;;
+    *CockroachDB*) ok "CockroachDB" ;;
+    *-YB-*) ok "YugabyteDB"
+      [[ $(printf '%s\n' "$first_out" | tail -n 1) == 0 ]] && warn "YugabyteDB 2024.2 needs the pgcrypto extension. The migrations enable it if this login may CREATE EXTENSION; otherwise ask the DBA to run: CREATE EXTENSION IF NOT EXISTS pgcrypto;" ;;
+    *) ok "${ver:0:60}" ;;
   esac
+  (( up == total )) || warn "$up of $total hosts answered. The dashboard will use the ones that do, and switch to the others when they come back."
+  return 0
 }
 
 ask_database() {
@@ -426,22 +477,30 @@ ask_database() {
   while :; do
     ask_choice DB_INPUT "How do you want to give the connection details?" parts \
       "parts|Fill in host, port, user and password|The installer builds the connection URL for you." \
-      "url|Paste a connection URL|postgresql://user:password@host:5433/church?sslmode=require"
+      "url|Paste a connection URL|postgresql://user:password@host:5433/church?sslmode=require (several hosts: host1:5433,host2:5433,host3:5433)"
     if [[ $(ans DB_INPUT) == parts ]]; then
       ask_choice DB_ENGINE "Which database is it?" yugabyte \
         "yugabyte|YugabyteDB|YSQL, port 5433 by default" \
         "cockroach|CockroachDB|port 26257 by default" \
         "other|Another PostgreSQL-compatible database|you give the port"
       local defport=5433; [[ $(ans DB_ENGINE) == cockroach ]] && defport=26257
-      ask_text DB_HOST "Database host (the containers must be able to reach it; not localhost)" "" v_dbhost
-      ask_text DB_PORT "Database port" "$defport" v_port
+      ask_text DB_HOST "Database host(s), comma separated (the containers must be able to reach them; not localhost)" "" v_dbhosts \
+        "If the database is a cluster, list EVERY node: db1.example.org,db2.example.org,db3.example.org. The dashboard connects to whichever answers, spreads its connections over them and moves to another when one fails, so no load balancer is needed. One host works too, but then that host is a single point of failure (unless it is a load balancer's address)."
+      ask_text DB_PORT "Port (used for any host above that does not give its own)" "$defport" v_port
       ask_text DB_NAME "Database name (it must already exist)" church v_envsafe
       ask_text DB_USER "Database user" church v_envsafe
       ask_secret DB_PASSWORD "Database password" v_nonempty
       ask_choice DB_SSL "Encrypt the connection?" require \
         "require|Yes, encrypted (certificate not verified)|Recommended when the database speaks TLS." \
         "disable|No|Only on a network you trust."
-      ANS[DATABASE_URL]="postgresql://$(urlenc "$(ans DB_USER)"):$(urlenc "$(ans DB_PASSWORD)")@$(ans DB_HOST):$(ans DB_PORT)/$(urlenc "$(ans DB_NAME)")?sslmode=$(ans DB_SSL)"
+      local hostlist='' entry
+      IFS=, read -ra entries <<<"$(ans DB_HOST)"
+      for entry in "${entries[@]}"; do
+        entry=${entry// /}
+        [[ $entry == *:* ]] || entry="$entry:$(ans DB_PORT)"
+        hostlist+="${hostlist:+,}$entry"
+      done
+      ANS[DATABASE_URL]="postgresql://$(urlenc "$(ans DB_USER)"):$(urlenc "$(ans DB_PASSWORD)")@$hostlist/$(urlenc "$(ans DB_NAME)")?sslmode=$(ans DB_SSL)"
     else
       ask_text DATABASE_URL "Connection URL" "" v_url
     fi

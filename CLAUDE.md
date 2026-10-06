@@ -567,6 +567,19 @@ must keep a second node working:
   URL, and automatic retry of statements that are safe to repeat. `@church/shared/db`
   is a separate entry point (not the main index) so browser bundles never pull in
   `pg`; classic-resolution packages find it through `packages/shared/db/package.json`.
+- **`DATABASE_URL` may list several hosts** (`postgresql://u:p@h1:5433,h2:5433,h3:5433/db`, libpq syntax): `createPool`
+  then uses `HostSet`/`multiHostClient` (`packages/shared/src/db/pool.ts`): each new connection goes to the host with
+  the fewest open from this process, a host whose connect failed is left out for 5 s (doubling to 60 s), and the
+  failed attempt is a "never reached the database" error, so `withRetry` (and the same retry wrapped around
+  `pool.connect()`) tries the next host. A one-host URL takes the old path untouched. Nodes are not discovered:
+  they are the ones in the URL. Parse URLs with `parseDbUrl`, never `new URL()` (it rejects the host list).
+  **Do not add the YugabyteDB smart driver (`@yugabytedb/pg`)**: it was built in, tested against a real three node
+  cluster and removed (global connect state and a lock; its retry after a failed host left a connection attempt
+  that never finished or timed out in 3 of 5 runs of the unwrapped driver, see docs/multi-node.md).
+- **Every statement has a client-side timeout** (`DB_QUERY_TIMEOUT_MS`, default 60 s, `queryTimeoutMs` per pool, 0 for
+  migrations): a host that hangs or loses power keeps its connections open and silent, and without it the statements
+  on them wait minutes for TCP. A timed-out statement drops its connection and counts as "ambiguous" (retried only if
+  it is a read). Statements that may legitimately run longer need their own pool with a larger value.
 - **What the pool retries:** anything that never reached the database or that the
   database rolled back (40001, 40P01), and a plain SELECT/SHOW/EXPLAIN whose
   connection broke. **An ambiguous write is never retried** (it may have applied):
@@ -694,6 +707,11 @@ must keep a second node working:
 - **Search changes** go through `SearchService.changed()` (content) or
   `syncUnifi`/`syncDns` (live kinds); see ## Search. Do not add a node-local
   update path for the index.
+- **Database failover test**: `tests/db/yb-failover.sh` builds a three node YugabyteDB cluster, runs steady traffic
+  through `createPool` with all three hosts in the URL and makes nodes hang, refuse and stop underneath it through
+  `tests/db/tcp-fault-proxy.mjs` (a container frozen with `docker pause`, or reattached to its network, breaks
+  YugabyteDB itself and tests nothing about the pool). `apps/api/test/db-multihost.integration.test.ts` runs with
+  `TEST_DATABASE_URL`.
 - **Real-database tests**: `test/db-stores.integration.test.ts` runs the stores'
   SQL against a real engine when `TEST_DATABASE_URL` points at a migrated
   scratch database (it empties the cluster tables). Run it on Cockroach and

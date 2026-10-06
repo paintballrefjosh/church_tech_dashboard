@@ -77,6 +77,19 @@ check "production NODE_ENV" has "$d/.env" NODE_ENV=production
 check "the summary hides the password" bash -c "! grep -q 'p@ss' '$WORK/b.out'"
 check "the password is not in the summary encoded either" bash -c "! grep -q 'p%40ss' '$WORK/b.out'"
 
+echo "== own database as a three node cluster: every host in one URL"
+d=$(fresh m)
+a=$(answers m SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte 'DB_HOST=db1.example.org, db2.example.org:5434,10.0.0.3' DB_PORT=5433 \
+  DB_NAME=church DB_USER=church DB_PASSWORD=pw DB_SSL=require S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+run "$d" "$a" >/dev/null; rc=$?
+check "exits 0" test $rc -eq 0
+check "every host is in the URL, with the default port where none was given" has "$d/.env" 'DATABASE_URL=postgresql://church:pw@db1.example.org:5433,db2.example.org:5434,10.0.0.3:5433/church?sslmode=require'
+d=$(fresh m2)
+a=$(answers m2 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/church?sslmode=require' DB_TEST=no \
+  S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+run "$d" "$a" >/dev/null; rc=$?
+check "a pasted multi-host URL is kept as it is" has "$d/.env" 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/church?sslmode=require'
+
 echo "== several servers, bundled database and store (shape C), three nodes"
 d=$(fresh c)
 a=$(answers c SETUP=cluster CLUSTER_ROLE=first DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8100 TRUSTED_PROXIES=10.0.0.0/24 \
@@ -140,6 +153,9 @@ refuse "a port out of range" EXTERNAL_PORT=99999
 refuse "a bad load balancer address" BEHIND_LB=yes TRUSTED_PROXIES=not-an-ip
 refuse "localhost as the database host" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=localhost DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=require
 refuse "a database URL pointing at localhost" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@localhost:5433/church'
+refuse "localhost among several database hosts" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db1.example.org,localhost DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=require
+refuse "localhost among the hosts of a pasted URL" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,127.0.0.1:5433/church'
+refuse "a malformed host in the list" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte 'DB_HOST=db1.example.org,bad host' DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=require
 refuse "an S3 secret with a space" S3_MODE=external S3_ENDPOINT=s3.example.org S3_BUCKET=church-files S3_ACCESS_KEY=k 'S3_SECRET_KEY=a b' S3_REGION=r S3_PATH_STYLE=yes
 refuse "an unknown choice" STACK=turbo
 d=$(fresh dup)
@@ -165,6 +181,13 @@ check "no input at all is an error, not a loop" test $rc -ne 0
 d=$(fresh k2)
 (cd "$d" && printf '9\n1\n1\n1\n\n\n2\n\n\n' | NO_COLOR=1 ./install.sh --dry-run --fresh >"$WORK/oor.out" 2>&1)
 check "a menu number out of range is asked again" grep -q 'Please enter a number' "$WORK/oor.out"
+
+echo "== colours"
+d=$(fresh col)
+(cd "$d" && printf '1\n1\n1\n\n\n2\n\n\n' | INSTALL_COLOR=1 ./install.sh --dry-run >"$WORK/col.out" 2>&1)
+check "questions are cyan, typed answers green" bash -c "grep -q \$'\\e\\[1;36m? How do you want' '$WORK/col.out' && grep -q \$'\\e\\[1;32m>' '$WORK/col.out'"
+(cd "$d" && printf '1\n1\n1\n\n\n2\n\n\n' | NO_COLOR=1 INSTALL_COLOR=1 ./install.sh --dry-run --fresh >"$WORK/nocol.out" 2>&1)
+check "NO_COLOR removes every escape" bash -c "! grep -q \$'\\e' '$WORK/nocol.out'"
 
 echo
 echo "installer dry-run tests: $pass passed, $failn failed"

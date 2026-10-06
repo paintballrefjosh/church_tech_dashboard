@@ -113,7 +113,7 @@ async function withMigrateLease(pool: Pool, fn: () => Promise<void>): Promise<vo
 
 async function main() {
   const migrationsFolder = path.resolve(__dirname, "../../migrations");
-  const pool = createPool({ name: "migrate", url: databaseUrl(), max: 4 });
+  const pool = createPool({ name: "migrate", url: databaseUrl(), max: 4, queryTimeoutMs: 0 });
   const { engine, version } = await detectEngine(pool);
   console.log(`[migrate] ${engineLabel(engine, version)}; applying migrations from ${migrationsFolder}`);
 
