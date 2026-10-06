@@ -28,6 +28,22 @@ cd church-dashboard
 ./install.sh
 ```
 
+**Requirements.** It checks that `make`, `git`, `tar`, Docker (Compose 2.20 or newer) and permission to use Docker
+are there, on this machine and, for an SSH install, on every other machine. For anything missing it explains what
+to do and, **only if you agree**, can do it:
+
+- `make`, `git` and `tar` are installed with the machine's package manager (apt, dnf, yum, zypper, apk or
+  pacman), using `sudo` (or as root). If `sudo` needs a password, you are asked for it on your terminal (over SSH
+  too); with no terminal it needs root or passwordless sudo, and says so instead of hanging.
+- Docker: asked separately, **default no**. Yes runs Docker's official script (`curl -fsSL https://get.docker.com
+  | sh`) and adds the user to the `docker` group. On this machine you then log out and back in (or `newgrp docker`)
+  and run `./install.sh` again; over SSH it reconnects by itself so the new group applies.
+- A user that is installed but not in the `docker` group is offered the same group change. A stopped Docker
+  service or a Compose older than 2.20 is explained, not changed.
+
+`./install.sh --check-requirements` does only this check and stops. (The Docker script path was not run in
+testing: only the package installs and the group/sudo handling were.)
+
 What it asks, in order:
 
 | Section | Questions |
@@ -88,6 +104,7 @@ is logged to `.install.log`). `--fresh` forgets the progress.
 | `--answers FILE` | Take answers from `FILE` (`KEY=value` lines) instead of asking; whatever is missing is still asked, and with no terminal a missing answer is an error. Unattended installs and the tests use this |
 | `--dry-run` | Ask and validate, write `.env` (and, for a cluster, a preview of each node's `.env` in `data/cluster-packages/preview-*.env`), start nothing and touch no docker |
 | `--fresh` | Forget the progress of an earlier run |
+| `--check-requirements` | Check (and, if you agree, install) make, git, tar and Docker, then stop |
 
 **Answer keys** (for `--answers`; values are the menu's value, `yes`/`no`, or text):
 `SETUP` (`single`|`cluster`), `CLUSTER_ROLE` (`first`|`join`), `DB_MODE` (`bundled`|`external`),
@@ -100,7 +117,8 @@ is logged to `.install.log`). `--fresh` forgets the progress.
 (each other node's object-store id), `REMOTE_MODE` (`ssh`|`manual`), `REMOTE_DIR`, `SSH_KEY`, `SSH_USER`,
 `SSH_PORT`, `SSH_SAME`, `NODE_<n>_SSH_HOST` / `_SSH_USER` / `_SSH_PORT` / `_SSH_DIR`, `REMOTE_GARAGE_META_DIR`,
 `SSH_EXTRA_OPTS` (extra `ssh -o` options), `NODE_<n>_ANS_<KEY>` (an answer for the `--join` run on node *n*),
-`CONFIRM`, `NOWAIT` (do not pause for the other machines), and `ENV_<NAME>` to write any `<NAME>=value` to `.env`.
+`AUTO_INSTALL_DEPS` / `AUTO_INSTALL_DOCKER` / `AUTO_DOCKER_GROUP` (yes/no: install missing requirements), `CONFIRM`,
+`NOWAIT` (do not pause for the other machines), and `ENV_<NAME>` to write any `<NAME>=value` to `.env`.
 
 **What it does not do.** It does not set up your HTTPS load balancer, firewall, DNS or NTP; it does
 not create the database or the bucket for an external store (it checks the database login, not the

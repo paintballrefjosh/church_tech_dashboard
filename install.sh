@@ -12,6 +12,7 @@
 #   ./install.sh --dry-run           ask and write .env (and, for a cluster, a preview of every
 #                                    node's .env) but start nothing, touch no docker
 #   ./install.sh --fresh             forget what an earlier run finished and start over
+#   ./install.sh --check-requirements  check (and, if you agree, install) make, git, tar and Docker, then stop
 #   ./install.sh --help
 #
 # Running it again is safe: finished steps are skipped (.install-state), the answers are kept
@@ -56,10 +57,12 @@ STATE=.install-state
 ANSWERS_FILE=.install-answers
 DRY_RUN=0
 FRESH=0
+DEPS_ONLY=0
+CHECK_REMOTE=""
 JOIN_PKG=""
 PRESET_FILE=""
 
-usage() { sed -n '3,21p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n "3,22p" "$0" | sed 's/^# \{0,1\}//'; }
 
 trap 'echo; fail "Interrupted. Run ./install.sh again to carry on where you left off."; exit 130' INT
 
@@ -411,21 +414,181 @@ wait_for() { # "what" seconds cmd...
 # ---------------------------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+# Requirements: check, and with your consent install what is missing (this machine or, over SSH, another)
+# ---------------------------------------------------------------------------------------------
+# What the machine has, as lines: PM (its package manager), SUDO (root | nopass | pass | none) and MISSING
+# (any of: make git tar docker docker-access docker-daemon compose compose-old). Run with bash on the
+# machine in question (locally, or over ssh).
+read -r -d '' FACTS_SCRIPT <<'FACTS' || true
+pm=none
+for c in apt-get dnf yum zypper apk pacman; do command -v "$c" >/dev/null 2>&1 && { pm=$c; break; }; done
+if [ "$(id -u)" = 0 ]; then sudo=root
+elif command -v sudo >/dev/null 2>&1; then if sudo -n true >/dev/null 2>&1; then sudo=nopass; else sudo=pass; fi
+else sudo=none; fi
+m=""
+for t in make git tar; do command -v "$t" >/dev/null 2>&1 || m="$m $t"; done
+if ! command -v docker >/dev/null 2>&1; then
+  m="$m docker"
+else
+  if ! out=$(docker info 2>&1); then
+    if printf '%s' "$out" | grep -qi 'permission denied'; then m="$m docker-access"; else m="$m docker-daemon"; fi
+  fi
+  cv=$(docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//')
+  if [ -z "$cv" ]; then m="$m compose"
+  elif [ "$(printf '%s\n2.20\n' "$cv" | sort -V | head -n 1)" != 2.20 ]; then m="$m compose-old"; fi
+fi
+echo "PM:$pm"; echo "SUDO:$sudo"; echo "MISSING:$m"
+FACTS
+
+pm_install_cmd() { # package-manager "packages"
+  case $1 in
+    apt-get) echo "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $2" ;;
+    dnf|yum) echo "$1 install -y $2" ;;
+    zypper) echo "zypper --non-interactive install $2" ;;
+    apk) echo "apk add --no-cache $2" ;;
+    pacman) echo "pacman -Sy --noconfirm $2" ;;
+  esac
+}
+
+# Run a shell command as root on node $1 (1 = this machine); the output goes to the log. Returns non-zero
+# when it cannot: no sudo, or a password is needed and there is no terminal to ask on. With a password
+# (sudo = pass) the command runs in the foreground so sudo's prompt reaches you.
+priv_exec() { # node sudo-mode command
+  local node=$1 mode=$2 cmd=$3
+  # shellcheck disable=SC2024  # the log is meant to be written by this user, not by root
+  if [[ $node == 1 ]]; then
+    case $mode in
+      root) sh -c "$cmd" >>"$LOG" 2>&1 ;;
+      nopass) sudo -n sh -c "$cmd" >>"$LOG" 2>&1 ;;
+      pass) [[ -t 0 ]] && sudo -v && sudo -n sh -c "$cmd" >>"$LOG" 2>&1 ;;
+      *) return 1 ;;
+    esac
+  else
+    case $mode in
+      root) rsh "$node" "sh -c \"$cmd\"" >>"$LOG" 2>&1 ;;
+      nopass) rsh "$node" "sudo -n sh -c \"$cmd\"" >>"$LOG" 2>&1 ;;
+      pass) [[ -t 0 ]] && ssh_prep "$node" && ssh -t "${SSH_O[@]}" "$SSH_T" "sudo sh -c \"$cmd\"" ;;
+      *) return 1 ;;
+    esac
+  fi
+}
+
+# why priv_exec cannot work on a machine
+priv_blocker() { # sudo-mode
+  case $1 in
+    none) echo "it is neither root nor has sudo" ;;
+    pass) [[ -t 0 ]] && echo "see $LOG" || echo "sudo needs a password and there is no terminal to ask on (use root or passwordless sudo)" ;;
+    *) echo "see $LOG" ;;
+  esac
+}
+
+facts_of() { # node -> the facts lines
+  if [[ $1 == 1 ]]; then bash -c "$FACTS_SCRIPT" 2>/dev/null; else rsh "$1" 'bash -s' <<<"$FACTS_SCRIPT" 2>/dev/null; fi
+}
+
+req_text() { # token -> what to tell a person
+  case $1 in
+    make) echo "make is not installed" ;;
+    git) echo "git is not installed" ;;
+    tar) echo "tar is not installed" ;;
+    docker) echo "Docker is not installed" ;;
+    docker-access) echo "this user cannot use Docker (not in the docker group)" ;;
+    docker-daemon) echo "Docker is installed but its service is not running" ;;
+    compose) echo "the Docker Compose plugin is missing (need v2.20 or newer)" ;;
+    compose-old) echo "Docker Compose is older than v2.20" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+reconnect_remote() { # after a group change: a login session keeps its old groups, so make a new one
+  ssh_prep "$1" && ssh "${SSH_O[@]}" -O exit "$SSH_T" >/dev/null 2>&1
+  remote_connect "$1"
+}
+
+# ensure_requirements NODE: checks what the machine has, offers to install what it can (asking first), and
+# sets REQ_LEFT to whatever is still missing afterwards. NODE 1 is this machine. Returns 0 when nothing is.
+ensure_requirements() {
+  local node=$1 where user facts pm sudo missing t pkgs=() left=() tok
+  if [[ $node == 1 ]]; then where="this machine"; user=$(id -un)
+  else where="$(ans "NODE_${node}_ID") ($SSH_T)"; user=$(node_ssh "$node" USER); fi
+  refresh() { facts=$(facts_of "$node") || return 1; pm=$(sed -n 's/^PM://p' <<<"$facts"); sudo=$(sed -n 's/^SUDO://p' <<<"$facts"); missing=$(sed -n 's/^MISSING://p' <<<"$facts"); }
+  REQ_LEFT=()
+  refresh || { REQ_LEFT=("could-not-check"); return 1; }
+  [[ -z ${missing// /} ]] && return 0
+
+  for t in make git tar; do [[ " $missing " == *" $t "* ]] && pkgs+=("$t"); done
+  if (( ${#pkgs[@]} )) && [[ $pm != none ]]; then
+    ask_yn AUTO_INSTALL_DEPS "$where is missing: ${pkgs[*]}. Install ${pkgs[*]} now with $pm? (needs administrator rights$( [[ $sudo == pass ]] && echo "; you will be asked for your password" ))" yes
+    if [[ $(ans AUTO_INSTALL_DEPS) == yes ]]; then
+      if priv_exec "$node" "$sudo" "$(pm_install_cmd "$pm" "${pkgs[*]}")"; then
+        ok "$where: installed ${pkgs[*]}"
+      else
+        fail "$where: could not install ${pkgs[*]}: $(priv_blocker "$sudo")."
+        info "To do it by hand, as root:  $(pm_install_cmd "$pm" "${pkgs[*]}")"
+      fi
+      refresh || { REQ_LEFT=("could-not-check"); return 1; }
+    fi
+  fi
+
+  if [[ " $missing " == *" docker "* ]]; then
+    hint "Docker's own install script (https://get.docker.com) installs Docker Engine and the Compose plugin. It needs administrator rights$( [[ $user == root ]] || echo " and adds $user to the docker group")."
+    ask_yn AUTO_INSTALL_DOCKER "Docker is not installed on $where. Install it now with Docker's official script (curl -fsSL https://get.docker.com | sh)?" no
+    if [[ $(ans AUTO_INSTALL_DOCKER) == yes && $pm != none ]]; then
+      local dcmd
+      dcmd="command -v curl >/dev/null 2>&1 || { $(pm_install_cmd "$pm" curl); }; curl -fsSL https://get.docker.com | sh$( [[ $user == root ]] || echo " && usermod -aG docker $user")"
+      printf '  installing Docker on %s (a few minutes) ...\n' "$where"
+      if priv_exec "$node" "$sudo" "$dcmd"; then
+        ok "$where: Docker installed, $user added to the docker group"
+        if [[ $node == 1 ]]; then REQ_LEFT=("relogin"); return 1; fi
+        reconnect_remote "$node" || { fail "Could not reconnect to $where."; REQ_LEFT=("could-not-check"); return 1; }
+      else
+        fail "$where: the Docker installation did not work: $(priv_blocker "$sudo"). Install Docker by hand: https://docs.docker.com/engine/install/"
+      fi
+      refresh || { REQ_LEFT=("could-not-check"); return 1; }
+    fi
+  fi
+
+  if [[ " $missing " == *" docker-access "* ]]; then
+    ask_yn AUTO_DOCKER_GROUP "$user cannot use Docker on $where. Add $user to the docker group now?" yes
+    if [[ $(ans AUTO_DOCKER_GROUP) == yes ]] && priv_exec "$node" "$sudo" "usermod -aG docker $user"; then
+      ok "$where: $user added to the docker group"
+      if [[ $node == 1 ]]; then REQ_LEFT=("relogin"); return 1; fi
+      reconnect_remote "$node" || { REQ_LEFT=("could-not-check"); return 1; }
+      refresh || { REQ_LEFT=("could-not-check"); return 1; }
+    fi
+  fi
+
+  for tok in $missing; do left+=("$tok"); done
+  REQ_LEFT=("${left[@]}")
+  (( ${#left[@]} == 0 ))
+}
+
+explain_requirements() { # where tokens...
+  local where=$1 tok; shift
+  fail "$where is not ready:"
+  for tok in "$@"; do
+    case $tok in
+      could-not-check) fail "  could not run the check at all" ;;
+      relogin) fail "  Log out and back in (or run: newgrp docker) so the new docker group applies, then run ./install.sh again: it carries on." ;;
+      docker-daemon) fail "  $(req_text "$tok"): sudo systemctl enable --now docker" ;;
+      compose|compose-old) fail "  $(req_text "$tok"): see https://docs.docker.com/compose/install/linux/" ;;
+      *) fail "  $(req_text "$tok")" ;;
+    esac
+  done
+}
+
 preflight() {
   heading "Checking this machine"
   [[ -f scripts/compose.sh && -f .env.example ]] || die "Run this from the root of the church-dashboard checkout (scripts/compose.sh and .env.example must be here)."
   (( DRY_RUN )) && { info "(dry run: skipping the docker checks)"; return 0; }
 
-  command -v docker >/dev/null 2>&1 || die "Docker is not installed. On Linux: curl -fsSL https://get.docker.com | sh"
-  if ! docker info >/dev/null 2>&1; then
-    die "Docker is installed but this user cannot use it. Start it (sudo systemctl start docker) and, if it says permission denied, add yourself to the docker group: sudo usermod -aG docker \$USER (then log in again)."
+  if ! ensure_requirements 1; then
+    explain_requirements "This machine" "${REQ_LEFT[@]}"
+    exit 1
   fi
   local cv; cv=$(docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//')
-  [[ -n $cv ]] || die "The Docker Compose plugin is missing. Install docker-compose-plugin (Compose v2.20 or newer)."
-  if [[ $(printf '%s\n2.20\n' "$cv" | sort -V | head -n 1) != 2.20 ]]; then die "Docker Compose $cv is too old: v2.20 or newer is needed."; fi
-  ok "Docker $(docker version --format '{{.Server.Version}}' 2>/dev/null), Compose $cv"
-  command -v make >/dev/null 2>&1 || die "make is not installed (sudo apt install make)."
-  command -v git >/dev/null 2>&1 || warn "git is not installed: the build id will not name a commit (every cluster node must still run the same code)."
+  ok "Docker $(docker version --format '{{.Server.Version}}' 2>/dev/null), Compose $cv, make and git"
 
   local mem free
   mem=$(human_mem_gb); free=$(df -Pk . | awk 'NR==2 {printf "%d", $4/1048576}')
@@ -1066,28 +1229,14 @@ remote_connect() { # may ask for a password or to trust the host: it has the ter
   ssh_prep "$1" && ssh "${SSH_O[@]}" "$SSH_T" true
 }
 
-remote_preflight() { # fail with the list of what is missing on node $1
-  local out
-  out=$(rsh "$1" 'bash -s' 2>&1 <<'REMOTE'
-p=""
-command -v docker >/dev/null 2>&1 || p="$p docker-is-not-installed"
-if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then p="$p this-user-cannot-use-docker(add-it-to-the-docker-group)"; fi
-cv=$(docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//')
-[ -n "$cv" ] || p="$p docker-compose-plugin-missing"
-if [ -n "$cv" ] && [ "$(printf '%s\n2.20\n' "$cv" | sort -V | head -n 1)" != 2.20 ]; then p="$p docker-compose-$cv-is-too-old(need-2.20)"; fi
-command -v make >/dev/null 2>&1 || p="$p make-is-missing"
-command -v git >/dev/null 2>&1 || p="$p git-is-missing"
-command -v tar >/dev/null 2>&1 || p="$p tar-is-missing"
-echo "PROBLEMS:$p"
-REMOTE
-  ) || { fail "Could not run a command on $(ans "NODE_${1}_ID"): $out"; return 1; }
-  local problems; problems=$(sed -n 's/^PROBLEMS://p' <<<"$out" | tail -n 1)
-  if [[ -n ${problems// /} ]]; then
-    fail "$(ans "NODE_${1}_ID") ($SSH_T) is not ready:"
-    for x in $problems; do fail "  $x"; done
-    return 1
+remote_preflight() { # node $1: check, offer to install what is missing, fail with what is left
+  ssh_prep "$1" || return 1
+  if ensure_requirements "$1"; then
+    ok "$(ans "NODE_${1}_ID") ($SSH_T): Docker, Compose, make, git and tar are there"
+    return 0
   fi
-  ok "$(ans "NODE_${1}_ID") ($SSH_T): Docker, Compose, make and git are there"
+  explain_requirements "$(ans "NODE_${1}_ID") ($SSH_T)" "${REQ_LEFT[@]}"
+  return 1
 }
 
 # The checkout, without data, dependencies and build output, but WITH .git.
@@ -1171,9 +1320,10 @@ remote_parallel() { # function
 }
 
 remote_join_first_phase() { # node: everything up to starting the data services and printing the node id
-  local i=$1 dir stop=build name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
-  if bundled_db || bundled_s3; then stop=node-id; fi
-  rsh "$i" "cd -- '$dir' && NO_COLOR=1 INSTALL_STOP_AFTER=$stop ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers"
+  local i=$1 dir stop_at=build name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
+  # shellcheck disable=SC2100  # a stage name, not arithmetic
+  if bundled_db || bundled_s3; then stop_at=node-id; fi
+  rsh "$i" "cd -- '$dir' && NO_COLOR=1 INSTALL_STOP_AFTER=$stop_at ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers"
 }
 remote_join_last_phase() { # node: start the application, wait until it answers, delete the package
   local i=$1 dir name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
@@ -1369,6 +1519,8 @@ while (( $# )); do
     --answers) PRESET_FILE=${2:-}; [[ -n $PRESET_FILE ]] || die "--answers needs a file."; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --fresh) FRESH=1; shift ;;
+    --check-requirements) DEPS_ONLY=1; shift ;;
+    --check-remote) CHECK_REMOTE=${2:-}; [[ $CHECK_REMOTE =~ ^[0-9]+$ ]] || die "--check-remote needs a node number (with --answers)."; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
   esac
@@ -1378,10 +1530,17 @@ printf '\n%sChurch Dashboard installer%s\n' "$B" "$Z"
 say "This asks a few questions, then installs. Press Ctrl-C at any time; running it again carries on."
 
 (( FRESH )) && rm -f "$STATE"
+[[ -z $PRESET_FILE ]] || load_answers "$PRESET_FILE"
 preflight
+(( DEPS_ONLY )) && { ok "Everything this installer needs is here."; exit 0; }
+if [[ -n $CHECK_REMOTE ]]; then
+  remote_connect "$CHECK_REMOTE" || die "Could not connect."
+  remote_preflight "$CHECK_REMOTE" || exit 1
+  exit 0
+fi
 
 if [[ -n $PRESET_FILE ]]; then
-  load_answers "$PRESET_FILE"
+  :
 elif [[ -f $ANSWERS_FILE && $FRESH -eq 0 ]]; then
   ANS_EXISTING=1
 fi
