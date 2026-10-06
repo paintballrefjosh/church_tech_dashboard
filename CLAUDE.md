@@ -763,13 +763,16 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   `./install.sh --join` over ssh in two phases (`INSTALL_STOP_AFTER=node-id`, or `build` with an external database and
   store, then the rest), all remote nodes in parallel. ssh connection sharing (`ControlMaster`) carries it: the one
   interactive moment (a password or host key prompt) is `remote_connect`; everything else is `BatchMode`. **The installer
-  never reads or stores a password.** A remote `--join` has no terminal, so anything it would ask must be in its answers
+  never reads or stores a password.** Every remote stage starts with `remote_connect_all`: a run that RESUMES skips
+  `remote-prepare`, so it has no shared connection, and the prompt-free `rsh` would fail with "Permission denied" on a
+  machine that needs a password; `ssh -O check` finds missing connections and `remote_connect` reopens them (asking again;
+  with no terminal it says to use a key). A remote `--join` has no terminal, so anything it would ask must be in its answers
   (`NODE_<n>_ANS_<KEY>`); a network file system for Garage's metadata is refused with a clear message instead.
 - **A cluster's other nodes get a package** (`data/cluster-packages/`, mode 600: that node's `.env` with the
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).

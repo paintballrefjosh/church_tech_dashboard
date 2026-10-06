@@ -174,8 +174,11 @@ CFG
         echo "NODE_${i}_ANS_EXTERNAL_PORT=$(ext_port "$i")"; echo "NODE_${i}_ANS_GARAGE_META_DIR=$WIZ_DIR/meta-node$i"
       done
     } >"$d/answers"
+    # Stop right after the other machines were connected to and given their files, then run again: the second
+    # run skips that step, so it has no shared ssh connection and must open them itself.
+    (cd "$d" && INSTALL_STOP_AFTER=remote-prepare NO_COLOR=1 ./install.sh --answers answers </dev/null)
     (cd "$d" && NO_COLOR=1 ./install.sh --answers answers </dev/null)
-    echo "e2e: three nodes installed (two of them over SSH); running the cross-node checks"
+    echo "e2e: three nodes installed (two of them over SSH, after a resume); running the cross-node checks"
     (cd "$d" && COMPOSE_PROJECT_NAME=wiz1 bash scripts/compose.sh --prod exec -T api node dist/scripts/reset-test-user.js >/dev/null)
     nodes="http://$WIZ_HOST:$(ext_port 1),http://$WIZ_HOST:$(ext_port 2),http://$WIZ_HOST:$(ext_port 3)"
     (cd "$d" && docker run --rm --network=host -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" -e HOME=/tmp \

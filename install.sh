@@ -61,6 +61,7 @@ DRY_RUN=0
 FRESH=0
 DEPS_ONLY=0
 CHECK_REMOTE=""
+SSH_TEST=""
 JOIN_PKG=""
 PRESET_FILE=""
 
@@ -1190,6 +1191,7 @@ st_db_members() {
   if wait_for "the $want database nodes to join" 90 cc db-members "$want" 1; then return 0; fi
   warn "Not every database node has joined. A node that started long before the first one can stall; restarting its database fixes that."
   if remote_ssh; then
+    remote_connect_all || return 1
     for ((i = 2; i <= want; i++)); do
       dir=$(remote_dir "$i")
       logrun "Restarting the database on $(ans "NODE_${i}_ID")" rsh "$i" "cd -- '$dir' && bash scripts/compose.sh --prod restart cockroach" || return 1
@@ -1312,6 +1314,25 @@ remote_connect() { # may ask for a password or to trust the host: it has the ter
   ssh_prep "$1" && ssh "${SSH_O[@]}" "$SSH_T" true
 }
 
+# Every step after the first one talks to the other machines through the shared ssh connection opened by
+# remote_connect (the only place a password can be typed). A run that resumes an earlier one skips that
+# step, so each remote step begins by making sure the connections are open, opening them (and asking for a
+# password) where they are not. Without it, a machine that needs a password just says "Permission denied".
+remote_connect_all() {
+  local i name
+  for ((i = 2; i <= $(ans NODES); i++)); do
+    ssh_prep "$i" || return 1
+    if ssh "${SSH_O[@]}" -O check "$SSH_T" >/dev/null 2>&1; then continue; fi
+    name=$(ans "NODE_${i}_ID")
+    info "$name: connecting to $SSH_T"
+    if ! remote_connect "$i"; then
+      if [[ -t 0 ]]; then fail "Could not connect to $SSH_T."
+      else fail "Could not connect to $SSH_T without a terminal: a machine that needs a password needs a key (SSH_KEY or your ssh agent), or run the installer in a terminal so ssh can ask."; fi
+      return 1
+    fi
+  done
+}
+
 remote_preflight() { # node $1: check, offer to install what is missing, fail with what is left
   ssh_prep "$1" || return 1
   if ensure_requirements "$1"; then
@@ -1415,8 +1436,9 @@ remote_join_last_phase() { # node: start the application, wait until it answers,
   rsh "$i" "cd -- '$dir' && rm -f 'data/cluster-packages/church-node-$name.tar.gz' .install-remote-answers"
 }
 
-st_remote_start() { remote_parallel remote_join_first_phase; }
+st_remote_start() { remote_connect_all || return 1; remote_parallel remote_join_first_phase; }
 st_remote_finish() {
+  remote_connect_all || return 1
   remote_parallel remote_join_last_phase || return 1
   rm -f data/cluster-packages/church-node-*.tar.gz
   ok "The packages are deleted from every machine (they held the secrets)."
@@ -1425,6 +1447,7 @@ st_remote_finish() {
 # the object-store id each other node printed, read from the node itself
 remote_peer_ids() {
   local i dir id
+  remote_connect_all || return 1
   for ((i = 2; i <= $(ans NODES); i++)); do
     have "PEERID_$i" && continue
     dir=$(remote_dir "$i")
@@ -1616,6 +1639,7 @@ while (( $# )); do
     --dry-run) DRY_RUN=1; shift ;;
     --fresh) FRESH=1; shift ;;
     --check-requirements) DEPS_ONLY=1; shift ;;
+    --ssh-test) SSH_TEST=${2:-}; [[ $SSH_TEST =~ ^[0-9]+$ ]] || die "--ssh-test needs a node number (with --answers)."; shift 2 ;;
     --check-remote) CHECK_REMOTE=${2:-}; [[ $CHECK_REMOTE =~ ^[0-9]+$ ]] || die "--check-remote needs a node number (with --answers)."; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
@@ -1629,6 +1653,12 @@ say "This asks a few questions, then installs. Press Ctrl-C at any time; running
 [[ -z $PRESET_FILE ]] || load_answers "$PRESET_FILE"
 preflight
 (( DEPS_ONLY )) && { ok "Everything this installer needs is here."; exit 0; }
+if [[ -n $SSH_TEST ]]; then   # test hook: open the shared connections as a resumed run would, then use them
+  ANS[NODES]=$SSH_TEST
+  remote_connect_all || exit 1
+  rsh "$SSH_TEST" 'echo connected-without-a-prompt' || exit 1
+  exit 0
+fi
 if [[ -n $CHECK_REMOTE ]]; then
   remote_connect "$CHECK_REMOTE" || die "Could not connect."
   remote_preflight "$CHECK_REMOTE" || exit 1
