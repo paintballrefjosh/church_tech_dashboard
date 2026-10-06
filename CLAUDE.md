@@ -727,6 +727,10 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   same change: a question (`ask_*`), `write_env`, and a case in `tests/installer/dry-run.sh`. Keep every
   question answerable from `--answers` (the keys are the `ANS[...]` names; `ENV_<NAME>` writes any `.env`
   key) so tests and unattended installs work; never read a prompt without going through `ask_*`.
+- **Read answers only through `read_line`** (used by every `ask_*`): on a terminal it uses readline (`read -e`), so
+  Backspace/arrow keys edit the answer; a bare `read` stores the erase key as a literal `^H`. Saying no at the
+  review re-asks everything that was asked at a prompt (`ASKED`); answers from `--answers` are kept.
+  `tests/installer/pty-edit.py` types a typo and fixes it with both `^H` and DEL in a real pty.
 - **Values go into `.env` unquoted**, so `v_envsafe` rejects whitespace, quotes, backslashes, backticks, `#`
   and `$`; the database URL's user and password are percent-encoded (`urlenc`), because compose interpolates
   `$` in env files.
@@ -735,11 +739,20 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   re-run, and a stage that needs another machine uses `pause` (skipped by `NOWAIT=yes` in tests). A single
   server follows the cluster order, not `make up`: the API cannot start on an empty database, so it starts
   the database, runs migrate and seed in one-off containers (`run --rm --no-deps api`), then `up`.
+- **The other nodes can be installed over SSH from the first** (`REMOTE_MODE=ssh`, the `remote_*`/`rsh` helpers and the
+  `remote-prepare`/`remote-start`/`remote-finish` stages): the first node copies its checkout (WITH `.git`, so
+  `scripts/build-id.sh` gives every node the same build id; it is compared before anything is built), the node's package
+  (under the git-ignored `data/`, a stray untracked file would change the build id) and an answers file, then runs
+  `./install.sh --join` over ssh in two phases (`INSTALL_STOP_AFTER=node-id`, or `build` with an external database and
+  store, then the rest), all remote nodes in parallel. ssh connection sharing (`ControlMaster`) carries it: the one
+  interactive moment (a password or host key prompt) is `remote_connect`; everything else is `BatchMode`. **The installer
+  never reads or stores a password.** A remote `--join` has no terminal, so anything it would ask must be in its answers
+  (`NODE_<n>_ANS_<KEY>`); a network file system for Garage's metadata is refused with a clear message instead.
 - **A cluster's other nodes get a package** (`data/cluster-packages/`, mode 600: that node's `.env` with the
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/e2e.sh single|cluster|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).

@@ -11,6 +11,10 @@
 #   tests/installer/e2e.sh external-cluster
 #                                     shape B against a three node YugabyteDB: the wizard is given all three
 #                                     hosts, the smoke suite runs, then again with one database node stopped
+#   tests/installer/e2e.sh cluster-ssh
+#                                     shape C like `cluster`, but the first node installs the other two
+#                                     itself over SSH (an unprivileged sshd on 127.0.0.1:2222 with its own
+#                                     keys: nothing in ~/.ssh is touched)
 #   tests/installer/e2e.sh cluster    shape C: three nodes on this host, driven the way three people
 #                                     would (first node, then --join on the others), then
 #                                     tests/cluster/cross-node.mjs against all three
@@ -52,7 +56,7 @@ ENV_API_IMAGE=church-wiz-api
 ENV_WEB_IMAGE=church-wiz-web
 ENV_MONITOR_IMAGE=church-wiz-monitor
 ENV_GARAGE_IMAGE=church-wiz-garage
-GARAGE_META_DIR=$d/garage-meta
+GARAGE_META_DIR=$WIZ_DIR/meta-node$n
 EXTERNAL_PORT=$(ext_port "$n")
 REUSE_SECRET=no
 CONFIRM=yes
@@ -130,6 +134,54 @@ case "${1:-}" in
     smoke
     ;;
 
+  cluster-ssh)
+    ssh_dir="$WIZ_DIR/ssh"; mkdir -p "$ssh_dir"; chmod 700 "$ssh_dir"
+    [[ -f "$ssh_dir/host_key" ]] || ssh-keygen -q -t ed25519 -N '' -f "$ssh_dir/host_key"
+    [[ -f "$ssh_dir/id_test" ]] || ssh-keygen -q -t ed25519 -N '' -f "$ssh_dir/id_test"
+    cp "$ssh_dir/id_test.pub" "$ssh_dir/authorized_keys"; chmod 600 "$ssh_dir/authorized_keys"
+    cat >"$ssh_dir/sshd_config" <<CFG
+Port 2222
+ListenAddress 127.0.0.1
+HostKey $ssh_dir/host_key
+PidFile $ssh_dir/sshd.pid
+AuthorizedKeysFile $ssh_dir/authorized_keys
+PasswordAuthentication no
+PubkeyAuthentication yes
+UsePAM no
+StrictModes no
+PrintMotd no
+CFG
+    if [[ -f "$ssh_dir/sshd.pid" ]] && kill -0 "$(cat "$ssh_dir/sshd.pid")" 2>/dev/null; then :; else
+      /usr/sbin/sshd -f "$ssh_dir/sshd_config" -E "$ssh_dir/sshd.log" || die "could not start the test sshd (see $ssh_dir/sshd.log)"
+    fi
+    ssh -p 2222 -i "$ssh_dir/id_test" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile="$ssh_dir/known_hosts" 127.0.0.1 true || die "the test sshd does not accept the test key"
+    for n in 1 2 3; do ensure_net "wiz$n" $((100 + n)); done
+    d="$(ndir 1)"; rm -rf "$d"; copy_repo "$d"; mkdir -p "$d/garage-meta"
+    (cd "$d" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm test)
+    {
+      node_answers 1
+      echo SETUP=cluster; echo CLUSTER_ROLE=first; echo DB_MODE=bundled; echo S3_MODE=bundled; echo TRUSTED_PROXIES=
+      echo NODES=3; echo CLUSTER_S3_CAPACITY=10G
+      for i in 1 2 3; do echo "NODE_${i}_ID=wiz-$i"; echo "NODE_${i}_ADDR=$WIZ_HOST:$(db_port "$i"):$(rpc_port "$i")"; done
+      echo REMOTE_MODE=ssh; echo "REMOTE_DIR=church-wiz/node2"; echo "SSH_KEY=$ssh_dir/id_test"; echo "SSH_USER=$(id -un)"; echo SSH_PORT=2222; echo SSH_SAME=yes
+      echo "SSH_EXTRA_OPTS=-o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=no"
+      echo REMOTE_GARAGE_META_DIR=
+      for i in 2 3; do
+        echo "NODE_${i}_SSH_HOST=127.0.0.1"; echo "NODE_${i}_SSH_DIR=church-wiz/node$i"
+        echo "NODE_${i}_ANS_ENV_COMPOSE_PROJECT_NAME=wiz$i"
+        echo "NODE_${i}_ANS_ENV_API_IMAGE=church-wiz-api"; echo "NODE_${i}_ANS_ENV_WEB_IMAGE=church-wiz-web"
+        echo "NODE_${i}_ANS_ENV_MONITOR_IMAGE=church-wiz-monitor"; echo "NODE_${i}_ANS_ENV_GARAGE_IMAGE=church-wiz-garage"
+        echo "NODE_${i}_ANS_EXTERNAL_PORT=$(ext_port "$i")"; echo "NODE_${i}_ANS_GARAGE_META_DIR=$WIZ_DIR/meta-node$i"
+      done
+    } >"$d/answers"
+    (cd "$d" && NO_COLOR=1 ./install.sh --answers answers </dev/null)
+    echo "e2e: three nodes installed (two of them over SSH); running the cross-node checks"
+    (cd "$d" && COMPOSE_PROJECT_NAME=wiz1 bash scripts/compose.sh --prod exec -T api node dist/scripts/reset-test-user.js >/dev/null)
+    nodes="http://$WIZ_HOST:$(ext_port 1),http://$WIZ_HOST:$(ext_port 2),http://$WIZ_HOST:$(ext_port 3)"
+    (cd "$d" && docker run --rm --network=host -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" -e HOME=/tmp \
+      -e NODES="$nodes" node:20-alpine node tests/cluster/cross-node.mjs | tail -n 8)
+    ;;
+
   cluster)
     for n in 1 2 3; do d="$(ndir "$n")"; rm -rf "$d"; copy_repo "$d"; mkdir -p "$d/garage-meta"; ensure_net "wiz$n" $((100 + n)); done
     # Node 1: everything up to the point where it needs the others (the wizard's own steps, in order).
@@ -164,6 +216,7 @@ case "${1:-}" in
     ;;
 
   down)
+    if [[ -f "$WIZ_DIR/ssh/sshd.pid" ]]; then kill "$(cat "$WIZ_DIR/ssh/sshd.pid")" 2>/dev/null || true; fi
     docker rm -f wizdb wizyb1 wizyb2 wizyb3 >/dev/null 2>&1 || true
     docker network rm wizyb >/dev/null 2>&1 || true
     for n in 1 2 3; do
@@ -176,7 +229,7 @@ case "${1:-}" in
     done
     # data/ holds root-owned files from the database containers: remove them through docker.
     if [[ -d $WIZ_DIR ]]; then
-      docker run --rm -v "$WIZ_DIR:/w" alpine sh -c 'rm -rf /w/node*' >/dev/null 2>&1 || true
+      docker run --rm -v "$WIZ_DIR:/w" alpine sh -c 'rm -rf /w/node* /w/meta-node*' >/dev/null 2>&1 || true
       rmdir "$WIZ_DIR" 2>/dev/null || true
     fi
     echo "e2e: removed"

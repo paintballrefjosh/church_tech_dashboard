@@ -38,3 +38,4 @@ test-results/
 .install-state
 .install.log
 .env.bak-*
+.install-remote-*

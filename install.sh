@@ -67,6 +67,7 @@ trap 'echo; fail "Interrupted. Run ./install.sh again to carry on where you left
 # Answers: asked once, or taken from a file / earlier run. Every prompt checks ANS first.
 # ---------------------------------------------------------------------------------------------
 declare -A ANS=()
+ASKED=()   # keys answered at a prompt (not from an answers file): forgotten if you redo the questions
 
 load_answers() { # file
   local line k v
@@ -92,8 +93,23 @@ save_answers() {
 have() { [[ -n ${ANS[$1]+x} ]]; }
 ans() { printf '%s' "${ANS[$1]:-}"; }
 
-read_line() { # sets REPLY_LINE; dies at end of input
-  IFS= read -r REPLY_LINE || die "No input left. Run this in a terminal, or pass --answers FILE with every answer in it."
+# The answer prompt. On a terminal the line is read with readline (-e), so Backspace, Delete, the arrow
+# keys and Home/End edit the answer instead of being typed into it (a plain read would store the terminal's
+# erase key as text, a literal ^H); the \001 \002 markers tell readline the colour codes take no width.
+if [[ -n $IC ]]; then PROMPT_RL=$'\001'"$IC"$'\002'"> "; else PROMPT_RL="> "; fi
+
+read_line() { # [-s]: sets REPLY_LINE; -s does not echo; dies at end of input
+  local -a flags=(-r)
+  [[ ${1:-} == -s ]] && flags+=(-s)
+  if [[ -t 0 ]]; then
+    IFS= read -e "${flags[@]}" -p "$PROMPT_RL" REPLY_LINE || die "No input left."
+    printf '%s' "$Z"
+    [[ ${1:-} == -s ]] && printf '\n'
+  else
+    printf '%s>%s ' "$IC" "$Z"
+    IFS= read "${flags[@]}" REPLY_LINE || die "No input left. Run this in a terminal, or pass --answers FILE with every answer in it."
+  fi
+  return 0
 }
 
 # ask_text KEY "Question" "default" [validator] [hint]
@@ -109,12 +125,12 @@ ask_text() {
     [[ -n $h ]] && hint "$h"
     printf '%s? %s%s' "$QC" "$q" "$Z"
     [[ -n $def ]] && printf ' %s[%s]%s' "$D" "$def" "$Z"
-    printf '\n%s>%s %s' "$IC" "$Z" "$IC"
-    read_line; printf '%s' "$Z"; v=${REPLY_LINE:-$def}
+    printf '\n'
+    read_line; v=${REPLY_LINE:-$def}
     if [[ -n $validator ]] && ! "$validator" "$v"; then continue; fi
     break
   done
-  ANS[$key]=$v
+  ANS[$key]=$v; ASKED+=("$key")
 }
 
 # ask_secret KEY "Question" [validator]: not echoed
@@ -126,12 +142,12 @@ ask_secret() {
     return 0
   fi
   while :; do
-    printf '\n%s? %s%s %s(hidden)%s\n%s>%s ' "$QC" "$q" "$Z" "$D" "$Z" "$IC" "$Z"
-    if [[ -t 0 ]]; then IFS= read -rs v || die "No input left."; printf '\n'; else read_line; v=$REPLY_LINE; fi
+    printf '\n%s? %s%s %s(hidden)%s\n' "$QC" "$q" "$Z" "$D" "$Z"
+    read_line -s; v=$REPLY_LINE
     if [[ -n $validator ]] && ! "$validator" "$v"; then continue; fi
     break
   done
-  ANS[$key]=$v
+  ANS[$key]=$v; ASKED+=("$key")
 }
 
 # ask_yn KEY "Question" yes|no  -> ANS[KEY] is "yes" or "no"
@@ -143,9 +159,9 @@ ask_yn() {
   fi
   [[ $def == yes ]] && shown='Y/n' || shown='y/N'
   while :; do
-    printf '\n%s? %s%s %s[%s]%s\n%s>%s %s' "$QC" "$q" "$Z" "$D" "$shown" "$Z" "$IC" "$Z" "$IC"
-    read_line; printf '%s' "$Z"; v=${REPLY_LINE:-$def}
-    case "$v" in y|Y|yes|YES) ANS[$key]=yes; return 0 ;; n|N|no|NO) ANS[$key]=no; return 0 ;; esac
+    printf '\n%s? %s%s %s[%s]%s\n' "$QC" "$q" "$Z" "$D" "$shown" "$Z"
+    read_line; v=${REPLY_LINE:-$def}
+    case "$v" in y|Y|yes|YES) ANS[$key]=yes; ASKED+=("$key"); return 0 ;; n|N|no|NO) ANS[$key]=no; ASKED+=("$key"); return 0 ;; esac
     warn "Please answer yes or no."
   done
 }
@@ -170,10 +186,10 @@ ask_choice() {
       printf '  %s%d)%s %s%s%s\n' "$NC" $((i + 1)) "$Z" "$B" "${labs[i]}" "$Z"
       [[ -n ${descs[i]} ]] && printf '     %s%s%s\n' "$D" "${descs[i]}" "$Z"
     done
-    printf '%sChoose a number%s %s[%s]%s\n%s>%s %s' "$QC" "$Z" "$D" "$defidx" "$Z" "$IC" "$Z" "$IC"
-    read_line; printf '%s' "$Z"; reply=${REPLY_LINE:-$defidx}
-    if [[ $reply =~ ^[0-9]+$ ]] && (( reply >= 1 && reply <= ${#vals[@]} )); then ANS[$key]=${vals[reply-1]}; return 0; fi
-    for v in "${vals[@]}"; do [[ $v == "$reply" ]] && { ANS[$key]=$v; return 0; }; done
+    printf '%sChoose a number%s %s[%s]%s\n' "$QC" "$Z" "$D" "$defidx" "$Z"
+    read_line; reply=${REPLY_LINE:-$defidx}
+    if [[ $reply =~ ^[0-9]+$ ]] && (( reply >= 1 && reply <= ${#vals[@]} )); then ANS[$key]=${vals[reply-1]}; ASKED+=("$key"); return 0; fi
+    for v in "${vals[@]}"; do [[ $v == "$reply" ]] && { ANS[$key]=$v; ASKED+=("$key"); return 0; }; done
     warn "Please enter a number from 1 to ${#vals[@]}."
   done
 }
@@ -370,7 +386,7 @@ run_stage() {
 
 pause() {
   if [[ $(ans NOWAIT) == yes ]]; then info "(not waiting: NOWAIT=yes)"; return 0; fi
-  printf '\n%s? %s%s\n%sPress Enter to continue%s\n%s>%s ' "$QC" "$*" "$Z" "$D" "$Z" "$IC" "$Z"
+  printf '\n%s? %s%s\n%sPress Enter to continue%s\n' "$QC" "$*" "$Z" "$D" "$Z"
   read_line
 }
 
@@ -598,7 +614,42 @@ ask_cluster_nodes() {
     done
   done
   (( c_s3 )) && ask_text CLUSTER_S3_CAPACITY "How much disk may each node offer for uploaded files? (a ceiling, not reserved)" 100G v_size
+  ask_remote
   return 0
+}
+
+v_sshuser() { [[ $1 =~ ^[A-Za-z_][A-Za-z0-9._-]*$ ]] || { fail "That is not a user name."; return 1; }; }
+v_sshkey() { [[ -z $1 || -r $1 ]] || { fail "Cannot read $1."; return 1; }; }
+v_remotedir() { v_envsafe "$1" && [[ -n $1 && $1 != -* ]] || { fail "Enter a folder name (not starting with '-', no spaces)."; return 1; }; }
+
+ask_remote() {
+  heading "The other machines"
+  ask_choice REMOTE_MODE "How should the other machines be installed?" ssh \
+    "ssh|Automatically over SSH|The installer connects to each machine, copies what it needs, installs there and starts everything, all from here. Each machine needs SSH access, Docker (Compose 2.20+), git and make. If one asks for a password, ssh asks you for it once." \
+    "manual|I will copy the packages myself|The installer makes a package per machine; you copy it over and run ./install.sh --join there."
+  [[ $(ans REMOTE_MODE) == ssh ]] || return 0
+  ask_text REMOTE_DIR "Install folder on the other machines (in the SSH user's home)" church-dashboard v_remotedir \
+    "The code is copied here. Docker's data folders live inside it."
+  ask_text SSH_KEY "SSH private key file (blank: your ssh agent, default keys, or a password)" "" v_sshkey
+  ask_text SSH_USER "SSH user on the other machines" "$(id -un)" v_sshuser
+  ask_text SSH_PORT "SSH port" 22 v_port
+  ask_yn SSH_SAME "Same SSH user and port on every other machine?" yes
+  local i h
+  for ((i = 2; i <= $(ans NODES); i++)); do
+    split_entry "$(ans "NODE_${i}_ADDR")"; h=$ENTRY_HOST
+    printf '\n%s%s%s\n' "$B" "$(ans "NODE_${i}_ID")" "$Z"
+    ask_text "NODE_${i}_SSH_HOST" "  Host to connect to over SSH" "$h" v_host
+    if [[ $(ans SSH_SAME) == yes ]]; then
+      ANS["NODE_${i}_SSH_USER"]=${ANS["NODE_${i}_SSH_USER"]:-$(ans SSH_USER)}
+      ANS["NODE_${i}_SSH_PORT"]=${ANS["NODE_${i}_SSH_PORT"]:-$(ans SSH_PORT)}
+    else
+      ask_text "NODE_${i}_SSH_USER" "  SSH user" "$(ans SSH_USER)" v_sshuser
+      ask_text "NODE_${i}_SSH_PORT" "  SSH port" "$(ans SSH_PORT)" v_port
+    fi
+  done
+  if bundled_s3; then
+    ask_text REMOTE_GARAGE_META_DIR "Local folder for the object store's metadata on the other machines (blank: inside the install folder; NOT a network share)" "" v_envsafe
+  fi
 }
 
 ask_stack() {
@@ -650,12 +701,21 @@ summary() {
   info "Port:          $(ans EXTERNAL_PORT)"
   [[ -n $(ans TRUSTED_PROXIES) ]] && info "Load balancer: $(ans TRUSTED_PROXIES)"
   if [[ $(ans SETUP) == cluster ]]; then
+    if [[ $(ans REMOTE_MODE) == ssh ]]; then
+      info "Other nodes:   installed over SSH from here (folder ~/$(ans REMOTE_DIR))"
+    else
+      info "Other nodes:   you copy a package to each and run ./install.sh --join"
+    fi
     local i; for ((i = 1; i <= $(ans NODES); i++)); do
-      info "Node $i:        $(ans "NODE_${i}_ID")  $(ans "NODE_${i}_ADDR")$( [[ $(ans "NODE_${i}_ROLE") == data ]] && echo "  (witness)" )$( ((i == 1)) && echo "  <- this machine" )"
+      info "Node $i:        $(ans "NODE_${i}_ID")  $(ans "NODE_${i}_ADDR")$( [[ $(ans "NODE_${i}_ROLE") == data ]] && echo "  (witness)" )$( ((i == 1)) && echo "  <- this machine" )$( ((i > 1)) && [[ $(ans REMOTE_MODE) == ssh ]] && echo "  (ssh $(ans "NODE_${i}_SSH_USER")@$(ans "NODE_${i}_SSH_HOST"))" )"
     done
   fi
+  local preset=0; have CONFIRM && preset=1
   ask_yn CONFIRM "Write the configuration and install?" yes
-  [[ $(ans CONFIRM) == yes ]] || die "Cancelled. Nothing was changed."
+  if [[ $(ans CONFIRM) != yes ]]; then
+    (( preset )) && die "Cancelled. Nothing was changed."
+    return 1
+  fi
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -852,6 +912,10 @@ st_packages() {
     rm -rf "$d"
     ok "Package for $(ans "NODE_${i}_ID"): $pkg"
   done
+  if remote_ssh; then
+    info "The packages go to the other machines over SSH in the next step."
+    return 0
+  fi
   cat <<EOF
 
   Each package holds that node's .env, which contains the secrets (AUTH_SECRET, database and
@@ -882,7 +946,7 @@ peer_ports_open() { # every other node's database/object store ports answer
 
 st_wait_peers() {
   if ! bundled_db && ! bundled_s3; then return 0; fi
-  pause "Start the other nodes now (./install.sh --join ...). When each has printed its node id (or 'Waiting for the first node'), continue here."
+  remote_ssh || pause "Start the other nodes now (./install.sh --join ...). When each has printed its node id (or 'Waiting for the first node'), continue here."
   wait_for "every other node's database and object store ports (open on the nodes' firewalls?)" 900 peer_ports_open || {
     fail "The other nodes' database and object store ports must be reachable from this machine (see INSTALL.md, Requirements)."
     return 1; }
@@ -890,9 +954,30 @@ st_wait_peers() {
 
 st_init_db() { bundled_db || return 0; logrun "Forming the database cluster" cc init-db; }
 
+# Every database node must have joined before the object store and the migrations. A node that was started
+# long before the first one existed can wait for ever: restarting its database makes it join at once.
+st_db_members() {
+  bundled_db || return 0
+  local want i dir; want=$(ans NODES)
+  if wait_for "the $want database nodes to join" 90 cc db-members "$want" 1; then return 0; fi
+  warn "Not every database node has joined. A node that started long before the first one can stall; restarting its database fixes that."
+  if remote_ssh; then
+    for ((i = 2; i <= want; i++)); do
+      dir=$(remote_dir "$i")
+      logrun "Restarting the database on $(ans "NODE_${i}_ID")" rsh "$i" "cd -- '$dir' && bash scripts/compose.sh --prod restart cockroach" || return 1
+    done
+  else
+    pause "On each other machine run:  scripts/compose.sh --prod restart cockroach"
+  fi
+  wait_for "the $want database nodes to join" 150 cc db-members "$want" 1 || {
+    fail "The other database nodes did not join. Check that their database ports are reachable from each other (INSTALL.md, Requirements) and look at: scripts/cluster.sh status"
+    return 1; }
+}
+
 st_garage() {
   bundled_s3 || return 0
   local ids=() i
+  if remote_ssh; then remote_peer_ids || return 1; fi
   for ((i = 2; i <= $(ans NODES); i++)); do
     ask_text "PEERID_$i" "Node id line from $(ans "NODE_${i}_ID") (the line the --join run printed)" "" v_garageid \
       "It looks like 5c1f...@10.0.0.12:3901 and is also in data/node-id.txt on that node."
@@ -915,16 +1000,204 @@ run_first_node() {
   run_stage ports "Checking ports" st_ports
   bundled_db && run_stage certs "Creating certificates" st_certs
   run_stage packages "Packaging the other nodes" st_packages
+  if remote_ssh; then
+    run_stage remote-prepare "Connecting to the other machines and copying what they need" st_remote_prepare
+    run_stage remote-start "Installing the other machines (all at once; the first time takes 5-10 minutes)" st_remote_start
+  fi
   run_stage build "Building" st_build
   if bundled_db || bundled_s3; then run_stage start-data "Starting the data services" st_start_data; fi
   run_stage wait-peers "Waiting for the other nodes" st_wait_peers
   run_stage init-db "Initialising the database" st_init_db
+  run_stage db-members "Waiting for every database node to join" st_db_members
   run_stage garage "Forming the object store" st_garage
   run_stage migrate "Migrating the database" st_migrate_cluster
   run_stage seed "Seeding the defaults" st_seed_cluster
   run_stage up "Starting the application" st_up_cluster
-  run_stage release "Starting the other nodes' applications" st_release_peers
+  if remote_ssh; then
+    run_stage remote-finish "Starting the other machines' applications" st_remote_finish
+  else
+    run_stage release "Starting the other nodes' applications" st_release_peers
+  fi
   run_stage health "Waiting for this node" st_health
+}
+
+# ---- the other machines, over SSH ----------------------------------------------------------------
+# With REMOTE_MODE=ssh the first machine does what a person would otherwise do by hand on every other
+# machine: connect, copy this checkout (with .git, so every node computes the same build id) and the node's
+# package, run `./install.sh --join` there (all machines at once), read back each node's object-store id,
+# start their applications when the cluster is ready, and delete the packages. Passwords are never handled
+# here: ssh asks for one itself, once per machine, when it first connects (it needs a terminal for that;
+# without one, keys must be set up). ssh's connection sharing (ControlMaster) then carries every later command.
+remote_ssh() { [[ $(ans SETUP) == cluster && $(ans REMOTE_MODE) == ssh ]]; }
+REMOTE_TMP=""
+remote_tmp() {
+  [[ -n $REMOTE_TMP ]] && return 0
+  REMOTE_TMP=$(mktemp -d /tmp/church-ssh.XXXXXX) && chmod 700 "$REMOTE_TMP"
+}
+remote_close() { # close the shared connections when the installer exits
+  [[ -n $REMOTE_TMP && -d $REMOTE_TMP ]] || return 0
+  local i
+  for ((i = 2; i <= ${ANS[NODES]:-1}; i++)); do
+    ssh_prep "$i" 2>/dev/null && ssh "${SSH_O[@]}" -O exit "$SSH_T" >/dev/null 2>&1
+  done
+  rm -rf "$REMOTE_TMP"
+}
+trap remote_close EXIT
+
+node_ssh() { ans "NODE_${1}_SSH_$2"; }
+remote_dir() { local d; d=$(node_ssh "$1" DIR); printf '%s' "${d:-$(ans REMOTE_DIR)}"; }
+
+# SSH_O: options, SSH_T: user@host for node $1
+ssh_prep() {
+  remote_tmp || return 1
+  SSH_O=(-o ControlMaster=auto -o "ControlPath=$REMOTE_TMP/cm-%C" -o ControlPersist=30m -o ServerAliveInterval=15 -p "$(node_ssh "$1" PORT)")
+  [[ -n $(ans SSH_KEY) ]] && SSH_O+=(-i "$(ans SSH_KEY)" -o IdentitiesOnly=yes)
+  [[ -t 0 ]] || SSH_O+=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+  if [[ -n $(ans SSH_EXTRA_OPTS) ]]; then
+    local -a extra; read -ra extra <<<"$(ans SSH_EXTRA_OPTS)"; SSH_O+=("${extra[@]}")
+  fi
+  SSH_T="$(node_ssh "$1" USER)@$(node_ssh "$1" HOST)"
+}
+
+# Run a command on node $1: no terminal, never prompts.
+rsh() { local i=$1; shift; ssh_prep "$i" && ssh "${SSH_O[@]}" -o BatchMode=yes "$SSH_T" "$@"; }
+
+remote_connect() { # may ask for a password or to trust the host: it has the terminal
+  ssh_prep "$1" && ssh "${SSH_O[@]}" "$SSH_T" true
+}
+
+remote_preflight() { # fail with the list of what is missing on node $1
+  local out
+  out=$(rsh "$1" 'bash -s' 2>&1 <<'REMOTE'
+p=""
+command -v docker >/dev/null 2>&1 || p="$p docker-is-not-installed"
+if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then p="$p this-user-cannot-use-docker(add-it-to-the-docker-group)"; fi
+cv=$(docker compose version --short 2>/dev/null | sed 's/^v//; s/[^0-9.].*//')
+[ -n "$cv" ] || p="$p docker-compose-plugin-missing"
+if [ -n "$cv" ] && [ "$(printf '%s\n2.20\n' "$cv" | sort -V | head -n 1)" != 2.20 ]; then p="$p docker-compose-$cv-is-too-old(need-2.20)"; fi
+command -v make >/dev/null 2>&1 || p="$p make-is-missing"
+command -v git >/dev/null 2>&1 || p="$p git-is-missing"
+command -v tar >/dev/null 2>&1 || p="$p tar-is-missing"
+echo "PROBLEMS:$p"
+REMOTE
+  ) || { fail "Could not run a command on $(ans "NODE_${1}_ID"): $out"; return 1; }
+  local problems; problems=$(sed -n 's/^PROBLEMS://p' <<<"$out" | tail -n 1)
+  if [[ -n ${problems// /} ]]; then
+    fail "$(ans "NODE_${1}_ID") ($SSH_T) is not ready:"
+    for x in $problems; do fail "  $x"; done
+    return 1
+  fi
+  ok "$(ans "NODE_${1}_ID") ($SSH_T): Docker, Compose, make and git are there"
+}
+
+# The checkout, without data, dependencies and build output, but WITH .git.
+copy_checkout() { # node
+  local dir; dir=$(remote_dir "$1")
+  ssh_prep "$1" || return 1
+  tar --exclude=./data --exclude=node_modules --exclude=.pnpm-store --exclude=.turbo --exclude=.next --exclude=dist \
+      --exclude=./backups --exclude=./.env --exclude='./.env.bak*' --exclude=./.claude --exclude=tsconfig.tsbuildinfo \
+      --exclude='./.install*' --exclude='./church-node-*' -czf - . \
+    | ssh "${SSH_O[@]}" -o BatchMode=yes "$SSH_T" "mkdir -p -- '$dir' && tar -xzf - -C '$dir'"
+}
+
+# The remote answers file: what the --join run on node $1 would otherwise ask, plus any NODE_<n>_ANS_<KEY>.
+remote_answers() { # node -> stdout
+  local i=$1 k
+  echo "NOWAIT=yes"
+  echo "EXTERNAL_PORT=${ANS[NODE_${i}_ANS_EXTERNAL_PORT]:-$(ans EXTERNAL_PORT)}"
+  local meta=${ANS[NODE_${i}_ANS_GARAGE_META_DIR]:-$(ans REMOTE_GARAGE_META_DIR)}
+  [[ -z $meta ]] || echo "GARAGE_META_DIR=$meta"
+  for k in $(printf '%s\n' "${!ANS[@]}" | sort); do
+    [[ $k == NODE_${i}_ANS_* ]] || continue
+    [[ $k == NODE_${i}_ANS_EXTERNAL_PORT || $k == NODE_${i}_ANS_GARAGE_META_DIR ]] && continue
+    echo "${k#NODE_${i}_ANS_}=${ANS[$k]}"
+  done
+}
+
+st_remote_prepare() {
+  local i name dir pkg lb rb
+  lb=$(bash scripts/build-id.sh)
+  for ((i = 2; i <= $(ans NODES); i++)); do
+    name=$(ans "NODE_${i}_ID"); dir=$(remote_dir "$i")
+    pkg="data/cluster-packages/church-node-$name.tar.gz"
+    info "$name: connecting (a password or host key question, if any, is ssh's own)"
+    remote_connect "$i" || { fail "Could not connect to $SSH_T. Check the host name, user and key, or choose to copy the packages yourself."; return 1; }
+    remote_preflight "$i" || return 1
+    logrun "$name: copying this checkout to ~/$dir" copy_checkout "$i" || return 1
+    # a fresh install: forget any progress an earlier run left there
+    rsh "$i" "cd -- '$dir' && rm -f .install-state .install-answers" || return 1
+    ( umask 077; rsh "$i" "umask 077; mkdir -p -- '$dir/data/cluster-packages' && cat > '$dir/data/cluster-packages/church-node-$name.tar.gz'" <"$pkg" ) || { fail "Could not copy the package to $name."; return 1; }
+    ( umask 077; remote_answers "$i" | rsh "$i" "umask 077; cat > '$dir/.install-remote-answers'" ) || return 1
+    rb=$(rsh "$i" "cd -- '$dir' && bash scripts/build-id.sh") || return 1
+    if [[ $rb != "$lb" ]]; then
+      fail "$name would build '$rb' but this machine builds '$lb': every node must run the same build. Is git installed there, and is the copy complete?"
+      return 1
+    fi
+    ok "$name: same build ($lb)"
+  done
+}
+
+# run `function i` for every other node at the same time; their output goes to .install-remote-<name>.log
+remote_parallel() { # function
+  local fn=$1 i n name failed=0; n=$(ans NODES)
+  local -A pid=()
+  remote_tmp || return 1
+  for ((i = 2; i <= n; i++)); do
+    name=$(ans "NODE_${i}_ID")
+    ( "$fn" "$i" ) >"$REMOTE_TMP/$name.log" 2>&1 &
+    pid[$i]=$!
+    info "$name: started"
+  done
+  printf '  working '
+  local alive=1
+  while (( alive )); do
+    alive=0
+    for i in "${!pid[@]}"; do kill -0 "${pid[$i]}" 2>/dev/null && alive=1; done
+    if (( alive )); then printf '.'; sleep 5; fi
+  done
+  printf '\n'
+  for i in "${!pid[@]}"; do
+    name=$(ans "NODE_${i}_ID")
+    cp "$REMOTE_TMP/$name.log" ".install-remote-$name.log" 2>/dev/null; chmod 600 ".install-remote-$name.log" 2>/dev/null
+    if wait "${pid[$i]}"; then ok "$name finished"
+    else
+      fail "$name failed. The end of its output:"
+      tail -n 25 "$REMOTE_TMP/$name.log" | sed 's/^/      /' >&2
+      fail "The whole of it is in .install-remote-$name.log"
+      failed=1
+    fi
+  done
+  return $failed
+}
+
+remote_join_first_phase() { # node: everything up to starting the data services and printing the node id
+  local i=$1 dir stop=build name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
+  if bundled_db || bundled_s3; then stop=node-id; fi
+  rsh "$i" "cd -- '$dir' && NO_COLOR=1 INSTALL_STOP_AFTER=$stop ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers"
+}
+remote_join_last_phase() { # node: start the application, wait until it answers, delete the package
+  local i=$1 dir name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
+  rsh "$i" "cd -- '$dir' && NO_COLOR=1 ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers" || return 1
+  rsh "$i" "cd -- '$dir' && rm -f 'data/cluster-packages/church-node-$name.tar.gz' .install-remote-answers"
+}
+
+st_remote_start() { remote_parallel remote_join_first_phase; }
+st_remote_finish() {
+  remote_parallel remote_join_last_phase || return 1
+  rm -f data/cluster-packages/church-node-*.tar.gz
+  ok "The packages are deleted from every machine (they held the secrets)."
+}
+
+# the object-store id each other node printed, read from the node itself
+remote_peer_ids() {
+  local i dir id
+  for ((i = 2; i <= $(ans NODES); i++)); do
+    have "PEERID_$i" && continue
+    dir=$(remote_dir "$i")
+    id=$(rsh "$i" "cat -- '$dir/data/node-id.txt'" 2>/dev/null) || { fail "Could not read the object store id of $(ans "NODE_${i}_ID")."; return 1; }
+    v_garageid "$id" || return 1
+    ANS[PEERID_$i]=$id
+  done
 }
 
 # ---- joining ------------------------------------------------------------------------------------
@@ -987,6 +1260,9 @@ run_join() {
     ask_text EXTERNAL_PORT "Port to serve the dashboard on (this machine)" "$(env_read "$tmp/.env" EXTERNAL_PORT)" v_port
     rm -rf "$tmp"
   }
+  if network_fs . && ! have GARAGE_META_DIR && [[ ! -t 0 ]]; then
+    die "This folder is on a network file system, and the object store's metadata must be on local disk. Give a local folder: the first machine asks for it ('Local folder for the object store metadata on the other machines'), or put GARAGE_META_DIR=/var/lib/church-garage-meta in the answers file."
+  fi
   if network_fs . && ! have GARAGE_META_DIR; then
     ask_text GARAGE_META_DIR "Local folder for the object store's metadata (this folder is on a network file system)" /var/lib/church-garage-meta v_envsafe
   fi
@@ -1056,9 +1332,15 @@ EOF
   done
   cat <<EOF
   Sign in:   admin / admin   (you will be asked to change it), then check /admin/cluster
+EOF
+  if remote_ssh; then
+    echo "  The node packages (they held the secrets) were deleted from every machine."
+  else
+    echo "  Delete the node packages (they hold the secrets):  rm -r data/cluster-packages"
+  fi
+  cat <<EOF
 
   Now:
-    - Delete the node packages (they hold the secrets):  rm -r data/cluster-packages
     - Keep data/cluster-certs/ca.key somewhere safe and OFF the nodes (it signs new nodes' certificates)
     - Firewall the cluster ports (database, object store) to the other nodes only
     - Make sure NTP runs on every node: the database nodes shut down if their clocks drift
@@ -1130,31 +1412,38 @@ if [[ -z $PRESET_FILE ]]; then
 fi
 
 # Cluster nodes that join are not asked the questions below.
-heading "How will you run it?"
-ask_choice SETUP "How do you want to run the dashboard?" single \
-  "single|On one server|The usual choice. One machine runs everything." \
-  "cluster|On several servers behind a load balancer|Higher availability. Needs your own load balancer and 2 or more machines."
+# The questions, up to the review. Saying no at the review asks them all again (nothing has been written).
+while :; do
+  heading "How will you run it?"
+  ask_choice SETUP "How do you want to run the dashboard?" single \
+    "single|On one server|The usual choice. One machine runs everything." \
+    "cluster|On several servers behind a load balancer|Higher availability. Needs your own load balancer and 2 or more machines."
 
-if [[ $(ans SETUP) == cluster ]]; then
-  ask_choice CLUSTER_ROLE "Is this the first machine, or are you adding a machine to a cluster you already started?" first \
-    "first|This is the first machine|You will set up the cluster from here and get a package for each other machine." \
-    "join|Add this machine to an existing cluster|You need the package the first machine made for this one."
-  if [[ $(ans CLUSTER_ROLE) == join ]]; then
-    ask_text JOIN_PACKAGE "Path to this machine's package (church-node-<name>.tar.gz)" "" v_path_exists
-    JOIN_PKG=$(ans JOIN_PACKAGE)
-    save_answers
-    run_join
-    exit 0
+  if [[ $(ans SETUP) == cluster ]]; then
+    ask_choice CLUSTER_ROLE "Is this the first machine, or are you adding a machine to a cluster you already started?" first \
+      "first|This is the first machine|You will set up the cluster from here and get a package for each other machine." \
+      "join|Add this machine to an existing cluster|You need the package the first machine made for this one."
+    if [[ $(ans CLUSTER_ROLE) == join ]]; then
+      ask_text JOIN_PACKAGE "Path to this machine's package (church-node-<name>.tar.gz)" "" v_path_exists
+      JOIN_PKG=$(ans JOIN_PACKAGE)
+      save_answers
+      run_join
+      exit 0
+    fi
   fi
-fi
 
-ask_database
-ask_objectstore
-ask_network
-[[ $(ans SETUP) == cluster ]] && ask_cluster_nodes
-[[ $(ans SETUP) == single ]] && ask_stack
-ask_secrets
-summary
+  ask_database
+  ask_objectstore
+  ask_network
+  [[ $(ans SETUP) == cluster ]] && ask_cluster_nodes
+  [[ $(ans SETUP) == single ]] && ask_stack
+  ask_secrets
+  if summary; then break; fi
+  say
+  say "Starting the questions again."
+  for k in "${ASKED[@]}"; do unset "ANS[$k]"; done
+  ASKED=(); forget CONFIRM
+done
 save_answers
 
 heading "Writing the configuration"

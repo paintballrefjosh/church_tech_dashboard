@@ -36,6 +36,8 @@ if [[ -z "$(git status --porcelain 2>/dev/null)" ]]; then
   echo "$sha"
 else
   # Tracked changes plus the contents of untracked (not ignored) files.
-  h="$({ git diff HEAD; git ls-files -o --exclude-standard -z | xargs -0 -r sha1sum; } 2>/dev/null | sha1sum | cut -c1-8)"
+  # (A file this user cannot read, such as one a container created as root, is skipped rather than
+  # failing the script: compose.sh runs it before every compose command.)
+  h="$({ git diff HEAD; git ls-files -o --exclude-standard -z | xargs -0 -r sha1sum 2>/dev/null || true; } 2>/dev/null | sha1sum | cut -c1-8)"
   echo "${sha}-${h}"
 fi

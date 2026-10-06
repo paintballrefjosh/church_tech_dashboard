@@ -16,6 +16,7 @@
 #   init-db                      ONCE, on one node: initialise the database cluster, create the
 #                                church database and the app's database user (safe to run again,
 #                                e.g. after restoring a backup made on a single-node install)
+#   db-members <count> [secs]    wait until <count> database nodes have joined (after init-db)
 #   node-id                      print this node's object-store id, for the others to connect to
 #   garage-bootstrap <id@addr:port>...
 #                                ONCE, on one node: connect the other nodes, form the object
@@ -222,6 +223,25 @@ case "$cmd" in
     printf '%s\n' "REASSIGN OWNED BY root TO church;" \
       | dc exec -T cockroach cockroach sql "${SQLARGS[@]}" --database=church >/dev/null
     echo "database 'church' and user 'church' are ready. Next: node-id / garage-bootstrap (object store), then 'up' on each node."
+    ;;
+
+  db-members)
+    # Wait until <count> database nodes have joined (live and available), as this node sees it. A node
+    # that was started long before the first one existed can sit waiting without ever joining: restart
+    # its database (scripts/compose.sh --prod restart cockroach) and it joins at once.
+    need_bundled_db
+    want="${1:-}"; secs="${2:-60}"
+    [[ "$want" =~ ^[0-9]+$ ]] || die "usage: scripts/cluster.sh db-members <count> [seconds]"
+    members() {
+      crdb_exec node status "${SQLARGS[@]}" --format=csv 2>/dev/null | awk -F, 'NR > 1 && $8 == "true" && $9 == "true" {n++} END {print n + 0}'
+    }
+    i=0
+    while :; do
+      n="$(members)"
+      [[ "$n" -ge "$want" ]] && { echo "$n of $want database nodes have joined."; exit 0; }
+      i=$((i + 3)); [[ $i -gt $secs ]] && { echo "only $n of $want database nodes have joined." >&2; exit 1; }
+      sleep 3
+    done
     ;;
 
   node-id)

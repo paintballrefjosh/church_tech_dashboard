@@ -43,23 +43,38 @@ What it asks, in order:
 It then shows a review, and only after you confirm does it write anything. The existing `.env`, if
 there is one and it changes, is copied to `.env.bak-<time>` first.
 
-**Several servers.** The installer runs on every machine, and the first one hands the others
-what they need:
+**Several servers.** Run the installer on the first machine; it can install all the others itself.
+After the nodes' names and addresses it asks **how the other machines should be installed**:
 
-1. On the first machine, `./install.sh`, choose "several servers" and "this is the first machine".
-   It writes this node's `.env`, makes the certificate authority and one certificate bundle per node
-   (shape C), and writes a package per other node to `data/cluster-packages/church-node-<name>.tar.gz`.
-   Each package holds that node's `.env` (with the secrets) and its certificates.
-2. Copy each package to its machine (a channel you trust: `scp`, a USB stick) and, there, with the
-   repository at **the same commit**, run `./install.sh --join church-node-<name>.tar.gz`. It builds,
-   starts the node's database and object store and prints the node's object-store id (also in
-   `data/node-id.txt`), then waits.
-3. Back on the first machine, continue: it waits until the other nodes' ports answer, forms the
-   database cluster and the object store (asking you to paste each node's id), migrates, seeds, starts
-   its application and tells you when to press Enter on the others, which then start theirs.
-4. Add every node to your load balancer (health check `GET /healthz`). The closing summary lists the
-   clean-up: delete the packages, keep `data/cluster-certs/ca.key` safe and off the nodes, firewall the
-   cluster ports, run NTP.
+*Automatically over SSH (the default).* It asks for the install folder on the other machines, an
+optional SSH key file, the SSH user and port (once for all, or per machine) and the host to connect to
+(it suggests each node's address). It then, for every other machine at once:
+
+1. connects (if a machine wants a **password**, or to trust its host key, **ssh asks you itself**, once per
+   machine, at that point: the installer never sees or stores a password; without a terminal, set up keys);
+2. checks Docker (Compose 2.20+), `git`, `make` and `tar` are there and the SSH user can use Docker;
+3. copies this checkout (with `.git`, so every node computes the same build id; it checks that they match) and
+   that node's package, which holds its `.env` and certificates;
+4. runs `./install.sh --join` there, which builds and starts that node's database and object store;
+
+then forms the database cluster and the object store here (reading each node's object store id back
+itself), migrates and seeds, starts this node, tells the others to start their applications, and **deletes the
+packages from every machine**. Each remote machine's output is kept in `.install-remote-<name>.log`. The only
+things the other machines need beforehand are SSH access, Docker and the packages above; nothing is installed
+for you. Docker's data for a node lives inside its install folder.
+
+*Manually.* The first machine writes a package per other node to
+`data/cluster-packages/church-node-<name>.tar.gz` (each holds that node's `.env`, with the secrets, and its
+certificates). Copy each to its machine over a channel you trust and, there, with the repository at **the same
+commit**, run `./install.sh --join church-node-<name>.tar.gz`. It builds, starts the node's database and object
+store and prints the node's object-store id (also in `data/node-id.txt`), then waits. Back on the first
+machine it waits until the other nodes' ports answer, forms the database cluster and the object store (asking
+you to paste each node's id), migrates, seeds, starts its application and tells you when to press Enter on the
+others, which then start theirs. Delete the packages afterwards.
+
+In both cases, finish by adding every node to your load balancer (health check `GET /healthz`). The closing
+summary lists the rest: keep `data/cluster-certs/ca.key` safe and off the nodes, firewall the cluster ports,
+run NTP.
 
 Closing the installer part way is fine: run the same command again and finished steps are skipped
 (progress is in `.install-state`, the answers in `.install-answers`, mode 600, and everything it ran
@@ -82,8 +97,10 @@ is logged to `.install.log`). `--fresh` forgets the progress.
 `TRUSTED_PROXIES`, `STACK` (`production`|`standard`), `NODES`, `WITNESS`, `NODE_<n>_ID`, `NODE_<n>_ADDR`
 (`host`, or `host:dbport:rpcport` when several nodes share one machine), `NODE_<n>_ROLE`
 (`full`|`data`), `CLUSTER_S3_CAPACITY`, `REUSE_SECRET`, `AUTH_SECRET`, `MEILI_MASTER_KEY`, `PEERID_<n>`
-(each other node's object-store id), `CONFIRM`, `NOWAIT` (do not pause for the other machines), and
-`ENV_<NAME>` to write any `<NAME>=value` to `.env`.
+(each other node's object-store id), `REMOTE_MODE` (`ssh`|`manual`), `REMOTE_DIR`, `SSH_KEY`, `SSH_USER`,
+`SSH_PORT`, `SSH_SAME`, `NODE_<n>_SSH_HOST` / `_SSH_USER` / `_SSH_PORT` / `_SSH_DIR`, `REMOTE_GARAGE_META_DIR`,
+`SSH_EXTRA_OPTS` (extra `ssh -o` options), `NODE_<n>_ANS_<KEY>` (an answer for the `--join` run on node *n*),
+`CONFIRM`, `NOWAIT` (do not pause for the other machines), and `ENV_<NAME>` to write any `<NAME>=value` to `.env`.
 
 **What it does not do.** It does not set up your HTTPS load balancer, firewall, DNS or NTP; it does
 not create the database or the bucket for an external store (it checks the database login, not the
@@ -480,6 +497,10 @@ the [ports](#requirements) open between them. The examples use three nodes, `10.
    ```
 
    This forms the cluster, creates the `church` database and the application's database user.
+   Then check that every node joined: `scripts/cluster.sh db-members 3` (your node count) waits for it. A
+   node that was started long before the first one can wait for ever without joining; if one did not,
+   run `scripts/compose.sh --prod restart cockroach` on it and it joins at once. (The guided installer does
+   this check, and the restart, for you.)
 
 5. **Form the object store, once.** Each node has an id; the first node needs the others':
 
