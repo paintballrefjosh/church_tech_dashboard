@@ -848,6 +848,14 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   and YugabyteDB with `TEST_DATABASE_URL`), `backup.scale.test.ts` (`BACKUP_SCALE=1`) and
   `tests/cluster/backup-restore.sh` on the throwaway cluster.
 
+## Repository hygiene
+
+- **`.gitignore` entries for root folders are anchored** (`/backups/`, `/data/`, `/secrets/`). Unanchored, `backups/` hid
+  the whole admin Backups page (`apps/web/src/app/admin/backups/`) and the Cisco backups page: they worked on the machine
+  that wrote them and were missing from every clone (a fresh install's `/admin/backups` was a 404). `make check-repo`
+  (`scripts/check-ignored.sh`, also run by `tests/installer/dry-run.sh`) fails if any source file is ignored. Before saying a
+  feature is pushed, `git status` must show it tracked; tests run on a working copy do not prove a fresh clone has it.
+
 ## Conventions
 
 - **Type-safe everywhere.** No `any` in committed code. Use Zod schemas from

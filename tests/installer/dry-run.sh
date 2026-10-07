@@ -260,6 +260,13 @@ printf '%s\n' SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB
 check "a saved password is kept when you just press Enter" bash -c "grep -q 'sekrit' '$d/.env' && grep -q 'Enter keeps the one you gave before' '$WORK/prev2.out'"
 check "and the saved encryption choice is the default" bash -c "grep -q 'sslmode=no-verify' '$d/.env'"
 
+echo "== the repository hides no source file from git"
+if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+  check "no source file is hidden by .gitignore (a fresh clone has everything)" bash "$REPO/scripts/check-ignored.sh"
+else
+  echo "  (skipped: not a git checkout)"
+fi
+
 echo "== colours"
 d=$(fresh col)
 (cd "$d" && printf '1\n1\n1\n\n\n2\n\n\n' | INSTALL_COLOR=1 ./install.sh --dry-run >"$WORK/col.out" 2>&1)

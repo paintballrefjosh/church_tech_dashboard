@@ -6,12 +6,13 @@ COMPOSE_PROD := bash scripts/compose.sh --prod
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
-.PHONY: help check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore db-backup-s3 db-list-s3 db-restore-s3 prod-up prod-down prod-logs prod-migrate prod-seed rebuild rebuild-all
+.PHONY: help check-repo check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore db-backup-s3 db-list-s3 db-restore-s3 prod-up prod-down prod-logs prod-migrate prod-seed rebuild rebuild-all
 
 help:
 	@echo "Common targets:"
 	@echo "  make init-env         Generate .env from .env.example with a random AUTH_SECRET"
 	@echo "  make init-data        Create ./data/* dirs for bind-mount volumes"
+	@echo "  make check-repo       Fail if .gitignore hides a source file (it would be missing from every clone)"
 	@echo "  make check-ports      Confirm host-bound ports are free (auto-run by 'up')"
 	@echo "  make up               Start dev stack (runs init-env + init-data + check-ports first)"
 	@echo "  make down             Stop dev stack (keep data)"
@@ -44,6 +45,9 @@ init-data:
 	@# Meilisearch (uid 1001) needs a writable dir; chmod is simplest.
 	@chmod 0777 data/meili 2>/dev/null || true
 	@echo "data/ ready (bind-mount targets created)"
+
+check-repo:
+	@bash scripts/check-ignored.sh
 
 check-ports:
 	@bash scripts/check-ports.sh

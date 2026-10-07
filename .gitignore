@@ -15,9 +15,11 @@ dist/
 .env.local
 .env.*.local
 
-secrets/
-backups/
-data/
+# Anchored (leading slash): these are folders at the REPOSITORY ROOT. Unanchored, `backups/` also hid every folder
+# named backups in the source tree (the whole admin Backups page and the Cisco backups page were never committed).
+/secrets/
+/backups/
+/data/
 
 coverage/
 playwright-report/
