@@ -138,6 +138,9 @@ test-smoke:
 # E2E uses the official Playwright image (browsers pre-installed) on host
 # networking so it can reach the stack at http://localhost:$(EXTERNAL_PORT).
 test-e2e:
+	@# Playwright leaves a root-owned .playwright-artifacts-0 in test-results that the next run (as our uid) cannot
+	@# remove ("EACCES: rmdir"), failing the whole suite before any test runs: clear the folder as root first.
+	@docker run --rm -v "$$PWD/tests/e2e":/t alpine rm -rf /t/test-results
 	docker run --rm --network=host --ipc=host -v "$$PWD":/w -w /w/tests/e2e \
 	  -u $$(id -u):$$(id -g) -e HOME=/tmp -e BASE=http://localhost:$${EXTERNAL_PORT:-8100} \
 	  mcr.microsoft.com/playwright:v1.48.0-jammy npx playwright test --reporter=line
