@@ -193,8 +193,19 @@ You never say which engine an external database is: the app detects it from
 `SELECT version()` and adapts. The engine and version show on the Monitoring page's
 service health. For an external database:
 
+- **Which schema: always `public`** (plus a `drizzle` schema for the migration journal). Every connection the app
+  opens pins `search_path` to `public`, so a schema called like the login or the database (`church_tech`, say, which a
+  database tool or a DBA may have created) can never capture the tables. Without that pin PostgreSQL's default
+  (`"$user", public`) sends unqualified tables to a schema named after the login, and the migrations' own references
+  to `"public"."users"` then fail with `relation "public.users" does not exist`. A stray schema of that name is
+  harmless now; drop it if it holds tables from an earlier attempt.
 - **Create the database first** (`CREATE DATABASE church;`). Migrations create the
-  tables but not the database.
+  tables but not the database. **The login the dashboard uses must be allowed to create tables in it**: make it
+  the owner (`CREATE DATABASE church OWNER church;`), or grant it rights
+  (`GRANT ALL ON DATABASE church TO church;` and, connected to that database, `GRANT ALL ON SCHEMA public TO church;`).
+  On PostgreSQL 15+ (and YugabyteDB releases based on it) a login that merely connects may not create tables in
+  `public`, and the migration stops at its first statement with `permission denied for schema public`. The guided
+  installer's connection test checks this and prints these commands.
 - **The containers must be able to reach it.** `localhost` inside a container is the
   container itself, so use a hostname or IP that resolves from the Docker network.
 - **A migration that stops halfway on YugabyteDB can be re-run.** YugabyteDB applies DDL statement by statement,

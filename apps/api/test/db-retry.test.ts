@@ -150,6 +150,19 @@ describe("createPool", () => {
     await pool.end();
   });
 
+  it("always uses the public schema, whatever the login or its schemas are called", async () => {
+    const pool = createPool({ name: "t", url: "postgresql://church_tech@localhost:1/db", log: quiet });
+    expect((pool as unknown as { options: Record<string, unknown> }).options.options).toBe("-c search_path=public");
+    await pool.end();
+  });
+
+  it("leaves options the URL sets itself alone", async () => {
+    const pool = createPool({ name: "t", url: "postgresql://x@localhost:1/db?options=-c%20search_path%3Dmine", log: quiet });
+    const o = (pool as unknown as { options: Record<string, unknown> }).options;
+    expect(o.options === undefined || !String(o.options).includes("search_path=public")).toBe(true);
+    await pool.end();
+  });
+
   it("names its connections and sets timeouts, keep-alive and a connection lifetime", async () => {
     const pool = createPool({ name: "monitor", url: "postgresql://x@localhost:1/db", log: quiet });
     const o = (pool as unknown as { options: Record<string, unknown> }).options;

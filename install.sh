@@ -744,9 +744,13 @@ test_url_for_psql() { # url -> the url as psql must see it to behave like the ap
 
 test_one_host() { # full url with ONE host; prints the output, returns psql's status
   local script
-  script=$'psql "$DBURL" -Atc "select version()" || exit 1\npsql "$DBURL" -Atc "select count(*) from pg_extension where extname = \'pgcrypto\'" 2>/dev/null || echo skip'
+  # line 1: the version; line 2: pgcrypto installed (count); line 3: may this login create tables here?
+  script=$'psql "$DBURL" -Atc "select version()" || exit 1\npsql "$DBURL" -Atc "select count(*) from pg_extension where extname = \'pgcrypto\'" 2>/dev/null || echo skip\npsql "$DBURL" -Atc "select case when not exists (select 1 from pg_namespace where nspname = \'public\') then \'noschema\' when not has_schema_privilege(current_user, \'public\', \'CREATE\') then \'noschemacreate\' when not has_database_privilege(current_user, current_database(), \'CREATE\') then \'nodbcreate\' else \'ok\' end" 2>/dev/null || echo skip'
   DBURL=$(test_url_for_psql "$1") docker run --rm -e DBURL -e PGCONNECT_TIMEOUT=10 postgres:16-alpine sh -c "$script" 2>&1
 }
+
+url_user() { local u; u=$(sed -n 's#^[a-z]*://\([^:@/]*\).*#\1#p' <<<"$1"); printf '%b' "${u//%/\\x}"; }
+url_db() { local d; d=$(sed -n 's#^[^/]*//[^/]*/\([^?]*\).*#\1#p' <<<"$1"); printf '%b' "${d//%/\\x}"; }
 
 DB_TEST_OUT=""   # what the failing host(s) said, for deciding what to suggest
 test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
@@ -767,11 +771,27 @@ test_db() { # DATABASE_URL in ANS; 0 = at least one host answered
     fi
   done < <(url_hosts "$url")
   (( up > 0 )) || return 1
+  # Can this login create tables? Without it the migrations stop at their very first statement.
+  local perm user db
+  perm=$(printf '%s\n' "$first_out" | sed -n 3p); user=$(url_user "$url"); db=$(url_db "$url")
+  case $perm in
+    noschema)
+      fail "The database '$db' has no 'public' schema (was it dropped?). As a database administrator run, in that database:"
+      info "  CREATE SCHEMA public AUTHORIZATION \"$user\";"
+      return 1 ;;
+    noschemacreate|nodbcreate)
+      fail "The login '$user' can connect to '$db' but is not allowed to create tables in it, so the migrations would stop at the first statement (permission denied for schema public)."
+      info "As a database administrator (the owner of the database, or a superuser) run:"
+      info "  GRANT ALL ON DATABASE \"$db\" TO \"$user\";"
+      info "  GRANT ALL ON SCHEMA public TO \"$user\";      -- while connected to \"$db\""
+      info "or make it the owner:  ALTER DATABASE \"$db\" OWNER TO \"$user\";  and  ALTER SCHEMA public OWNER TO \"$user\";"
+      return 1 ;;
+  esac
   ver=$(printf '%s\n' "$first_out" | head -n 1)
   case "$ver" in
     *CockroachDB*) ok "CockroachDB" ;;
     *-YB-*) ok "YugabyteDB"
-      [[ $(printf '%s\n' "$first_out" | tail -n 1) == 0 ]] && warn "YugabyteDB 2024.2 needs the pgcrypto extension. The migrations enable it if this login may CREATE EXTENSION; otherwise ask the DBA to run: CREATE EXTENSION IF NOT EXISTS pgcrypto;" ;;
+      [[ $(printf '%s\n' "$first_out" | sed -n 2p) == 0 ]] && warn "YugabyteDB 2024.2 needs the pgcrypto extension. The migrations enable it if this login may CREATE EXTENSION; otherwise ask the DBA to run: CREATE EXTENSION IF NOT EXISTS pgcrypto;" ;;
     *) ok "${ver:0:60}" ;;
   esac
   (( up == total )) || warn "$up of $total hosts answered. The dashboard will use the ones that do, and switch to the others when they come back."

@@ -265,6 +265,10 @@ export function createPool(opts: CreatePoolOptions): Pool {
     maxLifetimeSeconds: 30 * 60,
     Client: HostCheckingClient as unknown as PoolConfig["Client"],
   };
+  // Always the `public` schema. PostgreSQL's default search_path is "$user", public: a schema named like the login
+  // (a database tool or a DBA may well have made one) would catch every unqualified table, and the migrations'
+  // own references to "public"."users" would then fail with 42P01. An `options` the URL sets itself is respected.
+  if (!/[?&]options=/.test(url)) config.options = "-c search_path=public";
   const envTimeout = Number(process.env.DB_QUERY_TIMEOUT_MS);
   const queryTimeout = opts.queryTimeoutMs ?? (Number.isFinite(envTimeout) && process.env.DB_QUERY_TIMEOUT_MS ? envTimeout : 60_000);
   if (queryTimeout > 0) config.query_timeout = queryTimeout;

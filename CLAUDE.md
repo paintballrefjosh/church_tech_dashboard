@@ -734,6 +734,10 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   Backspace/arrow keys edit the answer; a bare `read` stores the erase key as a literal `^H`. Saying no at the
   review re-asks everything that was asked at a prompt (`ASKED`); answers from `--answers` are kept.
   `tests/installer/pty-edit.py` types a typo and fixes it with both `^H` and DEL in a real pty.
+- **The wizard's database test also checks the login may CREATE tables** (`test_one_host` line 3: schema `public` missing /
+  no CREATE on it / no CREATE on the database), failing with the exact GRANT commands, because the migrations otherwise stop
+  at their first statement ("permission denied for schema public") after a long build. `tests/installer/db-perms.sh`
+  (PostgreSQL 16 container with a non-owner login; CockroachDB unchanged).
 - **`sslmode` means something different in this app than in psql.** pg 8 treats `require`/`prefer`/`verify-ca` as
   `verify-full`; only `no-verify` skips the check. The wizard offers verify-full / no-verify / disable, its connection test
   translates the URL for psql so it behaves like the app (`test_url_for_psql`: a test that passes where the app fails is
@@ -760,6 +764,11 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   interrupted build/prune): one image at a time, then an offered `docker builder prune -f` (build cache only; never
   images or volumes), and any other build error is shown untouched, never retried. `tests/installer/build.sh` uses a fake
   compose/docker with the real error text. A new build step must go through `build_images`, not a bare `compose build`.
+- **Every connection pins `search_path=public`** (`createPool`: `options: "-c search_path=public"`, unless the URL sets
+  `options` itself). Migrations create unqualified tables and six foreign keys (0026, 0027, 0044) name `"public"."..."`
+  explicitly, so tables landing anywhere else break them with 42P01. PostgreSQL's default `"$user", public` does exactly
+  that when a schema is named like the login (reproduced on YugabyteDB: login `church_tech` + schema `church_tech` = 43
+  tables in the wrong schema, then `relation "public.users" does not exist`). Never add schema-specific code paths.
 - **A migration that fails halfway must be re-runnable** (YugabyteDB applies statements one by one, not in one transaction):
   `migrateStepwise` writes a marker (`drizzle.__church_migration_progress`) before a migration's first statement and removes
   it once the migration is journaled; a run that finds the marker is RESUMING and skips statements whose effect is already
@@ -794,7 +803,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries), `tests/installer/build.sh` (a damaged image store) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries), `tests/installer/build.sh` (a damaged image store), `tests/installer/db-perms.sh` (a login that cannot create tables) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).
