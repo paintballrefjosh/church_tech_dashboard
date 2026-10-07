@@ -50,10 +50,15 @@ check "verify-full against a self-signed certificate: it says the certificate is
 check "and, when you agree, switches to no-verify and the test then passes" bash -c "[ $rc -eq 0 ] && grep -q 'sslmode=no-verify' <<<\"\$1\"" _ "$out"
 out=$(ask DB_SSL=verify-full DB_SSL_FALLBACK=no DB_FAIL=abort); rc=$?
 check "declining the fallback stops, it does not quietly lower the security" bash -c "[ $rc -ne 0 ] && ! grep -q 'sslmode=no-verify' <<<\"\$1\"" _ "$out"
-printf '%s\n' DB_MODE=external DB_INPUT=url "DATABASE_URL=postgresql://postgres:pw@$HOST:$PORT/postgres?sslmode=require" DB_TEST=yes DB_FAIL=abort S3_MODE=bundled >"$W/a.ans"
+url_answers() { printf '%s\n' DB_MODE=external DB_INPUT=url "DATABASE_URL=postgresql://postgres:pw@$HOST:$PORT/postgres?sslmode=require" DB_TEST=yes S3_MODE=bundled "$@" >"$W/a.ans"; }
+url_answers DB_SSL_FALLBACK=no DB_FAIL=abort
 out=$(cd "$REPO" && NO_COLOR=1 ./install.sh --check-database --answers "$W/a.ans" </dev/null 2>&1); rc=$?
-check "a pasted sslmode=require now FAILS the test, like the app (it used to pass)" bash -c "[ $rc -ne 0 ]"
+check "a pasted sslmode=require FAILS the test, like the app (it used to pass)" bash -c "[ $rc -ne 0 ]"
 check "and it says why" grep -q 'means VERIFY the certificate' <<<"$out"
+url_answers DB_SSL_FALLBACK=yes
+out=$(cd "$REPO" && NO_COLOR=1 ./install.sh --check-database --answers "$W/a.ans" </dev/null 2>&1); rc=$?
+check "a pasted URL also gets the offer to use no-verify, and then connects" bash -c "[ $rc -eq 0 ] && grep -q 'certificate is not trusted' <<<\"\$1\" && grep -q '^DATABASE_URL=.*sslmode=no-verify' <<<\"\$1\"" _ "$out"
+check "only the sslmode of the URL was changed" grep -q "^DATABASE_URL=postgresql://postgres:pw@$HOST:$PORT/postgres?sslmode=no-verify\$" <<<"$out"
 
 echo
 echo "installer database TLS tests: $pass passed, $failn failed"

@@ -727,6 +727,9 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   same change: a question (`ask_*`), `write_env`, and a case in `tests/installer/dry-run.sh`. Keep every
   question answerable from `--answers` (the keys are the `ANS[...]` names; `ENV_<NAME>` writes any `.env`
   key) so tests and unattended installs work; never read a prompt without going through `ask_*`.
+- **Asking again offers the earlier answers as defaults** (`PREV`, filled by `load_prev` on "answer again" and by `forget` /
+  the review-no loop; secrets keep the saved value on Enter). `PREV` is only ever a default: an answer from `--answers` or
+  a resume is `ANS`, and nothing is asked. `CONFIRM` is never remembered (a "no" must not become the next default).
 - **Read answers only through `read_line`** (used by every `ask_*`): on a terminal it uses readline (`read -e`), so
   Backspace/arrow keys edit the answer; a bare `read` stores the erase key as a literal `^H`. Saying no at the
   review re-asks everything that was asked at a prompt (`ASKED`); answers from `--answers` are kept.

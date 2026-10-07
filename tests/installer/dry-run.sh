@@ -122,6 +122,14 @@ a=$(answers tls3 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgr
 run "$d" "$a" >"$WORK/tls3.out"
 check "a pasted sslmode=require is flagged: it verifies in this app" grep -q 'means VERIFY the certificate' "$WORK/tls3.out"
 
+echo "== rewriting only the sslmode of a URL"
+fns=$(sed -n '/^url_sslmode() {/,/^# A certificate the containers do not trust/p' "$REPO/install.sh" | sed '$d')
+rw() { bash -c "$fns; url_with_sslmode \"\$1\" \"\$2\"" _ "$1" "$2"; }
+check "replaces an existing sslmode, keeping the other parameters" test "$(rw 'postgresql://u:p@h:1/db?x=1&sslmode=require&y=2' no-verify)" = 'postgresql://u:p@h:1/db?x=1&sslmode=no-verify&y=2'
+check "adds it to a URL with other parameters" test "$(rw 'postgresql://u:p@h:1/db?x=1' no-verify)" = 'postgresql://u:p@h:1/db?x=1&sslmode=no-verify'
+check "adds it to a URL with none" test "$(rw 'postgresql://u:p@h:1,h2:2/db' no-verify)" = 'postgresql://u:p@h:1,h2:2/db?sslmode=no-verify'
+check "a host list and an encoded password survive" test "$(rw 'postgresql://u:p%40s@a:1,b:2/db?sslmode=require' verify-full)" = 'postgresql://u:p%40s@a:1,b:2/db?sslmode=verify-full'
+
 echo "== several servers, bundled database and store (shape C), three nodes"
 d=$(fresh c)
 a=$(answers c REMOTE_MODE=manual SETUP=cluster CLUSTER_ROLE=first DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8100 TRUSTED_PROXIES=10.0.0.0/24 \
@@ -232,6 +240,25 @@ d=$(fresh again)
 check "exits 0 after the second pass" test $rc -eq 0
 check "says it is starting again" grep -q 'Starting the questions again' "$WORK/again.out"
 check "only the second pass's answers are used" bash -c "grep -qx EXTERNAL_PORT=8222 '$d/.env' && ! grep -q 8111 '$d/.env'"
+
+echo "== answering the questions again offers the earlier answers as defaults"
+d=$(fresh prev)
+# first run: one server, bundled, bundled, port 8123, no proxy, standard stack, (no old secret), review yes
+(cd "$d" && printf '1\n1\n1\n8123\n\n2\n\n\n' | NO_COLOR=1 ./install.sh --dry-run >/dev/null 2>&1)
+# second run: "answer again" (2), then just Enter at every question
+(cd "$d" && printf '2\n\n\n\n\n\n\n\n' | NO_COLOR=1 ./install.sh --dry-run >"$WORK/prev.out" 2>&1); rc=$?
+check "exits 0 with nothing but Enter" test $rc -eq 0
+check "the earlier port is the default, and kept" bash -c "grep -qx EXTERNAL_PORT=8123 '$d/.env' && grep -q '\[8123\]' '$WORK/prev.out'"
+check "the earlier stack choice (standard) is the default, not the installer's own" has "$d/.install-answers" STACK=standard
+# a secret keeps the saved one on Enter
+d=$(fresh prev2)
+printf '%s\n' SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=church DB_USER=church DB_PASSWORD=sekrit DB_SSL=no-verify DB_TEST=no S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production REUSE_SECRET=no CONFIRM=yes >"$WORK/prev2.ans"
+(cd "$d" && NO_COLOR=1 ./install.sh --dry-run --answers "$WORK/prev2.ans" >/dev/null 2>&1)
+# again: choose "again" (2), SETUP 1, DB 2 (external), input 1 (parts), engine 1, host Enter, port Enter, name Enter, user Enter,
+# password: Enter keeps it, ssl Enter (no-verify was chosen: 2nd... default is the saved one), test: n, files 1, port Enter, lb Enter, stack Enter, confirm Enter
+(cd "$d" && printf '2\n\n\n\n\n\n\n\n\n\n\nn\n\n\n\n\n\n' | NO_COLOR=1 ./install.sh --dry-run >"$WORK/prev2.out" 2>&1)
+check "a saved password is kept when you just press Enter" bash -c "grep -q 'sekrit' '$d/.env' && grep -q 'Enter keeps the one you gave before' '$WORK/prev2.out'"
+check "and the saved encryption choice is the default" bash -c "grep -q 'sslmode=no-verify' '$d/.env'"
 
 echo "== colours"
 d=$(fresh col)

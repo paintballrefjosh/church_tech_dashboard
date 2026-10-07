@@ -74,6 +74,7 @@ trap 'echo; fail "Interrupted. Run ./install.sh again to carry on where you left
 # Answers: asked once, or taken from a file / earlier run. Every prompt checks ANS first.
 # ---------------------------------------------------------------------------------------------
 declare -A ANS=()
+declare -A PREV=()   # earlier answers, offered as the default when a question is asked again
 ASKED=()   # keys answered at a prompt (not from an answers file): forgotten if you redo the questions
 
 load_answers() { # file
@@ -95,6 +96,15 @@ save_answers() {
     printf '%s=%s\n' "$k" "${ANS[$k]}" >>"$ANSWERS_FILE"
   done
   chmod 600 "$ANSWERS_FILE"
+}
+
+load_prev() { # file: earlier answers become defaults (not answers)
+  local line
+  [[ -f "$1" ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line == *=* && $line != \#* ]] || continue
+    PREV[${line%%=*}]=${line#*=}
+  done <"$1"
 }
 
 have() { [[ -n ${ANS[$1]+x} ]]; }
@@ -127,6 +137,7 @@ ask_text() {
     if [[ -n $validator ]] && ! "$validator" "$v"; then die "The answer $key='$v' is not valid."; fi
     return 0
   fi
+  [[ -z ${PREV[$key]+x} ]] || def=${PREV[$key]}
   while :; do
     printf '\n'
     [[ -n $h ]] && hint "$h"
@@ -149,8 +160,9 @@ ask_secret() {
     return 0
   fi
   while :; do
-    printf '\n%s? %s%s %s(hidden)%s\n' "$QC" "$q" "$Z" "$D" "$Z"
+    printf '\n%s? %s%s %s(hidden%s)%s\n' "$QC" "$q" "$Z" "$D" "$( [[ -n ${PREV[$key]+x} ]] && echo "; Enter keeps the one you gave before")" "$Z"
     read_line -s; v=$REPLY_LINE
+    [[ -n $v || -z ${PREV[$key]+x} ]] || v=${PREV[$key]}
     if [[ -n $validator ]] && ! "$validator" "$v"; then continue; fi
     break
   done
@@ -160,6 +172,7 @@ ask_secret() {
 # ask_yn KEY "Question" yes|no  -> ANS[KEY] is "yes" or "no"
 ask_yn() {
   local key=$1 q=$2 def=${3:-yes} v shown
+  case "${PREV[$key]:-}" in yes|no) def=${PREV[$key]} ;; esac
   if have "$key"; then
     case "${ANS[$key]}" in y|Y|yes|YES|true|1) ANS[$key]=yes ;; n|N|no|NO|false|0) ANS[$key]=no ;; *) die "The answer $key must be yes or no." ;; esac
     return 0
@@ -182,6 +195,7 @@ ask_choice() {
     IFS='|' read -r v l d <<<"$o"
     vals+=("$v"); labs+=("$l"); descs+=("$d")
   done
+  if [[ -n ${PREV[$key]+x} ]]; then for v in "${vals[@]}"; do [[ $v == "${PREV[$key]}" ]] && def=$v; done; fi
   for i in "${!vals[@]}"; do [[ ${vals[i]} == "$def" ]] && defidx=$((i + 1)); done
   if have "$key"; then
     for v in "${vals[@]}"; do [[ $v == "${ANS[$key]}" ]] && return 0; done
@@ -202,7 +216,7 @@ ask_choice() {
 }
 
 # Forget answers so a question is asked again.
-forget() { local k; for k in "$@"; do unset "ANS[$k]"; done; }
+forget() { local k; for k in "$@"; do [[ -z ${ANS[$k]+x} || $k == CONFIRM ]] || PREV[$k]=${ANS[$k]}; unset "ANS[$k]"; done; }
 
 # ---------------------------------------------------------------------------------------------
 # Validators: print why and return 1.
@@ -744,6 +758,15 @@ build_db_url() {
   printf 'postgresql://%s:%s@%s/%s?sslmode=%s' "$(urlenc "$(ans DB_USER)")" "$(urlenc "$(ans DB_PASSWORD)")" "$hostlist" "$(urlenc "$(ans DB_NAME)")" "$(ans DB_SSL)"
 }
 
+url_sslmode() { sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$1"; }
+# True when the URL asks for the certificate to be checked (in this app require, prefer and verify-ca do too)
+url_verifies() { case $(url_sslmode "$1") in require|prefer|verify-ca|verify-full) return 0 ;; *) return 1 ;; esac; }
+url_with_sslmode() { # url mode
+  if [[ $1 == *sslmode=* ]]; then sed "s/\([?&]sslmode=\)[^&]*/\1$2/" <<<"$1"
+  elif [[ $1 == *\?* ]]; then printf '%s&sslmode=%s' "$1" "$2"
+  else printf '%s?sslmode=%s' "$1" "$2"; fi
+}
+
 # A certificate the containers do not trust: the failure that has an easy, informed way out.
 db_cert_untrusted() { grep -qiE 'certificate verify failed|self[- ]signed|unable to get (local )?issuer|certificate has expired|SSL error' <<<"$DB_TEST_OUT"; }
 
@@ -777,20 +800,21 @@ ask_database() {
       ANS[DATABASE_URL]=$(build_db_url)
     else
       ask_text DATABASE_URL "Connection URL" "" v_url
-      case $(sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$(ans DATABASE_URL)") in
+      case $(url_sslmode "$(ans DATABASE_URL)") in
         require|prefer|verify-ca)
-          warn "sslmode=$(sed -n 's/.*[?&]sslmode=\([^&]*\).*/\1/p' <<<"$(ans DATABASE_URL)") means VERIFY the certificate in this app (unlike psql). For encryption without checking it, use sslmode=no-verify." ;;
+          warn "sslmode=$(url_sslmode "$(ans DATABASE_URL)") means VERIFY the certificate in this app (unlike psql). For encryption without checking it, use sslmode=no-verify." ;;
       esac
     fi
     if (( DRY_RUN )); then break; fi
     ask_yn DB_TEST "Test the connection now? (starts a small postgres client container)" yes
     [[ $(ans DB_TEST) == yes ]] || break
     test_db && break
-    if [[ $(ans DB_INPUT) == parts && $(ans DB_SSL) == verify-full ]] && db_cert_untrusted; then
+    if url_verifies "$(ans DATABASE_URL)" && db_cert_untrusted; then
       info "The database answered, but its certificate is not trusted (self-signed, or from a private CA)."
-      ask_yn DB_SSL_FALLBACK "Encrypt the connection without checking the certificate instead?" yes
+      ask_yn DB_SSL_FALLBACK "Encrypt the connection without checking the certificate instead (sslmode=no-verify)?" yes
       if [[ $(ans DB_SSL_FALLBACK) == yes ]]; then
-        ANS[DB_SSL]=no-verify; ANS[DATABASE_URL]=$(build_db_url)
+        if [[ $(ans DB_INPUT) == parts ]]; then ANS[DB_SSL]=no-verify; ANS[DATABASE_URL]=$(build_db_url)
+        else ANS[DATABASE_URL]=$(url_with_sslmode "$(ans DATABASE_URL)" no-verify); fi
         test_db && break
       fi
     fi
@@ -1737,7 +1761,7 @@ if [[ -z $PRESET_FILE ]]; then
     case $(ans EXISTING) in
       resume) load_answers "$ANSWERS_FILE" ;;
       cancel) exit 0 ;;
-      again) rm -f "$STATE"; forget EXISTING ;;
+      again) load_prev "$ANSWERS_FILE"; rm -f "$STATE"; forget EXISTING ;;
     esac
   elif [[ -f .env ]]; then
     warn "There is already a .env here. If you continue it is backed up first (its secrets are kept)."
@@ -1777,7 +1801,7 @@ while :; do
   if summary; then break; fi
   say
   say "Starting the questions again."
-  for k in "${ASKED[@]}"; do unset "ANS[$k]"; done
+  for k in "${ASKED[@]}"; do [[ -z ${ANS[$k]+x} || $k == CONFIRM ]] || PREV[$k]=${ANS[$k]}; unset "ANS[$k]"; done
   ASKED=(); forget CONFIRM
 done
 save_answers

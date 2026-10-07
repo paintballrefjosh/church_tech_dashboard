@@ -106,6 +106,9 @@ In both cases, finish by adding every node to your load balancer (health check `
 summary lists the rest: keep `data/cluster-certs/ca.key` safe and off the nodes, firewall the cluster ports,
 run NTP.
 
+If you choose to **answer the questions again** (or say no at the review, or pick "enter the details again" after a
+failed database test), your earlier answers are the defaults: press Enter to keep each one (a saved password too).
+
 Closing the installer part way is fine: run the same command again and finished steps are skipped
 (progress is in `.install-state`, the answers in `.install-answers`, mode 600, and everything it ran
 is logged to `.install.log`). `--fresh` forgets the progress.
