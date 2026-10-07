@@ -1138,16 +1138,33 @@ st_db_single() {
   logrun "Starting the database ($svcs)" "${COMPOSE[@]}" up -d $svcs
 }
 
-oneoff_api() { # script name; retried while the database finishes starting
-  local script=$1 tries=40 i
-  [[ $(ans DB_MODE) == external ]] && tries=4
+# Output that means "the database is not there yet" (worth waiting for), as opposed to an error in what ran.
+TRANSIENT_DB_ERROR='ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|ETIMEDOUT|timeout expired|connection timeout|Connection terminated|starting up|cannot connect now|57P03|53300|3D000|could not connect|Name or service not known|no route to host'
+
+oneoff_api() { # script name: run it in a one-off container, retrying ONLY while the database is not reachable yet
+  local script=$1 tries=40 i first_out='' out
+  [[ $(ans DB_MODE) == external ]] && tries=6
+  out=$(mktemp)
   printf '  running %s ' "$script"
   for ((i = 0; i < tries; i++)); do
-    if "${COMPOSE[@]}" run -T --rm --no-deps api node "dist/scripts/$script.js" >>"$LOG" 2>&1; then printf ' %sok%s\n' "$G" "$Z"; return 0; fi
+    if "${COMPOSE[@]}" run -T --rm --no-deps api node "dist/scripts/$script.js" >"$out" 2>&1; then
+      cat "$out" >>"$LOG"; rm -f "$out"; printf ' %sok%s\n' "$G" "$Z"; return 0
+    fi
+    cat "$out" >>"$LOG"
+    [[ -n $first_out ]] || first_out=$(cat "$out")
+    # An error that is not about reaching the database will not go away by trying again, and for a migration
+    # a retry can run on top of a half-applied step: stop and show it.
+    grep -qE "$TRANSIENT_DB_ERROR" "$out" || break
     printf '.'; sleep 3
   done
-  printf ' %sFAILED%s\n' "$R" "$Z"; tail -n 20 "$LOG" | sed 's/^/      /' >&2
-  fail "It did not run. Common causes: the database login or address is wrong, or the database does not exist. See $LOG"
+  printf ' %sFAILED%s\n' "$R" "$Z"
+  # What went wrong, from the FIRST failure (a later attempt would only show the mess the first one left)
+  {
+    printf '%s\n' "$first_out" | grep -E '^\[(migrate|seed)\]|^ *(error|Error)|code:' | head -12
+    printf '%s\n' "$first_out" | tail -n 6
+  } | sed 's/^/      /' >&2
+  rm -f "$out"
+  fail "It did not run. If the message is about reaching the database, check its address, login and certificate settings; otherwise see $LOG (the first failure is the one that matters)."
   return 1
 }
 st_migrate_single() { oneoff_api migrate; }

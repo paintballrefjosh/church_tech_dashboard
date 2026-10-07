@@ -755,6 +755,15 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   commit, so packages are rebuilt on every first-node run and the code-dependent stages are dropped when
   `scripts/build-id.sh` changed since the state file's `buildid:` line. SSH installs set `JOIN_COMMIT_OK=yes` remotely
   because the files were copied and the build ids compared. `tests/installer/update.sh` uses real throwaway git repos.
+- **A migration that fails halfway must be re-runnable** (YugabyteDB applies statements one by one, not in one transaction):
+  `migrateStepwise` writes a marker (`drizzle.__church_migration_progress`) before a migration's first statement and removes
+  it once the migration is journaled; a run that finds the marker is RESUMING and skips statements whose effect is already
+  there (`ALREADY_DONE` SQLSTATEs), a run without one gets no such leniency, so a genuine error is never hidden. All the DDL
+  of a YugabyteDB migration runs on ONE connection (a backend always sees its own changes, wherever in the host list it
+  landed). `[migrate] failed: <message>` is printed FIRST and the failing statement named. The installer's one-off steps
+  (`oneoff_api`) retry only on "database not reachable" output (`TRANSIENT_DB_ERROR`): any other error stops at once and the
+  FIRST failure is shown, because a retry on a half-applied migration buries the real cause under a second, confusing error.
+  `tests/installer/oneoff.sh` (fake compose); the resume was tested by killing a real migration on a 3-node YugabyteDB.
 - **Missing requirements are offered, never silently installed** (`ensure_requirements`, `FACTS_SCRIPT`, `priv_exec`):
   one facts script (package manager, root/sudo state, what is missing) runs locally or over ssh; make/git/tar go in
   through the package manager after a yes/no (`AUTO_INSTALL_DEPS`), Docker only through Docker's own script after a
@@ -780,7 +789,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).

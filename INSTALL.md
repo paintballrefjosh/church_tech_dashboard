@@ -197,6 +197,14 @@ service health. For an external database:
   tables but not the database.
 - **The containers must be able to reach it.** `localhost` inside a container is the
   container itself, so use a hostname or IP that resolves from the Docker network.
+- **A migration that stops halfway on YugabyteDB can be re-run.** YugabyteDB applies DDL statement by statement,
+  so a migration that fails partway (a network drop, a node restart) leaves its earlier statements applied. The
+  migration records where it was, and the next `./install.sh` (or `make migrate`) resumes and skips what is already
+  there. The installer retries a migration only while the database cannot be reached, never on any other error,
+  and shows the first failure (the migration also prints its failing statement). A database left half-migrated
+  by an older version has no such record: on a new install, `DROP DATABASE` and `CREATE DATABASE` it and re-run.
+  YugabyteDB can also refuse a table when a small node would exceed its tablet limit ("requested number of tablet
+  replicas ... would exceed the allowed limit"): give the nodes more memory, or drop unused databases.
 - **YugabyteDB 2024.2 (PG 11 based)** needs the `pgcrypto` extension for
   `gen_random_uuid()`. `make migrate` enables it if the user is allowed to; otherwise
   have the DBA run `CREATE EXTENSION IF NOT EXISTS pgcrypto;` once. Newer YugabyteDB
