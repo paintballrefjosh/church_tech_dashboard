@@ -25,6 +25,14 @@ export interface TableMeta {
   parents: string[];
   /** Foreign keys from this table to itself (a folder's parent folder). */
   selfRefs: Array<{ column: string; refColumn: string }>;
+  /** Every foreign key, with the columns on both sides, for a restore that covers only part of the data. */
+  foreignKeys: ForeignKeyMeta[];
+}
+
+export interface ForeignKeyMeta {
+  columns: string[];
+  parent: string;
+  parentColumns: string[];
 }
 
 let cached: TableMeta[] | null = null;
@@ -47,16 +55,18 @@ export function allTables(): TableMeta[] {
     ];
     const parents = new Set<string>();
     const selfRefs: TableMeta["selfRefs"] = [];
+    const foreignKeys: ForeignKeyMeta[] = [];
     for (const fk of cfg.foreignKeys) {
       const ref = fk.reference();
       const target = getTableConfig(ref.foreignTable).name;
+      foreignKeys.push({ columns: ref.columns.map((c) => c.name), parent: target, parentColumns: ref.foreignColumns.map((c) => c.name) });
       if (target === cfg.name) {
         ref.columns.forEach((c, i) => selfRefs.push({ column: c.name, refColumn: ref.foreignColumns[i]!.name }));
       } else {
         parents.add(target);
       }
     }
-    return { name: cfg.name, columns, pk, parents: [...parents].sort(), selfRefs };
+    return { name: cfg.name, columns, pk, parents: [...parents].sort(), selfRefs, foreignKeys };
   });
   cached = metas.sort((a, b) => a.name.localeCompare(b.name));
   return cached;

@@ -8,12 +8,14 @@ import {
   type BackupDiffReport,
   type BackupOperation,
   type BackupRestoreResult,
+  type BackupRestoreSection,
   type BackupSummary,
 } from "@church/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, formatCount, post, useOperation } from "./client-api";
 import { KindBadge } from "./backups-panel";
 import { DiffReport } from "./diff-report";
+import { SectionPicker } from "./section-picker";
 import { ErrorNote, OperationProgress } from "./operation-progress";
 
 const WHEN: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
@@ -66,7 +68,27 @@ export function RestorePanel({
   const [phrase, setPhrase] = useState("");
   const [safety, setSafety] = useState(true);
   const [acceptSecret, setAcceptSecret] = useState(false);
+  const [sections, setSections] = useState<BackupRestoreSection[]>([]);
+  const [chosenSections, setChosenSections] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // The sections a restore can be limited to; all of them are chosen to start with (a full rollback).
+  useEffect(() => {
+    api<BackupRestoreSection[]>("/restore-sections")
+      .then((list) => {
+        setSections(list);
+        setChosenSections(list.map((s) => s.key));
+      })
+      .catch(() => undefined);
+  }, []);
+  const partial = sections.length > 0 && chosenSections.length < sections.length;
+  const chosenTitles = sections.filter((s) => chosenSections.includes(s.key)).map((s) => s.title);
+  // The report is only good for the selection it was made for: a changed selection needs a new comparison.
+  const reportCoversSelection =
+    !!report &&
+    (report.scope.partial
+      ? partial && report.scope.sections.length === chosenSections.length && report.scope.sections.every((k) => chosenSections.includes(k))
+      : !partial);
 
   const ready = useMemo(() => backups.filter((b) => b.status === "ready"), [backups]);
   const chosen = ready.find((b) => b.id === selected) ?? null;
@@ -148,7 +170,7 @@ export function RestorePanel({
     setResult(null);
     setMode("comparing");
     try {
-      const started = await post<{ operationId: string }>(`/${chosen.id}/compare`, undefined, "Couldn't start the comparison");
+      const started = await post<{ operationId: string }>(`/${chosen.id}/compare`, partial ? { sections: chosenSections } : {}, "Couldn't start the comparison");
       track(started.operationId);
     } catch (e) {
       setError((e as Error).message);
@@ -158,13 +180,15 @@ export function RestorePanel({
 
   async function restore() {
     if (!chosen || !report) return;
-    if (!confirm(`Restore "${chosen.name}" now? Everything changed since it was made will be lost${safety ? " (a safety backup of the current data is made first)" : ", and no safety backup is made"}.`)) return;
+    const what = partial ? `${chosenTitles.join(", ")} from "${chosen.name}" (everything else stays as it is)` : `"${chosen.name}"`;
+    const loses = partial ? "Changes made to those sections since it was made will be lost" : "Everything changed since it was made will be lost";
+    if (!confirm(`Restore ${what} now? ${loses}${safety ? " (a safety backup of the current data is made first)" : ", and no safety backup is made"}.`)) return;
     setError(null);
     setMode("restoring");
     try {
       const started = await post<{ operationId: string }>(
         `/${chosen.id}/restore`,
-        { confirm: RESTORE_CONFIRM_PHRASE, safetyBackup: safety, acceptSecretMismatch: acceptSecret },
+        { confirm: RESTORE_CONFIRM_PHRASE, safetyBackup: safety, acceptSecretMismatch: acceptSecret, ...(partial ? { sections: chosenSections } : {}) },
         "Couldn't start the restore",
       );
       track(started.operationId);
@@ -175,17 +199,18 @@ export function RestorePanel({
   }
 
   const canRestore =
-    !!chosen && !!report && report.compatibility.ok && phrase === RESTORE_CONFIRM_PHRASE && (!report.secretMismatch || acceptSecret) && !busy;
+    !!chosen && !!report && reportCoversSelection && report.compatibility.ok && phrase === RESTORE_CONFIRM_PHRASE && (!report.secretMismatch || acceptSecret) && !busy;
 
   return (
     <div className="space-y-5">
       <div className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
         <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          A restore is a <strong>full rollback</strong>: the data is made to match the backup, so everything created or changed since is
-          lost, uploaded files included. While it runs, changes are paused for everyone (a few minutes at most for a church-sized site).
-          Compare first to see exactly what would change. By default a safety backup of the current data is made first, so a restore can be
-          undone by restoring that.
+          A restore makes the data you choose match the backup, so everything created or changed in those sections since is lost.
+          By default that is <strong>everything</strong>, uploaded files included (a full rollback); you can limit it to some sections
+          (the wiki, notes, users ...) in step 2, and the rest is left exactly as it is. While it runs, changes are paused for everyone (a few
+          minutes at most for a church-sized site). Compare first to see exactly what would change. By default a safety backup of the current data
+          is made first, so a restore can be undone by restoring that.
         </p>
       </div>
 
@@ -205,6 +230,13 @@ export function RestorePanel({
             {formatCount(result.rowsAdded)} rows brought back, {formatCount(result.rowsRemoved)} deleted, {formatCount(result.rowsChanged)} put back as they were;{" "}
             {formatCount(result.filesRestored)} files restored, {formatCount(result.filesRemoved)} removed.
           </p>
+          {result.sections ? (
+            <p className="mt-1" data-testid="restore-scope-result">
+              Only the sections you chose were restored; everything else is exactly as it was.
+              {result.rowsSkipped > 0 ? ` ${formatCount(result.rowsSkipped)} rows could not be put back because something they depend on no longer exists.` : ""}
+              {result.rowsKept > 0 ? ` ${formatCount(result.rowsKept)} rows were kept because data you left out still uses them.` : ""}
+            </p>
+          ) : null}
           {result.safetyBackupId ? (
             <p className="mt-1">
               The data as it was just before is in the list as a <strong>safety copy</strong>. To undo this restore, restore that.
@@ -283,15 +315,17 @@ export function RestorePanel({
           </section>
 
           <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-            <h2 className="text-base font-semibold">2. See what would change</h2>
+            <h2 className="text-base font-semibold">2. Choose what to restore, and see what would change</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Nothing is changed by this step: it compares the backup with the data as it is right now.</p>
+            {sections.length > 0 ? <SectionPicker sections={sections} value={chosenSections} onChange={setChosenSections} disabled={busy} /> : null}
+            {sections.length > 0 && chosenSections.length === 0 ? <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">Choose at least one section.</p> : null}
             <button
               type="button"
               onClick={() => void compare()}
-              disabled={!chosen || busy}
+              disabled={!chosen || busy || (sections.length > 0 && chosenSections.length === 0)}
               className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-brand-600 px-3.5 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
             >
-              <FileDiff aria-hidden className="h-4 w-4" /> {mode === "comparing" ? "Comparing..." : "Compare with the current data"}
+              <FileDiff aria-hidden className="h-4 w-4" /> {mode === "comparing" ? "Comparing..." : partial ? "Compare the chosen sections with the current data" : "Compare with the current data"}
             </button>
             {mode === "comparing" && op && op.status === "running" ? (
               <div className="mt-3">
@@ -307,7 +341,12 @@ export function RestorePanel({
 
           {report && chosen ? (
             <section className="rounded-md border border-rose-300 p-4 dark:border-rose-800" data-testid="restore-confirm">
-              <h2 className="text-base font-semibold text-rose-800 dark:text-rose-300">3. Restore</h2>
+              <h2 className="text-base font-semibold text-rose-800 dark:text-rose-300">3. Restore{partial ? `: ${chosenTitles.join(", ")}` : ""}</h2>
+              {!reportCoversSelection ? (
+                <p className="mt-1 text-sm text-amber-800 dark:text-amber-300" data-testid="stale-report">
+                  You changed what to restore after the comparison above. Compare again, so what you restore is exactly what you have seen.
+                </p>
+              ) : null}
               {!report.compatibility.ok ? (
                 <p className="mt-1 text-sm text-rose-700 dark:text-rose-300">This backup cannot be restored here: see the problems above.</p>
               ) : (
@@ -346,7 +385,7 @@ export function RestorePanel({
                     className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-40"
                     data-testid="restore-button"
                   >
-                    <RotateCcw aria-hidden className="h-4 w-4" /> Restore this backup
+                    <RotateCcw aria-hidden className="h-4 w-4" /> {partial ? "Restore the chosen sections" : "Restore this backup"}
                   </button>
                 </div>
               )}

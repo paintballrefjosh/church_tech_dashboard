@@ -829,6 +829,17 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   cycle filled in afterwards). Any failure rolls everything back. Rows are written with typed casts from
   the Drizzle column types (`row-codec.ts`): timestamps and bigints travel as text, `jsonb` as JSON, and
   the session time zone is UTC for every read, or fingerprints would differ.
+- **A restore can be limited to sections** (`restoreSections()` in the registry; the section is the table's `group`).
+  A table whose group is not in `SECTION_ORDER` could never be restored on its own (a unit test fails). `computeDiff` takes
+  a `scope` (tables + whether files) and only plans those tables; `backup-scope.ts` then reconciles the plan with foreign keys
+  BEFORE the report and the apply (the report is exactly what happens): rows whose parent outside the scope no longer exists
+  are SKIPPED (and so is what depends on them, also through self references), and removals still referenced by backed-up
+  tables outside the scope are KEPT (propagating to the parents of kept rows). Files (restore and stray cleanup) happen only
+  when the Files section is in scope (`filesInScope`). All sections chosen = `scope: null` = the ordinary full rollback, same
+  code path. It follows only foreign keys that reference the parent's whole primary key (a unit test asserts every FK does).
+  The UI locks Restore until the report was made for the current selection. Integration test:
+  `backup-scope.integration.test.ts` (run on CockroachDB and YugabyteDB, **one integration file at a time**: they empty the
+  same tables, so running two in parallel makes both fail).
 - **Anything that writes in the background must honour the restore gate**: a restore holds the
   `mutex:restore` lease (`RestoreGate`, `restoreInProgress` in `@church/shared/db`). The API refuses
   non-GET requests (`RestoreWriteGuard`), `ClusterJobs` skips runs and the monitor worker pauses. A new

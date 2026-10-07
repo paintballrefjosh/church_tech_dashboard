@@ -195,3 +195,67 @@ export function tableInfo(name: string): TableInfo {
 export function isBackedUp(name: string): boolean {
   return TABLE_REGISTRY[name]?.policy === "data";
 }
+
+// ---------------------------------------------------------------------------------------------
+// Sections: what a person can choose to restore
+// ---------------------------------------------------------------------------------------------
+
+/** A section a restore can be limited to: the registry's `group`, for the tables a backup saves. */
+export interface RestoreSection {
+  key: string;
+  title: string;
+  /** What is in it, in a sentence. */
+  description: string;
+  /** Titles of the tables in it, for showing exactly what choosing it covers. */
+  tables: string[];
+  /** Choosing it also covers the uploaded files (the object store), not just rows. */
+  hasFiles: boolean;
+}
+
+const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, DEVICES, FILES];
+
+const SECTION_BLURBS: Record<string, string> = {
+  [PEOPLE]: "Users, groups and who can do what, sign-in links, passwords, two-factor secrets and API tokens.",
+  [SETTINGS]: "Site settings, dashboard layouts, saved views, notification preferences and Planning Center links.",
+  [HELPDESK]: "Tickets, their comments and categories.",
+  [WIKI]: "Wiki pages, folders, who may see them and each page's history.",
+  [NOTES]: "Notes, tags, notifications and the activity feed.",
+  [CHECKLISTS]: "Checklist stations and templates, recurring services, events, tasks and volunteers.",
+  [MONITORING]: "Service monitors, incidents, infrastructure hosts and their credentials.",
+  [DEVICES]: "Printers, UPS devices, Cisco switches and ports, IPAM subnets and hosts, UniFi acknowledgements.",
+  [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
+};
+
+/** The key a section goes by in requests and reports (the same one the comparison report uses). */
+export function sectionKey(title: string): string {
+  return title.toLowerCase().replace(/[^a-z]+/g, "-");
+}
+
+/** The sections a restore can be limited to, in the order a person expects. */
+export function restoreSections(): RestoreSection[] {
+  return SECTION_ORDER.map((title) => ({
+    key: sectionKey(title),
+    title,
+    description: SECTION_BLURBS[title] ?? "",
+    tables: Object.entries(TABLE_REGISTRY)
+      .filter(([, i]) => i.policy === "data" && i.group === title)
+      .map(([, i]) => i.title)
+      .sort((a, b) => a.localeCompare(b)),
+    hasFiles: title === FILES,
+  }));
+}
+
+/** The title of the section a key names, or undefined. */
+export function sectionTitle(key: string): string | undefined {
+  return SECTION_ORDER.find((t) => sectionKey(t) === key);
+}
+
+/** The names of the tables a backup saves that are in these sections. */
+export function tablesInSections(keys: string[]): Set<string> {
+  const titles = new Set(keys.map(sectionTitle).filter((t): t is string => t !== undefined));
+  return new Set(
+    Object.entries(TABLE_REGISTRY)
+      .filter(([, i]) => i.policy === "data" && titles.has(i.group))
+      .map(([name]) => name),
+  );
+}

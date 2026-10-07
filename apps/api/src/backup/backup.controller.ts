@@ -20,6 +20,7 @@ import {
   backupRenameSchema,
   backupScheduleInputSchema,
   backupScheduleUpdateSchema,
+  compareRequestSchema,
   restoreRequestSchema,
 } from "@church/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
@@ -66,6 +67,12 @@ export class BackupController {
   @Get()
   list() {
     return this.backups.list();
+  }
+
+  /** The sections a restore can be limited to, with what is in each (static: it does not depend on a backup). */
+  @Get("restore-sections")
+  sections() {
+    return this.backups.sections();
   }
 
   @Get("storage")
@@ -188,8 +195,8 @@ export class BackupController {
   @Post(":id/compare")
   @HttpCode(202)
   @Audited({ action: "backup.compare", resourceType: "backup", resourceIdFromParams: idParam })
-  compare(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
-    return this.backups.startCompare(user, parseId(id));
+  compare(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() body: unknown) {
+    return this.backups.startCompare(user, parseId(id), parse(compareRequestSchema, body ?? {}).sections);
   }
 
   @Post(":id/restore")

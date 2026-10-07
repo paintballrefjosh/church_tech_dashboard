@@ -116,6 +116,35 @@ test.describe("Backups", () => {
     await expect(button).toBeDisabled();
   });
 
+  test("restore: choose which sections to restore; a changed selection locks the button until it is compared again", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto("/admin/backups?tab=restore");
+    await page.getByRole("radiogroup", { name: "Backups" }).locator("label", { hasText: backupName }).click();
+    const picker = page.getByTestId("section-picker");
+    await expect(picker).toBeVisible();
+    // Everything is chosen to start with; keep only the wiki.
+    await expect(page.getByTestId("section-wiki")).toBeChecked();
+    await picker.getByRole("button", { name: "Select nothing" }).click();
+    await page.getByTestId("section-wiki").check();
+    await page.getByRole("button", { name: /Compare the chosen sections/ }).click();
+    const report = page.getByTestId("diff-report");
+    await expect(report).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByTestId("scope-note")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Restore the chosen sections" })).toBeVisible();
+
+    // With the phrase typed the button is live ...
+    await page.getByTestId("restore-phrase").fill("RESTORE");
+    const button = page.getByTestId("restore-button");
+    await expect(button).toBeEnabled();
+    // ... until the selection changes: the report no longer describes what would be restored.
+    await page.getByTestId("section-notes").check();
+    await expect(page.getByTestId("stale-report")).toBeVisible();
+    await expect(button).toBeDisabled();
+    // Choosing nothing cannot be compared.
+    await picker.getByRole("button", { name: "Select nothing" }).click();
+    await expect(page.getByRole("button", { name: /Compare the chosen sections|Compare with the current data/ })).toBeDisabled();
+  });
+
   test("a bad file is refused on upload with a reason", async ({ page }) => {
     await page.goto("/admin/backups?tab=restore");
     await page.getByTestId("backup-file-input").setInputFiles({ name: "notes.tar.gz", mimeType: "application/gzip", buffer: Buffer.from("this is not a backup") });

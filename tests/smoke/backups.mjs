@@ -112,6 +112,41 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     assert(!/password_hash":"/.test(text) || /"secret":true/.test(text), "a secret column's value is in the report");
   });
 
+  await test("backups: a restore can be limited to sections; the list names them and what is in each", async () => {
+    const { res } = await session("/api/v1/admin/backups/restore-sections");
+    assert(res.status === 200, `status ${res.status}`);
+    const list = await res.json();
+    const keys = list.map((x) => x.key);
+    for (const k of ["people-and-access", "wiki", "notes", "helpdesk", "monitoring", "files"]) assert(keys.includes(k), `no section ${k}: ${keys}`);
+    assert(list.every((x) => x.title && x.description && x.tables.length > 0), "a section lacks a title, description or tables");
+    assert(list.filter((x) => x.hasFiles).map((x) => x.key).join() === "files", "only Files holds files");
+  });
+
+  await test("backups: comparing only the wiki leaves out everything else, files and your own account included", async () => {
+    const { res } = await session(`/api/v1/admin/backups/${first.id}/compare`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sections: ["wiki"] }) });
+    assert(res.status === 202, `compare status ${res.status}`);
+    const op = await waitFor((await res.json()).operationId);
+    assert(op.status === "succeeded", `compare ${op.status}: ${op.error}`);
+    const report = op.result;
+    assert(report.scope.partial === true && report.scope.sections.join() === "wiki", `scope: ${JSON.stringify(report.scope)}`);
+    const tables = report.groups.flatMap((g) => g.tables.map((t) => t.table));
+    assert(tables.every((t) => t.startsWith("wiki_")), `tables outside the wiki: ${tables}`);
+    assert(report.files === null, "files are not part of a wiki-only restore");
+    assert(report.you === null, "your account is not part of a wiki-only restore");
+    assert(Array.isArray(report.skipped) && Array.isArray(report.kept), "no skipped/kept lists");
+  });
+
+  await test("backups: an unknown or empty section list is refused before anything starts", async () => {
+    const post = (path, body) => session(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const unknown = await post(`/api/v1/admin/backups/${first.id}/compare`, { sections: ["nonsense"] });
+    assert(unknown.res.status === 400 && /Unknown section/.test(await unknown.res.text()), `unknown: ${unknown.res.status}`);
+    const empty = await post(`/api/v1/admin/backups/${first.id}/compare`, { sections: [] });
+    assert(empty.res.status === 400, `empty: ${empty.res.status}`);
+    // The same for a restore (validation comes before the restore starts; the typed phrase is correct here on purpose).
+    const restore = await post(`/api/v1/admin/backups/${first.id}/restore`, { confirm: "RESTORE", sections: ["nonsense"] });
+    assert(restore.res.status === 400 && /Unknown section/.test(await restore.res.text()), `restore: ${restore.res.status}`);
+  });
+
   await test("backups: upload takes a downloaded backup back in and checks it", async () => {
     const fd = new FormData();
     fd.append("file", new Blob([bytes], { type: "application/gzip" }), "[smoke] uploaded.tar.gz");

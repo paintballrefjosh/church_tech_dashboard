@@ -18,6 +18,7 @@ import {
   type BackupOperationKind,
   type BackupProgress,
   type BackupRestoreResult,
+  type BackupRestoreSection,
   type BackupSchedule,
   type BackupScheduleInput,
   type BackupScheduleUpdate,
@@ -38,7 +39,8 @@ import { SearchService } from "../search/search.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { gunzipped, readArchive } from "./archive";
 import { storeBackup } from "./backup-writer";
-import { computeDiff, type DiffOutput } from "./backup-diff";
+import { computeDiff, type DiffContext, type DiffOutput } from "./backup-diff";
+import { restoreSections, tablesInSections } from "./table-registry";
 import { applyRestore } from "./backup-restore";
 import { inspectArchive } from "./backup-inspect";
 import { BACKUP_PREFIX, FILES_PREFIX, OBJECT_STORE, type ObjectStore } from "./object-store";
@@ -520,7 +522,28 @@ export class BackupService implements OnModuleInit {
     };
   }
 
-  private async diff(row: BackupRow, userId: string | null, tracker: Tracker): Promise<DiffOutput> {
+  /** The sections a restore can be limited to, with what is in each. */
+  sections(): BackupRestoreSection[] {
+    return restoreSections();
+  }
+
+  /**
+   * The scope a request asks for: null for everything (no sections given, or every one of them: the
+   * same as a full rollback, and handled by exactly that code), else the tables and whether the files.
+   */
+  private scopeFor(sections: string[] | undefined): DiffContext["scope"] {
+    if (!sections) return null;
+    const all = restoreSections();
+    const known = new Set(all.map((s) => s.key));
+    const wanted = [...new Set(sections)];
+    const unknown = wanted.filter((k) => !known.has(k));
+    if (unknown.length > 0) throw new BadRequestException(`Unknown section: ${unknown.join(", ")}.`);
+    if (all.every((s) => wanted.includes(s.key))) return null;
+    const files = all.filter((s) => s.hasFiles).some((s) => wanted.includes(s.key));
+    return { sections: all.filter((s) => wanted.includes(s.key)).map((s) => s.key), tables: tablesInSections(wanted), files };
+  }
+
+  private async diff(row: BackupRow, userId: string | null, tracker: Tracker, scope: DiffContext["scope"] = null): Promise<DiffOutput> {
     return computeDiff(
       { db: this.db, store: this.store, progress: tracker.progress },
       {
@@ -528,11 +551,13 @@ export class BackupService implements OnModuleInit {
         archive: this.archiveOf(row),
         secretFingerprint: secretFingerprint(),
         userId,
+        scope,
       },
     );
   }
 
-  async startCompare(user: { id: string }, backupId: string): Promise<{ operationId: string }> {
+  async startCompare(user: { id: string }, backupId: string, sections?: string[]): Promise<{ operationId: string }> {
+    const scope = this.scopeFor(sections);
     const row = await this.readyRow(backupId);
     const mutex = await this.takeOperationLease();
     let tracker: Tracker;
@@ -544,7 +569,7 @@ export class BackupService implements OnModuleInit {
     }
     this.background("compare", async () => {
       try {
-        const out = await this.diff(row, user.id, tracker);
+        const out = await this.diff(row, user.id, tracker, scope);
         await tracker.succeed(out.report satisfies BackupDiffReport);
       } catch (err) {
         await tracker.fail(message(err));
@@ -558,6 +583,7 @@ export class BackupService implements OnModuleInit {
   // ------------------------------------------------------------------ restoring
 
   async startRestore(user: { id: string }, backupId: string, req: RestoreRequest): Promise<{ operationId: string }> {
+    const scope = this.scopeFor(req.sections);
     const row = await this.readyRow(backupId);
     const mutex = await this.takeOperationLease();
     let tracker: Tracker;
@@ -580,7 +606,7 @@ export class BackupService implements OnModuleInit {
         }
       };
       try {
-        const result = await this.performRestore(row, user.id, req, tracker, (m) => (gateLease = m));
+        const result = await this.performRestore(row, user.id, req, tracker, (m) => (gateLease = m), scope);
         await openGate();
         await tracker.succeed(result);
       } catch (err) {
@@ -602,6 +628,7 @@ export class BackupService implements OnModuleInit {
     req: RestoreRequest,
     tracker: Tracker,
     holdGate: (m: Mutex) => void,
+    scope: DiffContext["scope"] = null,
   ): Promise<BackupRestoreResult> {
     // 1. Cheap checks on the backup's first entry, before anything is paused.
     await tracker.phase("Checking the backup");
@@ -627,7 +654,7 @@ export class BackupService implements OnModuleInit {
     await new Promise((r) => setTimeout(r, 2500));
 
     // 3. Work out exactly what will change, and refuse if it cannot work.
-    const out = await this.diff(row, userId, tracker);
+    const out = await this.diff(row, userId, tracker, scope);
     await tracker.phase("Comparing with the current data");
     if (!out.report.compatibility.ok) throw new Error(out.report.compatibility.errors.join(" "));
 
@@ -659,6 +686,10 @@ export class BackupService implements OnModuleInit {
     // what goes wrong is reported as a warning.
     await tracker.phase("Cleaning up");
     const warnings = [...out.report.compatibility.warnings];
+    if (scope) {
+      const titles = restoreSections().filter((sec) => scope.sections.includes(sec.key)).map((sec) => sec.title);
+      warnings.unshift(`Only ${titles.join(", ")} ${titles.length === 1 ? "was" : "were"} restored. Everything else is exactly as it was.`);
+    }
     let filesRemoved = 0;
     try {
       filesRemoved = await this.removeStrayFiles(out);
@@ -678,6 +709,9 @@ export class BackupService implements OnModuleInit {
       rowsChanged: counts.rowsChanged,
       filesRestored: files,
       filesRemoved,
+      rowsSkipped: out.skippedRows,
+      rowsKept: out.keptRows,
+      sections: scope ? scope.sections : null,
       warnings,
     };
   }

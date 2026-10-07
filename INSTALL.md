@@ -1086,6 +1086,25 @@ off is there for a reason: without it nothing can bring back what the restore re
 finishes, caches are cleared on every node and search is rebuilt in the background; people may be
 asked to sign in again if their account changed.
 
+**Restoring only some of it.** The Restore tab lets you choose which **sections** to restore: People and
+access, Settings, Helpdesk, Wiki, Notes, Checklists, Monitoring, Network and devices, and Files. Everything is
+chosen by default, which is the full rollback above. Unchecking a section leaves that part of the site exactly
+as it is now: it is not compared, not changed, and its uploaded files are not touched (uploaded files are only
+restored or cleaned up when Files is chosen). The comparison is made for the sections you chose, and the
+**Restore** button stays locked until the comparison matches the selection, so what you restore is exactly what
+you saw. Because data refers to other data (a wiki page to its author, a ticket to the person who made it), two
+rules protect what you left out, and the comparison lists both:
+
+- **Skipped:** a row the backup would put back that refers to something in a section you did not choose, which
+  no longer exists (a wiki page whose author has since been deleted), is not restored, and neither is anything
+  in the chosen sections that depends on it. Include "People and access" to bring such people back too.
+- **Kept:** a row a restore would delete (it is not in the backup) that data you did not choose still uses (a user
+  that a ticket still names) is kept, so nothing outside the restore is deleted or cascaded away.
+
+In practice almost every link between sections points at People and access, so: restoring the wiki alone is
+safe and usually complete, and restoring People and access alone keeps any user that other data still uses.
+A restore that fails for any reason still changes nothing. The safety backup is always a full backup.
+
 **Compatibility.** A backup from an older release restores into a newer one (columns added since
 get their defaults; the report says so); one from a newer release is refused with a message. Saved
 SMTP, OAuth and device passwords are encrypted with `AUTH_SECRET`: a backup records a fingerprint

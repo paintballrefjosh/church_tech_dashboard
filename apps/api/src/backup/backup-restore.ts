@@ -143,7 +143,8 @@ async function applyInTransaction(
   ctx: Pick<DiffContext, "archive">,
 ): Promise<void> {
   const { plans } = diff;
-  const order = backedUpTables();
+  // A restore limited to some sections has plans for those tables only; the rest is not touched.
+  const order = backedUpTables().filter((t) => plans.has(t.name));
   await tx.execute(sql`SELECT set_config('TimeZone', 'UTC', true)`);
 
   // ---- deletes: children before parents ----

@@ -253,6 +253,48 @@ await test("the safety copy is listed and undoes the restore", async () => {
   assert(f1.status === 404, "the file deleted since should be gone again");
 });
 
+await test("a restore of only the Helpdesk leaves notes and the uploaded files exactly as they are", async () => {
+  // State now: note one edited, note three and its file there, note two gone, both tickets present.
+  const body = (extra) => JSON.stringify({ confirm: "RESTORE", safetyBackup: false, ...extra });
+  const cmp = await jsonAt(B, `/admin/backups/${state.backupId}/compare`, { method: "POST", headers: J, body: JSON.stringify({ sections: ["helpdesk"] }) });
+  const cop = await waitOp(B, cmp.operationId);
+  assert(cop.status === "succeeded" && cop.result.scope.partial && cop.result.files === null, `compare: ${cop.status} ${cop.error} ${JSON.stringify(cop.result?.scope)}`);
+  const started = await jsonAt(B, `/admin/backups/${state.backupId}/restore`, { method: "POST", headers: J, body: body({ sections: ["helpdesk"] }) });
+  const op = await waitOp(B, started.operationId);
+  assert(op.status === "succeeded", `partial restore ${op.status}: ${op.error}`);
+  assert(op.result.sections?.join() === "helpdesk" && op.result.filesRestored === 0 && op.result.filesRemoved === 0, `result: ${JSON.stringify(op.result)}`);
+  assert(op.result.warnings.some((w) => /Only .*Helpdesk.* restored/.test(w)), `no 'only' warning: ${op.result.warnings.join("; ")}`);
+  for (const base of new Set([A, C])) {
+    const tickets = await jsonAt(base, "/tickets");
+    assert(tickets.some((t) => t.id === state.t1.id), `${base}: ticket one missing`);
+    assert(!tickets.some((t) => t.id === state.t2.id), `${base}: the ticket made after the backup is still there`);
+    const titles = await noteTitles(base);
+    assert(titles.get(state.n1.id) === "bk note one EDITED" && !titles.has(state.n2.id) && titles.has(state.n3.id), `${base}: the notes were touched by a helpdesk-only restore`);
+  }
+  const f3 = await download(C, state.n3.id, state.a3.id);
+  assert(f3.status === 200 && sha(f3.bytes) === sha(state.bytes3), "the uploaded file was removed by a restore that did not include Files");
+  const f1 = await download(C, state.n1.id, state.a1.id);
+  assert(f1.status === 404, "a file was brought back by a restore that did not include Files");
+});
+
+await test("a restore of only Notes and Files puts those back and leaves the tickets alone", async () => {
+  const body = JSON.stringify({ confirm: "RESTORE", safetyBackup: false, sections: ["notes", "files"] });
+  const t3 = await jsonAt(A, "/tickets", { method: "POST", headers: J, body: JSON.stringify({ title: "bk ticket three (made later)", description: "x", priority: "low" }) });
+  const started = await jsonAt(C, `/admin/backups/${state.backupId}/restore`, { method: "POST", headers: J, body });
+  const op = await waitOp(C, started.operationId);
+  assert(op.status === "succeeded", `partial restore ${op.status}: ${op.error}`);
+  for (const base of new Set([A, B])) {
+    const titles = await noteTitles(base);
+    assert(titles.get(state.n1.id) === "bk note one" && titles.get(state.n2.id) === "bk note two" && !titles.has(state.n3.id), `${base}: notes are not as in the backup`);
+    const tickets = await jsonAt(base, "/tickets");
+    assert(tickets.some((t) => t.id === t3.id), `${base}: a ticket made later was deleted by a restore that did not include the Helpdesk`);
+  }
+  const back = await download(B, state.n1.id, state.a1.id);
+  assert(back.status === 200 && sha(back.bytes) === sha(state.bytes1), "the file was not brought back");
+  const gone = await download(B, state.n3.id, state.a3.id);
+  assert(gone.status === 404, "the file added since should be gone");
+});
+
 await test("a backup downloaded from node A and uploaded through node B is checked and usable on node C", async () => {
   const link = await jsonAt(A, `/admin/backups/${state.backupId}/download-link`, { method: "POST" });
   const dl = await apiAt(A, link.url.replace("/api/v1", ""));

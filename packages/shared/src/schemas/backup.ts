@@ -196,6 +196,25 @@ export interface BackupCompatibility {
   warnings: string[];
 }
 
+/** A line of the report about rows a partial restore leaves alone, with why. */
+export interface BackupDiffNote {
+  /** What a person calls the table. */
+  table: string;
+  count: number;
+  reason: string;
+}
+
+/** A section of the data a restore can be limited to (wiki, notes, users ...). */
+export interface BackupRestoreSection {
+  key: string;
+  title: string;
+  description: string;
+  /** What is in it, by table title. */
+  tables: string[];
+  /** Choosing it also covers the uploaded files. */
+  hasFiles: boolean;
+}
+
 export interface BackupDiffReport {
   backupId: string;
   backupName: string;
@@ -211,10 +230,24 @@ export interface BackupDiffReport {
   files: BackupDiffFiles | null;
   /** What a restore does to the account of the person asking. */
   you: { status: "unchanged" | "changed" | "removed"; detail: string } | null;
+  /** Which sections this report is about. Everything not listed is left exactly as it is. */
+  scope: { partial: boolean; sections: string[] };
+  /** Rows a restore cannot put back (a person or page they depend on is gone and was not included). */
+  skipped: BackupDiffNote[];
+  /** Rows a restore would delete but keeps, because data that was not included still uses them. */
+  kept: BackupDiffNote[];
 }
+
+/** The sections a restore or comparison covers (keys from the restore-sections list); leave out for everything. */
+const sectionsSchema = z.array(z.string().min(1).max(60)).min(1).max(30).optional();
+
+export const compareRequestSchema = z.object({ sections: sectionsSchema }).strict();
+export type CompareRequest = z.infer<typeof compareRequestSchema>;
 
 export const restoreRequestSchema = z
   .object({
+    /** Restore only these sections; leave out for everything (a full rollback). */
+    sections: sectionsSchema,
     confirm: z.literal(RESTORE_CONFIRM_PHRASE),
     /** Take a backup of the current state first, so the restore can be undone. Default true. */
     safetyBackup: z.boolean().default(true),
@@ -232,6 +265,11 @@ export interface BackupRestoreResult {
   rowsChanged: number;
   filesRestored: number;
   filesRemoved: number;
+  /** Rows a partial restore could not put back, and rows it kept (see the comparison report). */
+  rowsSkipped: number;
+  rowsKept: number;
+  /** The sections restored; null for everything. */
+  sections: string[] | null;
   warnings: string[];
 }
 

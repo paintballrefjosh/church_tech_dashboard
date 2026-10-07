@@ -6,6 +6,7 @@ import type {
   BackupDiffColumnChange,
   BackupDiffFiles,
   BackupDiffGroup,
+  BackupDiffNote,
   BackupDiffReport,
   BackupDiffRow,
   BackupDiffTable,
@@ -14,6 +15,7 @@ import type {
 import type { Db } from "../db/db.module";
 import { backedUpTables, tableMeta, type TableMeta } from "./backup-schema";
 import { TABLE_REGISTRY, tableInfo } from "./table-registry";
+import { keepRowsStillInUse, skipRowsWithMissingParents, type KeptRows, type SkippedRows } from "./backup-scope";
 import { canonicalJson, keyOf, keyValues, keysPredicate, rowFingerprint, selectList, shorten, type Row } from "./row-codec";
 import { appliedMigrations, readPage } from "./backup-writer";
 import { readArchive, type ArchiveEvent, type FileIndexEntry, type Manifest } from "./archive";
@@ -50,6 +52,12 @@ export interface DiffContext {
   /** The person asking, to say what happens to their own account. */
   userId?: string | null;
   /**
+   * Limit the comparison (and the plan a restore follows) to these sections. Tables outside it are not
+   * compared and not touched; rows at the edge are skipped or kept so nothing outside it is damaged
+   * (backup-scope.ts). Null or absent: everything.
+   */
+  scope?: { sections: string[]; tables: Set<string>; files: boolean } | null;
+  /**
    * Called for the file index, every file and the summary while walking the archive, which then
    * runs to the end. Without it the walk stops at the first file. A restore uses it to put the files back.
    */
@@ -63,6 +71,11 @@ export interface DiffOutput {
   fileIndex: FileIndexEntry[] | null;
   /** The files in storage now (key, size), for a restore to decide what to put and what to drop. */
   storageFiles: Map<string, number> | null;
+  /** Whether a restore also puts files back and clears stray ones (false when the files were not chosen). */
+  filesInScope: boolean;
+  /** Counts for the result, from the plans after skipping and keeping. */
+  skippedRows: number;
+  keptRows: number;
 }
 
 function intersection(current: TableMeta, backup: Manifest["tables"][number]): string[] {
@@ -148,7 +161,10 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
 
   let manifest: Manifest | null = null;
   let fileIndex: FileIndexEntry[] | null = null;
-  const currentTables = backedUpTables();
+  const scoped = ctx.scope ?? null;
+  const inScope = (name: string): boolean => !scoped || scoped.tables.has(name);
+  const filesInScope = !scoped || scoped.files;
+  const currentTables = backedUpTables().filter((t) => inScope(t.name));
   const seen = new Set<string>();
   let hashes: Map<string, string> | null = null;
   let openMeta: TableMeta | null = null;
@@ -207,6 +223,7 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
     if (event.type === "manifest") {
       manifest = event.manifest;
     } else if (event.type === "tableStart") {
+      if (!inScope(event.table)) continue; // not part of this restore
       const meta = tableMeta(event.table);
       const mt = manifest?.tables.find((t) => t.name === event.table);
       seen.add(event.table);
@@ -273,6 +290,21 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
     if (keys.length > 0) warnings.push(`The backup has no "${info.title.toLowerCase()}" (it predates them): a restore empties them.`);
   }
 
+  // ---- a partial restore: leave alone what the chosen sections cannot put back or must not delete ----
+  let skipped: SkippedRows[] = [];
+  let kept: KeptRows[] = [];
+  if (scoped) {
+    skipped = await skipRowsWithMissingParents({ db: deps.db }, plans, scoped.tables, ctx.archive);
+    kept = await keepRowsStillInUse({ db: deps.db }, plans, scoped.tables);
+    for (const [name, plan] of plans) {
+      const r = tableReports.get(name);
+      if (!r) continue;
+      r.added = plan.addedKeys.length;
+      r.changed = plan.changedKeys.length;
+      r.removed = plan.removedKeys.length;
+    }
+  }
+
   // ---- sample details: current rows from the database, backup rows from a second pass ----
   const currentSample = new Map<string, Map<string, Row>>();
   for (const [name, plan] of plans) {
@@ -298,6 +330,7 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
         for (const row of event.rows) {
           const key = keyOf(row, meta.pk);
           if (!wants.has(key)) continue;
+          if (!plan.changedKeys.includes(key) && !plan.addedKeys.includes(key)) continue; // skipped by the partial restore
           if (plan.changedKeys.includes(key)) {
             const now = current.get(key);
             if (now) {
@@ -342,7 +375,9 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
   // ---- files ----
   let files: BackupDiffFiles | null = null;
   let storageFiles: Map<string, number> | null = null;
-  if (!manifest.includeFiles) {
+  if (!filesInScope) {
+    // Files are not part of this restore: nothing is read from or removed from storage.
+  } else if (!manifest.includeFiles) {
     warnings.push("This backup has no uploaded files: attachments restored from it may point at files that are missing.");
   } else if (fileIndex) {
     storageFiles = new Map((await deps.store.list(FILES_PREFIX)).map((o) => [o.key, o.size]));
@@ -382,6 +417,28 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
   const groupList = [...groups.values()].sort((a, b) => order.indexOf(a.title) - order.indexOf(b.title));
   for (const g of groupList) g.tables.sort((a, b) => a.title.localeCompare(b.title));
 
+  const titleOf = (name: string) => tableInfo(name).title.toLowerCase();
+  const sectionOf = (name: string) => tableInfo(name).group;
+  const skippedNotes: BackupDiffNote[] = skipped
+    .map((s) => ({
+      table: tableInfo(s.table).title,
+      count: s.count,
+      reason: s.parentInScope
+        ? `they depend on ${titleOf(s.parent)} that could not be put back`
+        : `they belong to ${titleOf(s.parent)} that no longer exist; include "${sectionOf(s.parent)}" in the restore to bring those back too`,
+    }))
+    .sort((a, b) => a.table.localeCompare(b.table));
+  const keptNotes: BackupDiffNote[] = kept
+    .map((k) => ({
+      table: tableInfo(k.table).title,
+      count: k.count,
+      reason:
+        k.usedBy.length > 0
+          ? `still used by ${k.usedBy.map(titleOf).join(", ")}, which are not part of this restore`
+          : "needed by other rows that are kept",
+    }))
+    .sort((a, b) => a.table.localeCompare(b.table));
+
   return {
     report: {
       backupId: ctx.backup.id,
@@ -394,12 +451,18 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
       groups: groupList,
       identicalTables: identicalTables.sort(),
       files,
-      you: describeYou(ctx.userId ?? null, plans),
+      you: inScope("users") ? describeYou(ctx.userId ?? null, plans) : null,
+      scope: { partial: scoped !== null, sections: scoped ? scoped.sections : [] },
+      skipped: skippedNotes,
+      kept: keptNotes,
     },
     plans,
     manifest,
-    fileIndex,
+    fileIndex: filesInScope ? fileIndex : null,
     storageFiles,
+    filesInScope,
+    skippedRows: skipped.reduce((n, s) => n + s.count, 0),
+    keptRows: kept.reduce((n, k) => n + k.count, 0),
   };
 }
 

@@ -131,6 +131,11 @@ export function DiffReport({ report }: { report: BackupDiffReport }) {
       <p className="text-sm text-slate-600 dark:text-slate-400">
         Compared with <strong>{report.backupName}</strong>, made <LocalDateTime value={report.backupCreatedAt} options={WHEN} />. This is what a restore would do to the data as it is now.
       </p>
+      {report.scope.partial ? (
+        <p className="rounded-md border border-brand-300 bg-brand-50 p-3 text-sm text-brand-900 dark:border-brand-800 dark:bg-brand-950/40 dark:text-brand-200" data-testid="scope-note">
+          Only the sections you chose are compared and would be restored. Everything else stays <strong>exactly as it is now</strong>.
+        </p>
+      ) : null}
 
       {c.errors.length > 0 ? (
         <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert">
@@ -191,6 +196,31 @@ export function DiffReport({ report }: { report: BackupDiffReport }) {
           ))}
         </section>
       ))}
+
+      {report.skipped.length > 0 ? (
+        <section className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="diff-skipped">
+          <h3 className="font-semibold">Not restored: they depend on something that is not there</h3>
+          <ul className="mt-1 list-disc pl-5">
+            {report.skipped.map((n) => (
+              <li key={`${n.table}-${n.reason}`}>
+                <strong>{formatCount(n.count)}</strong> {n.table.toLowerCase()}: {n.reason}.
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {report.kept.length > 0 ? (
+        <section className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="diff-kept">
+          <h3 className="font-semibold">Kept although they are not in the backup</h3>
+          <ul className="mt-1 list-disc pl-5">
+            {report.kept.map((n) => (
+              <li key={`${n.table}-${n.reason}`}>
+                <strong>{formatCount(n.count)}</strong> {n.table.toLowerCase()}: {n.reason}.
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {files ? (
         <section className="rounded-md border border-slate-300 p-3 text-sm dark:border-slate-800" data-testid="diff-files">
