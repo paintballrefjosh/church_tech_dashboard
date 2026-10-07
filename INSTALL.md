@@ -763,7 +763,8 @@ and `db-s3.sh` only when the old install is the production stack.
 
 #### Operating a multi node deployment
 
-- **Upgrades go one node at a time**: run migrations once, then for each node
+- **Upgrades go one node at a time**: `scripts/upgrade.sh` does the steps below for the node it runs on
+  (see [Upgrading](#upgrading)); by hand: run migrations once, then for each node
   `scripts/cluster.sh drain` (its `/healthz` answers 503 and the load balancer stops sending
   new requests; requests and WebSocket connections already open are not cut, so wait for them
   to finish), upgrade it, `scripts/cluster.sh undrain`, and wait for the load balancer to see
@@ -924,6 +925,46 @@ The prod compose file:
 Behind your load balancer, terminate TLS and proxy HTTP to the host's `:EXTERNAL_PORT`.
 Set `X-Forwarded-Proto: https` and `X-Forwarded-For: <client ip>` on the LB; Caddy
 trusts these by default in our config.
+
+## Upgrading
+
+```bash
+scripts/upgrade.sh --check     # what would change: commits, new migrations, new .env.example settings
+scripts/upgrade.sh             # upgrade this node to the newest commit of the branch
+scripts/upgrade.sh --rollback  # go back to the version this node ran before the last upgrade
+```
+
+Run it on the machine itself (every node of a cluster, one at a time). It is built to keep the
+interruption to the few seconds it takes to restart the app, and to leave you on a working version
+whatever happens:
+
+1. **It looks first.** It fetches, shows the commits, the number of new migrations and any new
+   settings in `.env.example`, and refuses to start if the working tree has uncommitted changes or the
+   history cannot fast-forward. Nothing is changed before you confirm (`--yes` skips the question).
+2. **It builds while the old version serves.** The slow part (the image builds) costs no downtime. A build
+   that fails puts the code back and leaves the site as it was.
+3. **It migrates before it swaps**, with the new image in a one-off container. Migrations work with the
+   previous release (that is the rule for every migration), so the running containers are not disturbed.
+   If a migration fails, the code is put back and nothing is swapped.
+4. **It swaps only the app.** `api`, `web` and `monitor` are recreated; the database and the object store are
+   not restarted (the proxy and other services only when their configuration changed in this upgrade). In a
+   cluster the node is **drained** first (`--drain-wait`, default 15 s, for open requests to finish) and put
+   back only when it is healthy.
+5. **It checks the result** from inside the containers (the API's `/readyz`, the web app answering, and both
+   running the build id of the new commit). If the new version does not come up within 150 seconds it goes
+   back to the previous one by itself and tells you; the migrations are not undone, which is safe because
+   they are additive.
+
+A database backup is taken first on a single node with the bundled database (`scripts/db-s3.sh backup`, which
+lands in the object store; `--no-backup` skips it). In a cluster it is not repeated on every node: run the
+first node with `--backup`. With an external database the script cannot back it up for you; use your
+database's tooling, or Admin > Backups for the app's own data.
+
+`--to <commit, tag or branch>` moves to a specific version (also older ones; the migrations stay), `--prune`
+removes the dangling images the builds leave, and `--prod` / `--dev` choose the stack when it cannot tell
+(a cluster is always prod). Logs and the recorded previous version are in `data/upgrade/`. After a
+`--rollback` the checkout is on a detached commit: `git checkout <your branch>` before the next upgrade.
+A browser tab left open across an upgrade may need a reload.
 
 ## Using the API
 

@@ -859,6 +859,23 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   and YugabyteDB with `TEST_DATABASE_URL`), `backup.scale.test.ts` (`BACKUP_SCALE=1`) and
   `tests/cluster/backup-restore.sh` on the throwaway cluster.
 
+## Upgrading a deployment (`scripts/upgrade.sh`)
+
+`scripts/upgrade.sh` (operator docs: INSTALL.md "Upgrading"; test: `tests/upgrade/upgrade.sh`, a fake compose in throwaway
+git repos) upgrades the node it runs on. The order is the contract: look (fetch, plan, refuse a dirty tree) -> backup
+(single node, bundled database) -> build the new images while the old containers keep serving -> migrate with the NEW
+image in a one-off container -> swap only `api web monitor` (`up -d --no-build --no-deps`; everything, plus a proxy restart,
+only when `infra/` changed; in a cluster `cluster.sh drain` before and `undrain` after the node is healthy) -> verify
+inside the containers (`/readyz`, web answering, `BUILD_ID` of api and web equals `scripts/build-id.sh`) -> otherwise
+roll back by itself. A failed build or migration puts the code back before anything was swapped. Rules:
+- **Do not skip rebuilding a service because its sources did not change.** `BUILD_ID` is baked into every image and every
+  node of a cluster must run the same build; Docker's layer cache already makes the unchanged parts cheap.
+- **Migrations are never undone by a rollback**: that is only safe because they are additive (expand/contract), which is the
+  existing migration rule; a destructive migration breaks `--rollback` and the automatic one.
+- **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
+- It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
+  harness, and `--dev` on the dev stack.
+
 ## Repository hygiene
 
 - **`.gitignore` entries for root folders are anchored** (`/backups/`, `/data/`, `/secrets/`). Unanchored, `backups/` hid
