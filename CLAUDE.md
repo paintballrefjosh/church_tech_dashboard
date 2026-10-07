@@ -755,6 +755,11 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   commit, so packages are rebuilt on every first-node run and the code-dependent stages are dropped when
   `scripts/build-id.sh` changed since the state file's `buildid:` line. SSH installs set `JOIN_COMMIT_OK=yes` remotely
   because the files were copied and the build ids compared. `tests/installer/update.sh` uses real throwaway git repos.
+- **Image builds are retried when Docker's image store is damaged** (`build_images`, `BUILD_STORE_ERROR`: "failed to
+  prepare extraction snapshot ... parent snapshot ... does not exist", a containerd race with parallel builds or an
+  interrupted build/prune): one image at a time, then an offered `docker builder prune -f` (build cache only; never
+  images or volumes), and any other build error is shown untouched, never retried. `tests/installer/build.sh` uses a fake
+  compose/docker with the real error text. A new build step must go through `build_images`, not a bare `compose build`.
 - **A migration that fails halfway must be re-runnable** (YugabyteDB applies statements one by one, not in one transaction):
   `migrateStepwise` writes a marker (`drizzle.__church_migration_progress`) before a migration's first statement and removes
   it once the migration is journaled; a run that finds the marker is RESUMING and skips statements whose effect is already
@@ -789,7 +794,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries), `tests/installer/build.sh` (a damaged image store) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).

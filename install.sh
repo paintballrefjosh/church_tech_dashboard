@@ -380,8 +380,41 @@ logrun() {
     return 0
   fi
   printf ' %sFAILED%s\n' "$R" "$Z"
+  [[ -n ${LOGRUN_QUIET:-} ]] && return 1   # the caller says what happened and what it does next
   tail -n 25 "$LOG" | sed 's/^/      /' >&2
   fail "The full output is in $LOG"
+  return 1
+}
+
+# Docker's image store (containerd) can end up missing a layer it expects: "failed to prepare extraction
+# snapshot ... parent snapshot ... does not exist". It is Docker's own state, not ours: a known race when several
+# images build at once and share layers, or what an interrupted build or prune leaves behind. So: try again one
+# image at a time; if the store is still confused, offer to clear the build cache (not images, not volumes).
+BUILD_STORE_ERROR='failed to prepare extraction snapshot|parent snapshot .*does not exist|snapshot [^ ]+ does not exist|content digest .*not found|failed to get digest .*not found'
+build_images() { # "label" then the compose command words, without "build"
+  local label=$1; shift
+  local -a base=("$@")
+  local mark; mark=$(wc -c <"$LOG" 2>/dev/null || echo 0)
+  LOGRUN_QUIET=1 logrun "$label" "${base[@]}" build && return 0
+  if ! tail -c +"$((mark + 1))" "$LOG" | grep -qE "$BUILD_STORE_ERROR"; then
+    tail -n 25 "$LOG" | sed 's/^/      /' >&2; fail "The full output is in $LOG"; return 1
+  fi
+  warn "Docker's image store reports a missing layer (a known problem when several images build at once, or after an interrupted build). Trying again, one image at a time."
+  local svc services failed=0
+  services=$("${base[@]}" config --services 2>>"$LOG")
+  mark=$(wc -c <"$LOG")
+  for svc in $services; do
+    LOGRUN_QUIET=1 logrun "  building $svc" "${base[@]}" build "$svc" || { failed=1; break; }
+  done
+  (( failed == 0 )) && return 0
+  tail -c +"$((mark + 1))" "$LOG" | grep -qE "$BUILD_STORE_ERROR" || { tail -n 25 "$LOG" | sed 's/^/      /' >&2; fail "The full output is in $LOG"; return 1; }
+  warn "Still the same. Docker's build cache looks inconsistent."
+  ask_yn AUTO_PRUNE_BUILD_CACHE "Clear Docker's build cache (docker builder prune -f) and build again? Your images, containers and volumes are not touched; the next build is just slower." yes
+  if [[ $(ans AUTO_PRUNE_BUILD_CACHE) == yes ]]; then
+    logrun "Clearing the build cache" docker builder prune -f || true
+    logrun "$label" "${base[@]}" build && return 0
+  fi
+  fail "The image store is still reporting a missing layer. Things to try, in this order: check free disk space (df -h /var/lib/docker); restart Docker (sudo systemctl restart docker); docker system prune (removes unused images and containers); then run ./install.sh again, which carries on from here."
   return 1
 }
 
@@ -1126,7 +1159,7 @@ st_ports() {
   (( ok_all ))
 }
 
-st_build_single() { logrun "Building the images (the first time takes 5-10 minutes)" "${COMPOSE[@]}" build; }
+st_build_single() { build_images "Building the images (the first time takes 5-10 minutes)" "${COMPOSE[@]}"; }
 
 # The application cannot start on an empty database (it reads its settings at boot), so the
 # database comes up first, then migrate and seed run in one-off containers, then the application.
@@ -1241,7 +1274,7 @@ st_packages() {
 EOF
 }
 
-st_build() { logrun "Building the images (the first time takes 5-10 minutes)" bash scripts/compose.sh --prod build; }
+st_build() { build_images "Building the images (the first time takes 5-10 minutes)" bash scripts/compose.sh --prod; }
 
 st_start_data() { logrun "Starting the database and object store on this node" cc start-data; }
 

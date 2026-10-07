@@ -1191,6 +1191,14 @@ other host processes on those ports do not affect this stack.
 
 ## Troubleshooting
 
+**`failed to prepare extraction snapshot ... parent snapshot ... does not exist` while building.** Docker's own
+image store (containerd) is missing a layer it expects. It is a known problem when several images build at once and
+share layers, or after an interrupted build or `docker prune`; it is not caused by the dashboard. The guided
+installer handles it: it builds again one image at a time and, if that fails too, offers to clear Docker's build
+cache (`docker builder prune -f`: build cache only, no images, containers or volumes). By hand: `docker builder prune
+-f` and build again; if it persists, check free disk (`df -h /var/lib/docker`), restart Docker
+(`sudo systemctl restart docker`), then `docker system prune` (removes unused images and containers).
+
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `make up` aborts with "port in use" | another project on the host already binds that port | follow the suggestion the script prints — set the var in `.env` and re-run |
