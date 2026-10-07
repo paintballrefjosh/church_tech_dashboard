@@ -10,6 +10,7 @@ import { gunzipped } from "../src/backup/archive";
 import { computeDiff, type DiffOutput } from "../src/backup/backup-diff";
 import { applyRestore } from "../src/backup/backup-restore";
 import { tablesInSections } from "../src/backup/table-registry";
+import { UNKNOWN_USER } from "../src/backup/backup-scope";
 import { MemoryObjectStore } from "./helpers/memory-object-store";
 
 /**
@@ -140,7 +141,7 @@ describe.skipIf(!url)("restoring only some sections, against a real database", (
     expect((await rows<{ name: string }>(sql`SELECT name FROM users WHERE id = ${U.ada}`))[0]!.name).toBe("Ada Administrator");
   });
 
-  it("skips what depends on a user that is gone and was not included, and says so", async () => {
+  it("gives content whose owner is gone to the Unknown user, and says so", async () => {
     await backup();
     // Mo no longer exists; his guide (and the page nested under it) is in the backup.
     await db.update(schema.tickets).set({ createdByUserId: U.ada }).where(eq(schema.tickets.id, T.one));
@@ -150,18 +151,38 @@ describe.skipIf(!url)("restoring only some sections, against a real database", (
     await db.update(schema.wikiPages).set({ title: "Welcome (vandalised)" }).where(eq(schema.wikiPages.id, P.one));
 
     const out = await plan(["wiki"]);
-    // Two lines, two reasons: the guide (its author is gone), and the part nested under it.
-    const lines = notesFor(out.report.skipped, "Wiki pages");
-    expect(lines.reduce((n, l) => n + l.count, 0)).toBe(2);
-    expect(lines.some((l) => /People and access/.test(l.reason))).toBe(true);
-    expect(lines.some((l) => /could not be put back/.test(l.reason))).toBe(true);
-    expect(out.skippedRows).toBe(2);
+    expect(out.report.skipped).toEqual([]);
+    expect(out.skippedRows).toBe(0);
+    const line = notesFor(out.report.cleared ?? [], "Wiki pages");
+    expect(line.reduce((n, l) => n + l.count, 0)).toBe(1); // Mo's guide; the page under it is Ada's
+    expect(line[0]!.reason).toMatch(/Unknown user.*People and access/);
     expect(out.report.compatibility.ok).toBe(true);
     await restore(out);
 
     expect((await rows<{ title: string }>(sql`SELECT title FROM wiki_pages WHERE id = ${P.one}`))[0]!.title).toBe("Welcome");
-    expect(await count("wiki_pages", sql`id IN (${P.two}, ${P.twoChild})`)).toBe(0);
+    expect((await rows<{ owner_user_id: string }>(sql`SELECT owner_user_id FROM wiki_pages WHERE id = ${P.two}`))[0]!.owner_user_id).toBe(UNKNOWN_USER.id);
+    expect((await rows<{ owner_user_id: string }>(sql`SELECT owner_user_id FROM wiki_pages WHERE id = ${P.twoChild}`))[0]!.owner_user_id).toBe(U.ada);
     expect(await count("users", sql`id = ${U.mo}`)).toBe(0); // not resurrected
+    expect(await count("users", sql`id = ${UNKNOWN_USER.id}`)).toBe(1);
+  });
+
+  it("no placeholder is made when nobody needs it", async () => {
+    await backup();
+    await db.update(schema.wikiPages).set({ title: "changed" }).where(eq(schema.wikiPages.id, P.one));
+    await restore(await plan(["wiki"]));
+    expect(await count("users", sql`id = ${UNKNOWN_USER.id}`)).toBe(0);
+  });
+
+  it("personal settings and assignments are never given to the placeholder: they are skipped", async () => {
+    await db.insert(schema.dashboardLayouts).values({ userId: U.mo, layout: {} });
+    await backup();
+    await db.delete(schema.dashboardLayouts);
+    await db.delete(schema.users).where(eq(schema.users.id, U.mo));
+    const out = await plan(["settings"]);
+    expect(note(out.report.skipped, "Dashboard layouts")?.count).toBe(1);
+    await restore(out);
+    expect(await count("dashboard_layouts")).toBe(0);
+    expect(await count("users", sql`id = ${UNKNOWN_USER.id}`)).toBe(0);
   });
 
   it("includes People and access: the same restore then brings the user and the pages back", async () => {
@@ -205,7 +226,7 @@ describe.skipIf(!url)("restoring only some sections, against a real database", (
     expect(await count("notes", sql`id = ${N.zed}`)).toBe(1);
   });
 
-  it("restoring tickets does not bring back a ticket whose creator is gone, and does not touch the rest", async () => {
+  it("restoring tickets brings back a ticket whose creator is gone under the Unknown user, and does not touch the rest", async () => {
     await backup();
     await db.delete(schema.tickets).where(eq(schema.tickets.id, T.one)); // in the backup, made by Mo
     await db.update(schema.tickets).set({ title: "Wifi down (edited)" }).where(eq(schema.tickets.id, T.two));
@@ -214,9 +235,9 @@ describe.skipIf(!url)("restoring only some sections, against a real database", (
     await db.delete(schema.users).where(eq(schema.users.id, U.mo));
 
     const out = await plan(["helpdesk"]);
-    expect(note(out.report.skipped, "Tickets")?.count).toBe(1);
+    expect(note(out.report.cleared ?? [], "Tickets")?.count).toBe(1);
     await restore(out);
-    expect(await count("tickets", sql`id = ${T.one}`)).toBe(0); // skipped: Mo is gone
+    expect((await rows<{ created_by_user_id: string }>(sql`SELECT created_by_user_id FROM tickets WHERE id = ${T.one}`))[0]!.created_by_user_id).toBe(UNKNOWN_USER.id);
     expect((await rows<{ title: string }>(sql`SELECT title FROM tickets WHERE id = ${T.two}`))[0]!.title).toBe("Wifi down");
     expect(await count("wiki_pages")).toBe(1); // the wiki, deleted above, was not restored
   });
@@ -246,5 +267,85 @@ describe.skipIf(!url)("restoring only some sections, against a real database", (
     expect(withFiles.filesInScope).toBe(true);
     expect(withFiles.fileIndex?.length).toBe(1);
     expect(withFiles.report.files).not.toBeNull();
+  });
+  describe("wiki + monitoring + checklists together", () => {
+    const M = { site: id(60), db: id(61) };
+    const S = { front: id(70), back: id(71) };
+    const TPL = { sunday: id(80) };
+    const TG = { host: id(90) };
+
+    async function seedMore(): Promise<void> {
+      await db.insert(schema.monitors).values([
+        { id: M.site, name: "Website", kind: "http", target: "https://example.org" },
+        { id: M.db, name: "Database", kind: "tcp", target: "db:26257" },
+      ]);
+      await db.insert(schema.infraTargets).values({ id: TG.host, name: "nas", kind: "host", host: "nas.local" } as never);
+      await db.insert(schema.checklistStations).values([
+        { id: S.front, name: "Front desk" },
+        { id: S.back, name: "Sound booth" },
+      ]);
+      await db.insert(schema.checklistTemplates).values({ id: TPL.sunday, name: "Sunday setup", stationId: S.front, createdByUserId: U.ada } as never);
+    }
+
+    it("puts all three back after they were deleted, when the people are still there", async () => {
+      await seedMore();
+      await backup();
+      for (const t of ["monitors", "checklist_templates", "checklist_stations", "wiki_pages", "wiki_folders"]) await run(sql`DELETE FROM ${sql.identifier(t)}`);
+      const out = await plan(["wiki", "monitoring", "checklists"]);
+      await restore(out);
+      expect(await count("monitors")).toBe(2);
+      expect(await count("checklist_stations")).toBe(2);
+      expect(await count("checklist_templates")).toBe(1);
+      expect(await count("wiki_pages")).toBe(3);
+      expect(await count("wiki_folders")).toBe(2);
+    });
+
+    it("a restored host or switch starts without the backup's last reading, which is stale the moment it comes back", async () => {
+      await seedMore();
+      await db.update(schema.infraTargets).set({ status: "up", lastError: "old error", lastSample: { cpuPct: 91 } } as never).where(eq(schema.infraTargets.id, TG.host));
+      await db.update(schema.monitors).set({ status: "down", lastLatencyMs: 123 }).where(eq(schema.monitors.id, M.site));
+      await backup();
+      await run(sql`DELETE FROM monitors`);
+      await run(sql`DELETE FROM infra_targets`);
+      const out = await plan(["monitoring"]);
+      await restore(out);
+      const host = (await rows<{ status: string; last_error: string | null; last_sample: unknown }>(sql`SELECT status, last_error, last_sample FROM infra_targets WHERE id = ${TG.host}`))[0]!;
+      expect(host.status).toBe("unknown");
+      expect(host.last_error).toBeNull();
+      expect(host.last_sample).toBeNull();
+      const mon = (await rows<{ status: string; last_latency_ms: number | null }>(sql`SELECT status, last_latency_ms FROM monitors WHERE id = ${M.site}`))[0]!;
+      expect(mon.status).toBe("unknown");
+      expect(mon.last_latency_ms).toBeNull();
+      // What the backup holds that is not a reading comes back.
+      expect((await rows<{ name: string }>(sql`SELECT name FROM monitors WHERE id = ${M.site}`))[0]!.name).toBe("Website");
+    });
+
+    it("on a fresh install (only another admin exists) restores everything, giving content whose owner is gone to the Unknown user", async () => {
+      await seedMore();
+      await backup();
+      await wipe();
+      await db.insert(schema.users).values({ id: U.yan, name: "Yan New", email: "yan@example.org" });
+      const out = await plan(["wiki", "monitoring", "checklists"]);
+      await restore(out);
+      expect(await count("monitors")).toBe(2);
+      expect(await count("infra_targets")).toBe(1);
+      expect(await count("checklist_stations")).toBe(2);
+      expect(await count("wiki_folders")).toBe(2);
+      // The template was made by a user who is not there: its creator is simply empty (it was ON DELETE SET NULL).
+      expect(await count("checklist_templates")).toBe(1);
+      expect(await count("checklist_templates", sql`created_by_user_id IS NULL`)).toBe(1);
+      expect(out.report.cleared?.some((n) => n.table === "Checklist templates")).toBe(true);
+      expect(out.report.skipped.some((n) => n.table === "Checklist templates")).toBe(false);
+      // Pages are owned by users who are not there: they come back under the "Unknown user" placeholder.
+      expect(await count("wiki_pages")).toBe(3);
+      expect(await count("wiki_pages", sql`owner_user_id = ${UNKNOWN_USER.id}`)).toBe(3);
+      expect(out.report.skipped.some((n) => n.table === "Wiki pages")).toBe(false);
+      expect(out.report.cleared?.some((n) => n.table === "Wiki pages" && n.reason.includes("Unknown user"))).toBe(true);
+      const ph = (await rows<{ name: string; is_active: boolean; deleted_at: unknown }>(sql`SELECT name, is_active, deleted_at FROM users WHERE id = ${UNKNOWN_USER.id}`))[0]!;
+      expect(ph.name).toBe("Unknown user");
+      expect(ph.is_active).toBe(false);
+      expect(ph.deleted_at).not.toBeNull();
+      expect(await count("group_memberships", sql`user_id = ${UNKNOWN_USER.id}`)).toBe(0);
+    });
   });
 });

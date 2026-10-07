@@ -209,6 +209,18 @@ export function DiffReport({ report }: { report: BackupDiffReport }) {
           </ul>
         </section>
       ) : null}
+      {(report.cleared?.length ?? 0) > 0 ? (
+        <section className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="diff-cleared">
+          <h3 className="font-semibold">Restored without the person they belonged to</h3>
+          <ul className="mt-1 list-disc pl-5">
+            {report.cleared?.map((n) => (
+              <li key={`${n.table}-${n.reason}`}>
+                <strong>{formatCount(n.count)}</strong> {n.table.toLowerCase()}: {n.reason}.
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {report.kept.length > 0 ? (
         <section className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="diff-kept">
           <h3 className="font-semibold">Kept although they are not in the backup</h3>

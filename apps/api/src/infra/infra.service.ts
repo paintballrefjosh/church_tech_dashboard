@@ -13,7 +13,7 @@ import {
   groupMemberships,
   groupModuleAccess,
 } from "../db/schema";
-import { encryptSecret, decryptSecret } from "../settings/crypto";
+import { encryptSecret, decryptStoredSecret } from "../settings/crypto";
 import type {
   InfraTarget,
   CreateInfraTargetInput,
@@ -173,8 +173,8 @@ export class InfraService {
     return {
       authType: row.authType,
       username: row.username,
-      secret: row.secretEnc ? decryptSecret(row.secretEnc) : null,
-      extra: row.extraEnc ? decryptSecret(row.extraEnc) : null,
+      secret: row.secretEnc ? decryptStoredSecret(row.secretEnc, "password or key") : null,
+      extra: row.extraEnc ? decryptStoredSecret(row.extraEnc, "password or key") : null,
       caCert: row.caCert,
     };
   }

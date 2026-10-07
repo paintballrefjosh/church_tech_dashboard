@@ -45,7 +45,7 @@ const WIKI = "Wiki";
 const NOTES = "Notes";
 const CHECKLISTS = "Checklists";
 const MONITORING = "Monitoring";
-const DEVICES = "Network and devices";
+const PRINTERS = "Printers";
 const FILES = "Files";
 const OTHER = "Other";
 
@@ -133,25 +133,25 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   infra_metric_samples: rebuilt("Infrastructure metric samples"),
   infra_metric_rollups: rebuilt("Infrastructure metric rollups"),
 
-  // ---- network and devices ----
+  // ---- printers, UPS, Cisco, IPAM (the Monitoring menu) ----
   printers: {
-    policy: "data", group: DEVICES, title: "Printers", label: ["name"],
+    policy: "data", group: PRINTERS, title: "Printers", label: ["name"],
     sensitive: ["snmp_community", "fiery_api_key"],
     volatile: ["last_status", "last_checked_at", "last_error", "supplies", "inputs", "alerts", "fiery_queue_depth"],
   },
   ups_devices: {
-    policy: "data", group: DEVICES, title: "UPS devices", label: ["name"], sensitive: ["snmp_community"],
+    policy: "data", group: MONITORING, title: "UPS devices", label: ["name"], sensitive: ["snmp_community"],
     volatile: ["last_status", "last_checked_at", "last_error", "battery_pct", "runtime_min", "load_pct", "input_voltage", "output_voltage", "battery_state", "output_source"],
   },
   cisco_switches: {
-    policy: "data", group: DEVICES, title: "Cisco switches", label: ["hostname"], sensitive: ["password_enc"],
+    policy: "data", group: MONITORING, title: "Cisco switches", label: ["hostname"], sensitive: ["password_enc"],
     volatile: ["reachable", "uptime", "last_polled_at", "last_error", "config_drift"],
   },
   cisco_ports: {
-    policy: "data", group: DEVICES, title: "Cisco ports", label: ["port_id", "description"],
+    policy: "data", group: MONITORING, title: "Cisco ports", label: ["port_id", "description"],
     volatile: ["neighbor_hostname", "neighbor_ip", "neighbor_port"],
   },
-  cisco_config_backups: { policy: "data", group: DEVICES, title: "Cisco configuration backups", label: ["backup_type", "backed_up_at"] },
+  cisco_config_backups: { policy: "data", group: MONITORING, title: "Cisco configuration backups", label: ["backup_type", "backed_up_at"] },
   cisco_arp_cache: rebuilt("Cisco ARP cache"),
   cisco_mac_table: rebuilt("Cisco MAC tables"),
   cisco_neighbors: rebuilt("Cisco neighbours"),
@@ -159,16 +159,16 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   cisco_vlan_db: rebuilt("Cisco VLAN database"),
   cisco_drift_events: rebuilt("Cisco drift events"),
   ipam_subnets: {
-    policy: "data", group: DEVICES, title: "IPAM subnets", label: ["cidr", "label"],
+    policy: "data", group: MONITORING, title: "IPAM subnets", label: ["cidr", "label"],
     volatile: ["last_scan_started_at", "last_scan_finished_at", "last_error", "host_count", "alive_count"],
   },
   ipam_hosts: {
-    policy: "data", group: DEVICES, title: "IPAM hosts", label: ["ip_address", "dns_name"],
+    policy: "data", group: MONITORING, title: "IPAM hosts", label: ["ip_address", "dns_name"],
     volatile: ["is_up", "responded_via", "open_ports", "last_seen_at", "last_scan_at", "hostname", "netbios_name", "unifi_name"],
   },
-  unifi_device_acks: { policy: "data", group: DEVICES, title: "Acknowledged UniFi devices", label: ["device_name", "mac"] },
-  dns_managed_records: { policy: "skip", group: DEVICES, title: "DNS sync ledger", reason: "Rebuilt on every DNS sync; the records themselves live in Technitium." },
-  dns_sync_runs: { policy: "skip", group: DEVICES, title: "DNS sync runs", reason: "A history of background runs." },
+  unifi_device_acks: { policy: "data", group: MONITORING, title: "Acknowledged UniFi devices", label: ["device_name", "mac"] },
+  dns_managed_records: { policy: "skip", group: MONITORING, title: "DNS sync ledger", reason: "Rebuilt on every DNS sync; the records themselves live in Technitium." },
+  dns_sync_runs: { policy: "skip", group: MONITORING, title: "DNS sync runs", reason: "A history of background runs." },
 
   // ---- never rewound ----
   audit_log: { policy: "skip", group: OTHER, title: "Audit log", reason: "A record of what happened; a restore must not rewrite it." },
@@ -212,7 +212,7 @@ export interface RestoreSection {
   hasFiles: boolean;
 }
 
-const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, DEVICES, FILES];
+const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, FILES];
 
 const SECTION_BLURBS: Record<string, string> = {
   [PEOPLE]: "Users, groups and who can do what, sign-in links, passwords, two-factor secrets and API tokens.",
@@ -221,8 +221,8 @@ const SECTION_BLURBS: Record<string, string> = {
   [WIKI]: "Wiki pages, folders, who may see them and each page's history.",
   [NOTES]: "Notes, tags, notifications and the activity feed.",
   [CHECKLISTS]: "Checklist stations and templates, recurring services, events, tasks and volunteers.",
-  [MONITORING]: "Service monitors, incidents, infrastructure hosts and their credentials.",
-  [DEVICES]: "Printers, UPS devices, Cisco switches and ports, IPAM subnets and hosts, UniFi acknowledgements.",
+  [MONITORING]: "Everything under the Monitoring menu: service monitors and incidents, infrastructure hosts, UPS devices, Cisco switches and ports, IPAM subnets and hosts, UniFi acknowledgements.",
+  [PRINTERS]: "Printers and their SNMP settings.",
   [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
 };
 

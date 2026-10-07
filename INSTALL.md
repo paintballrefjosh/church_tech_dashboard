@@ -1128,7 +1128,7 @@ finishes, caches are cleared on every node and search is rebuilt in the backgrou
 asked to sign in again if their account changed.
 
 **Restoring only some of it.** The Restore tab lets you choose which **sections** to restore: People and
-access, Settings, Helpdesk, Wiki, Notes, Checklists, Monitoring, Network and devices, and Files. Everything is
+access, Settings, Helpdesk, Wiki, Notes, Checklists, Monitoring (everything under the Monitoring menu: services, infrastructure, UPS, Cisco, IPAM), Printers, and Files. Everything is
 chosen by default, which is the full rollback above. Unchecking a section leaves that part of the site exactly
 as it is now: it is not compared, not changed, and its uploaded files are not touched (uploaded files are only
 restored or cleaned up when Files is chosen). The comparison is made for the sections you chose, and the
@@ -1136,9 +1136,15 @@ restored or cleaned up when Files is chosen). The comparison is made for the sec
 you saw. Because data refers to other data (a wiki page to its author, a ticket to the person who made it), two
 rules protect what you left out, and the comparison lists both:
 
-- **Skipped:** a row the backup would put back that refers to something in a section you did not choose, which
-  no longer exists (a wiki page whose author has since been deleted), is not restored, and neither is anything
-  in the chosen sections that depends on it. Include "People and access" to bring such people back too.
+- **People who are not there.** A row that points at a person who no longer exists (a wiki page whose author has
+  been deleted, or any restore onto a fresh installation) is handled by how the link is used. An *optional* link
+  (a checklist's creator, a task's assignee, an attachment's uploader) is restored with the person left blank.
+  A *required* owner or author of **notes, tickets, ticket comments and wiki pages** is restored under a disabled
+  account named **Unknown user** (it cannot sign in and has no groups; it appears under the deleted users). The
+  comparison counts both. Include "People and access" to bring the real people back and keep them as the owners;
+  a note given to Unknown user is private to nobody who can sign in. Anything that belongs to one person
+  (dashboard layouts, saved views, notification settings, API tokens, sign-in links) or assigns a person
+  (checklist volunteers) is **skipped** instead, along with whatever depends on it, and listed as such.
 - **Kept:** a row a restore would delete (it is not in the backup) that data you did not choose still uses (a user
   that a ticket still names) is kept, so nothing outside the restore is deleted or cascaded away.
 

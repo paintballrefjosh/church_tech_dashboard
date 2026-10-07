@@ -103,4 +103,10 @@ describe("skipping through a self reference", () => {
     skipThroughSelfReference(new Map([["a", ["b"]]]), skipped);
     expect(skipped.size).toBe(0);
   });
+  it("the Monitoring section holds everything under the Monitoring menu, and printers are their own section", () => {
+    const monitoring = restoreSections().find((x) => x.key === "monitoring");
+    expect(monitoring?.tables).toEqual(expect.arrayContaining(["Service monitors", "Infrastructure hosts", "Cisco switches", "Cisco ports", "IPAM subnets", "UPS devices"]));
+    expect(restoreSections().find((x) => x.key === "printers")?.tables).toEqual(["Printers"]);
+    expect(restoreSections().some((x) => x.key.includes("devices"))).toBe(false);
+  });
 });

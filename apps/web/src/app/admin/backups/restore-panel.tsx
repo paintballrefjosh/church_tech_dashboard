@@ -81,6 +81,7 @@ export function RestorePanel({
       })
       .catch(() => undefined);
   }, []);
+  const peopleKey = sections.find((x) => x.title === "People and access")?.key;
   const partial = sections.length > 0 && chosenSections.length < sections.length;
   const chosenTitles = sections.filter((s) => chosenSections.includes(s.key)).map((s) => s.title);
   // The report is only good for the selection it was made for: a changed selection needs a new comparison.
@@ -335,6 +336,14 @@ export function RestorePanel({
             {report ? (
               <div className="mt-4">
                 <DiffReport report={report} />
+                {peopleKey && !chosenSections.includes(peopleKey) && [...report.skipped, ...(report.cleared ?? [])].some((n) => n.reason.includes('"People and access"')) ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm" data-testid="add-people">
+                    <span>Some of this could not be put back because the people it belongs to are not here any more.</span>
+                    <button type="button" className="rounded-md border border-slate-300 px-3 py-1 font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => setChosenSections([...chosenSections, peopleKey])} disabled={busy}>
+                      Add People and access, then compare again
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>

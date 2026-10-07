@@ -29,6 +29,10 @@ export interface PlanLike {
   changedKeys: string[];
   removedKeys: string[];
   deleteAll: boolean;
+  /** Rows to write with some columns emptied: row key -> the columns whose parent is gone (optional links only). */
+  nullify?: Map<string, string[]>;
+  /** Rows to write owned by the "Unknown user" placeholder: row key -> the columns (a required owner or author that is gone). */
+  reassign?: Map<string, string[]>;
 }
 
 export interface SkippedRows {
@@ -38,7 +42,20 @@ export interface SkippedRows {
   parent: string;
   /** The parent is part of this restore (and could not itself be put back) rather than left alone. */
   parentInScope: boolean;
+  /** Not skipped: put back with the optional link to the missing parent left empty (what the database does when it is deleted). */
+  emptied?: boolean;
+  /** Not skipped: put back under the "Unknown user" placeholder, because the person who owned it is not here. */
+  reassigned?: boolean;
 }
+
+/**
+ * The placeholder owner for content whose person is gone (restoring the wiki onto a fresh install, say): a disabled,
+ * deleted-looking account that cannot sign in and has no groups. Created by a restore only when something needs it.
+ */
+export const UNKNOWN_USER = { id: "00000000-0000-4000-8000-0000000000ff", name: "Unknown user", email: "unknown-user@restored.invalid" } as const;
+
+/** Required owner/author columns that may fall back to the placeholder. Personal data (layouts, tokens ...) and assignments never do. */
+export const REASSIGNABLE_TO_UNKNOWN = new Set(["notes.owner_user_id", "tickets.created_by_user_id", "ticket_comments.author_user_id", "wiki_pages.owner_user_id"]);
 
 export interface KeptRows {
   table: string;
@@ -136,9 +153,9 @@ export async function skipRowsWithMissingParents(
   const skipped = new Map<string, Set<string>>();
   const live = new Map<string, Map<string, boolean>>(); // parent table outside the restore -> key -> exists
   const out = new Map<string, SkippedRows>();
-  const note = (table: string, parent: string, inScope: boolean) => {
-    const k = `${table}\u0000${parent}`;
-    const e = out.get(k) ?? { table, count: 0, parent, parentInScope: inScope };
+  const note = (table: string, parent: string, inScope: boolean, how: "skipped" | "emptied" | "reassigned" = "skipped") => {
+    const k = `${table}\u0000${parent}\u0000${how}`;
+    const e = out.get(k) ?? { table, count: 0, parent, parentInScope: inScope, ...(how === "emptied" ? { emptied: true } : how === "reassigned" ? { reassigned: true } : {}) };
     e.count++;
     out.set(k, e);
   };
@@ -162,8 +179,15 @@ export async function skipRowsWithMissingParents(
     }
     const mine = new Set<string>();
     const selfParents = new Map<string, string[]>();
+    const notNull = new Map(meta.columns.map((c) => [c.name, c.notNull]));
+    const nullify = new Map<string, string[]>();
+    const reassign = new Map<string, string[]>();
     for (const { key, row } of rows) {
       let reason: { parent: string; inScope: boolean } | null = null;
+      let emptiedBy: { parent: string; inScope: boolean } | null = null;
+      let reassignedBy: { parent: string; inScope: boolean } | null = null;
+      const empties = new Set<string>();
+      const owners = new Set<string>();
       const own: string[] = [];
       for (const { fk, parent } of fks) {
         const pk = parentKeyOf(row, fk, parent);
@@ -174,14 +198,35 @@ export async function skipRowsWithMissingParents(
         }
         const inScope = scope.has(parent.name);
         const gone = inScope ? (skipped.get(parent.name)?.has(pk) ?? false) : live.get(parent.name)?.get(pk) === false;
-        if (gone && !reason) reason = { parent: parent.name, inScope };
+        if (!gone) continue;
+        if (fk.columns.every((c) => notNull.get(c) === false)) {
+          // An optional link (a creator, an assignee): the row is still worth restoring without it.
+          for (const c of fk.columns) empties.add(c);
+          emptiedBy ??= { parent: parent.name, inScope };
+        } else if (parent.name === "users" && fk.columns.length === 1 && REASSIGNABLE_TO_UNKNOWN.has(`${meta.name}.${fk.columns[0]}`)) {
+          owners.add(fk.columns[0]!);
+          reassignedBy ??= { parent: parent.name, inScope };
+        } else if (!reason) {
+          reason = { parent: parent.name, inScope };
+        }
       }
       if (own.length > 0) selfParents.set(key, own);
       if (reason) {
         mine.add(key);
         note(meta.name, reason.parent, reason.inScope);
+      } else {
+        if (emptiedBy) {
+          nullify.set(key, [...empties]);
+          note(meta.name, emptiedBy.parent, emptiedBy.inScope, "emptied");
+        }
+        if (reassignedBy) {
+          reassign.set(key, [...owners]);
+          note(meta.name, reassignedBy.parent, reassignedBy.inScope, "reassigned");
+        }
       }
     }
+    if (nullify.size > 0) plans.get(meta.name)!.nullify = nullify;
+    if (reassign.size > 0) plans.get(meta.name)!.reassign = reassign;
     // A row that points at a skipped row of the same table (a folder inside a skipped folder).
     const before = new Set(mine);
     skipThroughSelfReference(selfParents, mine);

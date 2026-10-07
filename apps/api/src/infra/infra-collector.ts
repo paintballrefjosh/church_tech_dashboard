@@ -17,6 +17,7 @@ import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { InfraService } from "./infra.service";
 import { collect, discoverServices as discoverHostServices } from "./collectors/dispatch";
 import { type CollectContext, type CollectResult } from "./collectors/types";
+import { UnreadableSecretError } from "../settings/crypto";
 import type { InfraThresholdRule, InfraDiscoveredService } from "@church/shared";
 
 const DEFAULT_TICK_SEC = parseInt(process.env.INFRA_TICK_SEC ?? "15", 10);
@@ -139,7 +140,15 @@ export class InfraCollector implements OnModuleInit {
   }
 
   private async pollTarget(target: typeof infraTargets.$inferSelect): Promise<void> {
-    const ctx = await this.loadContext(target);
+    let ctx: CollectContext;
+    try {
+      ctx = await this.loadContext(target);
+    } catch (err) {
+      if (!(err instanceof UnreadableSecretError)) throw err;
+      // Say so on the host itself, instead of leaving it looking alive on whatever it last reported.
+      await this.db.update(infraTargets).set({ lastError: err.message, lastPolledAt: new Date() }).where(eq(infraTargets.id, target.id));
+      return;
+    }
     const result: CollectResult = await collect(ctx, target.os, target.capabilities as string[]);
 
     if (result.prev) this.prev.set(target.id, result.prev);

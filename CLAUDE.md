@@ -833,13 +833,22 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   A table whose group is not in `SECTION_ORDER` could never be restored on its own (a unit test fails). `computeDiff` takes
   a `scope` (tables + whether files) and only plans those tables; `backup-scope.ts` then reconciles the plan with foreign keys
   BEFORE the report and the apply (the report is exactly what happens): rows whose parent outside the scope no longer exists
-  are SKIPPED (and so is what depends on them, also through self references), and removals still referenced by backed-up
+  are SKIPPED (and so is what depends on them, also through self references) when the link is required; an optional link (a nullable column such as a creator or assignee) is written empty instead (`plan.nullify`, reported as "cleared", as ON DELETE SET NULL would); a REQUIRED owner/author of notes, tickets, ticket comments and wiki pages (`REASSIGNABLE_TO_UNKNOWN`) is written as the "Unknown user" placeholder (`UNKNOWN_USER` in `backup-scope.ts`, a disabled, soft-deleted user created by the restore only when needed, `plan.reassign`; never given personal data or assignments, which are skipped); and removals still referenced by backed-up
   tables outside the scope are KEPT (propagating to the parents of kept rows). Files (restore and stray cleanup) happen only
   when the Files section is in scope (`filesInScope`). All sections chosen = `scope: null` = the ordinary full rollback, same
   code path. It follows only foreign keys that reference the parent's whole primary key (a unit test asserts every FK does).
   The UI locks Restore until the report was made for the current selection. Integration test:
   `backup-scope.integration.test.ts` (run on CockroachDB and YugabyteDB, **one integration file at a time**: they empty the
   same tables, so running two in parallel makes both fail).
+- **Sections follow the app's menus, not the table layout**: Monitoring holds everything under the Monitoring menu (services,
+  infrastructure, UPS, Cisco, IPAM, UniFi acks); Printers is its own. A user looking for "the Cisco switches" ticks Monitoring.
+- **A restore writes a NEW row without its volatile columns** (`insertColumns` in `backup-restore.ts`: the database default
+  applies, e.g. status `unknown`, no last reading) when the column has a default or is nullable: a poller's last reading from the
+  backup is stale the moment it is restored, and a host that cannot be polled must not look alive on it.
+- **Credentials saved under another `AUTH_SECRET` fail loudly**: read them with `decryptStoredSecret(enc, what)` (throws
+  `UnreadableSecretError`, whose message says to enter it again), never bare `decryptSecret`, and show the error on the device
+  (`infra_targets.last_error`, `cisco_switches.last_error` via `markUnreachable`). Rows are still restored; the report says how many
+  hosts/switches need their password again.
 - **Anything that writes in the background must honour the restore gate**: a restore holds the
   `mutex:restore` lease (`RestoreGate`, `restoreInProgress` in `@church/shared/db`). The API refuses
   non-GET requests (`RestoreWriteGuard`), `ClusterJobs` skips runs and the monitor worker pauses. A new

@@ -13,7 +13,7 @@ import {
   ciscoVlanDb,
   ciscoNeighbors,
 } from "../db/schema";
-import { decryptSecret } from "../settings/crypto";
+import { decryptStoredSecret } from "../settings/crypto";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SettingsService } from "../settings/settings.service";
@@ -125,12 +125,12 @@ export class CiscoPoller implements OnModuleInit {
     await Promise.all(workers);
   }
 
-  private conn(sw: SwitchRow) {
+  conn(sw: SwitchRow) {
     return {
       host: sw.ipAddress,
       port: 22,
       username: sw.username,
-      password: sw.passwordEnc ? decryptSecret(sw.passwordEnc) : "",
+      password: sw.passwordEnc ? decryptStoredSecret(sw.passwordEnc, "SSH password") : "",
       timeoutMs: SSH_TIMEOUT_MS,
     };
   }
@@ -153,7 +153,12 @@ export class CiscoPoller implements OnModuleInit {
   }
 
   async pollSwitch(sw: SwitchRow): Promise<void> {
-    const cfg = this.conn(sw);
+    let cfg: ReturnType<CiscoPoller["conn"]>;
+    try {
+      cfg = this.conn(sw);
+    } catch (err) {
+      return this.markUnreachable(sw, (err as Error).message);
+    }
     const wasReachable = sw.reachable;
     const firstPoll = sw.lastPolledAt === null;
     const oldUptimeSec = uptimeToSec(sw.uptime);

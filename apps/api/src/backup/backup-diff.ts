@@ -36,6 +36,10 @@ export interface TablePlan {
   columns: string[];
   /** Columns that decide whether a row "changed": `columns` without the volatile ones. */
   compareColumns: string[];
+  /** A partial restore: rows written with an optional link left empty because what it pointed at is gone (key -> columns). */
+  nullify?: Map<string, string[]>;
+  /** A partial restore: rows written under the "Unknown user" placeholder because their owner or author is gone (key -> columns). */
+  reassign?: Map<string, string[]>;
 }
 
 export interface DiffDeps {
@@ -370,6 +374,21 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
       "This backup was made with a different AUTH_SECRET. Saved passwords and tokens inside settings (SMTP, OAuth client secrets, device credentials) cannot be decrypted by this installation and will have to be entered again.",
     );
   }
+  // Which devices that means for: they are restored, and say so on the device until the password is entered again.
+  const needCredentials: string[] = [];
+  const credentialRows = (table: string): number => {
+    const p = plans.get(table);
+    return p ? p.addedKeys.length + p.changedKeys.length : 0;
+  };
+  const nHosts = credentialRows("infra_target_credentials");
+  const nSwitches = credentialRows("cisco_switches");
+  if (secretMismatch && nHosts > 0) needCredentials.push(`${nHosts} infrastructure host${nHosts === 1 ? "" : "s"}`);
+  if (secretMismatch && nSwitches > 0) needCredentials.push(`${nSwitches} Cisco switch${nSwitches === 1 ? "" : "es"}`);
+  if (needCredentials.length > 0) {
+    warnings.push(
+      `${needCredentials.join(" and ")} will be restored but cannot be polled until their saved password is entered again: each shows that message on its page.`,
+    );
+  }
   const compatibility: BackupCompatibility = { ok: errors.length === 0, errors, warnings };
 
   // ---- files ----
@@ -420,12 +439,25 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
   const titleOf = (name: string) => tableInfo(name).title.toLowerCase();
   const sectionOf = (name: string) => tableInfo(name).group;
   const skippedNotes: BackupDiffNote[] = skipped
+    .filter((s) => !s.emptied && !s.reassigned)
     .map((s) => ({
       table: tableInfo(s.table).title,
       count: s.count,
       reason: s.parentInScope
         ? `they depend on ${titleOf(s.parent)} that could not be put back`
         : `they belong to ${titleOf(s.parent)} that no longer exist; include "${sectionOf(s.parent)}" in the restore to bring those back too`,
+    }))
+    .sort((a, b) => a.table.localeCompare(b.table));
+  const clearedNotes: BackupDiffNote[] = skipped
+    .filter((s) => s.emptied || s.reassigned)
+    .map((s) => ({
+      table: tableInfo(s.table).title,
+      count: s.count,
+      reason: s.reassigned
+        ? `restored under "Unknown user", because the person who owned them is not here; include "${sectionOf(s.parent)}" to bring those people back and keep them as the owners`
+        : s.parentInScope
+          ? `restored without their link to ${titleOf(s.parent)} that could not be put back`
+          : `restored without their link to ${titleOf(s.parent)} that no longer exist (shown as unknown); include "${sectionOf(s.parent)}" to bring those back and keep the link`,
     }))
     .sort((a, b) => a.table.localeCompare(b.table));
   const keptNotes: BackupDiffNote[] = kept
@@ -454,6 +486,7 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
       you: inScope("users") ? describeYou(ctx.userId ?? null, plans) : null,
       scope: { partial: scoped !== null, sections: scoped ? scoped.sections : [] },
       skipped: skippedNotes,
+      cleared: clearedNotes,
       kept: keptNotes,
     },
     plans,
@@ -461,7 +494,7 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
     fileIndex: filesInScope ? fileIndex : null,
     storageFiles,
     filesInScope,
-    skippedRows: skipped.reduce((n, s) => n + s.count, 0),
+    skippedRows: skipped.filter((s) => !s.emptied && !s.reassigned).reduce((n, s) => n + s.count, 0),
     keptRows: kept.reduce((n, k) => n + k.count, 0),
   };
 }

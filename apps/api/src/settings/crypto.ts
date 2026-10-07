@@ -55,3 +55,27 @@ export function decryptSecret(encrypted: string): string {
   const plain = Buffer.concat([decipher.update(ct), decipher.final()]);
   return plain.toString("utf8");
 }
+
+/**
+ * A stored password or key that this installation cannot decrypt: it was encrypted under a different
+ * AUTH_SECRET (the usual way: a backup restored on a fresh install). The message is meant to be shown to
+ * a person next to the device it belongs to.
+ */
+export class UnreadableSecretError extends Error {
+  constructor(what: string) {
+    super(
+      `The saved ${what} cannot be read: it was saved by an installation with a different AUTH_SECRET (a restored backup, for example). Edit this entry and enter it again.`,
+    );
+    this.name = "UnreadableSecretError";
+  }
+}
+
+/** decryptSecret for a credential: a value that cannot be decrypted becomes an UnreadableSecretError. */
+export function decryptStoredSecret(encrypted: string, what: string): string {
+  try {
+    return decryptSecret(encrypted);
+  } catch (err) {
+    if ((err as Error).message.includes("AUTH_SECRET must be set")) throw err;
+    throw new UnreadableSecretError(what);
+  }
+}

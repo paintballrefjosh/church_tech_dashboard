@@ -5,6 +5,7 @@ import { backedUpTables, tableMeta, type TableMeta } from "./backup-schema";
 import { TABLE_REGISTRY, tableInfo } from "./table-registry";
 import { keyOf, keysPredicate, param, type Row } from "./row-codec";
 import { readArchive } from "./archive";
+import { UNKNOWN_USER } from "./backup-scope";
 import type { DiffContext, DiffOutput, TablePlan } from "./backup-diff";
 
 const id = (name: string) => sql.identifier(name);
@@ -127,6 +128,8 @@ interface OpenTable {
   added: Set<string>;
   changed: Set<string>;
   writable: string[];
+  /** Columns an insert writes: `writable` plus the key, minus volatile columns the database can fill in itself (a poller's last reading is stale the moment it is restored). */
+  insertColumns: string[];
   /** Rows to insert / update, held back until the table ends when its own order matters (self references). */
   heldAdded: Row[];
   heldChanged: Row[];
@@ -162,13 +165,20 @@ async function applyInTransaction(
     }
   }
 
+  // ---- the "Unknown user" placeholder, when rows are to be owned by it ----
+  if ([...plans.values()].some((p) => (p.reassign?.size ?? 0) > 0)) {
+    await tx.execute(
+      sql`INSERT INTO ${id("users")} (id, name, email, is_active, deleted_at) VALUES (${UNKNOWN_USER.id}::uuid, ${UNKNOWN_USER.name}, ${UNKNOWN_USER.email}, false, now()) ON CONFLICT (id) DO NOTHING`,
+    );
+  }
+
   // ---- inserts and updates: parents before children, straight from the archive ----
   let open: OpenTable | null = null;
   let done = 0;
 
   const flushAdded = async (o: OpenTable) => {
     if (o.batchAdded.length === 0) return;
-    await tx.execute(insertStatement(o.table, o.plan.columns, o.batchAdded));
+    await tx.execute(insertStatement(o.table, o.insertColumns, o.batchAdded));
     o.batchAdded = [];
     o.bytesAdded = 0;
   };
@@ -194,7 +204,7 @@ async function applyInTransaction(
       }),
     ];
     for (let k = 0; k < inserts.length; k += BATCH_ROWS) {
-      await tx.execute(insertStatement(o.table, o.plan.columns, inserts.slice(k, k + BATCH_ROWS)));
+      await tx.execute(insertStatement(o.table, o.insertColumns, inserts.slice(k, k + BATCH_ROWS)));
     }
     const byName = new Map(o.table.columns.map((c) => [c.name, c]));
     for (const { row } of loose) {
@@ -221,6 +231,11 @@ async function applyInTransaction(
           added: new Set(plan.addedKeys),
           changed: new Set(plan.changedKeys),
           writable: plan.columns.filter((c) => !table.pk.includes(c) && !volatile.has(c)),
+          insertColumns: plan.columns.filter((c) => {
+            if (!volatile.has(c)) return true;
+            const meta = table.columns.find((m) => m.name === c);
+            return meta !== undefined && meta.notNull && !meta.hasDefault; // nothing to fall back on: keep the backup's value
+          }),
           heldAdded: [],
           heldChanged: [],
           batchAdded: [],
@@ -231,10 +246,15 @@ async function applyInTransaction(
       }
     } else if (event.type === "rows" && open) {
       const o = open;
-      for (const row of event.rows) {
-        const key = keyOf(row, o.table.pk);
+      for (const source of event.rows) {
+        const key = keyOf(source, o.table.pk);
         const isAdded = o.added.has(key);
         if (!isAdded && !o.changed.has(key)) continue;
+        const empty = o.plan.nullify?.get(key);
+        const unknown = o.plan.reassign?.get(key);
+        const row: Row = empty || unknown
+          ? { ...source, ...Object.fromEntries((empty ?? []).map((c) => [c, null])), ...Object.fromEntries((unknown ?? []).map((c) => [c, UNKNOWN_USER.id])) }
+          : source;
         if (o.table.selfRefs.length > 0) {
           (isAdded ? o.heldAdded : o.heldChanged).push(row);
         } else if (isAdded) {

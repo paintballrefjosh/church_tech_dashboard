@@ -234,6 +234,8 @@ export interface BackupDiffReport {
   scope: { partial: boolean; sections: string[] };
   /** Rows a restore cannot put back (a person or page they depend on is gone and was not included). */
   skipped: BackupDiffNote[];
+  /** Rows a restore puts back without an optional link (a creator, an assignee) whose person is gone and was not included. */
+  cleared?: BackupDiffNote[];
   /** Rows a restore would delete but keeps, because data that was not included still uses them. */
   kept: BackupDiffNote[];
 }
