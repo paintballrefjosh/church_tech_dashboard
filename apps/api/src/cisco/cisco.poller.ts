@@ -1,6 +1,5 @@
 import { Injectable, Logger, type OnModuleInit, Inject } from "@nestjs/common";
 import { and, eq, inArray, isNull, desc, sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
 import { DB, type Db } from "../db/db.module";
 import {
   ciscoSwitches,
@@ -20,6 +19,7 @@ import { SettingsService } from "../settings/settings.service";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { normalizePrefs } from "./cisco.service";
 import { sshShell, stripAnsi } from "./ssh";
+import { configChecksum, normalizeConfig } from "./config-normalize";
 import {
   detectOS,
   parseInterfacesStatus,
@@ -486,42 +486,21 @@ export class CiscoPoller implements OnModuleInit {
 
   // ---- backups ----
 
-  private normalizeConfig(raw: string): string {
-    const VOLATILE = [
-      /^Last configuration change at/i,
-      /^NVRAM config last updated/i,
-      /^Building configuration/i,
-      /^Current configuration/i,
-      /^!Time:/i,
-      /^!Running configuration last done at:/i,
-      /^ntp clock-period/i,
-    ];
-    return stripAnsi(raw)
-      .split("\n")
-      .map((l) => l.replace(/\r$/, ""))
-      .filter((l) => {
-        const t = l.trim();
-        if (t === "") return true;
-        if (t.startsWith("!")) return false;
-        if (/^[A-Za-z0-9][\w.-]*#\s*/.test(t)) return false; // prompt echoes
-        return !VOLATILE.some((re) => re.test(t));
-      })
-      .join("\n")
-      .trim();
-  }
-
   async saveBackup(switchId: string, rawConfig: string, type: "incremental" | "full" | "manual"): Promise<boolean> {
-    const normalized = this.normalizeConfig(rawConfig);
+    const normalized = normalizeConfig(rawConfig);
     if (!normalized || normalized.length < 20) return false; // nothing useful captured
-    const checksum = createHash("sha256").update(normalized).digest("hex");
+    const checksum = configChecksum(normalized);
     if (type === "incremental") {
       const [latest] = await this.db
-        .select({ checksum: ciscoConfigBackups.checksum })
+        .select({ checksum: ciscoConfigBackups.checksum, configText: ciscoConfigBackups.configText })
         .from(ciscoConfigBackups)
         .where(eq(ciscoConfigBackups.switchId, switchId))
         .orderBy(desc(ciscoConfigBackups.backedUpAt))
         .limit(1);
       if (latest?.checksum === checksum) return false; // unchanged
+      // Backups saved under older normalising rules carry a different checksum
+      // for the same config: judge the stored text by today's rules too.
+      if (latest && configChecksum(normalizeConfig(latest.configText)) === checksum) return false;
     }
     await this.db.insert(ciscoConfigBackups).values({ switchId, configText: normalized, checksum, backupType: type });
     // Prune to retention.
