@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
-import { Pencil, Trash2, AlertTriangle, CircleCheck, Download, Loader2, RefreshCw, X } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, CircleCheck, Download, KeyRound, Loader2, RefreshCw, X } from "lucide-react";
 import type {
   InfraTarget,
   InfraEntity,
@@ -94,6 +94,11 @@ export function InfraDetailClient({
   const [runErr, setRunErr] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const runningRun = updateRuns.find((r) => r.status === "running") ?? null;
+  // A run that stopped because sudo wants a password (or refused the login): shown in a terminal-style dialog.
+  const [sudoRun, setSudoRun] = useState<InfraUpdateRun | null>(null);
+  const [sudoErr, setSudoErr] = useState<string | null>(null);
+  // The run the sudo dialog is waiting on after a password was submitted.
+  const [watchRunId, setWatchRunId] = useState<string | null>(null);
 
   const loadRuns = useCallback(async () => {
     try {
@@ -116,6 +121,16 @@ export function InfraDetailClient({
     return () => clearInterval(id);
   }, [runningRun, loadRuns]);
 
+  // A run this page started has ended: if it stopped on sudo, put the terminal in front of the operator.
+  useEffect(() => {
+    if (!watchRunId) return;
+    const run = updateRuns.find((r) => r.id === watchRunId);
+    if (!run || run.status === "running") return;
+    setWatchRunId(null);
+    if (run.status === "needs_sudo" || run.status === "sudo_denied") setSudoRun(run);
+    else setSudoRun(null);
+  }, [watchRunId, updateRuns]);
+
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   async function checkForUpdates() {
     setCheckingUpdates(true);
@@ -127,21 +142,36 @@ export function InfraDetailClient({
     }
   }
 
-  async function startRun(reboot: boolean, fullUpgrade: boolean, includePhased: boolean) {
+  async function startRun(
+    reboot: boolean,
+    fullUpgrade: boolean,
+    includePhased: boolean,
+    sudo?: { password: string; enablePasswordlessSudo: boolean },
+  ) {
     setStarting(true);
     setRunErr(null);
+    setSudoErr(null);
     try {
       const r = await fetch(`/api/infra/targets/${target.id}/update-run`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reboot, fullUpgrade, includePhased }),
+        body: JSON.stringify({
+          reboot,
+          fullUpgrade,
+          includePhased,
+          ...(sudo ? { sudoPassword: sudo.password, enablePasswordlessSudo: sudo.enablePasswordlessSudo } : {}),
+        }),
       });
       if (!r.ok) {
         const b = (await r.json().catch(() => ({}))) as { message?: string };
-        setRunErr(typeof b.message === "string" ? b.message : `Failed to start (${r.status})`);
+        const msg = typeof b.message === "string" ? b.message : `Failed to start (${r.status})`;
+        if (sudo) setSudoErr(msg);
+        else setRunErr(msg);
         return;
       }
+      const started = (await r.json().catch(() => null)) as InfraUpdateRun | null;
+      if (started?.id) setWatchRunId(started.id);
       setRunModalOpen(false);
       await loadRuns();
     } finally {
@@ -395,6 +425,7 @@ export function InfraDetailClient({
             }}
             checkingUpdates={checkingUpdates}
             onCheckForUpdates={() => void checkForUpdates()}
+            onResolveSudo={(run) => setSudoRun(run)}
             showTemp={showTemp}
             onToggleIgnoredMount={toggleIgnoredMount}
             onAddWatchedService={addWatchedService}
@@ -411,6 +442,25 @@ export function InfraDetailClient({
           err={runErr}
           onCancel={() => setRunModalOpen(false)}
           onConfirm={(reboot, fullUpgrade, includePhased) => void startRun(reboot, fullUpgrade, includePhased)}
+        />
+      ) : null}
+
+      {sudoRun ? (
+        <SudoTerminalDialog
+          targetName={target.name}
+          run={sudoRun}
+          busy={starting || watchRunId !== null}
+          err={sudoErr}
+          onClose={() => {
+            setSudoRun(null);
+            setSudoErr(null);
+          }}
+          onSubmit={(password, enable) =>
+            void startRun(sudoRun.rebootRequested, sudoRun.fullUpgrade, sudoRun.includePhased, {
+              password,
+              enablePasswordlessSudo: enable,
+            })
+          }
         />
       ) : null}
 
@@ -472,6 +522,7 @@ function LinuxDetail({
   onRunUpdates,
   checkingUpdates,
   onCheckForUpdates,
+  onResolveSudo,
   showTemp,
   onToggleIgnoredMount,
   onAddWatchedService,
@@ -483,6 +534,7 @@ function LinuxDetail({
   onRunUpdates: () => void;
   checkingUpdates: boolean;
   onCheckForUpdates: () => void;
+  onResolveSudo: (run: InfraUpdateRun) => void;
   showTemp: boolean;
   onToggleIgnoredMount: (mount: string, ignore: boolean) => void;
   onAddWatchedService: (name: string) => void;
@@ -518,6 +570,7 @@ function LinuxDetail({
         onRunUpdates={onRunUpdates}
         checking={checkingUpdates}
         onCheckForUpdates={onCheckForUpdates}
+        onResolveSudo={onResolveSudo}
       />
       <div className="grid gap-3 lg:grid-cols-2">
         <FilesystemsCard
@@ -554,6 +607,7 @@ function UpdatesCard({
   onRunUpdates,
   checking,
   onCheckForUpdates,
+  onResolveSudo,
 }: {
   updates: Rec | null;
   canCheck: boolean;
@@ -562,6 +616,7 @@ function UpdatesCard({
   onRunUpdates: () => void;
   checking: boolean;
   onCheckForUpdates: () => void;
+  onResolveSudo: (run: InfraUpdateRun) => void;
 }) {
   if (!updates && !canCheck) return null;
   const count = updates ? num(updates, "count") : null;
@@ -637,6 +692,9 @@ function UpdatesCard({
           ) : null}
         </div>
       )}
+      {canRun && (runs[0]?.status === "needs_sudo" || runs[0]?.status === "sudo_denied") ? (
+        <SudoBanner run={runs[0]} onOpen={() => onResolveSudo(runs[0]!)} />
+      ) : null}
       {runs.length ? <UpdateRunHistory runs={runs} /> : null}
     </Card>
   );
@@ -700,9 +758,191 @@ function UpdateRunHistory({ runs }: { runs: InfraUpdateRun[] }) {
 }
 
 function RunStatusIcon({ status }: { status: InfraUpdateRun["status"] }) {
+  if (status === "needs_sudo") return <KeyRound className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />;
   if (status === "running") return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-600" aria-hidden />;
   if (status === "success") return <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden />;
   return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden />;
+}
+
+/** The newest run stopped on sudo: say so where it can't be missed, with a way back into the terminal. */
+function SudoBanner({ run, onOpen }: { run: InfraUpdateRun; onOpen: () => void }) {
+  const denied = run.status === "sudo_denied";
+  return (
+    <div
+      role="alert"
+      className={`mt-3 flex items-start gap-2 rounded-md border p-2.5 text-xs ${
+        denied
+          ? "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+          : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+      }`}
+    >
+      {denied ? (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      ) : (
+        <KeyRound className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">{denied ? "sudo refused this login" : "Updates are waiting for a sudo password"}</div>
+        <div className="mt-0.5 opacity-90">{run.error}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="shrink-0 rounded-md border border-current px-2 py-1 font-medium hover:bg-black/5 dark:hover:bg-white/10"
+      >
+        {denied ? "Details" : "Enter password"}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Shown when a run stopped before changing anything because sudo wanted a password (or refused the login).
+ * Laid out as the terminal session the run had: the command, what sudo answered, and a masked prompt. The
+ * password goes to the host for this run only; "enable passwordless sudo" also leaves a sudoers rule behind.
+ */
+function SudoTerminalDialog({
+  targetName,
+  run,
+  busy,
+  err,
+  onClose,
+  onSubmit,
+}: {
+  targetName: string;
+  run: InfraUpdateRun;
+  busy: boolean;
+  err: string | null;
+  onClose: () => void;
+  onSubmit: (password: string, enablePasswordlessSudo: boolean) => void;
+}) {
+  const denied = run.status === "sudo_denied";
+  const [password, setPassword] = useState("");
+  const user = /"([^"]+)"/.exec(run.error ?? "")?.[1] ?? "the login";
+  const submit = (enable: boolean) => {
+    if (password && !busy) onSubmit(password, enable);
+  };
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`sudo on ${targetName}`}
+        className="w-full max-w-xl overflow-hidden rounded-lg border border-slate-700 bg-slate-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-100">
+            {denied ? (
+              <AlertTriangle className="h-4 w-4 text-rose-400" aria-hidden />
+            ) : (
+              <KeyRound className="h-4 w-4 text-amber-400" aria-hidden />
+            )}
+            {denied ? "sudo refused this login" : "sudo needs a password"}
+            <span className="font-normal text-slate-400">on {targetName}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="Close"
+            className="rounded p-1 text-slate-400 hover:bg-slate-800 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <div className="space-y-3 p-4 font-mono text-[12px] leading-relaxed text-slate-200">
+          <div>
+            <span className="text-emerald-400">{user}@{targetName}</span>
+            <span className="text-slate-500">:~$</span> sudo -v
+          </div>
+          <pre className="whitespace-pre-wrap break-words text-amber-200">{run.output || "sudo: a password is required"}</pre>
+
+          {denied ? (
+            <div className="rounded border border-rose-800 bg-rose-950/50 p-3 font-sans text-[13px] text-rose-100">
+              <div className="font-semibold">No update was run.</div>
+              <p className="mt-1">{run.error}</p>
+              <p className="mt-2 text-rose-200/80">
+                Once the login can use sudo, press Run updates again; if you then pick passwordless sudo it will be
+                set up for you.
+              </p>
+            </div>
+          ) : (
+            <>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit(false);
+                }}
+                className="flex items-center gap-2"
+              >
+                <label htmlFor="sudo-password" className="shrink-0 text-slate-400">
+                  [sudo] password for {user}:
+                </label>
+                <input
+                  id="sudo-password"
+                  type="password"
+                  autoComplete="off"
+                  autoFocus
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  className="min-w-0 flex-1 border-0 border-b border-slate-600 bg-transparent px-1 py-0.5 text-slate-100 caret-emerald-400 outline-none focus:border-emerald-400 disabled:opacity-50"
+                />
+              </form>
+              {err ? (
+                <p className="font-sans text-[12px] text-rose-300">{err}</p>
+              ) : run.error ? (
+                <p className="font-sans text-[12px] text-amber-200">{run.error}</p>
+              ) : null}
+              <p className="font-sans text-[12px] text-slate-400">
+                The password is sent to {targetName} over SSH for this run and is not stored. Enabling passwordless sudo
+                writes <code className="text-slate-300">{user} ALL=(ALL) NOPASSWD: ALL</code> to a file in{" "}
+                <code className="text-slate-300">/etc/sudoers.d/</code>; delete that file to undo it.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-800 bg-slate-900 px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+          >
+            {denied ? "Close" : "Cancel"}
+          </button>
+          {denied ? null : (
+            <>
+              <button
+                type="button"
+                onClick={() => submit(false)}
+                disabled={busy || !password}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                Run updates once
+              </button>
+              <button
+                type="button"
+                onClick={() => submit(true)}
+                disabled={busy || !password}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />}
+                Enable passwordless sudo and run
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function RunUpdatesModal({

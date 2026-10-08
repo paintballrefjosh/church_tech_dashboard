@@ -177,6 +177,8 @@ export class InfraController {
     action: "infra.target.update_run.start",
     resourceType: "infra_target",
     resourceIdFromParams: (p) => p.id ?? null,
+    // The sudo password is used for the run and forgotten; it must not reach the audit snapshot.
+    redactKeys: ["sudoPassword"],
   })
   async startUpdateRun(
     @CurrentUser() user: AuthenticatedUser,
@@ -185,7 +187,7 @@ export class InfraController {
   ) {
     const parsed = createInfraUpdateRunSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    return this.updater.start(id, user, parsed.data.reboot, parsed.data.fullUpgrade, parsed.data.includePhased);
+    return this.updater.start(id, user, parsed.data);
   }
 
   /**

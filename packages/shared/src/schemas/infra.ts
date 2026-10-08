@@ -445,7 +445,16 @@ export type InfraSummary = z.infer<typeof infraSummarySchema>;
  * for why: an unattended write path needs a real host to validate against,
  * and this church's fleet is Linux).
  */
-export const INFRA_UPDATE_RUN_STATUSES = ["running", "success", "failed", "timed_out"] as const;
+export const INFRA_UPDATE_RUN_STATUSES = [
+  "running",
+  "success",
+  "failed",
+  "timed_out",
+  // The login needs a sudo password the dashboard does not have (or was given a wrong one). Nothing ran; the UI asks.
+  "needs_sudo",
+  // sudo refused the login outright (not in sudoers / not allowed to run sudo). Needs fixing on the host.
+  "sudo_denied",
+] as const;
 export type InfraUpdateRunStatus = (typeof INFRA_UPDATE_RUN_STATUSES)[number];
 
 export const infraUpdateRunSchema = z.object({
@@ -487,5 +496,18 @@ export const createInfraUpdateRunSchema = z.object({
    * regression safety net; this is explicitly opting out of it.
    */
   includePhased: z.boolean().default(false),
+  /**
+   * The login's sudo password, supplied for this run only after a run stopped with `needs_sudo`. Never stored
+   * or audited; sent to the host over the SSH channel's stdin.
+   */
+  sudoPassword: z.string().min(1).max(512).optional(),
+  /**
+   * With `sudoPassword`: first write a sudoers drop-in giving this login passwordless sudo on the host, then
+   * run the update. The only thing that persists after the password is forgotten.
+   */
+  enablePasswordlessSudo: z.boolean().default(false),
+}).refine((v) => !v.enablePasswordlessSudo || Boolean(v.sudoPassword), {
+  message: "A sudo password is required to enable passwordless sudo",
+  path: ["sudoPassword"],
 });
 export type CreateInfraUpdateRunInput = z.infer<typeof createInfraUpdateRunSchema>;

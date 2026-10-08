@@ -19,8 +19,17 @@ import { InfraCollector } from "./infra-collector";
 import { sshExec } from "./collectors/ssh";
 import { splitSections, sectionLines } from "./collectors/markers";
 import type { CollectContext } from "./collectors/types";
+import {
+  parseSetupResult,
+  parseSudoProbe,
+  scrubSecret,
+  sudoProbeScript,
+  sudoersFileFor,
+  sudoersSetupScript,
+  validSudoUser,
+} from "./sudo-access";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
-import type { InfraUpdateRun } from "@church/shared";
+import type { CreateInfraUpdateRunInput, InfraUpdateRun } from "@church/shared";
 
 // A real fleet upgrade (apt-get update + upgrade across however many
 // packages) can legitimately run long, especially the first time in a while
@@ -30,7 +39,60 @@ import type { InfraUpdateRun } from "@church/shared";
 // remote process.
 const UPGRADE_TIMEOUT_MS = 30 * 60_000;
 const REBOOT_TIMEOUT_MS = 15_000;
+const SETUP_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_CHARS = 32_000;
+
+/** A run that stopped before changing anything because of how sudo answered. */
+interface SudoBlock {
+  status: "needs_sudo" | "sudo_denied" | "failed";
+  error: string;
+  /** What sudo itself said (its prompt or refusal), shown to the operator as terminal output. */
+  output: string;
+}
+
+/** Turns a failed sudo probe into the status, message and terminal text the operator is shown. */
+function sudoBlock(
+  user: string,
+  state: "needs_password" | "bad_password" | "denied" | "no_sudo" | "root" | "ok",
+  said: string,
+  inSudoGroup: boolean,
+  passwordTried: boolean,
+): SudoBlock {
+  switch (state) {
+    case "denied":
+      return {
+        status: "sudo_denied",
+        error:
+          `sudo will not let "${user}" run commands as root on this host (it is not in the sudoers file). ` +
+          `The dashboard cannot fix this itself. As root on the host, add the login to the sudo group ` +
+          `("usermod -aG sudo ${user}" on Debian/Ubuntu, "usermod -aG wheel ${user}" on RHEL/Fedora) or give it a sudoers rule, ` +
+          `then run the update again.` +
+          (inSudoGroup ? "" : ` The login is in none of sudo, wheel or admin.`),
+        output: said || `sudo: ${user} is not in the sudoers file.`,
+      };
+    case "bad_password":
+      return {
+        status: "needs_sudo",
+        error: passwordTried ? `sudo did not accept that password for "${user}".` : `sudo needs a password for "${user}".`,
+        output: said || "sudo: incorrect password attempt",
+      };
+    case "no_sudo":
+      return {
+        status: "failed",
+        error: `"${user}" is not root and sudo is not installed on this host, so updates cannot be run. Log in as root or install sudo.`,
+        output: said,
+      };
+    default:
+      return {
+        status: "needs_sudo",
+        error:
+          `sudo needs a password for "${user}" and none is stored for this SSH key login. ` +
+          `Enter it to run this update once, or let the dashboard enable passwordless sudo for the login.` +
+          (inSudoGroup ? "" : ` Note: the login is in none of sudo, wheel or admin, so sudo may refuse it.`),
+        output: said || "sudo: a password is required",
+      };
+  }
+}
 
 @Injectable()
 export class InfraUpdaterService implements OnModuleInit {
@@ -113,13 +175,8 @@ export class InfraUpdaterService implements OnModuleInit {
    * not awaited). The controller's @Audited decorator records who triggered
    * this and when regardless of how the run turns out.
    */
-  async start(
-    targetId: string,
-    user: AuthenticatedUser,
-    reboot: boolean,
-    fullUpgrade: boolean,
-    includePhased: boolean,
-  ): Promise<InfraUpdateRun> {
+  async start(targetId: string, user: AuthenticatedUser, input: CreateInfraUpdateRunInput): Promise<InfraUpdateRun> {
+    const { reboot, fullUpgrade, includePhased } = input;
     const [target] = await this.db.select().from(infraTargets).where(eq(infraTargets.id, targetId)).limit(1);
     if (!target) throw new NotFoundException("Infrastructure target not found");
 
@@ -148,7 +205,9 @@ export class InfraUpdaterService implements OnModuleInit {
       .returning();
     if (!run) throw new Error("Insert failed");
 
-    void this.execute(run.id, target, reboot, fullUpgrade, includePhased).catch((err) => {
+    // The sudo password lives only in this call chain: it is not written to the run row or logged.
+    const sudo = { password: input.sudoPassword ?? null, enable: input.enablePasswordlessSudo };
+    void this.execute(run.id, target, reboot, fullUpgrade, includePhased, sudo).catch((err) => {
       this.logger.error(`update run ${run.id} on ${target.name} crashed: ${(err as Error).message}`);
     });
 
@@ -161,6 +220,7 @@ export class InfraUpdaterService implements OnModuleInit {
     rebootRequested: boolean,
     fullUpgrade: boolean,
     includePhased: boolean,
+    sudo: { password: string | null; enable: boolean },
   ): Promise<void> {
     const credential = await this.infra.getCredential(target.id);
     const ctx: CollectContext = {
@@ -171,46 +231,74 @@ export class InfraUpdaterService implements OnModuleInit {
       knownHostKey: target.knownHostKey ?? null,
       prev: null,
     };
+    const loginUser = credential?.username ?? "root";
 
-    // The stored SSH-login password doubles as the sudo password when the
-    // host has no NOPASSWD rule — fed to `sudo -S` over stdin (see ssh.ts),
-    // never argv, and only when the credential actually is a password (key
-    // auth hosts have nothing to feed and fall back to requiring NOPASSWD).
-    const sudoPassword = credential?.authType === "ssh_password" ? credential.secret : null;
+    // A password typed for this run wins; otherwise the stored SSH-login password doubles as the sudo password
+    // when the host has no NOPASSWD rule. It is fed to `sudo -S` over stdin (see ssh.ts), never argv. A key-auth
+    // host with nothing typed has nothing to feed: the probe then stops the run as `needs_sudo` so the UI can ask.
+    const sudoPassword = sudo.password ?? (credential?.authType === "ssh_password" ? credential.secret : null);
     const havePassword = Boolean(sudoPassword);
+    const clean = (text: string) => scrubSecret(text, sudoPassword);
 
     let packageManager: string | null = null;
     let exitCode: number | null = null;
     let output = "";
     let rebootRequired = false;
     let rebootTriggered = false;
-    let status: "success" | "failed" | "timed_out" = "failed";
+    let status: Exclude<InfraUpdateRun["status"], "running"> = "failed";
     let error: string | null = null;
+    let sudoEnabled = false;
 
     try {
-      const res = await sshExec(ctx, upgradeScript(havePassword, fullUpgrade, includePhased), {
-        execTimeoutMs: UPGRADE_TIMEOUT_MS,
-        stdin: sudoPassword ? `${sudoPassword}\n` : undefined,
-      });
-      const blocks = splitSections(res.stdout);
-      const pm = (sectionLines(blocks, "M_PKGMGR")[0] ?? "").trim();
-      packageManager = pm && pm !== "unknown" ? pm : null;
-      output = [
-        sectionLines(blocks, "M_UPGRADE").join("\n").trim(),
-        res.stderr.trim() ? `--- stderr ---\n${res.stderr.trim()}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n")
-        .slice(0, MAX_OUTPUT_CHARS);
-      exitCode = parseInt((sectionLines(blocks, "M_EXIT")[0] ?? "").trim(), 10);
-      if (!Number.isFinite(exitCode)) exitCode = null;
-      rebootRequired = (sectionLines(blocks, "M_REBOOT")[0] ?? "").trim() === "1";
-      status = packageManager && exitCode === 0 ? "success" : "failed";
-      if (!packageManager) error = "No supported package manager detected (apt/dnf/yum/zypper/pacman/apk)";
+      let blocked: SudoBlock | null = null;
+
+      if (sudo.enable) {
+        const setup = await this.enablePasswordlessSudo(ctx, loginUser, sudoPassword);
+        if (setup.blocked) blocked = setup.blocked;
+        else sudoEnabled = setup.enabled;
+      }
+
+      if (!blocked) {
+        const res = await sshExec(ctx, upgradeScript(havePassword, fullUpgrade, includePhased), {
+          execTimeoutMs: UPGRADE_TIMEOUT_MS,
+          stdin: sudoPassword ? `${sudoPassword}\n` : undefined,
+        });
+        const blocks = splitSections(res.stdout);
+        const probe = parseSudoProbe(sectionLines(blocks, "M_SUDO"));
+        if (probe && probe.state !== "root" && probe.state !== "ok") {
+          blocked = sudoBlock(loginUser, probe.state, probe.message, probe.inSudoGroup, havePassword);
+        } else {
+          const pm = (sectionLines(blocks, "M_PKGMGR")[0] ?? "").trim();
+          packageManager = pm && pm !== "unknown" ? pm : null;
+          output = [
+            sectionLines(blocks, "M_UPGRADE").join("\n").trim(),
+            res.stderr.trim() ? `--- stderr ---\n${res.stderr.trim()}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+            .slice(0, MAX_OUTPUT_CHARS);
+          exitCode = parseInt((sectionLines(blocks, "M_EXIT")[0] ?? "").trim(), 10);
+          if (!Number.isFinite(exitCode)) exitCode = null;
+          rebootRequired = (sectionLines(blocks, "M_REBOOT")[0] ?? "").trim() === "1";
+          status = packageManager && exitCode === 0 ? "success" : "failed";
+          if (!packageManager) error = "No supported package manager detected (apt/dnf/yum/zypper/pacman/apk)";
+        }
+      }
+
+      if (blocked) {
+        status = blocked.status;
+        error = blocked.error;
+        output = blocked.output;
+      }
     } catch (err) {
       const msg = (err as Error).message;
       status = /timed out/i.test(msg) ? "timed_out" : "failed";
       error = msg;
+    }
+    output = clean(output);
+    if (error) error = clean(error);
+    if (sudoEnabled) {
+      output = [`Passwordless sudo enabled for ${loginUser} (${sudoersFileFor(loginUser)}).`, output].filter(Boolean).join("\n\n");
     }
 
     if (status === "success" && rebootRequested && rebootRequired) {
@@ -249,7 +337,11 @@ export class InfraUpdaterService implements OnModuleInit {
     const title =
       status === "success"
         ? `${target.name}: updates applied${rebootTriggered ? " (rebooting)" : ""}`
-        : `${target.name}: update run ${status === "timed_out" ? "timed out" : "failed"}`;
+        : status === "needs_sudo"
+          ? `${target.name}: updates need a sudo password`
+          : status === "sudo_denied"
+            ? `${target.name}: sudo refused ${loginUser}`
+            : `${target.name}: update run ${status === "timed_out" ? "timed out" : "failed"}`;
     const body =
       status === "success"
         ? rebootRequired
@@ -273,7 +365,47 @@ export class InfraUpdaterService implements OnModuleInit {
     // available" badge reflects the new state without waiting on the next
     // scheduled tick. Never lets a poll failure mask the update run's own
     // outcome, which is already durably recorded above.
-    void this.collector.pollNow(target.id).catch(() => {});
+    if (status !== "needs_sudo" && status !== "sudo_denied") void this.collector.pollNow(target.id).catch(() => {});
+  }
+
+  /**
+   * Writes the sudoers drop-in that gives the login passwordless sudo (see sudo-access.ts). A refusal comes back
+   * as a `blocked` outcome for the run; success lets the upgrade carry on in the same run.
+   */
+  private async enablePasswordlessSudo(
+    ctx: CollectContext,
+    loginUser: string,
+    password: string | null,
+  ): Promise<{ enabled: boolean; blocked: SudoBlock | null }> {
+    const fail = (error: string, output = ""): { enabled: false; blocked: SudoBlock } => ({
+      enabled: false,
+      blocked: { status: "failed", error, output },
+    });
+    if (!validSudoUser(loginUser)) {
+      return fail(`Passwordless sudo cannot be set up for the login "${loginUser}" (root needs none; other names are limited to letters, digits, "_", "-" and ".").`);
+    }
+    const res = await sshExec(ctx, sudoersSetupScript(loginUser), {
+      execTimeoutMs: SETUP_TIMEOUT_MS,
+      stdin: password ? `${password}\n` : undefined,
+    });
+    const result = parseSetupResult(sectionLines(splitSections(res.stdout), "M_SETUP"));
+    if (!result) return fail("The host gave no usable answer to the passwordless sudo setup", res.stderr.trim());
+    const message = scrubSecret(result.message, password);
+    switch (result.state) {
+      case "ok":
+        this.logger.log(`passwordless sudo enabled for ${loginUser} on ${ctx.host}`);
+        return { enabled: true, blocked: null };
+      case "already":
+        return { enabled: false, blocked: null };
+      case "denied":
+        return { enabled: false, blocked: sudoBlock(loginUser, "denied", message, false, true) };
+      case "bad_password":
+        return { enabled: false, blocked: sudoBlock(loginUser, "bad_password", message, false, true) };
+      case "no_sudo":
+        return { enabled: false, blocked: sudoBlock(loginUser, "no_sudo", message, false, true) };
+      default:
+        return fail(`Could not enable passwordless sudo: ${message || result.state}`, message);
+    }
   }
 
   private async notify(targetId: string, triggeredByUserId: string | null, title: string, body: string): Promise<void> {
@@ -331,36 +463,6 @@ function toRun(row: typeof infraUpdateRuns.$inferSelect, triggeredByName: string
 // after a library upgrade — a common, easy-to-miss source of an apt upgrade
 // silently hanging until it hits UPGRADE_TIMEOUT_MS.
 
-/**
- * `$SUDO` detection, shared by both scripts below. Preference order: already
- * root (no sudo needed) > NOPASSWD already configured (`sudo -n true`
- * succeeds, no password touched at all) > prime sudo's credential cache once
- * via `sudo -S -v`, fed the password on stdin (see sshExec's `stdin` option
- * and InfraUpdaterService.execute) — every privileged command after that uses
- * plain `sudo -n`, so the password is read from stdin exactly once per SSH
- * session, never appears in argv/process listings, and is never sent at all
- * when it isn't needed. `havePassword` is false for SSH-key-auth targets
- * (nothing to feed), which then must have NOPASSWD sudo configured instead.
- */
-function sudoPreamble(havePassword: boolean): string {
-  const lines = [
-    'SUDO=""',
-    'if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1; then',
-    "  if sudo -n true 2>/dev/null; then",
-    '    SUDO="sudo -n"',
-  ];
-  if (havePassword) {
-    // Stderr intentionally NOT suppressed here (unlike the `-n true` probe
-    // above): if the fed password is wrong or sudo rejects it for some other
-    // reason, that message (e.g. "Sorry, try again.", "1 incorrect password
-    // attempt") is what actually explains a failure, and it's cheap/harmless
-    // noise to carry into the captured output on the success path.
-    lines.push("  elif sudo -S -v; then", '    SUDO="sudo -n"');
-  }
-  lines.push("  fi", "fi");
-  return lines.join("\n");
-}
-
 function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhased: boolean): string {
   // Plain `upgrade` never removes/replaces a package, so a kernel/dependency
   // -driven bump shows as "kept back" forever unless the operator opts into
@@ -387,8 +489,9 @@ function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhase
     "elif command -v apk >/dev/null 2>&1; then PM=apk",
     "fi",
     "echo $PM",
-    sudoPreamble(havePassword),
   ].join("\n"),
+  // Reports sudo's state and stops here when the run cannot go on (see sudo-access.ts).
+  sudoProbeScript(havePassword),
   "echo M_UPGRADE",
   [
     'case "$PM" in',
@@ -443,7 +546,7 @@ function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhase
 // reboot' &`; it echoed 1 (sudo really had authenticated) but never actually
 // rebooted — the deferred `sudo -n`, re-evaluated 2s later inside that
 // detached subshell, silently failed to reuse the ticket validated moments
-// earlier. v2 switched to `shutdown` with sudoPreamble's prime-then-reuse
+// earlier. v2 switched to `shutdown` with the sudo probe's prime-then-reuse
 // (`sudo -S -v` once, then `sudo -n` for the actual command) — the same
 // pattern upgradeScript uses successfully across several `apt-get` calls —
 // but on this host it *also* intermittently failed: `sudo -n` moments after

@@ -215,6 +215,19 @@ incident. The canary carries the managed marker so it can't be hand-edited.
 row) after 3 failed 60s polls of the primary, plus a recovery notice; silenced
 by maintenance mode. The dashboard monitoring tile has a DNS row (nodes up/down).
 
+**Update runs and sudo** (`infra/infra-updater.ts`, `infra/sudo-access.ts`): "Run updates" on a Linux
+infra target needs root. The script first probes sudo (`sudoProbeScript`: root, `sudo -n true`, or `sudo -S -v`
+fed a password on stdin) and stops there if the run cannot go on, so apt is never run unprivileged. The run then
+ends `needs_sudo` (key login with no password, or a wrong one: the web opens a terminal-style dialog,
+`SudoTerminalDialog`, showing sudo's own output and a masked prompt) or `sudo_denied` (not in sudoers: the error
+says how to fix it on the host; the dashboard cannot). The password typed is sent with the next
+`POST .../update-run` (`sudoPassword`, redacted from the audit row, never stored, scrubbed from run output); with
+`enablePasswordlessSudo` the run first writes `<login> ALL=(ALL) NOPASSWD: ALL` to
+`/etc/sudoers.d/90-church-dashboard-<login>` (temp name, `visudo -cf`, then `mv`; removed again if
+`sudo -n true` still fails). A scoped sudoers rule does not satisfy the `sudo -n true` probe. Statuses are
+free text in `infra_update_runs.status`, so no migration. Tests: `apps/api/test/sudo-access.test.ts` runs the
+real scripts against a fake `sudo`; the real messages were also checked in a Debian container and over SSH.
+
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi
 device-offline, and Cisco switch alerts — incidents are still recorded, only the
