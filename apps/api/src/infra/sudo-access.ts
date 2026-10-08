@@ -20,8 +20,9 @@ export interface SudoProbe {
 }
 
 /** Output sudo gives when it refuses the user outright, across sudo and sudo-rs. */
-const DENIED_RE = "not in the sudoers|not allowed to (execute|run)|may not run sudo|is not in the sudoers";
-const BAD_PASSWORD_RE = "incorrect password|try again|no password was provided|a password is required|authentication failure";
+const DENIED_RE = "not in the sudoers|not allowed to (execute|run)|may not run sudo|afraid I can.t do that";
+const BAD_PASSWORD_RE =
+  "incorrect password|incorrect authentication|try again|no password was provided|a password is required|interactive authentication is required|authentication (failure|failed)";
 
 export const looksDenied = (s: string): boolean => new RegExp(DENIED_RE, "i").test(s);
 
@@ -29,9 +30,14 @@ const SUDO_STATES: readonly SudoState[] = ["root", "ok", "needs_password", "bad_
 
 /**
  * `$SUDO` detection, shared by the upgrade and reboot scripts. Preference order: already root, then NOPASSWD
- * already configured (`sudo -n true` succeeds and no password is touched), then prime sudo's credential cache
- * once with `sudo -S -v`, fed the password on stdin (see sshExec's `stdin` option), after which every command
- * is a plain `sudo -n`. The password is therefore read once per SSH session and never reaches argv.
+ * already configured (`sudo -n true` succeeds and no password is touched), then the password read from the first
+ * line of stdin (see sshExec's `stdin` option).
+ *
+ * With a password, `$SUDO` is the shell function `sudo_pw`, which pipes the password into its own `sudo -S` every
+ * time. It deliberately does NOT prime sudo's credential cache once and reuse it with `sudo -n`: the cache is tied
+ * to a terminal or session, and a command run over SSH without a tty does not reliably find it again (sudo-rs, the
+ * default on newer Ubuntu, fails there with "sudo: interactive authentication is required"). The password lives in
+ * a shell variable and a builtin `printf`, so it never reaches argv or the environment.
  *
  * The probe reports into `M_SUDO` and, if the run cannot go on, exits there: running apt unprivileged would
  * only produce a wall of permission errors that hide the real cause.
@@ -41,6 +47,9 @@ export function sudoProbeScript(havePassword: boolean): string {
     'SUDO=""',
     "SUDO_STATE=root",
     'SUDO_MSG=""',
+    ...(havePassword
+      ? ["IFS= read -r SUDO_PW", `sudo_pw() { printf '%s\\n' "$SUDO_PW" | sudo -S -p '' "$@"; }`]
+      : []),
     'if [ "$(id -u)" != "0" ]; then',
     "  if ! command -v sudo >/dev/null 2>&1; then",
     "    SUDO_STATE=no_sudo",
@@ -50,9 +59,9 @@ export function sudoProbeScript(havePassword: boolean): string {
   ];
   if (havePassword) {
     lines.push(
-      "    SUDO_MSG=$(sudo -S -v 2>&1); SUDO_RC=$?",
+      "    SUDO_MSG=$(sudo_pw true 2>&1); SUDO_RC=$?",
       '    if [ "$SUDO_RC" -eq 0 ]; then',
-      '      SUDO="sudo -n"; SUDO_STATE=ok; SUDO_MSG=""',
+      '      SUDO="sudo_pw"; SUDO_STATE=ok; SUDO_MSG=""',
       `    elif printf '%s' "$SUDO_MSG" | grep -qiE '${DENIED_RE}'; then`,
       "      SUDO_STATE=denied",
       "    else",
@@ -61,7 +70,7 @@ export function sudoProbeScript(havePassword: boolean): string {
     );
   } else {
     lines.push(
-      "    SUDO_MSG=$(sudo -n -v 2>&1)",
+      "    SUDO_MSG=$(sudo -n true 2>&1)",
       `    if printf '%s' "$SUDO_MSG" | grep -qiE '${DENIED_RE}'; then SUDO_STATE=denied; else SUDO_STATE=needs_password; fi`,
     );
   }
@@ -113,14 +122,16 @@ const SETUP_STATES: readonly SetupState[] = ["ok", "already", "denied", "bad_pas
 /**
  * Writes `<user> ALL=(ALL) NOPASSWD: ALL` to a sudoers.d drop-in, with the password fed on stdin to the one
  * `sudo -S`. The rule goes to a temp name sudoers ignores (trailing `~`), is checked with `visudo -cf`, and is
- * only then moved into place, so a bad rule can never lock sudo out. Afterwards `sudo -n true` proves it is live;
- * if it is not (no `#includedir`), the file is removed again.
+ * only then moved into place, so a bad rule can never lock sudo out. A host whose sudoers has no `includedir`
+ * for the directory is refused up front, and afterwards `sudo -n true` (after `sudo -k`) proves the rule is live.
  */
-export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d"): string {
+export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d", mainFile = "/etc/sudoers"): string {
   if (!validSudoUser(user)) throw new Error(`Cannot set up passwordless sudo for the login name "${user}"`);
   const file = sudoersFileFor(user, dir);
   const inner = [
     "set -e",
+    // A rule in a directory sudo never reads would look installed and do nothing.
+    `grep -qE "^[#@]includedir[[:space:]]+${dir}" ${mainFile} || { echo "sudo does not read ${dir} on this host (no includedir line in ${mainFile})" >&2; exit 3; }`,
     'T="$2~"',
     "umask 0227",
     'printf "%s ALL=(ALL) NOPASSWD: ALL\\n" "$1" > "$T"',
@@ -138,8 +149,10 @@ export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d"): string
     "else",
     `  OUT=$(sudo -S -p '' sh -c '${inner}' sh "$U" "$F" 2>&1); RC=$?`,
     '  if [ "$RC" -eq 0 ]; then',
+    // Forget the cached credentials first, or the check below would pass on the password just given.
+    "    sudo -k 2>/dev/null",
     "    if sudo -n true 2>/dev/null; then STATE=ok",
-    '    else sudo -n rm -f "$F" 2>/dev/null; STATE=inactive; OUT="sudo ignores /etc/sudoers.d on this host (no #includedir), so the rule was removed again"; fi',
+    '    else STATE=inactive; OUT="The rule was written to $F but sudo still asks for a password"; fi',
     `  elif printf '%s' "$OUT" | grep -qiE '${DENIED_RE}'; then STATE=denied`,
     `  elif printf '%s' "$OUT" | grep -qiE '${BAD_PASSWORD_RE}'; then STATE=bad_password`,
     "  fi",

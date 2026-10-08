@@ -20,30 +20,32 @@ import { sectionLines, splitSections } from "../src/infra/collectors/markers";
  * the "host" behaves: nopasswd (rule already there), password (needs "secret"), denied (not a sudoer).
  */
 const FAKE_SUDO = `#!/bin/sh
+# Behaves like sudo-rs without a terminal: a password given with -S is good for that one command only, and
+# -n never finds a cached credential ("interactive authentication is required").
 state="$FAKE_SUDO_DIR"
-nopass=0
 stdin_pw=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    -n) nopass=1; shift ;;
+    -n) shift ;;
     -S) stdin_pw=1; shift ;;
     -p) shift 2 ;;
-    -v) set -- true; break ;;
+    -k) exit 0 ;;
     *) break ;;
   esac
 done
+rule_active() { ls "$state"/90-church-dashboard-* >/dev/null 2>&1; }
 case "$FAKE_SUDO_MODE" in
   denied)
     echo "$(id -un) is not in the sudoers file.  This incident will be reported." >&2; exit 1 ;;
   nopasswd) exec "$@" ;;
   password)
-    if [ -e "$state/ticket" ]; then exec "$@"; fi
     if [ "$stdin_pw" = 1 ]; then
       read -r pw
-      if [ "$pw" = "secret" ]; then : > "$state/ticket"; exec "$@"; fi
+      if [ "$pw" = "secret" ]; then exec "$@"; fi
       echo "Sorry, try again." >&2; echo "sudo: 1 incorrect password attempt" >&2; exit 1
     fi
-    echo "sudo: a password is required" >&2; exit 1 ;;
+    if rule_active; then exec "$@"; fi
+    echo "sudo: interactive authentication is required" >&2; exit 1 ;;
 esac
 `;
 
@@ -83,7 +85,7 @@ maybe("sudoProbeScript", () => {
     const r = run(`${sudoProbeScript(false)}\necho M_AFTER\necho reached`, "password");
     const probe = probeOf(r.out);
     expect(probe?.state).toBe("needs_password");
-    expect(probe?.message).toContain("a password is required");
+    expect(probe?.message).toMatch(/required/);
     expect(r.out).not.toContain("reached");
   });
 
@@ -91,6 +93,20 @@ maybe("sudoProbeScript", () => {
     const r = run(`${sudoProbeScript(true)}\necho M_AFTER\necho reached`, "password", "secret\n");
     expect(probeOf(r.out)?.state).toBe("ok");
     expect(r.out).toContain("reached");
+  });
+
+  it("authenticates every privileged command itself, without relying on a cached credential", () => {
+    const script = `${sudoProbeScript(true)}\necho M_AFTER\n$SUDO echo one\n$SUDO env X=1 echo two\n$SUDO echo three`;
+    const r = run(script, "password", "secret\n");
+    expect(r.out).toMatch(/one\n[\s\S]*two\n[\s\S]*three/);
+    expect(r.out + r.err).not.toContain("interactive authentication is required");
+    expect(r.out).not.toContain("secret");
+  });
+
+  it("treats sudo-rs wording for a missing password as needs_password", () => {
+    const probe = probeOf(run(sudoProbeScript(false), "password").out);
+    expect(probe?.state).toBe("needs_password");
+    expect(probe?.message).toContain("interactive authentication is required");
   });
 
   it("reports bad_password for a wrong one and never echoes it", () => {
@@ -124,10 +140,15 @@ maybe("sudoProbeScript", () => {
 
 maybe("sudoersSetupScript", () => {
   const setupOf = (out: string) => parseSetupResult(sectionLines(splitSections(out), "M_SETUP"));
+  const script = (user: string, includes = true) => {
+    const main = join(dir, "sudoers");
+    writeFileSync(main, includes ? `@includedir ${dir}\n` : "Defaults env_reset\n");
+    return sudoersSetupScript(user, dir, main);
+  };
 
   it("writes a validated drop-in and leaves no temp file", () => {
     // The fake sudo grants the ticket on the right password, which makes the final `sudo -n true` pass.
-    const r = run(sudoersSetupScript("churchmon", dir), "password", "secret\n");
+    const r = run(script("churchmon"), "password", "secret\n");
     expect(setupOf(r.out)?.state).toBe("ok");
     const file = sudoersFileFor("churchmon", dir);
     expect(readFileSync(file, "utf8")).toBe("churchmon ALL=(ALL) NOPASSWD: ALL\n");
@@ -135,26 +156,34 @@ maybe("sudoersSetupScript", () => {
   });
 
   it("does nothing when passwordless sudo already works", () => {
-    const r = run(sudoersSetupScript("churchmon", dir), "nopasswd");
+    const r = run(script("churchmon"), "nopasswd");
     expect(setupOf(r.out)?.state).toBe("already");
     expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
   });
 
   it("reports a wrong password and writes nothing", () => {
-    const r = run(sudoersSetupScript("churchmon", dir), "password", "nope\n");
+    const r = run(script("churchmon"), "password", "nope\n");
     expect(setupOf(r.out)?.state).toBe("bad_password");
     expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
   });
 
   it("reports denied for a login that may not use sudo", () => {
-    const r = run(sudoersSetupScript("churchmon", dir), "denied", "secret\n");
+    const r = run(script("churchmon"), "denied", "secret\n");
     const res = setupOf(r.out);
     expect(res?.state).toBe("denied");
     expect(looksDenied(res?.message ?? "")).toBe(true);
   });
 
+  it("refuses a host whose sudoers does not read the directory", () => {
+    const r = run(script("churchmon", false), "password", "secret\n");
+    const res = setupOf(r.out);
+    expect(res?.state).toBe("failed");
+    expect(res?.message).toContain("does not read");
+    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
+  });
+
   it("refuses to install a rule visudo rejects", () => {
-    const r = run(sudoersSetupScript("churchmon", dir), "password", "secret\n", { FAKE_VISUDO_RC: "1" });
+    const r = run(script("churchmon"), "password", "secret\n", { FAKE_VISUDO_RC: "1" });
     const res = setupOf(r.out);
     expect(res?.state).toBe("failed");
     expect(res?.message).toContain("visudo rejected");
@@ -180,7 +209,9 @@ describe("helpers", () => {
   it("recognises the ways sudo says no", () => {
     expect(looksDenied("josh is not in the sudoers file.")).toBe(true);
     expect(looksDenied("Sorry, user josh may not run sudo on host.")).toBe(true);
+    expect(looksDenied("sudo-rs: I'm sorry bob. I'm afraid I can't do that")).toBe(true);
     expect(looksDenied("Sorry, try again.")).toBe(false);
+    expect(looksDenied("sudo-rs: interactive authentication is required")).toBe(false);
   });
 
   it("scrubs a secret from stored text", () => {

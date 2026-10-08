@@ -216,8 +216,9 @@ row) after 3 failed 60s polls of the primary, plus a recovery notice; silenced
 by maintenance mode. The dashboard monitoring tile has a DNS row (nodes up/down).
 
 **Update runs and sudo** (`infra/infra-updater.ts`, `infra/sudo-access.ts`): "Run updates" on a Linux
-infra target needs root. The script first probes sudo (`sudoProbeScript`: root, `sudo -n true`, or `sudo -S -v`
-fed a password on stdin) and stops there if the run cannot go on, so apt is never run unprivileged. The run then
+infra target needs root. The script first probes sudo (`sudoProbeScript`: root, `sudo -n true`, or a password read from
+stdin and piped into a fresh `sudo -S` for every command; never a cached credential reused with `sudo -n`, which
+sudo-rs (Ubuntu 25.10+) refuses without a tty: "interactive authentication is required") and stops there if the run cannot go on, so apt is never run unprivileged. The run then
 ends `needs_sudo` (key login with no password, or a wrong one: the web opens a terminal-style dialog,
 `SudoTerminalDialog`, showing sudo's own output and a masked prompt) or `sudo_denied` (not in sudoers: the error
 says how to fix it on the host; the dashboard cannot). The password typed is sent with the next
