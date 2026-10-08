@@ -178,6 +178,16 @@ check "a stack that is not running" grep -q "not running" "$W/out"
 up_ --yes
 check "no stack running and none named" grep -q "cannot tell which stack" "$W/out"
 
+echo "== colour"
+fresh none
+( cd "$W/work" && PATH="$W/bin:$PATH" FAKE_RUN="$W/run" UPGRADE_HEALTH_WAIT=3 UPGRADE_COLOR=always bash scripts/upgrade.sh --prod --yes >"$W/out" 2>&1 )
+ESC=$'\033'
+check "UPGRADE_COLOR=always colours the screen output" grep -q "$ESC\\[" "$W/out"
+check "the log file has no escape codes" bash -c "! grep -q \$'\\033' \"$W\"/work/data/upgrade/upgrade-*.log && grep -q 'Done in' \"$W\"/work/data/upgrade/upgrade-*.log"
+fresh none
+( cd "$W/work" && PATH="$W/bin:$PATH" FAKE_RUN="$W/run" UPGRADE_HEALTH_WAIT=3 bash scripts/upgrade.sh --prod --check >"$W/out" 2>&1 )
+check "no escape codes when not on a terminal" bash -c "! grep -q \$'\\033' \"$W/out\""
+
 echo
 echo "passed: $pass, failed: $failn"
 [[ $failn -eq 0 ]]

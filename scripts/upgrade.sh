@@ -54,12 +54,18 @@ done
 [[ "$DRAIN_WAIT" =~ ^[0-9]+$ ]] || { echo "upgrade.sh: --drain-wait must be a number of seconds" >&2; exit 2; }
 [[ -z "$TO" || $ROLLBACK -eq 0 ]] || { echo "upgrade.sh: use either --to or --rollback" >&2; exit 2; }
 
-if [[ -t 1 ]]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; Z=$'\033[0m'; else B=""; G=""; Y=""; R=""; Z=""; fi
+# Colour only on a terminal (the log file never gets escape codes: see the tee below). NO_COLOR turns it off,
+# UPGRADE_COLOR=always forces it (the tests use that).
+if [[ ( -t 1 && -z "${NO_COLOR:-}" ) || "${UPGRADE_COLOR:-}" == always ]]; then
+  B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; C=$'\033[36m'; Z=$'\033[0m'
+else B=""; D=""; G=""; Y=""; R=""; C=""; Z=""; fi
 say()  { printf '%s\n' "$*"; }
-head1() { printf '\n%s==> %s%s\n' "$B" "$*" "$Z"; }
+note() { printf '%s%s%s\n' "$D" "$*" "$Z"; }               # secondary information
+kv()   { printf '%s%s%s %s\n' "$B" "$1" "$Z" "$2"; }       # "label: value" with the label picked out
+head1() { printf '\n%s%s==>%s %s%s%s\n' "$B" "$C" "$Z" "$B" "$*" "$Z"; }
 ok()   { printf '%s  ok%s  %s\n' "$G" "$Z" "$*"; }
-warn() { printf '%s  !!%s  %s\n' "$Y" "$Z" "$*" >&2; }
-die()  { printf '%supgrade.sh: %s%s\n' "$R" "$*" "$Z" >&2; exit 1; }
+warn() { printf '%s  !!%s  %s%s%s\n' "$Y" "$Z" "$Y" "$*" "$Z" >&2; }
+die()  { printf '%s%supgrade.sh:%s %s%s%s\n' "$B" "$R" "$Z" "$R" "$*" "$Z" >&2; exit 1; }
 
 command -v git >/dev/null 2>&1 || die "git is needed."
 command -v docker >/dev/null 2>&1 || die "docker is needed."
@@ -75,8 +81,8 @@ if (( CHECK == 0 )); then
   exec 9>"$STATE_DIR/lock"
   command -v flock >/dev/null 2>&1 && { flock -n 9 || die "another upgrade is running on this node."; }
   LOG="$STATE_DIR/upgrade-$(date +%Y%m%d-%H%M%S).log"
-  exec > >(tee -a "$LOG") 2>&1
-  say "log: $LOG"
+  exec > >(tee >(sed -u $'s/\033\\[[0-9;]*m//g' >>"$LOG")) 2>&1
+  kv "log:" "$LOG"
 fi
 
 # ---- which stack ------------------------------------------------------------------------------------
@@ -97,7 +103,7 @@ fi
 if [[ "$STACK" == prod ]]; then DC=(bash scripts/compose.sh --prod); else DC=(bash scripts/compose.sh); fi
 [[ "$NODE_ROLE" == full ]] || die "this node only runs the database and object store (NODE_ROLE=data): there is no app here to upgrade. Pull the new code and follow INSTALL.md."
 DB_MODE="$("${DC[@]}" --db-mode 2>/dev/null || echo bundled)"
-say "stack: $STACK ($DEPLOY_MODE), database: $DB_MODE"
+kv "stack:" "${C}$STACK${Z} ($DEPLOY_MODE), database: $DB_MODE"
 
 dc() { "${DC[@]}" "$@"; }
 running() { [[ -n "$(dc ps -q api 2>/dev/null | head -n 1)" ]]; }
@@ -139,34 +145,34 @@ fi
 BACK=0; git merge-base --is-ancestor "$TARGET" "$OLD" 2>/dev/null && BACK=1
 
 # ---- the plan ---------------------------------------------------------------------------------------
-head1 "$(short "$OLD") -> $(short "$TARGET")$( ((BACK)) && echo '  (moving BACK to an older version)')"
+head1 "$(short "$OLD") -> $(short "$TARGET")$( ((BACK)) && echo "  ${Y}(moving BACK to an older version)${Z}")"
 if (( BACK )); then
-  git log --oneline --no-decorate "$TARGET..$OLD" | head -n 15 | sed 's/^/  - removes: /'
+  git log --oneline --no-decorate "$TARGET..$OLD" | head -n 15 | sed -E "s/^([0-9a-f]+) /  ${R}- removes${Z} ${C}\\1${Z} /"
 else
-  git log --oneline --no-decorate "$OLD..$TARGET" | head -n 15 | sed 's/^/  + /'
-  n=$(git rev-list --count "$OLD..$TARGET"); (( n > 15 )) && say "  ... and $((n - 15)) more"
+  git log --oneline --no-decorate "$OLD..$TARGET" | head -n 15 | sed -E "s/^([0-9a-f]+) /  ${G}+${Z} ${C}\\1${Z} /"
+  n=$(git rev-list --count "$OLD..$TARGET"); (( n > 15 )) && note "  ... and $((n - 15)) more"
 fi
 NEWMIG="$(git diff --name-only --diff-filter=A "$OLD" "$TARGET" -- apps/api/migrations | grep -c '\.sql$' || true)"
 if (( BACK )); then
-  say "  migrations: none are undone; the older code runs against the newer schema (they are additive)."
+  kv "  migrations:" "none are undone; the older code runs against the newer schema (they are additive)."
 else
-  say "  migrations: ${NEWMIG:-0} new"
+  if (( ${NEWMIG:-0} > 0 )); then kv "  migrations:" "${Y}${NEWMIG} new${Z}"; else kv "  migrations:" "0 new"; fi
 fi
 NEWENV="$(git diff "$OLD" "$TARGET" -- .env.example | grep -E '^\+#? ?[A-Z][A-Z0-9_]*=' | sed -E 's/^\+#? ?//; s/=.*//' | sort -u | tr '\n' ' ' || true)"
 [[ -z "${NEWENV// /}" ]] || warn "new settings in .env.example: ${NEWENV}(optional unless INSTALL.md says otherwise)"
 INFRA_CHANGED=0
 git diff --quiet "$OLD" "$TARGET" -- infra/caddy infra/docker-compose.yml infra/docker-compose.prod.yml infra/docker-compose.cluster.yml infra/garage 2>/dev/null || INFRA_CHANGED=1
 (( INFRA_CHANGED )) && warn "infrastructure files changed: the proxy, and any service whose definition changed, are recreated too."
-git diff --quiet "$OLD" "$TARGET" -- INSTALL.md || say "  INSTALL.md changed: read what is new before relying on old habits."
+git diff --quiet "$OLD" "$TARGET" -- INSTALL.md || warn "INSTALL.md changed: read what is new before relying on old habits."
 
 if [[ -z "$BACKUP" ]]; then if [[ "$DEPLOY_MODE" == cluster ]]; then BACKUP=no; else BACKUP=yes; fi; fi
 if [[ "$BACKUP" == yes && "$DB_MODE" != bundled ]]; then
   warn "the database is external: this script cannot back it up. Use your database's tooling (or Admin > Backups for the app's data)."
   BACKUP=no
 fi
-say "  database backup first: $BACKUP$([[ "$DEPLOY_MODE" == cluster && "$BACKUP" == no ]] && echo ' (cluster: take one before the first node with --backup)')"
-say "  swap: $([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, restart api/web/monitor, wait healthy, undrain" || echo 'restart api/web/monitor (a short interruption)')"
-(( CHECK )) && { say; say "--check: nothing was changed."; exit 0; }
+kv "  database backup first:" "$BACKUP$([[ "$DEPLOY_MODE" == cluster && "$BACKUP" == no ]] && echo ' (cluster: take one before the first node with --backup)')"
+kv "  swap:" "$([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, restart api/web/monitor, wait healthy, undrain" || echo 'restart api/web/monitor (a short interruption)')"
+(( CHECK )) && { say; ok "--check: nothing was changed."; exit 0; }
 
 running || die "the stack is not running. Start it first (scripts/compose.sh$([[ $STACK == prod ]] && echo ' --prod') up -d), then upgrade."
 
@@ -185,7 +191,7 @@ fi
 
 START=$SECONDS
 HEALTH_WAIT="${UPGRADE_HEALTH_WAIT:-150}"   # seconds the new version gets to become healthy (tests shorten it)
-phase() { printf '%s  (%ds)\n' "$1" "$((SECONDS - START))"; }
+phase() { printf '%s  %s%s (%ds)%s\n' "$G" "$Z$B" "$1" "$((SECONDS - START))" "$Z"; }
 
 # ---- helpers for the steps ----------------------------------------------------------------------------
 # Inside the containers, so the answer does not depend on the proxy, the drain flag or the load balancer.
@@ -248,7 +254,7 @@ head1 "Fetching the new version and building it (the site keeps running the old 
 write_state
 goto_commit "$TARGET"
 NEWID="$(bash scripts/build-id.sh)"
-say "build id: $NEWID"
+kv "build id:" "$NEWID"
 if ! build_images; then
   warn "the build failed. Putting the code back; the running site was not touched."
   goto_commit "$OLD"
@@ -273,7 +279,7 @@ head1 "Swapping the containers"
 if [[ "$DEPLOY_MODE" == cluster ]]; then
   bash scripts/cluster.sh drain
   drained=1
-  (( DRAIN_WAIT > 0 )) && { say "waiting ${DRAIN_WAIT}s for open requests to finish"; sleep "$DRAIN_WAIT"; }
+  (( DRAIN_WAIT > 0 )) && { note "waiting ${DRAIN_WAIT}s for open requests to finish"; sleep "$DRAIN_WAIT"; }
 fi
 SWAP_AT=$SECONDS
 swap || true   # judged by the health check below, which also catches a half-started swap
@@ -284,7 +290,7 @@ if wait_healthy "$NEWID" "$HEALTH_WAIT"; then
   ok "api and web are healthy and run build $NEWID (interruption: about $((SECONDS - SWAP_AT))s)"
 else
   warn "the new version did not become healthy within ${HEALTH_WAIT}s. Going back to $(short "$OLD")."
-  dc logs --tail 30 api web 2>&1 | sed 's/^/    /' || true
+  dc logs --tail 30 api web 2>&1 | sed "s/^/    ${D}/; s/\$/${Z}/" || true
   goto_commit "$OLD"
   OLDID="$(bash scripts/build-id.sh)"
   if build_images && swap && wait_healthy "$OLDID" "$HEALTH_WAIT"; then
@@ -306,7 +312,7 @@ if (( PRUNE )); then
   head1 "Removing dangling images"
   docker image prune -f | tail -n 1
 fi
-head1 "Done in $((SECONDS - START))s: now on $(short "$TARGET") (build $NEWID)"
-say "  roll back with: scripts/upgrade.sh --rollback"
-[[ "$DEPLOY_MODE" == cluster ]] && say "  next node: run this script there. Admin > Cluster shows the nodes' builds."
+printf '\n%s%s==> Done in %ds:%s %snow on %s%s%s (build %s)%s\n' "$B" "$G" "$((SECONDS - START))" "$Z" "$B" "$G" "$(short "$TARGET")" "$Z$B" "$NEWID" "$Z"
+note "  roll back with: scripts/upgrade.sh --rollback"
+[[ "$DEPLOY_MODE" == cluster ]] && note "  next node: run this script there. Admin > Cluster shows the nodes' builds."
 exit 0
