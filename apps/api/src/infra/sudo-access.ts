@@ -103,12 +103,21 @@ export function validSudoUser(user: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(user) && user !== "root";
 }
 
-/** sudoers.d ignores names with a dot or a trailing tilde, so the file name is reduced to safe characters. */
+/**
+ * sudoers.d ignores names with a dot or a trailing tilde, so the file name is reduced to safe characters. The
+ * name starts with `zz-` because sudoers is last-match-wins and files are read in name order: this one must come
+ * after anything else that mentions the login (cloud-init's `90-` files, a `%sudo` rule pulled in later).
+ */
 export function sudoersFileFor(user: string, dir = "/etc/sudoers.d"): string {
-  return `${dir}/90-church-dashboard-${user.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  return `${dir}/zz-church-dashboard-${safeName(user)}`;
 }
 
-export const sudoersRuleFor = (user: string): string => `${user} ALL=(ALL) NOPASSWD: ALL`;
+/** The name the first version of the setup used; removed when the setup runs again. */
+export function legacySudoersFileFor(user: string, dir = "/etc/sudoers.d"): string {
+  return `${dir}/90-church-dashboard-${safeName(user)}`;
+}
+
+const safeName = (user: string): string => user.replace(/[^A-Za-z0-9_-]/g, "_");
 
 export type SetupState = "ok" | "already" | "denied" | "bad_password" | "inactive" | "no_sudo" | "failed";
 
@@ -123,21 +132,41 @@ const SETUP_STATES: readonly SetupState[] = ["ok", "already", "denied", "bad_pas
  * Writes `<user> ALL=(ALL) NOPASSWD: ALL` to a sudoers.d drop-in, with the password fed on stdin to the one
  * `sudo -S`. The rule goes to a temp name sudoers ignores (trailing `~`), is checked with `visudo -cf`, and is
  * only then moved into place, so a bad rule can never lock sudo out. A host whose sudoers has no `includedir`
- * for the directory is refused up front, and afterwards `sudo -n true` (after `sudo -k`) proves the rule is live.
+ * for the directory is refused up front.
+ *
+ * "Written" is not "working": sudoers is last-match-wins, so another entry for the login can still demand a
+ * password. While still root the script therefore runs `sudo -n true` AS the login to see what really applies.
+ * If the plain rule does not take, it adds `Defaults:<login> !authenticate`, which holds whatever order the
+ * rules are read in. If that fails too, the file is removed again and sudo's own account of what applies to the
+ * login (`sudo -l -U`) is returned, so the operator can see which rule is in the way.
  */
 export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d", mainFile = "/etc/sudoers"): string {
   if (!validSudoUser(user)) throw new Error(`Cannot set up passwordless sudo for the login name "${user}"`);
   const file = sudoersFileFor(user, dir);
+  // Arguments: 1 login, 2 file, 3 directory, 4 main sudoers file, 5 file name of the first version.
+  // No single quotes in here: it is passed to `sh -c '...'`.
   const inner = [
-    "set -e",
     // A rule in a directory sudo never reads would look installed and do nothing.
-    `grep -qE "^[#@]includedir[[:space:]]+${dir}" ${mainFile} || { echo "sudo does not read ${dir} on this host (no includedir line in ${mainFile})" >&2; exit 3; }`,
-    'T="$2~"',
-    "umask 0227",
-    'printf "%s ALL=(ALL) NOPASSWD: ALL\\n" "$1" > "$T"',
-    'if ! visudo -cf "$T" >/dev/null 2>&1; then rm -f "$T"; echo "visudo rejected the rule" >&2; exit 2; fi',
-    'chmod 0440 "$T"',
-    'mv "$T" "$2"',
+    'grep -qE "^[#@]includedir[[:space:]]+$3" "$4" || { echo "sudo does not read $3 on this host (no includedir line in $4)" >&2; exit 3; }',
+    'rm -f "$5"',
+    "try_rule() {",
+    '  T="$2~"; umask 0227',
+    '  { printf "%s ALL=(ALL) NOPASSWD: ALL\n" "$1"; [ -z "$3" ] || printf "%s\n" "$3"; } > "$T"',
+    '  if ! visudo -cf "$T" >/dev/null 2>&1; then rm -f "$T"; return 2; fi',
+    '  chmod 0440 "$T"; mv "$T" "$2"',
+    '  if sudo -u "$1" sudo -n true >/dev/null 2>&1; then return 0; fi',
+    '  rm -f "$2"; return 1',
+    "}",
+    'try_rule "$1" "$2" ""; RC=$?',
+    '[ "$RC" -eq 2 ] && { echo "visudo rejected the rule" >&2; exit 2; }',
+    '[ "$RC" -eq 0 ] && exit 0',
+    'try_rule "$1" "$2" "Defaults:$1 !authenticate" && exit 0',
+    'echo "sudo still asks $1 for a password even with a passwordless rule in place, so another entry read after it must be overriding it (usually a %sudo or %admin line below the includedir line in $4: move that line to the end, using visudo, or remove the entry)." >&2',
+    'echo "What sudo says applies to $1:" >&2',
+    'sudo -l -U "$1" 2>&1 | head -n 25 >&2',
+    'echo "Files in $3:" >&2; ls "$3" 2>&1 | head -n 20 >&2',
+    'echo "Rules in $4 that mention a group or ALL:" >&2; grep -nE "^[^#]*(includedir|%|ALL=)" "$4" 2>&1 | head -n 15 >&2',
+    "exit 4",
   ].join("\n");
   return [
     `U='${user}'`,
@@ -147,12 +176,15 @@ export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d", mainFil
     "elif ! command -v sudo >/dev/null 2>&1; then STATE=no_sudo",
     "elif sudo -n true 2>/dev/null; then STATE=already",
     "else",
-    `  OUT=$(sudo -S -p '' sh -c '${inner}' sh "$U" "$F" 2>&1); RC=$?`,
+    `  OUT=$(sudo -S -p '' sh -c '${inner}' sh "$U" "$F" '${dir}' '${mainFile}' '${legacySudoersFileFor(user, dir)}' 2>&1); RC=$?`,
     '  if [ "$RC" -eq 0 ]; then',
     // Forget the cached credentials first, or the check below would pass on the password just given.
     "    sudo -k 2>/dev/null",
-    "    if sudo -n true 2>/dev/null; then STATE=ok",
-    '    else STATE=inactive; OUT="The rule was written to $F but sudo still asks for a password"; fi',
+    '    CHECK=$(sudo -n true 2>&1)',
+    '    if [ $? -eq 0 ]; then STATE=ok; OUT=""',
+    '    else STATE=inactive; OUT="The rule is in $F and passes as root, but when $U runs sudo it still says: $CHECK"; fi',
+    '  elif [ "$RC" -eq 4 ]; then STATE=inactive',
+    '  elif [ "$RC" -eq 3 ] || [ "$RC" -eq 2 ]; then STATE=failed',
     `  elif printf '%s' "$OUT" | grep -qiE '${DENIED_RE}'; then STATE=denied`,
     `  elif printf '%s' "$OUT" | grep -qiE '${BAD_PASSWORD_RE}'; then STATE=bad_password`,
     "  fi",

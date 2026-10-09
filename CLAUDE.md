@@ -224,8 +224,10 @@ ends `needs_sudo` (key login with no password, or a wrong one: the web opens a t
 says how to fix it on the host; the dashboard cannot). The password typed is sent with the next
 `POST .../update-run` (`sudoPassword`, redacted from the audit row, never stored, scrubbed from run output); with
 `enablePasswordlessSudo` the run first writes `<login> ALL=(ALL) NOPASSWD: ALL` to
-`/etc/sudoers.d/90-church-dashboard-<login>` (temp name, `visudo -cf`, then `mv`; removed again if
-`sudo -n true` still fails). A scoped sudoers rule does not satisfy the `sudo -n true` probe. Statuses are
+`/etc/sudoers.d/zz-church-dashboard-<login>` (`zz-` because sudoers is last-match-wins; temp name, `visudo -cf`,
+then `mv`). "Written" is not "working": while still root the script runs `sudo -n true` as the login; if a later
+entry overrides the rule it retries with `Defaults:<login> !authenticate` (sudo-rs has no such setting), and
+failing that removes the file and returns `sudo -l -U` plus the relevant sudoers lines. A scoped sudoers rule does not satisfy the `sudo -n true` probe. Statuses are
 free text in `infra_update_runs.status`, so no migration. Tests: `apps/api/test/sudo-access.test.ts` runs the
 real scripts against a fake `sudo`; the real messages were also checked in a Debian container and over SSH.
 

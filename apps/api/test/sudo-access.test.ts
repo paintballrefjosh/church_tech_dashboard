@@ -9,6 +9,7 @@ import {
   parseSudoProbe,
   scrubSecret,
   sudoProbeScript,
+  legacySudoersFileFor,
   sudoersFileFor,
   sudoersSetupScript,
   validSudoUser,
@@ -30,14 +31,20 @@ while [ $# -gt 0 ]; do
     -S) stdin_pw=1; shift ;;
     -p) shift 2 ;;
     -k) exit 0 ;;
+    -u) shift 2 ;;
+    -l) echo "(fake) what sudo says applies"; exit 0 ;;
     *) break ;;
   esac
 done
-rule_active() { ls "$state"/90-church-dashboard-* >/dev/null 2>&1; }
+rule_active() { ls "$state"/zz-church-dashboard-* >/dev/null 2>&1; }
 case "$FAKE_SUDO_MODE" in
   denied)
     echo "$(id -un) is not in the sudoers file.  This incident will be reported." >&2; exit 1 ;;
   nopasswd) exec "$@" ;;
+  # A later rule makes sudo ask for the login's password however ours is written.
+  asks)
+    if [ "$stdin_pw" = 1 ]; then read -r pw; [ "$pw" = "secret" ] && exec "$@"; echo "Sorry, try again." >&2; exit 1; fi
+    echo "sudo: a password is required" >&2; exit 1 ;;
   password)
     if [ "$stdin_pw" = 1 ]; then
       read -r pw
@@ -174,6 +181,24 @@ maybe("sudoersSetupScript", () => {
     expect(looksDenied(res?.message ?? "")).toBe(true);
   });
 
+  it("removes its file and says what sudo applies when another rule still demands a password", () => {
+    const r = run(script("churchmon"), "asks", "secret\n");
+    const res = setupOf(r.out);
+    expect(res?.state).toBe("inactive");
+    expect(res?.message).toContain("still asks churchmon for a password");
+    expect(res?.message).toContain("(fake) what sudo says applies");
+    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
+    expect(existsSync(`${sudoersFileFor("churchmon", dir)}~`)).toBe(false);
+  });
+
+  it("replaces the file name the first version used", () => {
+    const legacy = legacySudoersFileFor("churchmon", dir);
+    writeFileSync(legacy, "churchmon ALL=(ALL) NOPASSWD: ALL\n");
+    run(script("churchmon"), "password", "secret\n");
+    expect(existsSync(legacy)).toBe(false);
+    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(true);
+  });
+
   it("refuses a host whose sudoers does not read the directory", () => {
     const r = run(script("churchmon", false), "password", "secret\n");
     const res = setupOf(r.out);
@@ -203,7 +228,7 @@ describe("helpers", () => {
 
   it("names the drop-in so sudo does not skip it", () => {
     // sudoers.d ignores names containing a dot or ending in ~
-    expect(sudoersFileFor("first.last")).toBe("/etc/sudoers.d/90-church-dashboard-first_last");
+    expect(sudoersFileFor("first.last")).toBe("/etc/sudoers.d/zz-church-dashboard-first_last");
   });
 
   it("recognises the ways sudo says no", () => {

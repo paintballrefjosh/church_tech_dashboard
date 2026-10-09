@@ -404,7 +404,8 @@ export class InfraUpdaterService implements OnModuleInit {
       case "no_sudo":
         return { enabled: false, blocked: sudoBlock(loginUser, "no_sudo", message, false, true) };
       default:
-        return fail(`Could not enable passwordless sudo: ${message || result.state}`, message);
+        // The first line says what went wrong; the rest (what sudo says applies to the login) goes in the log.
+        return fail(`Could not enable passwordless sudo: ${message.split("\n")[0] || result.state}`, message);
     }
   }
 
