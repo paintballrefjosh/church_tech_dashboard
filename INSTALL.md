@@ -934,7 +934,8 @@ scripts/upgrade.sh             # upgrade this node to the newest commit of the b
 scripts/upgrade.sh --rollback  # go back to the version this node ran before the last upgrade
 ```
 
-Run it on the machine itself (every node of a cluster, one at a time). It is built to keep the
+Run it on the machine itself (every node of a cluster, one at a time; or let `scripts/upgrade-cluster.sh` do all
+of them, see below). It is built to keep the
 interruption to the few seconds it takes to restart the app, and to leave you on a working version
 whatever happens:
 
@@ -965,6 +966,43 @@ removes the dangling images the builds leave, and `--prod` / `--dev` choose the 
 (a cluster is always prod). Logs and the recorded previous version are in `data/upgrade/`. After a
 `--rollback` the checkout is on a detached commit: `git checkout <your branch>` before the next upgrade.
 A browser tab left open across an upgrade may need a reload.
+
+### Upgrading every node of a cluster
+
+```bash
+scripts/upgrade-cluster.sh --check     # every node: its version and what would change; touches nothing
+scripts/upgrade-cluster.sh             # upgrade all nodes, one after another
+scripts/upgrade-cluster.sh --rollback  # put every node back on the version it ran before (last node first)
+```
+
+Run it from the first node (or any machine that can SSH to all of them with a key). It runs `scripts/upgrade.sh`
+on each node in turn, so each node is drained, built, migrated, swapped and checked exactly as above, and it
+moves to the next node only when the previous one answers `/healthz` with 200 again. Every node gets the same
+commit (resolved once, up front, and passed as `--to`), the first node takes the database backup, and a node
+that is already on that commit is skipped.
+
+It **stops at the first node that fails**. That node has put itself back on its previous version, the nodes
+after it are untouched, and the ones before it stay upgraded: the summary lists which is which. Fix the cause
+and run it again (finished nodes are skipped), or `--rollback` to bring the upgraded ones back. The cluster
+runs mixed versions meanwhile, which is safe for a while because migrations are additive.
+
+The nodes are listed in `data/upgrade/nodes`, one per line: `local` for the machine you run it on, and
+`[user@]host[:port] [folder]` for the others (the folder is the checkout, relative to the SSH user's home or
+absolute; default `church-dashboard`, which is where the installer puts it):
+
+```
+local
+josh@10.0.0.12
+josh@10.0.0.13:2222 /srv/church
+```
+
+Without that file it uses this machine plus the hosts in `CLUSTER_PEERS`, as your own user, and says so first.
+SSH is key-only: the script never asks for or stores a password (`UC_SSH_OPTIONS="-i ~/.ssh/church"` adds
+options such as a key file or a jump host). A remote upgrade runs detached on its node and the script follows
+its log, so a dropped connection or Ctrl-C here does not interrupt it halfway; run the script again and it
+carries on. Nodes that only hold the database and object store (`NODE_ROLE=data`) are skipped. `--no-backup`,
+`--drain-wait`, `--prune`, `--settle <sec>` (pause between nodes, default 10) and `--to <ref>` work as described
+above.
 
 ## Using the API
 

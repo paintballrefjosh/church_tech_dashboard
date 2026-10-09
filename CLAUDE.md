@@ -910,6 +910,13 @@ roll back by itself. A failed build or migration puts the code back before anyth
   node of a cluster must run the same build; Docker's layer cache already makes the unchanged parts cheap.
 - **Migrations are never undone by a rollback**: that is only safe because they are additive (expand/contract), which is the
   existing migration rule; a destructive migration breaks `--rollback` and the automatic one.
+- **`scripts/upgrade-cluster.sh` upgrades all nodes** by running `upgrade.sh` on each in turn (local, or over key-only SSH
+  as a detached job whose log it follows, so a dropped session does not stop an upgrade halfway). Node list:
+  `data/upgrade/nodes` (`local` | `[user@]host[:port] [folder]`), else `CLUSTER_PEERS`. One commit for every node
+  (resolved once, `--to <sha>`), a node must answer `/healthz` 200 before the next starts, `NODE_ROLE=data` nodes are
+  skipped, and it STOPS at the first failure (that node rolled itself back; later nodes untouched). It runs from a
+  copy of itself because upgrading the local node replaces its own file. Test: `tests/upgrade/upgrade-cluster.sh`
+  (fake ssh/curl and a stub `upgrade.sh`; the real SSH path was also run against an sshd container).
 - **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
 - It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
   harness, and `--dev` on the dev stack.
