@@ -417,6 +417,8 @@ export const infraSummarySchema = z.object({
     down: z.number().int(),
     degraded: z.number().int(),
     unknown: z.number().int(),
+    /** Targets switched off. Not counted in `total` or the status counts: they are not being polled. */
+    disabled: z.number().int().optional(),
   }),
   containers: z.object({
     total: z.number().int(),

@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   BadRequestException,
+  ConflictException,
 } from "@nestjs/common";
 import {
   PERMISSIONS,
@@ -105,6 +106,7 @@ export class InfraController {
     resourceIdFromParams: (p) => p.id ?? null,
   })
   async pollNow(@Param("id") id: string) {
+    await this.requireMonitored(id);
     await this.collector.pollNow(id);
     return this.infra.getById(id);
   }
@@ -122,7 +124,14 @@ export class InfraController {
     resourceIdFromParams: (p) => p.id ?? null,
   })
   async discoverServices(@Param("id") id: string) {
+    await this.requireMonitored(id);
     return this.collector.discoverServices(id);
+  }
+
+  /** A host with monitoring switched off is left alone: no polling and no on-demand logins either. */
+  private async requireMonitored(id: string): Promise<void> {
+    const target = await this.infra.getById(id);
+    if (!target.enabled) throw new ConflictException("Monitoring is switched off for this host");
   }
 
   @Post("targets")

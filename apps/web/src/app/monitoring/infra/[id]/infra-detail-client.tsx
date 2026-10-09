@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
-import { Pencil, Trash2, AlertTriangle, CircleCheck, Download, KeyRound, Loader2, RefreshCw, X } from "lucide-react";
+import { Pencil, Power, Trash2, AlertTriangle, CircleCheck, Download, KeyRound, Loader2, RefreshCw, X } from "lucide-react";
 import type {
   InfraTarget,
   InfraEntity,
@@ -16,6 +16,7 @@ import { OS_META, StatusPill, Gauge, Stat, formatBytes, formatBps, formatUptime 
 import { MetricChart, MultiSeriesChart } from "../charts";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useCanWrite } from "../../network-cisco/cisco-ui";
+import { MONITORING_HEALTH_REFRESH } from "../../section-tabs";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -88,6 +89,32 @@ export function InfraDetailClient({
   const [range, setRange] = useState("1h");
   const [err, setErr] = useState<string | null>(null);
   const meta = OS_META[target.os];
+  const canWrite = useCanWrite();
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
+
+  // Switches monitoring for this host on or off. Off: the host is not polled, raises no alerts and is greyed out.
+  async function setMonitoringEnabled(next: boolean) {
+    if (togglingEnabled) return;
+    setTogglingEnabled(true);
+    setErr(null);
+    setTarget((t) => ({ ...t, enabled: next }));
+    try {
+      const r = await fetch(`/api/infra/targets/${target.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!r.ok) throw new Error(`Could not ${next ? "enable" : "disable"} monitoring (${r.status})`);
+      setTarget((await r.json()) as InfraTarget);
+      window.dispatchEvent(new Event(MONITORING_HEALTH_REFRESH));
+    } catch (e) {
+      setTarget((t) => ({ ...t, enabled: !next }));
+      setErr(e instanceof Error ? e.message : "Could not change monitoring");
+    } finally {
+      setTogglingEnabled(false);
+    }
+  }
 
   const [updateRuns, setUpdateRuns] = useState(initialUpdateRuns);
   const [runModalOpen, setRunModalOpen] = useState(false);
@@ -311,6 +338,41 @@ export function InfraDetailClient({
         </div>
         <div className="ml-auto flex items-center gap-3">
           <StatusPill status={target.status} enabled={target.enabled} />
+          {canWrite ? (
+            <div
+              className="flex items-center gap-2"
+              title={
+                target.enabled
+                  ? "Monitoring is on. Switch off to stop polling this host and silence its alerts."
+                  : "Monitoring is off: this host is not polled and raises no alerts."
+              }
+            >
+              <span
+                className={`text-xs font-medium ${
+                  target.enabled ? "text-slate-600 dark:text-slate-300" : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                Monitoring
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={target.enabled}
+                aria-label={`Monitoring ${target.enabled ? "enabled" : "disabled"} for ${target.name}`}
+                disabled={togglingEnabled}
+                onClick={() => void setMonitoringEnabled(!target.enabled)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  target.enabled ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    target.enabled ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          ) : null}
           <Link
             href={`/monitoring/infra/${target.id}/edit`}
             className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
@@ -320,12 +382,30 @@ export function InfraDetailClient({
         </div>
       </header>
 
-      {target.lastError ? (
+      {!target.enabled ? (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+        >
+          <Power className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <div>
+            <div className="font-medium">Monitoring is disabled for this host</div>
+            <div className="text-slate-500 dark:text-slate-400">
+              It is not polled and raises no alerts, and updates cannot be run on it.
+              {target.lastPolledAt ? ` What is shown below is from the last poll, ${new Date(target.lastPolledAt).toLocaleString()}.` : ""}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {target.enabled && target.lastError ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
           {target.lastError}
         </div>
       ) : null}
 
+      {/* Everything below is the last reading; greyed out while monitoring is off. */}
+      <div className={target.enabled ? "space-y-5" : "space-y-5 opacity-50 grayscale"}>
       {/* Headline stats */}
       <section className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
@@ -434,6 +514,7 @@ export function InfraDetailClient({
           {target.capabilities.includes("docker") ? <DockerDetail entities={entities} /> : null}
         </>
       )}
+      </div>
 
       {runModalOpen ? (
         <RunUpdatesModal
@@ -547,7 +628,8 @@ function LinuxDetail({
   const updates = (metrics?.updates as Rec | undefined) ?? null;
   // The read-only check covers mac/windows too; "Run updates now" (a write)
   // is Linux-only — see infra-updater.ts.
-  const canCheck = target.capabilities.includes("updates");
+  // A host with monitoring off is left alone: no checking and no running updates.
+  const canCheck = target.capabilities.includes("updates") && target.enabled;
   const canRun = target.os === "linux" && canCheck;
   return (
     <>

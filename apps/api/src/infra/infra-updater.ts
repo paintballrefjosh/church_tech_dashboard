@@ -188,6 +188,8 @@ export class InfraUpdaterService implements OnModuleInit {
     if (target.os !== "linux") {
       throw new BadRequestException(`Running updates isn't supported for ${target.os} hosts yet`);
     }
+    // Switched off means the dashboard stays away from the host: no polling, and no logging in to change it either.
+    if (!target.enabled) throw new ConflictException("Monitoring is switched off for this host: switch it on first");
     if (!(target.capabilities as string[]).includes("updates")) {
       throw new BadRequestException('Enable the "OS updates" capability on this target first');
     }

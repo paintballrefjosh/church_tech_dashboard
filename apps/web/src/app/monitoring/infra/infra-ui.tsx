@@ -18,7 +18,7 @@ export function StatusPill({ status, enabled }: { status: InfraStatus; enabled?:
   if (enabled === false) {
     return (
       <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-        <Power className="h-4 w-4" aria-hidden /> Paused
+        <Power className="h-4 w-4" aria-hidden /> Disabled
       </span>
     );
   }

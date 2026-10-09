@@ -96,7 +96,15 @@ export class InfraService {
       patch.kind = deriveKind(os, caps);
     }
     if (input.host !== undefined) patch.host = input.host.trim();
-    if (input.enabled !== undefined) patch.enabled = input.enabled;
+    if (input.enabled !== undefined) {
+      patch.enabled = input.enabled;
+      // Switching monitoring back on must not wait out an interval measured from a poll made before it was off,
+      // and the old reading says nothing about the host now.
+      if (input.enabled && !current.enabled) {
+        patch.lastPolledAt = null;
+        patch.status = "unknown";
+      }
+    }
     if (input.intervalSec !== undefined) patch.intervalSec = input.intervalSec;
     if (input.options !== undefined) patch.options = input.options;
     if (input.thresholds !== undefined) patch.thresholds = input.thresholds;
@@ -270,7 +278,11 @@ export class InfraService {
       .from(infraTargets)
       .where(eq(infraTargets.enabled, true))
       .groupBy(infraTargets.status);
-    const t = { total: 0, up: 0, down: 0, degraded: 0, unknown: 0 };
+    const [disabledRow] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(infraTargets)
+      .where(eq(infraTargets.enabled, false));
+    const t = { total: 0, up: 0, down: 0, degraded: 0, unknown: 0, disabled: Number(disabledRow?.n ?? 0) };
     for (const r of targetRows) {
       const c = Number(r.count) || 0;
       t.total += c;
@@ -305,10 +317,12 @@ export class InfraService {
       }
     }
 
+    // An incident on a switched-off target stays recorded but is not an alert: nothing is polling it to resolve it.
     const [openAlerts] = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(monitorIncidents)
-      .where(and(sql`${monitorIncidents.targetId} is not null`, isNull(monitorIncidents.resolvedAt)));
+      .innerJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+      .where(and(eq(infraTargets.enabled, true), isNull(monitorIncidents.resolvedAt)));
 
     // Read straight off each target's last_sample (denormalised, no extra
     // poll) — safe against nulls throughout: a target without the `updates`
@@ -339,12 +353,14 @@ export class InfraService {
 
   /** Open infra incidents across all targets (for the overview alert list). */
   async openIncidents() {
-    return this.db
-      .select()
+    const rows = await this.db
+      .select({ incident: monitorIncidents })
       .from(monitorIncidents)
-      .where(and(sql`${monitorIncidents.targetId} is not null`, isNull(monitorIncidents.resolvedAt)))
+      .innerJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+      .where(and(eq(infraTargets.enabled, true), isNull(monitorIncidents.resolvedAt)))
       .orderBy(desc(monitorIncidents.startedAt))
       .limit(100);
+    return rows.map((r) => r.incident);
   }
 
   async incidentsFor(id: string) {

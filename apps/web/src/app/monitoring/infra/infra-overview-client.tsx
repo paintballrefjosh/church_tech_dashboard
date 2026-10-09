@@ -53,7 +53,12 @@ export function InfraOverviewClient({
     <div className="space-y-6">
       {summary ? (
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <SummaryTile label="Targets up" value={`${summary.targets.up}/${summary.targets.total}`} tone="ok" />
+          <SummaryTile
+            label="Targets up"
+            value={`${summary.targets.up}/${summary.targets.total}`}
+            tone="ok"
+            sub={summary.targets.disabled ? `${summary.targets.disabled} disabled` : undefined}
+          />
           <SummaryTile
             label="Down / degraded"
             value={`${summary.targets.down} / ${summary.targets.degraded}`}
@@ -126,11 +131,18 @@ function TargetCard({ target }: { target: InfraTarget }) {
       }
     | null;
   const updates = sample?.metrics?.updates ?? null;
+  // Switched off: greyed out, and the last readings are not shown as if they were current.
+  const off = !target.enabled;
   return (
     <li>
       <Link
         href={`/monitoring/infra/${target.id}`}
-        className="block rounded-md border border-slate-300 p-4 transition hover:border-brand-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+        aria-label={off ? `${target.name} (monitoring disabled)` : undefined}
+        className={`block rounded-md border p-4 transition ${
+          off
+            ? "border-dashed border-slate-300 bg-slate-100/70 opacity-60 grayscale hover:opacity-90 dark:border-slate-700 dark:bg-slate-900/60"
+            : "border-slate-300 hover:border-brand-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+        }`}
       >
         <div className="flex items-center gap-2">
           <meta.Icon className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
@@ -152,13 +164,21 @@ function TargetCard({ target }: { target: InfraTarget }) {
             ))}
           </div>
         ) : null}
-        <UpdatesBadge updates={updates} />
-        <div className="mt-3 space-y-2">
-          <Gauge label="CPU" pct={sample?.cpuPct ?? null} />
-          <Gauge label="Memory" pct={sample?.memPct ?? null} />
-          <Gauge label="Disk (max)" pct={sample?.diskPctMax ?? null} />
-        </div>
-        {target.lastError ? (
+        {off ? (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Monitoring is switched off: this host is not being polled and raises no alerts.
+          </p>
+        ) : (
+          <>
+            <UpdatesBadge updates={updates} />
+            <div className="mt-3 space-y-2">
+              <Gauge label="CPU" pct={sample?.cpuPct ?? null} />
+              <Gauge label="Memory" pct={sample?.memPct ?? null} />
+              <Gauge label="Disk (max)" pct={sample?.diskPctMax ?? null} />
+            </div>
+          </>
+        )}
+        {!off && target.lastError ? (
           <div className="mt-2 truncate text-xs text-rose-600 dark:text-rose-400" title={target.lastError}>
             {target.lastError}
           </div>

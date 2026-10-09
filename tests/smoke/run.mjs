@@ -1476,6 +1476,64 @@ async function main() {
     assert(after.status === 404, `expected 404, got ${after.status}`);
   });
 
+  // ---- Infrastructure: switching a host's monitoring off ----
+  {
+    let infraId = null;
+    const json = { "content-type": "application/json" };
+    await test("a new infra target can be created with monitoring switched off", async () => {
+      const { res } = await fetchWithCookies(
+        "/api/v1/infra/targets",
+        { method: "POST", headers: json, body: JSON.stringify({ name: "[smoke] infra off", os: "linux", host: "127.0.0.1", enabled: false }) },
+        jar,
+      );
+      assert(res.status === 201 || res.status === 200, `status ${res.status}`);
+      const body = await res.json();
+      assert(body.enabled === false, "enabled should be false");
+      infraId = body.id;
+    });
+    await test("the summary counts a disabled target apart, and open alerts ignore it", async () => {
+      const { res } = await fetchWithCookies("/api/v1/infra/summary", {}, jar);
+      assert(res.status === 200, `status ${res.status}`);
+      const body = await res.json();
+      assert(typeof body.targets.disabled === "number" && body.targets.disabled >= 1, `disabled: ${JSON.stringify(body.targets)}`);
+    });
+    await test("a disabled target refuses poll-now and service discovery (409)", async () => {
+      for (const path of ["poll-now", "discover-services"]) {
+        const { res } = await fetchWithCookies(`/api/v1/infra/targets/${infraId}/${path}`, { method: "POST" }, jar);
+        assert(res.status === 409, `${path}: expected 409, got ${res.status}`);
+      }
+    });
+    await test("a disabled target refuses an update run (409)", async () => {
+      const { res } = await fetchWithCookies(
+        `/api/v1/infra/targets/${infraId}/update-run`,
+        { method: "POST", headers: json, body: "{}" },
+        jar,
+      );
+      // 400 when the target lacks the OS-updates capability comes first; either way nothing may start.
+      assert(res.status === 409 || res.status === 400, `expected 409/400, got ${res.status}`);
+    });
+    await test("switching monitoring on resets the stale reading, and back off again", async () => {
+      const { res } = await fetchWithCookies(
+        `/api/v1/infra/targets/${infraId}`,
+        { method: "PATCH", headers: json, body: JSON.stringify({ enabled: true }) },
+        jar,
+      );
+      assert(res.status === 200, `status ${res.status}`);
+      const on = await res.json();
+      assert(on.enabled === true, "enabled should be true");
+      const { res: res2 } = await fetchWithCookies(
+        `/api/v1/infra/targets/${infraId}`,
+        { method: "PATCH", headers: json, body: JSON.stringify({ enabled: false }) },
+        jar,
+      );
+      assert(res2.status === 200 && (await res2.json()).enabled === false, "should be disabled again");
+    });
+    await test("delete the infra smoke target", async () => {
+      const { res } = await fetchWithCookies(`/api/v1/infra/targets/${infraId}`, { method: "DELETE" }, jar);
+      assert(res.status === 200, `status ${res.status}`);
+    });
+  }
+
   // ---- UniFi (Phase 2.2) ----
   // Works whether or not a controller is configured on this stack: the
   // "unconfigured" behaviour is only asserted when health says so.

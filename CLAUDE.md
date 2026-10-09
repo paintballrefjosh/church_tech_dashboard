@@ -231,6 +231,13 @@ failing that removes the file and returns `sudo -l -U` plus the relevant sudoers
 free text in `infra_update_runs.status`, so no migration. Tests: `apps/api/test/sudo-access.test.ts` runs the
 real scripts against a fake `sudo`; the real messages were also checked in a Debian container and over SSH.
 
+**Switching an infra host off** (`infra_targets.enabled`, the toggle beside Edit on the host page): the collector
+does not poll it, and `poll-now`, `discover-services` and update runs answer 409. Its open incidents stay recorded
+but are left out of `openAlerts` and the open-incident list (nothing is polling it to resolve them); the summary
+counts it under `targets.disabled`, not in `total`. Switching it back on clears `last_polled_at` and sets the
+status to `unknown`, so it is polled at the next tick and the old reading is not mistaken for a current one. The
+overview greys the card and says "Disabled"; the host page greys its last readings and shows a banner.
+
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi
 device-offline, and Cisco switch alerts — incidents are still recorded, only the
