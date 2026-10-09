@@ -119,6 +119,8 @@ export const monitorWorkerSchema = z.object({
   nodeId: z.string(),
   /** The node heartbeats (by the database's clock); false for a node that only appears in old checks. */
   live: z.boolean(),
+  /** The build (`BUILD_ID`) the node last reported when it checked in; null if it never did or sent none. */
+  version: z.string().nullable().optional(),
   checks: z.number().int(),
   failures: z.number().int(),
   avgLatencyMs: z.number().nullable(),

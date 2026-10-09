@@ -1440,6 +1440,7 @@ async function main() {
     assert(Array.isArray(body.nodes), "nodes is not an array");
     for (const n of body.nodes) {
       assert(typeof n.nodeId === "string" && typeof n.checks === "number" && typeof n.failures === "number", `bad node: ${JSON.stringify(n)}`);
+      assert(n.version === null || n.version === undefined || typeof n.version === "string", `bad version: ${JSON.stringify(n)}`);
     }
   });
 

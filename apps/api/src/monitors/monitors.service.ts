@@ -117,6 +117,7 @@ export class MonitorsService {
       this.db
         .select({
           id: clusterNodes.id,
+          version: clusterNodes.version,
           live: sql<boolean>`${clusterNodes.lastSeen} > now() - (${String(NODE_LIVE_SEC)}::text || ' seconds')::interval`,
         })
         .from(clusterNodes)
@@ -138,6 +139,7 @@ export class MonitorsService {
     const byNode = new Map(perNode.filter((r) => r.nodeId).map((r) => [r.nodeId as string, r]));
     const ids = new Set<string>([...registered.map((r) => r.id), ...byNode.keys()]);
     const liveById = new Map(registered.map((r) => [r.id, Boolean(r.live)]));
+    const versionById = new Map(registered.map((r) => [r.id, r.version ?? null]));
     const nodes = [...ids]
       .sort((a, b) => a.localeCompare(b))
       .map((nodeId) => {
@@ -146,6 +148,7 @@ export class MonitorsService {
         return {
           nodeId,
           live: liveById.get(nodeId) ?? false,
+          version: versionById.get(nodeId) ?? null,
           checks: num(r?.checks),
           failures: num(r?.failures),
           avgLatencyMs: r?.avgLatency == null ? null : Math.round(num(r.avgLatency)),

@@ -624,6 +624,9 @@ must keep a second node working:
   workers" strip, a "via <node>" line on each row, and on a monitor's page a "Checked by" card and a "By node"
   table that points out a node failing far more than the others. All of it is hidden unless `clustered` (more
   than one `full` node registered, or checks from more than one node), so a single node looks as before.
+  Each probe-worker card also shows the node's build (`cluster_nodes.version`, i.e. `BUILD_ID`); `checkBuilds`
+  (`packages/shared/src/builds.ts`, tested in `apps/api/test/cluster-builds.test.ts`) turns the cards that differ from
+  the majority of live nodes red (all of them when there is no majority), with a banner naming the builds.
 - **Every node must run the same build.** The web app's static files and (in other
   setups) Server Action IDs are named by the build, so a page from one node and a
   request answered by another must come from the same one. `scripts/build-id.sh`

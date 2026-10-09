@@ -1,7 +1,7 @@
 "use client";
 
-import { Server } from "lucide-react";
-import type { MonitorWorker } from "@church/shared";
+import { AlertTriangle, Server } from "lucide-react";
+import { checkBuilds, type MonitorWorker } from "@church/shared";
 import { ago, useMonitorWorkers } from "./use-monitor-workers";
 
 /**
@@ -14,8 +14,14 @@ export function WorkersStrip() {
   if (!workers?.clustered) return null;
 
   const total = workers.nodes.reduce((n, w) => n + w.checks, 0);
+  const builds = checkBuilds(workers.nodes.map((w) => ({ id: w.nodeId, version: w.version ?? null, live: w.live })));
   return (
-    <section aria-label="Probe workers by node" className="mb-4 rounded-md border border-slate-300 p-3 dark:border-slate-800">
+    <section
+      aria-label="Probe workers by node"
+      className={`mb-4 rounded-md border p-3 ${
+        builds.mismatch ? "border-rose-300 dark:border-rose-900" : "border-slate-300 dark:border-slate-800"
+      }`}
+    >
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <Server className="h-3.5 w-3.5" aria-hidden /> Probe workers
@@ -26,19 +32,60 @@ export function WorkersStrip() {
           {total} checks.
         </p>
       </div>
+      {builds.mismatch ? (
+        <p
+          role="alert"
+          className="mb-2 flex items-start gap-2 rounded-md border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            The nodes are not all running the same build:{" "}
+            {builds.groups.map((g, i) => (
+              <span key={g.version}>
+                {i > 0 ? "; " : ""}
+                <span className="font-mono">{g.version}</span> on {g.nodes.join(", ")}
+              </span>
+            ))}
+            . Expected during a rolling upgrade; otherwise a node was not upgraded.
+          </span>
+        </p>
+      ) : null}
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {workers.nodes.map((w) => (
-          <WorkerCard key={w.nodeId} worker={w} total={total} windowMin={workers.windowMin} />
+          <WorkerCard
+            key={w.nodeId}
+            worker={w}
+            total={total}
+            windowMin={workers.windowMin}
+            buildDiffers={builds.odd.has(w.nodeId)}
+          />
         ))}
       </ul>
     </section>
   );
 }
 
-function WorkerCard({ worker: w, total, windowMin }: { worker: MonitorWorker; total: number; windowMin: number }) {
+function WorkerCard({
+  worker: w,
+  total,
+  windowMin,
+  buildDiffers,
+}: {
+  worker: MonitorWorker;
+  total: number;
+  windowMin: number;
+  buildDiffers: boolean;
+}) {
   const share = total > 0 ? Math.round((100 * w.checks) / total) : 0;
   return (
-    <li className="rounded-md border border-slate-200 p-2.5 text-xs dark:border-slate-800">
+    <li
+      className={`rounded-md border p-2.5 text-xs ${
+        buildDiffers
+          ? "border-rose-400 bg-rose-50 dark:border-rose-700 dark:bg-rose-950/40"
+          : "border-slate-200 dark:border-slate-800"
+      }`}
+      data-build-differs={buildDiffers ? "true" : undefined}
+    >
       <div className="flex items-center gap-2">
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${w.live ? "bg-emerald-500" : "bg-rose-500"}`}
@@ -48,6 +95,22 @@ function WorkerCard({ worker: w, total, windowMin }: { worker: MonitorWorker; to
         <span className={`ml-auto shrink-0 ${w.live ? "text-slate-500 dark:text-slate-400" : "font-medium text-rose-600 dark:text-rose-400"}`}>
           {w.live ? "online" : "not heartbeating"}
         </span>
+      </div>
+      <div className="mt-1 flex items-center gap-1.5 text-[11px]">
+        <span className="text-slate-400">build</span>
+        <span
+          className={`truncate font-mono ${
+            buildDiffers ? "font-semibold text-rose-700 dark:text-rose-300" : "text-slate-600 dark:text-slate-300"
+          }`}
+          title={w.version ?? "this node did not report a build"}
+        >
+          {w.version ?? "unknown"}
+        </span>
+        {buildDiffers ? (
+          <span className="ml-auto shrink-0 rounded border border-rose-300 px-1 py-px text-[10px] font-medium uppercase tracking-wide text-rose-700 dark:border-rose-700 dark:text-rose-300">
+            differs
+          </span>
+        ) : null}
       </div>
       {w.checks === 0 ? (
         <p className="mt-2 text-slate-500 dark:text-slate-400">
