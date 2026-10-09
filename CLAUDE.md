@@ -611,6 +611,12 @@ must keep a second node working:
   the claim is cleared when the check is recorded. Anything new the worker does that
   must happen once per cluster needs a lease (`acquireLease`, as its prune does).
   `scripts/rebuild.sh` rebuilds `monitor` as well as `api` and `web`.
+  Each check records the node that made it (`NODE_ID`, passed to the `monitor` service in both compose files;
+  `monitor_checks.node_id`, `monitors.last_checked_by`, migration 0055). `GET /api/v1/monitors/workers`
+  (`MonitorsService.workers`) gives per-node figures for the last 10 minutes; the Services page shows a "Probe
+  workers" strip, a "via <node>" line on each row, and on a monitor's page a "Checked by" card and a "By node"
+  table that points out a node failing far more than the others. All of it is hidden unless `clustered` (more
+  than one `full` node registered, or checks from more than one node), so a single node looks as before.
 - **Every node must run the same build.** The web app's static files and (in other
   setups) Server Action IDs are named by the build, so a page from one node and a
   request answered by another must come from the same one. `scripts/build-id.sh`

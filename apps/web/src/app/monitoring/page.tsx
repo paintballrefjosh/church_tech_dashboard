@@ -8,6 +8,7 @@ import { PageTitle } from "@/components/page-title";
 import type { Monitor } from "@church/shared";
 import { ServicesBanner } from "./services-banner";
 import { MonitorsLiveList } from "./monitors-live-list";
+import { WorkersStrip } from "./workers-strip";
 import { MonitoringTabs } from "./section-tabs";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function MonitoringPage() {
         </header>
 
         <ServicesBanner />
+        <WorkersStrip />
 
         <MonitorsLiveList initial={monitors} />
       </main>

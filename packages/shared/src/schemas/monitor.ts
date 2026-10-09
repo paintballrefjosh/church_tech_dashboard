@@ -74,6 +74,8 @@ export const monitorSchema = z.object({
   enabled: z.boolean(),
   status: z.enum(MONITOR_STATUSES),
   lastCheckedAt: z.string().datetime().nullable(),
+  /** NODE_ID of the node whose probe worker made the latest check (multi-node deployments). */
+  lastCheckedBy: z.string().nullable().optional(),
   lastLatencyMs: z.number().int().nullable(),
   consecutiveFails: z.number().int(),
   consecutiveOks: z.number().int(),
@@ -103,9 +105,36 @@ export const monitorCheckSchema = z.object({
   ok: z.boolean(),
   latencyMs: z.number().int().nullable(),
   info: z.string().nullable(),
+  /** NODE_ID of the node that made this check; null for checks recorded before this was tracked. */
+  nodeId: z.string().nullable().optional(),
   ts: z.string().datetime(),
 });
 export type MonitorCheck = z.infer<typeof monitorCheckSchema>;
+
+/** How far back the per-node worker figures look. */
+export const MONITOR_WORKER_WINDOW_MIN = 10;
+
+/** One app node's probe worker, as seen from the checks it recorded in the last window. */
+export const monitorWorkerSchema = z.object({
+  nodeId: z.string(),
+  /** The node heartbeats (by the database's clock); false for a node that only appears in old checks. */
+  live: z.boolean(),
+  checks: z.number().int(),
+  failures: z.number().int(),
+  avgLatencyMs: z.number().nullable(),
+  lastCheckAt: z.string().datetime().nullable(),
+});
+export type MonitorWorker = z.infer<typeof monitorWorkerSchema>;
+
+export const monitorWorkersSchema = z.object({
+  /** More than one app node is registered (or has probed lately): show node details. */
+  clustered: z.boolean(),
+  windowMin: z.number().int(),
+  /** Enabled monitors, so "0 checks" on a node can be read against how much there is to probe. */
+  enabledMonitors: z.number().int(),
+  nodes: z.array(monitorWorkerSchema),
+});
+export type MonitorWorkers = z.infer<typeof monitorWorkersSchema>;
 
 export const monitorIncidentSchema = z.object({
   id: z.string().uuid(),

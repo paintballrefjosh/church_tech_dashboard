@@ -1,8 +1,10 @@
 import { Injectable, Inject, NotFoundException } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { monitors, monitorChecks, monitorIncidents } from "../db/schema";
-import type { CreateMonitorInput, UpdateMonitorInput } from "@church/shared";
+import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
+import { NODE_LIVE_SEC } from "../cluster/node.service";
+import { MONITOR_WORKER_WINDOW_MIN } from "@church/shared";
+import type { CreateMonitorInput, MonitorWorkers, UpdateMonitorInput } from "@church/shared";
 
 @Injectable()
 export class MonitorsService {
@@ -101,6 +103,61 @@ export class MonitorsService {
       .where(eq(monitorIncidents.monitorId, id))
       .orderBy(desc(monitorIncidents.startedAt))
       .limit(limit);
+  }
+
+  /**
+   * Which app nodes' probe workers are doing the checking. Every node runs a worker and they share the
+   * monitors through claims, so on a cluster the checks of the last few minutes are spread across nodes; this
+   * shows the spread and lets the page tell a quiet node from one that is gone. `clustered` is false on a
+   * single node, where the page shows nothing extra.
+   */
+  async workers(): Promise<MonitorWorkers> {
+    const since = new Date(Date.now() - MONITOR_WORKER_WINDOW_MIN * 60_000);
+    const [registered, perNode, enabled] = await Promise.all([
+      this.db
+        .select({
+          id: clusterNodes.id,
+          live: sql<boolean>`${clusterNodes.lastSeen} > now() - (${String(NODE_LIVE_SEC)}::text || ' seconds')::interval`,
+        })
+        .from(clusterNodes)
+        .where(eq(clusterNodes.role, "full")),
+      this.db
+        .select({
+          nodeId: monitorChecks.nodeId,
+          checks: sql<string | number>`count(*)`,
+          failures: sql<string | number>`count(*) filter (where not ${monitorChecks.ok})`,
+          avgLatency: sql<string | number | null>`avg(${monitorChecks.latencyMs}) filter (where ${monitorChecks.ok})`,
+          lastTs: max(monitorChecks.ts),
+        })
+        .from(monitorChecks)
+        .where(gte(monitorChecks.ts, since))
+        .groupBy(monitorChecks.nodeId),
+      this.db.select({ n: sql<string | number>`count(*)` }).from(monitors).where(eq(monitors.enabled, true)),
+    ]);
+    const num = (v: unknown) => (typeof v === "number" ? v : Number(v ?? 0));
+    const byNode = new Map(perNode.filter((r) => r.nodeId).map((r) => [r.nodeId as string, r]));
+    const ids = new Set<string>([...registered.map((r) => r.id), ...byNode.keys()]);
+    const liveById = new Map(registered.map((r) => [r.id, Boolean(r.live)]));
+    const nodes = [...ids]
+      .sort((a, b) => a.localeCompare(b))
+      .map((nodeId) => {
+        const r = byNode.get(nodeId);
+        const lastTs = r?.lastTs ?? null;
+        return {
+          nodeId,
+          live: liveById.get(nodeId) ?? false,
+          checks: num(r?.checks),
+          failures: num(r?.failures),
+          avgLatencyMs: r?.avgLatency == null ? null : Math.round(num(r.avgLatency)),
+          lastCheckAt: lastTs ? lastTs.toISOString() : null,
+        };
+      });
+    return {
+      clustered: registered.length > 1 || byNode.size > 1,
+      windowMin: MONITOR_WORKER_WINDOW_MIN,
+      enabledMonitors: num(enabled[0]?.n),
+      nodes,
+    };
   }
 
   /** Open incidents across all monitors — used for the dashboard tile. */

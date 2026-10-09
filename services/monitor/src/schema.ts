@@ -27,6 +27,7 @@ export const monitors = pgTable("monitors", {
   status: text("status").notNull(),
   lastCheckedAt: timestamp("last_checked_at"),
   claimedUntil: timestamp("claimed_until", { withTimezone: true }),
+  lastCheckedBy: text("last_checked_by"),
   lastLatencyMs: integer("last_latency_ms"),
   consecutiveFails: integer("consecutive_fails").notNull(),
   consecutiveOks: integer("consecutive_oks").notNull(),
@@ -40,6 +41,7 @@ export const monitorChecks = pgTable("monitor_checks", {
   ok: boolean("ok").notNull(),
   latencyMs: integer("latency_ms"),
   info: text("info"),
+  nodeId: text("node_id"),
   ts: timestamp("ts").notNull(),
 });
 

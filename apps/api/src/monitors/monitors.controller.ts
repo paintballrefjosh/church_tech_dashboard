@@ -59,6 +59,13 @@ export class MonitorsController {
     return this.monitors.summary();
   }
 
+  // Per-node probe worker figures for a multi-node deployment (declared before `:id`).
+  @Get("workers")
+  @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
+  workers() {
+    return this.monitors.workers();
+  }
+
   @Get("incidents/open")
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
   openIncidents() {

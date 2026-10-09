@@ -215,6 +215,8 @@ services:
       # Set by scripts/compose.sh from DB_MODE/DATABASE_URL in .env (bundled
       # Cockroach, or an external YugabyteDB/CockroachDB).
       DATABASE_URL: ${DATABASE_URL:?run compose via scripts/compose.sh, or export DATABASE_URL}
+      # Recorded on every check so the Monitoring page can show which node probed it.
+      NODE_ID: ${NODE_ID:-main}
       MONITOR_POLL_MS: "5000"
       MONITOR_PRUNE_DAYS: "30"
     depends_on:

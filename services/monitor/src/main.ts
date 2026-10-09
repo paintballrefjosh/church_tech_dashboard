@@ -29,6 +29,9 @@ const PRUNE_EVERY_MS = parseInt(process.env.MONITOR_PRUNE_MS ?? `${60 * 60_000}`
 const CLAIM_SEC = parseInt(process.env.MONITOR_CLAIM_SEC ?? "60", 10);
 // Monitors taken per tick. Bounded so one worker does not take the whole fleet.
 const CLAIM_BATCH = parseInt(process.env.MONITOR_CLAIM_BATCH ?? "50", 10);
+// The app node this worker belongs to (the same NODE_ID the api uses), recorded on every check so the
+// dashboard can show which node probed what. "main" is the single-node default.
+const NODE_ID = process.env.NODE_ID || "main";
 // Identifies this worker among the others sharing the database.
 const WORKER_ID = `monitor/${hostname()}/${randomUUID().slice(0, 8)}`;
 
@@ -125,6 +128,7 @@ async function applyResult(
     ok: result.ok,
     latencyMs: result.latencyMs,
     info: result.info,
+    nodeId: NODE_ID,
     ts: now,
   });
 
@@ -147,6 +151,7 @@ async function applyResult(
     .set({
       status: nextStatus,
       lastCheckedAt: now,
+      lastCheckedBy: NODE_ID,
       lastLatencyMs: result.latencyMs,
       consecutiveFails: nextFails,
       consecutiveOks: nextOks,
@@ -275,7 +280,7 @@ async function prune() {
 }
 
 async function main() {
-  console.log(`[monitor] starting; poll=${POLL_MS}ms prune-keep=${PRUNE_KEEP_DAYS}d`);
+  console.log(`[monitor] starting on node ${NODE_ID}; poll=${POLL_MS}ms prune-keep=${PRUNE_KEEP_DAYS}d`);
   setInterval(() => void tick(), POLL_MS);
   setInterval(() => void prune(), PRUNE_EVERY_MS);
   // Kick a first tick immediately so a freshly-started worker doesn't sit

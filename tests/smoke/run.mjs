@@ -1431,6 +1431,18 @@ async function main() {
     }
   });
 
+  await test("GET /api/v1/monitors/workers reports the probe workers by node", async () => {
+    const { res } = await fetchWithCookies("/api/v1/monitors/workers", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(typeof body.clustered === "boolean", `clustered missing: ${JSON.stringify(body)}`);
+    assert(typeof body.windowMin === "number" && typeof body.enabledMonitors === "number", "window/enabled missing");
+    assert(Array.isArray(body.nodes), "nodes is not an array");
+    for (const n of body.nodes) {
+      assert(typeof n.nodeId === "string" && typeof n.checks === "number" && typeof n.failures === "number", `bad node: ${JSON.stringify(n)}`);
+    }
+  });
+
   await test("PATCH /api/v1/monitors/:id updates fields", async () => {
     const { res } = await fetchWithCookies(
       `/api/v1/monitors/${monitorId}`,

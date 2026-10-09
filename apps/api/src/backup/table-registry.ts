@@ -116,7 +116,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   // ---- monitoring ----
   monitors: {
     policy: "data", group: MONITORING, title: "Service monitors", label: ["name"],
-    volatile: ["status", "last_checked_at", "claimed_until", "last_latency_ms", "consecutive_fails", "consecutive_oks"],
+    volatile: ["status", "last_checked_at", "claimed_until", "last_checked_by", "last_latency_ms", "consecutive_fails", "consecutive_oks"],
   },
   monitor_incidents: { policy: "data", group: MONITORING, title: "Incidents", label: ["reason", "detail"] },
   infra_targets: {

@@ -386,6 +386,13 @@
       "when": 1791182785872,
       "tag": "0054_backup_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791513649951,
+      "tag": "0055_monitor_check_node",
+      "breakpoints": true
     }
   ]
 }

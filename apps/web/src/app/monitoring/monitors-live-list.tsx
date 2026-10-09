@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { Monitor } from "@church/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
+import { useMonitorWorkers } from "./use-monitor-workers";
 
 /**
  * Live monitor list. The prober pushes a `monitor:update` delta over the
@@ -28,6 +29,7 @@ interface MonitorUpdate {
   enabled: boolean;
   lastLatencyMs: number | null;
   lastCheckedAt: string;
+  lastCheckedBy?: string | null;
   consecutiveFails: number;
   consecutiveOks: number;
 }
@@ -37,6 +39,8 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
+  // On a multi-node deployment each row says which node made its latest check.
+  const clustered = useMonitorWorkers()?.clustered ?? false;
 
   const refresh = useCallback(async () => {
     // Skip if a previous tick hasn't returned yet — prevents pile-up if the
@@ -134,6 +138,11 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
                 {m.lastCheckedAt
                   ? `${m.lastLatencyMs ?? "?"} ms · ${new Date(m.lastCheckedAt).toLocaleTimeString()}`
                   : "no checks yet"}
+                {clustered && m.lastCheckedAt && m.lastCheckedBy ? (
+                  <div className="truncate font-mono text-[11px] text-slate-400" title="Node that made the latest check">
+                    via {m.lastCheckedBy}
+                  </div>
+                ) : null}
               </div>
             </Link>
           </li>

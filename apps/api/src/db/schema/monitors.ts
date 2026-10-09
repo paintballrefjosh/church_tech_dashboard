@@ -43,6 +43,9 @@ export const monitors = pgTable(
     // nodes each monitor is probed by one at a time; it is cleared when the check is
     // recorded, and a worker that dies mid-probe only delays the check by that minute.
     claimedUntil: timestamp("claimed_until", { withTimezone: true }),
+    // NODE_ID of the node whose probe worker recorded the latest check. Null before the first check,
+    // or for a check made by a release that did not record it.
+    lastCheckedBy: text("last_checked_by"),
     lastLatencyMs: integer("last_latency_ms"),
     consecutiveFails: integer("consecutive_fails").notNull().default(0),
     consecutiveOks: integer("consecutive_oks").notNull().default(0),
@@ -70,6 +73,8 @@ export const monitorChecks = pgTable(
     ok: boolean("ok").notNull(),
     latencyMs: integer("latency_ms"),
     info: text("info"), // e.g. "200 OK" / "ECONNREFUSED" / "timeout"
+    // NODE_ID of the node whose probe worker made this check (null for checks from before it was recorded).
+    nodeId: text("node_id"),
     ts: timestamp("ts").notNull().defaultNow(),
   },
   (t) => ({
