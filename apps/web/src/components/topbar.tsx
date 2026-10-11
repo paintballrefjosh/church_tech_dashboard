@@ -60,21 +60,30 @@ export async function TopBar({
       className={`relative z-30 ${APPEARANCE_CLASSES[appearance]}`}
       data-appearance={appearance}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-base font-semibold tracking-tight"
-          >
-            <Cross className="h-5 w-5 text-brand-600" aria-hidden />
-            {identity.name}
-          </Link>
-          {session?.user && !kiosk ? <TopBarNav access={access} /> : null}
-        </div>
-        <nav className="flex items-center gap-3 text-sm">
+      {/* One wrapping row. Phones: brand and the user menu, then the nav, then search, each on
+          its own line. sm: search moves up beside the user menu. md and up: brand, nav, then
+          search and the user menu on the right, as before. */}
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+        <Link
+          href="/"
+          className="order-1 flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight"
+        >
+          <Cross className="h-5 w-5 shrink-0 text-brand-600" aria-hidden />
+          <span className="truncate">{identity.name}</span>
+        </Link>
+        {session?.user && !kiosk ? (
+          <div className="order-3 w-full sm:order-4 md:order-2 md:w-auto">
+            <TopBarNav access={access} />
+          </div>
+        ) : null}
+        {session?.user && !kiosk ? (
+          <div className="order-4 w-full sm:order-2 sm:ml-auto sm:w-auto md:order-3">
+            <SearchBar />
+          </div>
+        ) : null}
+        <nav className="order-2 ml-auto flex items-center gap-3 text-sm sm:order-3 sm:ml-0 md:order-4">
           {session?.user ? (
             <>
-              {kiosk ? null : <SearchBar />}
               {/* Mounts the global Cmd+K palette. It opens itself on the
                   keystroke and is invisible otherwise. */}
               {kiosk ? null : <CommandPalette />}
