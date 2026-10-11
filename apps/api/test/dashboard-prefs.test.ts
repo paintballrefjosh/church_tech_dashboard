@@ -32,8 +32,8 @@ describe("dashboard prefs: availability", () => {
 
 describe("dashboard prefs: settings fallbacks", () => {
   it("falls back to tiles for a bad site default", () => {
-    expect(normaliseSiteDefault("nope")).toBe("tiles");
-    expect(normaliseSiteDefault(undefined)).toBe("tiles");
+    expect(normaliseSiteDefault("nope")).toBe("front-of-house");
+    expect(normaliseSiteDefault(undefined)).toBe("front-of-house");
     expect(normaliseSiteDefault("glass")).toBe("glass");
   });
 

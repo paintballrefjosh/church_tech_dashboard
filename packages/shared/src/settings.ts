@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
-import { LOOK_IDS } from "./dashboard/themes";
+import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
 
 export type SettingType = "string" | "boolean" | "number" | "secret" | "json";
 
@@ -82,8 +82,8 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "Default home look",
     description:
-      "The look of the home page for people who have not chosen one: tiles, start, nave, toward-sunday, glass or front-of-house.",
-    defaultValue: "tiles",
+      "The look of the home page for people who have not chosen one: tiles, start, nave, toward-sunday, glass or front-of-house. People who cannot use it (Glass and Front of House need monitoring access) get the Start page.",
+    defaultValue: DEFAULT_LOOK,
     category: "site",
   },
   {

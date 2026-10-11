@@ -2,9 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Home page look: the URL preview, the picker dialog, a look saved to the account and a look pinned
- * to this device. Every test opens the picker from the tiles look (which always carries the "Change
- * look" button) and assumes the site default is "tiles", as the rest of the suite does. The test
- * user's saved look and device cookie are reset around every test.
+ * to this device. Every test starts from a tiles preview (`?theme=tiles`), so it does not depend on
+ * which look is the site default; where the site default matters it is read from the prefs API. The
+ * test user's saved look and device cookie are reset around every test.
  */
 
 const TEST_USER = "regression-test@local";
@@ -92,7 +92,7 @@ test.describe("Home page look", () => {
   test.beforeEach(async ({ page }) => {
     await signInAsTestUser(page);
     await resetLook(page);
-    await page.goto("/");
+    await page.goto("/?theme=tiles");
     await expect(page.locator('[data-look="tiles"]')).toBeVisible();
   });
 
@@ -103,10 +103,11 @@ test.describe("Home page look", () => {
   test("?theme= previews a look without saving it", async ({ page }) => {
     await page.goto("/?theme=start");
     await expect(page.locator('[data-look="start"]')).toBeVisible();
-    expect((await getPrefs(page)).theme).toBeNull();
+    const prefs = await getPrefs(page);
+    expect(prefs.theme).toBeNull();
     // The preview is not remembered: the plain address shows the site default again.
     await page.goto("/");
-    await expect(page.locator('[data-look="tiles"]')).toBeVisible();
+    await expect(page.locator(`[data-look="${prefs.siteDefault}"]`)).toBeVisible();
   });
 
   test("the picker lists looks, marks the current one and closes with Escape", async ({ page }) => {
@@ -165,7 +166,7 @@ test.describe("Home page look", () => {
     const dialog = await openPicker(page);
     await dialog.getByRole("button", { name: "Use the site default" }).click();
     await expect.poll(async () => (await getPrefs(page)).theme).toBeNull();
-    await expect(page.locator('[data-look="tiles"]')).toBeVisible();
+    await expect(page.locator(`[data-look="${(await getPrefs(page)).siteDefault}"]`)).toBeVisible();
   });
 
   test("the profile page offers the same choice", async ({ page }) => {

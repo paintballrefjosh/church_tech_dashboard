@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { KNOWN_SETTINGS, LOOK_IDS, isLookId, type LookId } from "@church/shared";
+import { DEFAULT_LOOK, KNOWN_SETTINGS, LOOK_IDS, isLookId, type LookId } from "@church/shared";
 import { headers } from "next/headers";
 import { SettingsForm } from "../settings-form";
 import { findCategory } from "../categories";
@@ -128,7 +128,7 @@ export default async function AdminSettingsCategoryPage({
         {slug === "site" ? (
           <HomePageSettings
             timezone={typeof current["site.timezone"] === "string" ? current["site.timezone"] : "UTC"}
-            defaultTheme={isLookId(defaultTheme) ? defaultTheme : "tiles"}
+            defaultTheme={isLookId(defaultTheme) ? defaultTheme : DEFAULT_LOOK}
             enabledThemes={enabledThemes}
             streamMonitorIds={streamMonitorIds}
             monitors={monitors}

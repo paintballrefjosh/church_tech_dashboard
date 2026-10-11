@@ -1014,8 +1014,9 @@ Admins set the defaults in **Admin > Settings > Site > Home page**:
 
 - **Time zone**: the church's IANA time zone (for example `America/Chicago`). The greeting, "today", the week rail and
   the hourly history are shown in it. It defaults to `UTC`, so set it after installing.
-- **Default look**: what people see until they choose. **Offered looks**: which ones the picker offers. The Start page
-  is always available as the fallback, and Glass and Front of House are only offered to people who can see monitoring.
+- **Default look**: what people see until they choose; Front of House unless you change it. **Offered looks**: which
+  ones the picker offers. The Start page is always available as the fallback, and Glass and Front of House are only
+  offered to people who can see monitoring, so someone without monitoring access sees the Start page instead.
 - **Stream monitors**: the uptime monitors that make up "the stream" in Toward Sunday's readiness check. Leave empty to
   leave that check out.
 

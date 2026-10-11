@@ -5,6 +5,9 @@ import type { HomeInclude } from "./home";
 export const LOOK_IDS = ["tiles", "start", "nave", "toward-sunday", "glass", "front-of-house"] as const;
 export type LookId = (typeof LOOK_IDS)[number];
 
+/** The site default when `dashboard.default_theme` is unset or not a look id. */
+export const DEFAULT_LOOK: LookId = "front-of-house";
+
 export interface OptionalSection {
   id: string;
   label: string;

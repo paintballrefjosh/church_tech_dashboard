@@ -2,8 +2,8 @@
 
 Status: **built** (2026-10-11) on branch `home-looks`: every phase below is implemented and validated on the dev stack
 (regression suite, both schemes, desktop and 390 px, an admin and a limited volunteer account). The rules for changing
-it are in CLAUDE.md, "Home page looks"; operator notes are in INSTALL.md, "The home page and its looks". The open
-questions at the end are still open.
+it are in CLAUDE.md, "Home page looks"; operator notes are in INSTALL.md, "The home page and its looks". The site
+default is Front of House (decided 2026-10-11, open question 1); the other open questions are still open.
 
 The five concepts in [`docs/dashboard-concepts/`](dashboard-concepts/index.html) become selectable
 looks for the home page (`/`), alongside today's tile grid. Each signed-in person picks the one they
@@ -166,7 +166,7 @@ actions: Action[] }`, where an `Action` names an existing endpoint the web may c
   `api/dashboard/layout/route.ts`, so the read-your-writes cookie is relayed.
 - Settings (`KNOWN_SETTINGS`, category `site`): `site.timezone` (string, default `UTC`; the settings form
   validates it with `Intl.supportedValuesOf("timeZone")`), `dashboard.default_theme` (string, default
-  `tiles` during rollout), `dashboard.enabled_themes` (json array, default all six),
+  `front-of-house`; it was `tiles` during rollout), `dashboard.enabled_themes` (json array, default all six),
   `dashboard.stream_monitor_ids` (json array of monitor ids for the "Stream" readiness check; empty
   means the check is left out).
 - Backups: `dashboard_prefs` is `data` in group `SETTINGS` in `backup/table-registry.ts`.
@@ -355,7 +355,7 @@ created up front in that section's contracts step; each phase then fills in its 
 - Docs: a "Home dashboard looks" section in CLAUDE.md (the contract: snapshot, sections, rules in shared,
   "nothing is faked", how to add a look), and an admin note in INSTALL.md (default look, time zone, stream
   monitors, booth screens).
-- Choose the default (see open questions), then flip `dashboard.default_theme`.
+- Choose the default (see open questions), then flip `dashboard.default_theme`. Done: Front of House.
 
 ## Working in parallel
 
@@ -471,8 +471,9 @@ cases run only against fixtures it creates itself, or are skipped when the integ
 
 ## Open questions
 
-1. **Default look once all six exist?** Suggestion: `start` for everyone (it works with any access), and
-   people who run Sunday pick Front of House or Toward Sunday themselves.
+1. **Default look once all six exist?** Decided 2026-10-11: **Front of House** (`DEFAULT_LOOK` in
+   `packages/shared/src/dashboard/themes.ts`, the setting's default). People without monitoring access cannot use it and
+   get the Start page; anyone can pick another look. (The suggestion had been `start` for everyone.)
 2. **Should admins be able to set a default per group** (for example Front of House for `support_engineer`)?
    Not in this plan. It would be one more setting and a resolver step.
 3. **Stream readiness:** which monitors represent "the stream"? If there is no stream encoder monitor yet,

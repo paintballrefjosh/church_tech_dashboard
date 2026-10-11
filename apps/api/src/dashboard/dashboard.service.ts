@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   DASHBOARD_LOOKS,
   DEFAULT_DASHBOARD_LAYOUT,
+  DEFAULT_LOOK,
   cleanLookSections,
   LOOK_IDS,
   isLookId,
@@ -24,7 +25,7 @@ export interface DashboardPrefsView {
 
 /** The site default look; "tiles" when the setting is missing or not a known look. */
 export function normaliseSiteDefault(value: unknown): LookId {
-  return isLookId(value) ? value : "tiles";
+  return isLookId(value) ? value : DEFAULT_LOOK;
 }
 
 /** The offered looks, in catalogue order; every look when the setting is missing, malformed or empty. */
