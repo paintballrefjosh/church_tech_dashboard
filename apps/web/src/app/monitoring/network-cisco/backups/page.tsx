@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Check, Copy, Download, Loader2, Trash2 } from "lucide-react";
 import type { CiscoBackupRow, CiscoBackupDiffLine } from "@church/shared";
-import { useCanWrite, fmtBytes, fmtTime } from "../cisco-ui";
+import { useCanWrite, fmtBytes, fmtTime, BigModal } from "../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 
 type Sel = { id: string; switchId: string };
@@ -18,8 +18,11 @@ export default function CiscoBackupsPage() {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "at", dir: "desc" });
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<Sel[]>([]);
-  const [viewing, setViewing] = useState<{ id: string; text: string } | null>(null);
-  const [diff, setDiff] = useState<{ diff: CiscoBackupDiffLine[]; added: number; removed: number } | null>(null);
+  // The config being viewed: opens at once (text null while it loads) in a large modal.
+  const [viewing, setViewing] = useState<{ row: CiscoBackupRow; text: string | null; error: string | null } | null>(null);
+  const [diff, setDiff] = useState<{ diff: CiscoBackupDiffLine[]; added: number; removed: number; title: string } | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,22 +58,58 @@ export default function CiscoBackupsPage() {
 
   async function view(row: CiscoBackupRow) {
     setDiff(null);
-    if (viewing?.id === row.id) {
-      setViewing(null);
-      return;
+    setCopied(false);
+    setViewing({ row, text: null, error: null });
+    try {
+      const r = await fetch(`/api/cisco/switches/${row.switchId}/backups/${row.id}`, { credentials: "same-origin", cache: "no-store" });
+      if (!r.ok) throw new Error(`Could not load the config (${r.status})`);
+      const text = ((await r.json()) as { configText: string }).configText;
+      setViewing((v) => (v?.row.id === row.id ? { row, text, error: null } : v));
+    } catch (e) {
+      setViewing((v) => (v?.row.id === row.id ? { row, text: null, error: e instanceof Error ? e.message : "Could not load the config" } : v));
     }
-    const r = await fetch(`/api/cisco/switches/${row.switchId}/backups/${row.id}`, { credentials: "same-origin", cache: "no-store" });
-    if (r.ok) setViewing({ id: row.id, text: ((await r.json()) as { configText: string }).configText });
   }
 
   async function compare() {
-    if (sel.length !== 2 || sel[0]!.switchId !== sel[1]!.switchId) return;
+    if (sel.length !== 2 || sel[0]!.switchId !== sel[1]!.switchId || comparing) return;
     setViewing(null);
-    const r = await fetch(`/api/cisco/switches/${sel[0]!.switchId}/backups/${sel[0]!.id}/diff/${sel[1]!.id}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-    });
-    if (r.ok) setDiff((await r.json()) as typeof diff);
+    setComparing(true);
+    try {
+      const r = await fetch(`/api/cisco/switches/${sel[0]!.switchId}/backups/${sel[0]!.id}/diff/${sel[1]!.id}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const a = rows.find((x) => x.id === sel[0]!.id);
+        const b = rows.find((x) => x.id === sel[1]!.id);
+        const d = (await r.json()) as Omit<NonNullable<typeof diff>, "title">;
+        setDiff({ ...d, title: `${a?.switchHostname ?? "Switch"}: ${a ? fmtTime(a.backedUpAt) : "?"} vs ${b ? fmtTime(b.backedUpAt) : "?"}` });
+      }
+    } finally {
+      setComparing(false);
+    }
+  }
+
+  async function copyConfig() {
+    if (!viewing?.text) return;
+    try {
+      await navigator.clipboard.writeText(viewing.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable (not a secure context): the text is selectable */
+    }
+  }
+
+  function downloadConfig() {
+    if (!viewing?.text) return;
+    const name = `${viewing.row.switchHostname}-${new Date(viewing.row.backedUpAt).toISOString().replace(/[:T]/g, "-").slice(0, 16)}.cfg`;
+    const url = URL.createObjectURL(new Blob([viewing.text], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name.replace(/[^A-Za-z0-9._-]/g, "_");
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function del(row: CiscoBackupRow) {
@@ -109,7 +148,7 @@ export default function CiscoBackupsPage() {
       render: (r) => (
         <div className="flex items-center justify-end gap-2">
           <button type="button" onClick={() => void view(r)} className="text-xs text-brand-600 hover:underline dark:text-brand-400">
-            {viewing?.id === r.id ? "Hide" : "View"}
+            View
           </button>
           {canWrite ? (
             <button type="button" onClick={() => void del(r)} className="text-xs text-rose-600 hover:underline dark:text-rose-400" aria-label="delete">
@@ -159,7 +198,7 @@ export default function CiscoBackupsPage() {
             <button
               type="button"
               onClick={() => void compare()}
-              disabled={!sameSwitch}
+              disabled={!sameSwitch || comparing}
               className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-40"
             >
               Compare ({sel.length}/2)
@@ -169,31 +208,31 @@ export default function CiscoBackupsPage() {
       />
 
       {diff ? (
-        <div className="rounded-md border border-slate-300 dark:border-slate-800">
-          <div className="flex items-center gap-3 border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
-            <span>
-              Diff · <span className="text-emerald-600 dark:text-emerald-400">+{diff.added}</span> ·{" "}
+        <BigModal
+          title="Config comparison"
+          subtitle={
+            <>
+              {diff.title} · <span className="text-emerald-600 dark:text-emerald-400">+{diff.added}</span> ·{" "}
               <span className="text-rose-600 dark:text-rose-400">−{diff.removed}</span>
-            </span>
-            <button type="button" onClick={() => setDiff(null)} className="ml-auto text-brand-600 hover:underline dark:text-brand-400">
-              Close
-            </button>
-          </div>
+            </>
+          }
+          onClose={() => setDiff(null)}
+        >
           {diff.diff.length === 0 ? (
-            <p className="p-4 text-sm text-emerald-700 dark:text-emerald-300">No differences.</p>
+            <p className="p-6 text-sm text-emerald-700 dark:text-emerald-300">No differences.</p>
           ) : (
-            <pre className="max-h-[28rem] overflow-auto font-mono text-xs">
+            <pre className="font-mono text-xs leading-relaxed">
               {diff.diff.map((d, i) => (
                 <div
                   key={i}
                   className={
                     d.type === "added"
-                      ? "bg-emerald-50 px-3 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      ? "bg-emerald-50 px-4 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                       : d.type === "removed"
-                        ? "bg-rose-50 px-3 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                        ? "bg-rose-50 px-4 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                         : d.type === "separator"
-                          ? "px-3 py-0.5 text-center text-slate-400"
-                          : "px-3 text-slate-600 dark:text-slate-400"
+                          ? "px-4 py-0.5 text-center text-slate-400"
+                          : "px-4 text-slate-600 dark:text-slate-400"
                   }
                 >
                   {d.type === "separator" ? d.line : `${d.type === "added" ? "+" : d.type === "removed" ? "-" : " "} ${d.line}`}
@@ -201,19 +240,51 @@ export default function CiscoBackupsPage() {
               ))}
             </pre>
           )}
-        </div>
+        </BigModal>
       ) : null}
 
       {viewing ? (
-        <div className="rounded-md border border-slate-300 dark:border-slate-800">
-          <div className="flex items-center border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
-            <span>Config</span>
-            <button type="button" onClick={() => setViewing(null)} className="ml-auto text-brand-600 hover:underline dark:text-brand-400">
-              Close
-            </button>
-          </div>
-          <pre className="max-h-[28rem] overflow-auto bg-slate-950 p-3 font-mono text-[11px] text-slate-200">{viewing.text}</pre>
-        </div>
+        <BigModal
+          title={`${viewing.row.switchHostname} config`}
+          subtitle={
+            <>
+              {viewing.row.backupType} backup · {fmtTime(viewing.row.backedUpAt)} · {fmtBytes(viewing.row.configSize)}
+              {viewing.text !== null ? ` · ${viewing.text.split("\n").length} lines` : ""}
+            </>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => void copyConfig()}
+                disabled={viewing.text === null}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={downloadConfig}
+                disabled={viewing.text === null}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden /> Download
+              </button>
+            </>
+          }
+          onClose={() => setViewing(null)}
+        >
+          {viewing.error ? (
+            <p className="p-6 text-sm text-rose-600 dark:text-rose-400">{viewing.error}</p>
+          ) : viewing.text === null ? (
+            <p className="flex items-center gap-2 p-6 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading the config…
+            </p>
+          ) : (
+            <pre className="min-h-full bg-slate-950 p-4 font-mono text-[12px] leading-relaxed text-slate-200">{viewing.text}</pre>
+          )}
+        </BigModal>
       ) : null}
     </div>
   );

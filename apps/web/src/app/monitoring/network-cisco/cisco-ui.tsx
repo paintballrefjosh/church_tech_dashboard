@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import type { CiscoSwitch } from "@church/shared";
 
 /** True when the current user holds the monitoring admin tier ("network admin"). */
@@ -90,6 +92,73 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * A large viewer for long text (a switch config, a diff): nearly the whole window, scrolls inside, closes on Esc,
+ * the backdrop or the X, and locks the page behind it. Portalled to <body> so no card or scroll container clips it.
+ * `actions` sits in the header next to the close button.
+ */
+export function BigModal({
+  title,
+  subtitle,
+  actions,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="fixed inset-0 z-[900] flex items-center justify-center bg-black/60 p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-full max-h-[94vh] w-full max-w-[min(96rem,100%)] flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold">{title}</h3>
+            {subtitle ? <div className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</div> : null}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {actions}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X className="h-5 w-5" aria-hidden />
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

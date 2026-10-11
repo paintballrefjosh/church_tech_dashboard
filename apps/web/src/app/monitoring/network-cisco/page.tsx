@@ -216,6 +216,15 @@ export default function CiscoDashboardPage() {
                       >
                         <StatusPill status={computeStatus(s)} />
                       </Link>
+                    ) : computeStatus(s) === "orange" ? (
+                      // "Drift" links to the drift log, where each difference can be pushed or accepted.
+                      <Link
+                        href="/monitoring/network-cisco/drift"
+                        title="Open the drift log"
+                        className="hover:underline"
+                      >
+                        <StatusPill status={computeStatus(s)} />
+                      </Link>
                     ) : (
                       <StatusPill status={computeStatus(s)} />
                     )}
