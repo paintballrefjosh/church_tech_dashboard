@@ -1,9 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
 import type { LookId } from "@church/shared";
 import type { LookProps } from "./look-props";
+import { HomeLookContext, type HomeLookContextValue } from "./home-look-context";
+
+export { HomeLookContext, useHomeLook } from "./home-look-context";
 
 const LOOKS: Record<LookId, ComponentType<LookProps>> = {
   tiles: dynamic(() => import("./looks/tiles")),
@@ -14,7 +17,21 @@ const LOOKS: Record<LookId, ComponentType<LookProps>> = {
   "front-of-house": dynamic(() => import("./looks/front-of-house")),
 };
 
-export function HomeRoot({ look, ...props }: LookProps & { look: LookId }) {
+export type HomeRootProps = LookProps & Omit<HomeLookContextValue, "kiosk">;
+
+/**
+ * Renders the chosen look inside a context that tells any part of it which look this is, where
+ * that choice came from and which looks the person may switch to (what the picker button needs).
+ */
+export function HomeRoot({ look, source, available, siteDefault, ...props }: HomeRootProps) {
   const Look = LOOKS[look];
-  return <Look {...props} />;
+  const value = useMemo<HomeLookContextValue>(
+    () => ({ look, source, available, siteDefault, kiosk: props.kiosk }),
+    [look, source, available, siteDefault, props.kiosk],
+  );
+  return (
+    <HomeLookContext.Provider value={value}>
+      <Look {...props} />
+    </HomeLookContext.Provider>
+  );
 }

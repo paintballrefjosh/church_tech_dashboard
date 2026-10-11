@@ -20,6 +20,7 @@ export interface DashboardInitialData {
   wikiPages?: WikiPage[];
 }
 import { TileShell } from "./tile-shell";
+import { LookPickerButton } from "../home/picker/look-picker";
 import {
   TicketsSummaryTile,
   NotesRecentTile,
@@ -339,13 +340,16 @@ export function DashboardGrid({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={() => setEditMode(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <Pencil className="h-4 w-4" aria-hidden /> Customise
-            </button>
+            <>
+              <LookPickerButton />
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <Pencil className="h-4 w-4" aria-hidden /> Customise
+              </button>
+            </>
           )}
         </div>
       </header>
