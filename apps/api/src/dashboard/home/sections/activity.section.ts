@@ -1,11 +1,35 @@
-import { Injectable } from "@nestjs/common";
-import { sectionOff, type Section, type ActivityItem } from "@church/shared";
+import { Inject, Injectable } from "@nestjs/common";
+import { sectionOk, type ActivityItem, type Section } from "@church/shared";
+import { DB, type Db } from "../../../db/db.module";
+import { ActivityService } from "../../../activity/activity.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
+import { loadUserNames } from "../names";
 
-/** Stub: Phase 1 fills this in. */
+export const ACTIVITY_LIMIT = 10;
+
+/**
+ * The newest activity events, exactly as `GET /activity` returns them: that endpoint does not
+ * filter by person or permission (any signed-in user sees the feed), so neither does this.
+ */
 @Injectable()
 export class HomeActivitySection implements SectionBuilder<ActivityItem[]> {
+  constructor(
+    private readonly activity: ActivityService,
+    @Inject(DB) private readonly db: Db,
+  ) {}
+
   async build(_ctx: HomeContext): Promise<Section<ActivityItem[]>> {
-    return sectionOff("unavailable", "not built yet");
+    const rows = await this.activity.list(ACTIVITY_LIMIT);
+    const names = await loadUserNames(this.db, rows.map((r) => r.actorUserId));
+    return sectionOk(
+      rows.map((r) => ({
+        id: r.id,
+        at: r.ts.toISOString(),
+        actorName: (r.actorUserId ? names.get(r.actorUserId) : undefined) ?? (r.actorEmail ? r.actorEmail.split("@")[0] ?? null : null),
+        summary: r.summary ? `${r.title}: ${r.summary}` : r.title,
+        href: r.link ?? null,
+        kind: r.action,
+      })),
+    );
   }
 }

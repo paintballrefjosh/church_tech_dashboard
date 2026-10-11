@@ -1,47 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import { KIND_META, hrefForHit, type SearchHit as Hit } from "@/lib/search-kinds";
+import { hrefForHit, type SearchHit as Hit } from "@/lib/search-kinds";
+import { useGlobalSearch } from "@/lib/use-global-search";
+import { SearchResultList } from "@/components/search-results";
 
 export function SearchBar() {
   const router = useRouter();
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
+  const { q, setQ, hits, busy, clear } = useGlobalSearch({ limit: 15, debounceMs: 180 });
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounced live search so each keystroke doesn't hammer Meili.
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) {
-      setHits([]);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      setBusy(true);
-      try {
-        const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&limit=15`, {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (r.ok) {
-          const body = (await r.json()) as { hits: Hit[] };
-          setHits(body.hits ?? []);
-        }
-      } finally {
-        setBusy(false);
-      }
-    }, 180);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [q]);
 
   // Close on outside click + Esc.
   useEffect(() => {
@@ -70,7 +41,7 @@ export function SearchBar() {
 
   function go(h: Hit) {
     setOpen(false);
-    setQ("");
+    clear();
     router.push(hrefForHit(h));
   }
 
@@ -98,8 +69,7 @@ export function SearchBar() {
           <button
             type="button"
             onClick={() => {
-              setQ("");
-              setHits([]);
+              clear();
               inputRef.current?.focus();
             }}
             aria-label="Clear search"
@@ -112,97 +82,17 @@ export function SearchBar() {
 
       {open && q.trim() ? (
         <div className="fx-solid absolute right-0 z-50 mt-2 w-[200%] max-w-[calc(100vw-2rem)] max-h-[28rem] overflow-y-auto rounded-md border border-slate-300 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
-          {busy && hits.length === 0 ? (
-            <p className="p-4 text-center text-xs text-slate-500">Searching…</p>
-          ) : hits.length === 0 ? (
-            <p className="p-4 text-center text-xs text-slate-500">
-              No matches for &ldquo;{q}&rdquo;.
-            </p>
-          ) : (
-            <ul>
-              {hits.map((h) => {
-                const meta = KIND_META[h.kind];
-                const titleHtml = highlightedHtml(h._formatted?.title, h.title);
-                const bodyHtml = highlightedHtml(h._formatted?.body, h.body, 160);
-                return (
-                  <li key={h.id}>
-                    <Link
-                      href={hrefForHit(h)}
-                      onClick={() => {
-                        setOpen(false);
-                        setQ("");
-                      }}
-                      className={`flex gap-3 border-l-4 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800 ${meta.bar}`}
-                    >
-                      <meta.Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.pill}`}
-                          >
-                            {meta.label}
-                            {h.kind === "ticket" && h.extra?.number
-                              ? ` #${h.extra.number as number}`
-                              : ""}
-                          </span>
-                          <span
-                            className="truncate text-sm font-medium"
-                            dangerouslySetInnerHTML={{ __html: titleHtml }}
-                          />
-                        </div>
-                        <div
-                          className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400"
-                          dangerouslySetInnerHTML={{ __html: bodyHtml }}
-                        />
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div className="border-t border-slate-100 px-3 py-2 text-[10px] text-slate-400 dark:border-slate-800">
-            <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">↵</kbd>{" "}
-            open top result ·{" "}
-            <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">esc</kbd>{" "}
-            close
-          </div>
+          <SearchResultList
+            hits={hits}
+            query={q}
+            busy={busy}
+            onPick={() => {
+              setOpen(false);
+              clear();
+            }}
+          />
         </div>
       ) : null}
     </div>
   );
-}
-
-/**
- * Meilisearch returns highlight-marked HTML inside `_formatted` — the matched
- * span wrapped in `<mark>` — but the surrounding text is the *raw* user-
- * authored title/body. A wiki page or ticket whose title is `Foo <img src=x
- * onerror=…>` would land that HTML straight into the DOM if we trusted
- * `_formatted` as-is. So: escape the entire string first, then selectively
- * un-escape the `<mark>` tags that we know Meilisearch wraps matches in
- * (configured server-side in search.service.ts).
- */
-function highlightedHtml(formatted: string | undefined, raw: string, maxChars?: number): string {
-  const source = formatted ?? raw;
-  const limited = typeof maxChars === "number" ? source.slice(0, maxChars) : source;
-  const escaped = escapeHtml(limited);
-  // Restore only the highlight tags Meilisearch injects. Anything else
-  // remains escaped, including a `<mark>` an attacker might have written
-  // into the raw text (matching escape becomes `&lt;mark&gt;`, doesn't get
-  // un-escaped here because we only replace the *Meili-injected* literals).
-  // Since Meili-injected and attacker-written are now both `&lt;mark&gt;`,
-  // we replace all of them — `<mark>` is a safe inert element with no
-  // event handlers, so even unintended un-escapes are not exploitable.
-  return escaped
-    .replace(/&lt;mark&gt;/g, "<mark>")
-    .replace(/&lt;\/mark&gt;/g, "</mark>");
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
