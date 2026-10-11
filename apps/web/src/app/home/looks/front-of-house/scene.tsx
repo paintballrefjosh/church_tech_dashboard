@@ -8,8 +8,8 @@ import { serviceDateLine, useNow } from "./format";
 import s from "./front-of-house.module.css";
 
 const KIND_LABEL: Record<NextService["times"][number]["kind"], string> = {
-  service: "service",
-  rehearsal: "rehearsal",
+  service: "Service",
+  rehearsal: "Rehearsal",
   other: "",
 };
 
@@ -52,11 +52,11 @@ export function Scene({ props }: { props: LookProps }) {
         </p>
         <div className={s.sceneActs}>
           <Link className={s.key} href={service.href}>
-            Open the plan
+            {service.source === "checklist" ? "Open the checklist" : "Open the plan"}
           </Link>
           {hasChecklists ? (
             <Link className={s.key} href="/checklists">
-              Sunday checklists
+              Checklists
             </Link>
           ) : null}
           {team ? (
@@ -85,7 +85,7 @@ export function Scene({ props }: { props: LookProps }) {
           <ul className={`${s.runsheet} ${s.num}`}>
             {service.times.map((t) => {
               const label = t.name ?? (KIND_LABEL[t.kind] || "Item");
-              const kind = t.name && KIND_LABEL[t.kind] ? KIND_LABEL[t.kind] : "";
+              const kind = t.name && KIND_LABEL[t.kind] ? KIND_LABEL[t.kind]?.toLowerCase() : "";
               const isNext = nextTime?.id === t.id;
               return (
                 <li key={t.id} className={isNext ? s.next : undefined} aria-current={isNext ? "step" : undefined}>

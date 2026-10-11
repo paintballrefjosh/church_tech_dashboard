@@ -103,6 +103,7 @@
 
 .root {
   position: relative;
+  display: flow-root;
   min-height: 100vh;
   background-color: var(--console);
   background-image: radial-gradient(var(--dots) 1px, transparent 1px);
@@ -137,7 +138,7 @@
 .wrap {
   max-width: 1260px;
   margin: 0 auto;
-  padding: 0 24px 48px;
+  padding: 26px 24px 48px;
 }
 .srOnly {
   position: absolute;
@@ -150,7 +151,7 @@
 
 /* ---------- Scene screen ---------- */
 .scene {
-  margin-top: 26px;
+  margin-top: 0;
   background: var(--screen);
   border: 1px solid #0a0e12;
   border-radius: 14px;
@@ -576,9 +577,14 @@
   background: var(--screen);
   border-radius: 8px;
   color: var(--label);
+  max-height: 9.5rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .alog li {
   display: grid;
+  min-width: 0;
   grid-template-columns: 62px 1fr;
   gap: 6px;
   padding: 3px 0;
@@ -884,7 +890,7 @@
 }
 @media (max-width: 720px) {
   .wrap {
-    padding: 0 16px 40px;
+    padding: 20px 16px 40px;
   }
   .scene,
   .sceneSolo {
