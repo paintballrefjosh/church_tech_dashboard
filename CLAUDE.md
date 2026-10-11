@@ -1041,6 +1041,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 1 — done** — helpdesk/tickets (+SLAs), notes, wiki (+attachments/ACLs), modular dashboard tiles, notification centre + SMTP (per-category in-app/email)
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
+- **Assistant (chatbot) — designed, not built** — an in-app chat over wiki, tickets and live data, using an *external* LLM (Claude API or any OpenAI-compatible endpoint the admin supplies), disabled by default until an admin configures and enables it. Full design, requirements and phasing in [docs/assistant.md](docs/assistant.md); do not start building without an explicit ask.
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)
