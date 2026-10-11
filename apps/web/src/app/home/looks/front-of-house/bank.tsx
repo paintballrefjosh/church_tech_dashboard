@@ -26,7 +26,7 @@ function LedMeter({ label, level, text }: { label: string; level: number | null;
   const lit = level === null ? 0 : Math.round(level * SEGMENTS);
   const segs = Array.from({ length: SEGMENTS }, (_, i) => {
     const zone = i < SEGMENTS * 0.7 ? "g" : i < SEGMENTS * 0.9 ? "a" : "r";
-    return <i key={i} className={`${i < lit ? "on" : ""} ${zone}`} />;
+    return <i key={i} className={`${i < lit ? s.on : ""} ${s[zone]}`} />;
   });
   if (level === null) {
     return (
@@ -196,8 +196,21 @@ function MainStrip({
 
   const { totals } = systems;
   const problemCount = systems.problems.filter((p) => !p.ack?.acked).length;
+  const ackedCount = systems.problems.length - problemCount;
   const lead =
-    problemCount === 0 ? "Nothing is down." : problemCount === 1 ? "One problem." : `${problemCount} problems.`;
+    problemCount > 0
+      ? problemCount === 1
+        ? "One problem."
+        : `${problemCount} problems.`
+      : ackedCount > 0
+        ? ackedCount === 1
+          ? "1 problem, acknowledged."
+          : `${ackedCount} problems, acknowledged.`
+        : totals.down > 0
+          ? `${totals.down} down.`
+          : "Nothing is down.";
+  const ledTone =
+    totals.total === 0 ? s.ledOff : problemCount > 0 || (ackedCount === 0 && totals.down > 0) ? s.ledR : ackedCount > 0 ? s.ledA : s.ledG;
   const alerts = meters && meters.state === "ok" ? meters.data.recentAlerts : null;
 
   async function toggle() {
@@ -232,10 +245,7 @@ function MainStrip({
         <h3 id="foh-everything">Everything</h3>
       </div>
       <div className={`${s.bigRow} ${s.num}`}>
-        <span
-          className={`${s.led} ${totals.total === 0 ? s.ledOff : totals.down > 0 ? s.ledR : s.ledG}`}
-          aria-hidden
-        />
+        <span className={`${s.led} ${ledTone}`} aria-hidden />
         <span>
           {totals.up}
           <small>/{totals.total}</small>
