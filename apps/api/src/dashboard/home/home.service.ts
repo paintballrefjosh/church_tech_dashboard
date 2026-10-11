@@ -114,6 +114,14 @@ export class HomeService {
     const timezone = validZone(tz);
     const ctx: HomeContext = { user, now, timezone, includes: new Set(includes) };
 
+    // The optional sections depend on nothing else, so they run alongside the primary ones: the
+    // page waits for one timeout at most, not one per stage.
+    const has = (i: HomeInclude) => ctx.includes.has(i);
+    const optional = Promise.all([
+      has("week") ? this.guarded("week", () => this.week.build(ctx)) : undefined,
+      has("availability") ? this.guarded("availability", () => this.availability.build(ctx)) : undefined,
+      has("meters") ? this.guarded("meters", () => this.meters.build(ctx)) : undefined,
+    ]);
     const [service, systems, tickets, checklists, wiki, notes, activity] = await Promise.all([
       this.guarded("service", () => this.service.build(ctx)),
       this.guarded("systems", () => this.systems.build(ctx)),
@@ -124,13 +132,7 @@ export class HomeService {
       this.guarded("activity", () => this.activity.build(ctx)),
     ]);
     const primary: PrimarySections = { service, systems, tickets, checklists, wiki, notes, activity };
-
-    const has = (i: HomeInclude) => ctx.includes.has(i);
-    const [week, availability, meters] = await Promise.all([
-      has("week") ? this.guarded("week", () => this.week.build(ctx)) : undefined,
-      has("availability") ? this.guarded("availability", () => this.availability.build(ctx)) : undefined,
-      has("meters") ? this.guarded("meters", () => this.meters.build(ctx)) : undefined,
-    ]);
+    const [week, availability, meters] = await optional;
     const [needs, readiness] = await Promise.all([
       this.guarded<NeedItem[]>("needs", () => this.needs.build(ctx, primary)),
       has("readiness") ? this.guarded("readiness", () => this.readiness.build(ctx, primary)) : undefined,
