@@ -1,9 +1,12 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { eq } from "drizzle-orm";
 import { PERMISSIONS, sectionOff, sectionOk, type NextService, type Section } from "@church/shared";
 import { PlanningCenterService } from "../../../planning-center/planning-center.service";
 import { ChecklistsService } from "../../../checklists/checklists.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
 import { TtlCache } from "../cache";
+import { DB, type Db } from "../../../db/db.module";
+import { checklistServices } from "../../../db/schema";
 
 /** Planning Center is rate limited, and the next service changes slowly. */
 export const PC_CACHE_MS = 5 * 60_000;
@@ -89,6 +92,7 @@ export class HomeServiceSection implements SectionBuilder<NextService> {
   constructor(
     private readonly pc: PlanningCenterService,
     private readonly checklists: ChecklistsService,
+    @Optional() @Inject(DB) private readonly db?: Db,
   ) {}
 
   private async loadPc(): Promise<PcLoad> {
@@ -110,9 +114,20 @@ export class HomeServiceSection implements SectionBuilder<NextService> {
     const next = events.find((e) => e.scheduledAt && e.scheduledAt.getTime() >= ctx.now.getTime());
     if (!next || !next.scheduledAt) return null;
     const startsAt = next.scheduledAt.toISOString();
+    // Events generated from a recurring service are named "<service> - <date>"; the date is shown
+    // separately, so title the service by its own name. The event was already permission-checked.
+    let title = next.name;
+    if (next.serviceId && this.db) {
+      const [svc] = await this.db
+        .select({ name: checklistServices.name })
+        .from(checklistServices)
+        .where(eq(checklistServices.id, next.serviceId))
+        .limit(1);
+      if (svc?.name) title = svc.name;
+    }
     return {
       source: "checklist",
-      title: next.name,
+      title,
       seriesTitle: null,
       serviceTypeName: null,
       href: `/checklists/${next.id}`,
