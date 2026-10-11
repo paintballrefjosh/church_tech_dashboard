@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Concepts</title>
+<style>
+  :root { --bg: #f5f6f8; --ink: #1c1e26; --ink-2: #5c6070; --line: #e1e3ea; --link: #3741a5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 64px; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .lede { color: var(--ink-2); margin: 0 0 32px; max-width: 70ch; }
+  .opt { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 20px; align-items: start; }
+  .opt img { width: 100%; display: block; border-radius: 10px; border: 1px solid var(--line); }
+  .opt h2 { margin: 6px 0 6px; font-size: 21px; letter-spacing: -0.01em; }
+  .opt p { margin: 0 0 10px; color: var(--ink-2); }
+  .opt dl { margin: 14px 0; display: grid; grid-template-columns: 92px 1fr; gap: 6px 12px; font-size: 14px; }
+  .opt dt { color: var(--ink-2); }
+  .opt dd { margin: 0; }
+  .links { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; font-weight: 600; }
+  .links a { color: var(--link); }
+  a:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; border-radius: 4px; }
+  @media (max-width: 820px) { .opt { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Five directions for the home page</h1>
+  <p class="lede">Each one uses the same real content (NorthPointe's systems, Wednesday Practice checklists, wiki pages), with the clock fixed at Saturday 10 October, 6:40 pm and one access point offline, so you see how a problem surfaces. Open a page for the full, interactive version. Each also works at phone width.</p>
+
+  <section class="opt">
+    <a href="1-toward-sunday.html"><img src="screenshots/1-toward-sunday.png" alt="Toward Sunday concept" loading="lazy"></a>
+    <div>
+      <h2>1. Toward Sunday</h2>
+      <p>The page is organised around the week. A Monday to Sunday rail shows what happened, where "now" is, and Sunday as the destination, with an hourly health strip under each day. Below it, a "Ready for Sunday" check turns the systems, the team, the stream and the help desk into one score.</p>
+      <dl>
+        <dt>Signature</dt><dd>The week rail with a moving "now" marker</dd>
+        <dt>Feel</dt><dd>Light, crisp, practical. Archivo, navy and marigold</dd>
+        <dt>Best for</dt><dd>Everyone. It answers "are we ready?" at a glance</dd>
+        <dt>Cost</dt><dd>Medium. Needs a small "week events" API that merges incidents, tickets and plans</dd>
+      </dl>
+      <div class="links"><a href="1-toward-sunday.html">Open</a><a href="screenshots/1-toward-sunday-full.png">Full page</a><a href="screenshots/1-toward-sunday-phone.png">Phone</a></div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <a href="2-nave.html"><img src="screenshots/2-nave.png" alt="Nave concept" loading="lazy"></a>
+    <div>
+      <h2>2. Nave</h2>
+      <p>Carries the sign-in page's receding arches into the home page, so signing in feels like walking through. Sunday's service sits in the hero with the light at the far end; the three main panels are arched windows (systems, team, your work), with quieter panels below.</p>
+      <dl>
+        <dt>Signature</dt><dd>The animated archway hero and the arched panels</dd>
+        <dt>Feel</dt><dd>Dark, calm, reverent. Marcellus and Karla, indigo and candlelight</dd>
+        <dt>Best for</dt><dd>A strong brand identity that is unmistakably a church's</dd>
+        <dt>Cost</dt><dd>Low. Reuses the chapel-window geometry and today's data</dd>
+      </dl>
+      <div class="links"><a href="2-nave.html">Open</a><a href="screenshots/2-nave-full.png">Full page</a><a href="screenshots/2-nave-phone.png">Phone</a></div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <a href="3-glass.html"><img src="screenshots/3-glass.png" alt="Glass concept" loading="lazy"></a>
+    <div>
+      <h2>3. Glass</h2>
+      <p>A stained-glass window, after Richter's Cologne window, where every pane is one hour of one system: lit when it was up, dark when it was down. Each kind of system has its own glass colour. The content below sits in a lead frame as light panes. Hover a pane to see what it is.</p>
+      <dl>
+        <dt>Signature</dt><dd>The live uptime mosaic</dd>
+        <dt>Feel</dt><dd>Bright, jewel-toned, modern. Albert Sans</dd>
+        <dt>Best for</dt><dd>Wow factor that is also a real 12-hour uptime chart</dd>
+        <dt>Cost</dt><dd>Medium. Services and hosts already keep history (monitor checks, infra rollups). Wi-Fi devices and switches are live-only today, so they would need a small hourly up/down table</dd>
+      </dl>
+      <div class="links"><a href="3-glass.html">Open</a><a href="screenshots/3-glass-full.png">Full page</a><a href="screenshots/3-glass-phone.png">Phone</a></div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <a href="4-front-of-house.html"><img src="screenshots/4-front-of-house.png" alt="Front of House concept" loading="lazy"></a>
+    <div>
+      <h2>4. Front of House</h2>
+      <p>Built for the tech team. Each system area is a channel strip with a scribble strip, a live meter and a status LED. The main strip carries the recent alerts and a mute button that is maintenance mode. The next service is on the "scene" screen with a show clock and run sheet. The team is an input list, and your checklist can be ticked off in place.</p>
+      <dl>
+        <dt>Signature</dt><dd>The channel strips</dd>
+        <dt>Feel</dt><dd>Hardware, dense, fun for techs. Barlow Condensed</dd>
+        <dt>Best for</dt><dd>The booth screen and the people who run Sunday</dd>
+        <dt>Cost</dt><dd>Medium. The meters want one live figure per area (CPU, latency, clients and so on)</dd>
+      </dl>
+      <div class="links"><a href="4-front-of-house.html">Open</a><a href="screenshots/4-front-of-house-full.png">Full page</a><a href="screenshots/4-front-of-house-phone.png">Phone</a></div>
+    </div>
+  </section>
+
+  <section class="opt">
+    <a href="5-start-page.html"><img src="screenshots/5-start-page.png" alt="Start page concept" loading="lazy"></a>
+    <div>
+      <h2>5. Start page</h2>
+      <p>Search first and plain language. One sentence sums up the state of things, with the important bits as links. The page is one prioritised "Needs you" list with actions you can take in place (acknowledge, take a ticket, with undo), and a narrow side column for the service, systems and recent pages.</p>
+      <dl>
+        <dt>Signature</dt><dd>The written summary and in-place actions</dd>
+        <dt>Feel</dt><dd>Airy, friendly, the calmest option. Figtree, current brand periwinkle</dd>
+        <dt>Best for</dt><dd>Volunteers and staff who come to find something or do one thing</dd>
+        <dt>Cost</dt><dd>Low to medium. Needs a "needs you" feed across modules</dd>
+      </dl>
+      <div class="links"><a href="5-start-page.html">Open</a><a href="screenshots/5-start-page-full.png">Full page</a><a href="screenshots/5-start-page-phone.png">Phone</a></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

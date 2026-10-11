@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nave</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Marcellus&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #0f1233;
+    --bay: #171b46;
+    --bay-2: #1f2458;
+    --line: rgba(160, 170, 240, 0.16);
+    --stone: #e6e7f5;
+    --stone-2: #a6abd3;
+    --stone-3: #7a80b0;
+    --candle: #f6c76e;
+    --candle-2: #ffe7b8;
+    --peri: #95a0f4;
+    --ok: #86dcb0;
+    --ember: #ff8f73;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--night);
+    color: var(--stone);
+    font-family: "Karla", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  a { color: inherit; text-decoration: none; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--candle); outline-offset: 3px; border-radius: 6px; }
+  .serif { font-family: "Marcellus", Georgia, serif; font-weight: 400; }
+  .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 0 28px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Top bar sits on the hero */
+  .top { position: relative; z-index: 3; }
+  .top .wrap { display: flex; align-items: center; gap: 30px; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Marcellus", serif; font-size: 19px; color: var(--stone); }
+  .brand .icon { color: var(--candle); width: 20px; height: 20px; }
+  .nav { display: flex; gap: 2px; }
+  .nav a { padding: 6px 11px; border-radius: 8px; color: var(--stone-2); display: flex; align-items: center; gap: 4px; font-size: 14px; }
+  .nav a:hover { color: var(--stone); background: rgba(255, 255, 255, 0.05); }
+  .nav .icon { width: 14px; height: 14px; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .search { display: flex; align-items: center; gap: 8px; width: 250px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--stone-3); font-size: 14px; background: rgba(15, 18, 51, 0.6); }
+  .search kbd { margin-left: auto; font-family: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .iconbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--stone-2); position: relative; background: none; border: 0; cursor: pointer; }
+  .iconbtn:hover { background: rgba(255, 255, 255, 0.06); color: var(--stone); }
+  .iconbtn .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--candle); box-shadow: 0 0 8px var(--candle); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--candle); color: var(--candle-2); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+
+  /* Hero */
+  .hero { position: relative; margin-top: -68px; padding-top: 68px; overflow: hidden; }
+  .hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(transparent, var(--night)); pointer-events: none; }
+  .arches { position: absolute; top: 0; right: -4%; width: 62%; height: 100%; }
+  .arches svg { width: 100%; height: 100%; display: block; }
+  .hero-body { position: relative; z-index: 2; padding: 64px 0 120px; max-width: 560px; }
+  .eve { color: var(--stone-2); margin: 0 0 18px; font-size: 15px; }
+  .hero h1 { margin: 0; font-size: clamp(42px, 6vw, 76px); line-height: 1.02; letter-spacing: -0.01em; color: #fff; }
+  .times { margin: 18px 0 0; font-size: 20px; color: var(--candle-2); }
+  .times .serif { font-size: 22px; }
+  .series { margin: 6px 0 0; color: var(--stone-2); }
+  .count { display: flex; gap: 28px; margin-top: 34px; }
+  .count div { display: flex; flex-direction: column; }
+  .count b { font-family: "Marcellus", serif; font-weight: 400; font-size: 44px; line-height: 1; color: var(--candle); text-shadow: 0 0 24px rgba(246, 199, 110, 0.35); }
+  .count span { font-size: 13px; color: var(--stone-2); margin-top: 6px; }
+  .hero-actions { display: flex; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 14px; border: 1px solid var(--line); color: var(--stone); }
+  .btn:hover { border-color: var(--candle); color: var(--candle-2); }
+  .btn.primary { background: var(--candle); color: #2a1d05; border-color: var(--candle); }
+  .btn.primary:hover { background: var(--candle-2); color: #2a1d05; }
+
+  /* The three arched windows */
+  .windows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; position: relative; z-index: 2; margin-top: -40px; }
+  .window {
+    background: linear-gradient(180deg, var(--bay-2), var(--bay) 220px);
+    border: 1px solid var(--line);
+    border-radius: 50% 50% 18px 18px / 150px 150px 18px 18px;
+    padding: 64px 28px 26px;
+    position: relative;
+  }
+  .window::before {
+    /* inner moulding line echoing the arch */
+    content: ""; position: absolute; inset: 8px 8px auto 8px; height: 160px;
+    border: 1px solid rgba(246, 199, 110, 0.14); border-bottom: 0;
+    border-radius: 50% 50% 0 0 / 143px 143px 0 0;
+    pointer-events: none;
+  }
+  .window header { text-align: center; margin-bottom: 22px; }
+  .window header .icon { color: var(--candle); width: 22px; height: 22px; }
+  .window h2 { margin: 8px 0 4px; font-size: 26px; color: #fff; }
+  .window header p { margin: 0; color: var(--stone-2); font-size: 14px; }
+  .window header p em { font-style: normal; color: var(--ember); }
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li + li { border-top: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 2px; font-size: 14.5px; }
+  .row:hover .lbl { color: #fff; }
+  .row .lbl { flex: 1; color: var(--stone); }
+  .row .val { color: var(--stone-2); }
+  .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--candle); box-shadow: 0 0 10px 2px rgba(246, 199, 110, 0.55); flex: none; }
+  .lamp.out { background: transparent; border: 1.5px solid var(--ember); box-shadow: none; }
+  .row.bad .val { color: var(--ember); }
+  .roster { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+  .roster dt { color: var(--stone-3); }
+  .roster dd { margin: 0; }
+  .roster .me { color: var(--candle-2); }
+  .tag { font-size: 11.5px; padding: 1px 7px; border-radius: 99px; margin-left: 4px; white-space: nowrap; }
+  .tag.u { color: var(--stone-2); border: 1px solid var(--line); }
+  .tag.d { color: var(--ember); border: 1px solid rgba(255, 143, 115, 0.4); }
+  .tasks { list-style: none; margin: 0; padding: 0; }
+  .tasks li + li { border-top: 1px solid var(--line); }
+  .tasks a { display: block; padding: 11px 2px; }
+  .tasks a:hover .t { color: #fff; }
+  .tasks .t { display: block; font-weight: 600; font-size: 14.5px; line-height: 1.35; }
+  .tasks .m { display: block; font-size: 13px; color: var(--stone-2); }
+  .tasks .m .due { color: var(--candle); }
+  .kind { font-size: 11.5px; color: var(--peri); display: block; margin-bottom: 2px; }
+
+  /* Lower aisle: quieter panels */
+  .aisle { display: grid; grid-template-columns: 1.1fr 1fr 0.8fr; gap: 22px; margin: 22px 0 0; }
+  .plain { border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; background: rgba(23, 27, 70, 0.5); }
+  .plain h3 { margin: 0 0 12px; font-size: 20px; color: #fff; display: flex; justify-content: space-between; align-items: baseline; }
+  .plain h3 a { font-family: "Karla", sans-serif; font-size: 13px; color: var(--peri); }
+  .plain h3 a:hover { color: var(--candle-2); }
+  .feed { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .feed li { display: grid; grid-template-columns: 62px 1fr; gap: 10px; padding: 7px 0; }
+  .feed time { color: var(--stone-3); font-size: 13px; }
+  .feed b { font-weight: 600; color: #fff; }
+  .wiki { list-style: none; margin: 0; padding: 0; }
+  .wiki a { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 14px; border-top: 1px solid var(--line); }
+  .wiki li:first-child a { border-top: 0; }
+  .wiki a:hover span:first-child { color: var(--candle-2); }
+  .wiki span:last-child { color: var(--stone-3); font-size: 13px; white-space: nowrap; }
+  .make { display: grid; gap: 8px; }
+  .make a { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+  .make a:hover { border-color: var(--candle); color: var(--candle-2); }
+  .make .icon { color: var(--candle); }
+
+  footer { text-align: center; padding: 56px 0 48px; color: var(--stone-3); }
+  footer .serif { font-size: 18px; color: var(--stone-2); }
+
+  /* Motion: the arches resolve from the outer frame inward, and the light at
+     the far end breathes. Same moment as the sign-in page. */
+  @media (prefers-reduced-motion: no-preference) {
+    .arch { opacity: 0; animation: arch-in 1.1s ease-out forwards; transform-box: view-box; transform-origin: 300px 330px; }
+    .glow { transform-box: view-box; transform-origin: 300px 330px; animation: breathe 7.5s ease-in-out infinite; }
+    @keyframes arch-in { from { opacity: 0; transform: scale(1.05); } to { opacity: var(--o); transform: scale(1); } }
+    @keyframes breathe { 0%, 100% { opacity: 0.8; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+  }
+  @media (prefers-reduced-motion: reduce) { .arch { opacity: var(--o); } }
+
+  @media (max-width: 1060px) {
+    .nav { display: none; }
+    .windows { grid-template-columns: 1fr 1fr; }
+    .windows .window:last-child { grid-column: 1 / -1; border-radius: 18px; padding-top: 28px; }
+    .windows .window:last-child::before { display: none; }
+    .aisle { grid-template-columns: 1fr 1fr; }
+    .aisle .plain:last-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 0 16px; }
+    .search { display: none; }
+    .arches { width: 120%; right: -40%; opacity: 0.55; }
+    .hero-body { padding: 36px 0 90px; }
+    .count b { font-size: 36px; }
+    .windows, .aisle { grid-template-columns: 1fr; }
+    .window { border-radius: 50% 50% 18px 18px / 110px 110px 18px 18px; }
+    .window::before { border-radius: 50% 50% 0 0 / 103px 103px 0 0; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cross" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M6 8h12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><svg class="icon"><use href="#i-cross"/></svg>NorthPointe</a>
+    <nav class="nav" aria-label="Main">
+      <a href="#">IT <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Docs <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Church apps <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Admin <svg class="icon"><use href="#i-down"/></svg></a>
+    </nav>
+    <div class="top-right">
+      <div class="search"><svg class="icon"><use href="#i-search"/></svg>Search everything<kbd>Ctrl K</kbd></div>
+      <button class="iconbtn" aria-label="Notifications, 3 unread"><svg class="icon"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <span class="avatar" aria-label="Josh Scarbrough">JS</span>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="arches" aria-hidden="true">
+    <svg id="nave" viewBox="0 0 600 660" preserveAspectRatio="xMidYMid slice"></svg>
+  </div>
+  <div class="wrap">
+    <div class="hero-body">
+      <p class="eve">Good evening, Josh. It's Saturday, 10 October.</p>
+      <h1 class="serif">Sunday Gathering</h1>
+      <p class="times"><span class="serif">Tomorrow, 9:00 and 10:45</span></p>
+      <p class="series">Acts: To the Ends of the Earth, week 4</p>
+      <div class="count num" aria-label="14 hours 20 minutes until the first service">
+        <div><b id="ch">14</b><span>hours</span></div>
+        <div><b id="cm">20</b><span>minutes</span></div>
+        <div><b>12/15</b><span>team confirmed</span></div>
+      </div>
+      <div class="hero-actions">
+        <a class="btn primary" href="#"><svg class="icon"><use href="#i-cal"/></svg>Open the service plan</a>
+        <a class="btn" href="#"><svg class="icon"><use href="#i-list"/></svg>Sunday checklists</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <section class="windows">
+    <article class="window">
+      <header>
+        <svg class="icon"><use href="#i-pulse"/></svg>
+        <h2 class="serif">Systems</h2>
+        <p class="num">58 of 59 up. <em>One access point is out.</em></p>
+      </header>
+      <ul class="rows num">
+        <li><a class="row" href="#"><span class="lamp"></span><span class="lbl">Servers and hosts</span><span class="val">25 of 25</span></a></li>
+        <li><a class="row" href="#"><span class="lamp"></span><span class="lbl">Websites and internet</span><span class="val">5 of 5</span></a></li>
+        <li><a class="row bad" href="#"><span class="lamp out"></span><span class="lbl">Wi-Fi and network</span><span class="val">23 of 24</span></a></li>
+        <li><a class="row" href="#"><span class="lamp"></span><span class="lbl">Switches</span><span class="val">3 of 3</span></a></li>
+        <li><a class="row" href="#"><span class="lamp"></span><span class="lbl">DNS</span><span class="val">2 of 2</span></a></li>
+      </ul>
+    </article>
+
+    <article class="window">
+      <header>
+        <svg class="icon"><use href="#i-users"/></svg>
+        <h2 class="serif">Sunday's team</h2>
+        <p>Bass still needs filling.</p>
+      </header>
+      <dl class="roster">
+        <dt>Worship leader</dt><dd>Sarah Mitchell</dd>
+        <dt>Vocals</dt><dd>Dan Reyes, Priya Shah <span class="tag u">unconfirmed</span></dd>
+        <dt>Band</dt><dd>Emily Carter, Marcus Lee, Ben Hartley</dd>
+        <dt>Bass</dt><dd>Tom Okafor <span class="tag d">declined</span></dd>
+        <dt>Audio</dt><dd class="me">You</dd>
+        <dt>Lights</dt><dd>Abby Nguyen</dd>
+        <dt>Slides</dt><dd>Caleb Wright</dd>
+        <dt>Camera</dt><dd>Noah Fisher, Grace Kim <span class="tag u">unconfirmed</span></dd>
+        <dt>Stream</dt><dd>Luke Patel</dd>
+        <dt>Director</dt><dd>Rachel Adams</dd>
+      </dl>
+    </article>
+
+    <article class="window">
+      <header>
+        <svg class="icon"><use href="#i-list"/></svg>
+        <h2 class="serif">For you</h2>
+        <p class="num">2 tickets and 1 checklist</p>
+      </header>
+      <ul class="tasks">
+        <li><a href="#"><span class="kind">Ticket #201, high</span><span class="t">Stream audio drifted out of sync during the 10:45</span><span class="m">Opened by Luke Patel. <span class="due">Reply due by 9:40 pm</span></span></a></li>
+        <li><a href="#"><span class="kind">Checklist, FOH</span><span class="t">Wednesday Practice, 14 October</span><span class="m">5 tasks, starting with "Load the NP Default scene"</span></a></li>
+        <li><a href="#"><span class="kind">Ticket #196, low</span><span class="t">My computer doesn't work</span><span class="m">In progress, last reply 2 days ago</span></a></li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="aisle">
+    <div class="plain">
+      <h3 class="serif">This week <a href="#">All activity</a></h3>
+      <ul class="feed num">
+        <li><time>6:02 pm</time><span><b>AP-Kids-Wing</b> went offline</span></li>
+        <li><time>4:15 pm</time><span><b>Luke Patel</b> opened #201, stream audio sync</span></li>
+        <li><time>Thu</time><span><b>You</b> updated Technitium DNS in the wiki</span></li>
+        <li><time>Wed</time><span><b>Wednesday Practice</b> signed off by all 6 stations</span></li>
+        <li><time>Tue</time><span><b>Fiber gateway</b> dropped for 4 minutes</span></li>
+      </ul>
+    </div>
+    <div class="plain">
+      <h3 class="serif">Wiki <a href="#">Browse</a></h3>
+      <ul class="wiki">
+        <li><a href="#"><span>Technitium DNS - Clustered DNS Servers</span><span>Thu</span></a></li>
+        <li><a href="#"><span>HAProxy + Keepalived - Load Balancer Pair</span><span>Wed</span></a></li>
+        <li><a href="#"><span>ProPresenter - Troubleshooting</span><span>Tue</span></a></li>
+        <li><a href="#"><span>Docker Hosts - docker-1, docker-2, docker-3</span><span>Mon</span></a></li>
+        <li><a href="#"><span>Firewall Config - Unifi UDM Pro</span><span>2 wk</span></a></li>
+      </ul>
+    </div>
+    <div class="plain">
+      <h3 class="serif">Start something</h3>
+      <div class="make">
+        <a href="#"><svg class="icon"><use href="#i-ticket"/></svg>New ticket</a>
+        <a href="#"><svg class="icon"><use href="#i-book"/></svg>New wiki page</a>
+        <a href="#"><svg class="icon"><use href="#i-note"/></svg>New note</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p class="serif">Make, Mature &amp; Multiply disciples of Jesus Christ.</p>
+</footer>
+
+<script>
+  // Receding nave: the same perspective model as the sign-in page's chapel window.
+  (function () {
+    const svg = document.getElementById("nave");
+    const NS = "http://www.w3.org/2000/svg";
+    const CX = 300, VP = 330, N = 10;
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const col = (t) => `rgb(${Math.round(lerp(0x6b, 0xff, t))},${Math.round(lerp(0x74, 0xe4, t))},${Math.round(lerp(0xd6, 0xb0, t))})`;
+    const defs = document.createElementNS(NS, "defs");
+    defs.innerHTML =
+      '<radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff3d6" stop-opacity="1"/><stop offset=".25" stop-color="#f6c76e" stop-opacity=".55"/><stop offset="1" stop-color="#f6c76e" stop-opacity="0"/></radialGradient>';
+    svg.appendChild(defs);
+    const glow = document.createElementNS(NS, "circle");
+    glow.setAttribute("cx", CX); glow.setAttribute("cy", VP); glow.setAttribute("r", 150);
+    glow.setAttribute("fill", "url(#g)"); glow.setAttribute("class", "glow");
+    svg.appendChild(glow);
+    for (let k = 0; k < N; k++) {
+      const t = k / (N - 1);
+      const te = Math.pow(t, 1.55);
+      const w = lerp(330, 14, te);
+      const apex = lerp(40, VP - 6, te);
+      const spring = apex + w * 1.5;
+      const sill = lerp(760, VP + 10, te);
+      const r = w * 1.5;
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", `M ${CX - w} ${sill} L ${CX - w} ${spring} A ${r} ${r} 0 0 1 ${CX} ${apex} A ${r} ${r} 0 0 1 ${CX + w} ${spring} L ${CX + w} ${sill}`);
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", col(t));
+      p.setAttribute("stroke-width", lerp(2.2, 1, t));
+      p.setAttribute("class", "arch");
+      p.style.setProperty("--o", lerp(0.14, 0.95, t).toFixed(2));
+      p.style.animationDelay = (0.1 + (1 - t) * 0.6).toFixed(2) + "s";
+      svg.appendChild(p);
+    }
+  })();
+
+  // Countdown from a fixed "now" (Sat 10 Oct 2026, 6:40 pm) for the mockup.
+  const NOW0 = new Date(2026, 9, 10, 18, 40).getTime(), SVC = new Date(2026, 9, 11, 9, 0).getTime(), t0 = Date.now();
+  function tick() {
+    const left = Math.max(0, SVC - (NOW0 + Date.now() - t0));
+    document.getElementById("ch").textContent = Math.floor(left / 3.6e6);
+    document.getElementById("cm").textContent = String(Math.floor((left % 3.6e6) / 6e4)).padStart(2, "0");
+  }
+  tick(); setInterval(tick, 15000);
+</script>
+</body>
+</html>
