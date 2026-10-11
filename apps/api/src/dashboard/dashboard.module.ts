@@ -15,6 +15,7 @@ import { DnsModule } from "../dns/dns.module";
 import { WikiModule } from "../wiki/wiki.module";
 import { NotesModule } from "../notes/notes.module";
 import { ActivityModule } from "../activity/activity.module";
+import { AvailabilityModule } from "../availability/availability.module";
 
 /**
  * A leaf module: nothing imports it except AppModule. The imports below are the services the
@@ -33,6 +34,7 @@ import { ActivityModule } from "../activity/activity.module";
     WikiModule,
     NotesModule,
     ActivityModule,
+    AvailabilityModule,
   ],
   controllers: [DashboardController, HomeController],
   providers: [DashboardService, HomeService, ...HOME_SECTION_PROVIDERS],
