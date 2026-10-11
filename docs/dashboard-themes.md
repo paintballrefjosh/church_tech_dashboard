@@ -1,6 +1,9 @@
 # Home dashboard themes: implementation plan
 
-Status: **planned** (2026-10-10). Nothing below is built yet.
+Status: **built** (2026-10-11) on branch `home-looks`: every phase below is implemented and validated on the dev stack
+(regression suite, both schemes, desktop and 390 px, an admin and a limited volunteer account). The rules for changing
+it are in CLAUDE.md, "Home page looks"; operator notes are in INSTALL.md, "The home page and its looks". The open
+questions at the end are still open.
 
 The five concepts in [`docs/dashboard-concepts/`](dashboard-concepts/index.html) become selectable
 looks for the home page (`/`), alongside today's tile grid. Each signed-in person picks the one they

@@ -492,6 +492,44 @@ searchable resource: add the `SearchKind`, a doc builder in `search-sources.ts`
 the database, a publisher through `live_search_docs`), the query gate, and an
 entry in `search-kinds.ts`.
 
+## Home page looks
+
+The home page (`/`) can be shown in six looks that each person picks (plan and decisions: [docs/dashboard-themes.md](docs/dashboard-themes.md);
+the original concepts: `docs/dashboard-concepts/`): `tiles` (the original draggable grid, `app/dashboard-tiles/`), `start`, `nave`,
+`toward-sunday`, `glass` and `front-of-house` (`apps/web/src/app/home/looks/<id>/`). Rules for changing them:
+
+- **One snapshot, many renderers.** `GET /api/v1/dashboard/home?include=` (`apps/api/src/dashboard/home/`) returns a `HomeSnapshot`
+  (`packages/shared/src/dashboard/home.ts`). Every section is `{state:"ok",data}` or `unconfigured|unavailable|forbidden`, is
+  permission-gated in its own builder (`sections/*.section.ts`) and runs under a 2.5 s timeout, so one slow source costs only its
+  section. Optional parts (`week`, `readiness`, `availability`, `meters`) are built only when a look asks for them. Looks are
+  presentation only: they read the snapshot through `useHomeSnapshot` (30 s poll, window focus, `monitoring`/`infra` realtime
+  signals; never the `network` room, which turns the UniFi poller on) and never fetch their own data. The rules (what "needs you"
+  means, the summary sentence, week events, readiness, availability buckets, meter scales) are pure functions in
+  `packages/shared/src/dashboard/`, tested in `apps/api/test/home-*.test.ts`.
+- **Nothing is faked.** A section that is not `ok` is hidden or says why in one plain line. `unavailable` with reason
+  "no upcoming service" means nothing is scheduled that this person can see: hide, never "can't be reached".
+- **Actions reuse existing audited routes** (UniFi ack, take a ticket, tick a checklist task, maintenance mode) through
+  `home/parts/need-action.tsx` and the looks. The only new write is `PUT /dashboard/prefs` (audited `dashboard.prefs.update`).
+- **Choosing a look:** `?theme=` (preview, not saved) > the device cookie `church_home_look` ("use on this device only",
+  `/api/dashboard/device-look`) > `dashboard_prefs.theme` > setting `dashboard.default_theme`. A look missing from
+  `dashboard.enabled_themes`, or whose `requires` the person lacks (Glass and Front of House need `monitors:read:any`), falls
+  through; `start` is the last resort (`resolveLook` in `packages/shared/src/dashboard/themes.ts`). `?kiosk=1` hides the nav for a
+  booth screen. `dashboard_prefs.sections` holds each person's hidden optional sections per look (`optionalSections` in the
+  catalogue; unknown ids are dropped).
+- **Every look ships light and dark:** two complete token sets in its CSS Module (`.root` and `:global(.dark) .root`), WCAG AA
+  checked by `scripts/check-look-contrast.mjs` (list new text/background pairs there), fonts via `next/font/google` inside the
+  look's folder (only that look's chunk loads them), motion only inside `prefers-reduced-motion: no-preference`, and no
+  horizontal scroll at 390 px. Check a change in both schemes.
+- **Time** is shown in `site.timezone` (IANA name; `zoned.ts` helpers are DST-safe). Format dates from `zonedParts` by hand, not
+  with `Intl` presets in rendered text: Node and the browser ship different ICU data, and a differing comma caused a React
+  hydration error (#418).
+- **Availability history:** `AvailabilitySampler` (`apps/api/src/availability/`, `ClusterJobs` jobs `availability-sample` every
+  minute and `availability-prune`, 8 days) adds one up/down sample per system to `availability_hourly`; Glass's window and Toward
+  Sunday's health strips read it. A source that is unconfigured or unreachable records nothing ("no data"), never "down".
+- **Adding a look:** a `LOOK_IDS` entry and `DASHBOARD_LOOKS` definition (requires, includes, optionalSections, thumbnails
+  `apps/web/public/home-looks/<id>-light|dark.png`), a folder under `looks/` whose root carries `data-look="<id>"`, an entry in
+  `home-root.tsx`, and an e2e spec `tests/e2e/tests/home-<id>.spec.ts` that never performs a real action.
+
 ## Database
 
 The app speaks the Postgres wire protocol (`pg` + Drizzle) and supports three
