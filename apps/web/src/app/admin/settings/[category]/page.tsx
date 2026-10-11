@@ -5,11 +5,20 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { KNOWN_SETTINGS } from "@church/shared";
+import { KNOWN_SETTINGS, LOOK_IDS, isLookId, type LookId } from "@church/shared";
 import { headers } from "next/headers";
 import { SettingsForm } from "../settings-form";
 import { findCategory } from "../categories";
 import { OAuthCallbackHint } from "./oauth-callback-hint";
+import { HomePageSettings } from "./home-page-settings";
+
+/** Shown by the Home page section on the Site page, so the generic form leaves them out. */
+const HOME_PAGE_KEYS = new Set([
+  "site.timezone",
+  "dashboard.default_theme",
+  "dashboard.enabled_themes",
+  "dashboard.stream_monitor_ids",
+]);
 
 /**
  * Compute the OAuth redirect URL the user needs to paste into Google/MS
@@ -46,7 +55,9 @@ export default async function AdminSettingsCategoryPage({
   // Filter the catalogue down to just this category's settings. If there are
   // none we render the page with an empty-state message rather than 404 — the
   // category is real, just unused for this deployment.
-  const scoped = KNOWN_SETTINGS.filter((s) => s.category === slug);
+  const scoped = KNOWN_SETTINGS.filter(
+    (s) => s.category === slug && !(slug === "site" && HOME_PAGE_KEYS.has(s.key)),
+  );
 
   let current: Record<string, unknown> = {};
   try {
@@ -66,6 +77,23 @@ export default async function AdminSettingsCategoryPage({
       </>
     );
   }
+
+  const rawEnabled = current["dashboard.enabled_themes"];
+  const enabledThemes: LookId[] = Array.isArray(rawEnabled)
+    ? LOOK_IDS.filter((id) => rawEnabled.includes(id))
+    : [...LOOK_IDS];
+  const rawStream = current["dashboard.stream_monitor_ids"];
+  const streamMonitorIds = Array.isArray(rawStream)
+    ? rawStream.filter((v): v is string => typeof v === "string")
+    : [];
+  // Only admins who can read monitors get the picker; the call fails for anyone else.
+  const monitors =
+    slug === "site"
+      ? await apiJson<Array<{ id: string; name: string }>>("/api/v1/monitors")
+          .then((rows) => rows.map((m) => ({ id: m.id, name: m.name })))
+          .catch(() => null)
+      : null;
+  const defaultTheme = current["dashboard.default_theme"];
 
   return (
     <>
@@ -97,7 +125,17 @@ export default async function AdminSettingsCategoryPage({
           />
         ) : null}
 
-        {scoped.length === 0 ? (
+        {slug === "site" ? (
+          <HomePageSettings
+            timezone={typeof current["site.timezone"] === "string" ? current["site.timezone"] : "UTC"}
+            defaultTheme={isLookId(defaultTheme) ? defaultTheme : "tiles"}
+            enabledThemes={enabledThemes}
+            streamMonitorIds={streamMonitorIds}
+            monitors={monitors}
+          />
+        ) : null}
+
+        {scoped.length === 0 && slug === "site" ? null : scoped.length === 0 ? (
           <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
             No settings registered in this category yet.
           </p>
