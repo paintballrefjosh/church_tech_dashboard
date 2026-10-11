@@ -9,6 +9,7 @@ import { HomeRoot } from "./home/home-root";
 import { emptySnapshot } from "./home/empty-snapshot";
 import {
   DASHBOARD_LOOKS,
+  cleanLookSections,
   DEFAULT_DASHBOARD_LAYOUT,
   LOOK_DEVICE_COOKIE,
   resolveLook,
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 
 interface PrefsPayload {
   theme: LookId | null;
+  sections?: Record<string, string[]>;
   siteDefault: LookId;
   enabled: LookId[];
   available: LookId[];
@@ -147,6 +149,7 @@ export default async function HomePage({
         source={look === resolved.look ? resolved.source : "fallback"}
         available={prefs.available}
         siteDefault={prefs.siteDefault}
+        hiddenSections={cleanLookSections(look, prefs.sections?.[look] ?? [])}
         snapshot={snapshot ?? emptySnapshot()}
         me={{ id: me?.id ?? "", name: me?.name ?? me?.email ?? "", access, permissions }}
         kiosk={kiosk}

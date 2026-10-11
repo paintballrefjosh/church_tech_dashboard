@@ -2,6 +2,7 @@
 
 import { formatWeekdayInZone } from "@church/shared";
 import type { LookProps } from "../../look-props";
+import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";
 import { archivo } from "./font";
 import { Hero } from "./hero";
@@ -16,6 +17,7 @@ const INCLUDES = ["week", "readiness"] as const;
 
 export default function TowardSundayLook(props: LookProps) {
   const { snapshot, refresh } = useHomeSnapshot(props.snapshot, INCLUDES);
+  const hidden = useSectionHidden();
   const now = useNow(snapshot.generatedAt);
   const tz = snapshot.timezone;
 
@@ -43,7 +45,7 @@ export default function TowardSundayLook(props: LookProps) {
           )}
         </section>
 
-        {readiness ? (
+        {readiness && !hidden("readiness") ? (
           <ReadinessStrip
             readiness={readiness}
             title={weekday ? `Ready for ${weekday}` : "Ready check"}
@@ -58,6 +60,7 @@ export default function TowardSundayLook(props: LookProps) {
           service={service}
           teamTitle={weekday ? `${weekday}'s team` : "Team"}
           weekStart={week?.weekStart ?? null}
+          hidden={hidden}
         />
       </div>
     </main>

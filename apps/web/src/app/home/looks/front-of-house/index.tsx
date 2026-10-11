@@ -2,6 +2,7 @@
 
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import type { LookProps } from "../../look-props";
+import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";
 import { LookPickerButton } from "../../picker/look-picker";
 import { Scene } from "./scene";
@@ -26,7 +27,10 @@ const barlowCondensed = Barlow_Condensed({
 export default function FrontOfHouseLook(props: LookProps) {
   const { snapshot, refresh } = useHomeSnapshot(props.snapshot, ["meters"]);
   const live: LookProps = { ...props, snapshot };
-  const hasTeam = snapshot.service.state === "ok" && snapshot.service.data.team !== null;
+  const hidden = useSectionHidden();
+  const hasTeam = !hidden("team") && snapshot.service.state === "ok" && snapshot.service.data.team !== null;
+  const showChecklist = !hidden("checklist");
+  const showHelpDesk = !hidden("helpdesk");
 
   return (
     <main
@@ -45,11 +49,13 @@ export default function FrontOfHouseLook(props: LookProps) {
             )
           }
         />
-        <div className={s.deck}>
-          {hasTeam ? <TeamCard snapshot={snapshot} /> : null}
-          <ChecklistCard snapshot={snapshot} refresh={refresh} />
-          <HelpDeskCard props={live} />
-        </div>
+        {hasTeam || showChecklist || showHelpDesk ? (
+          <div className={s.deck}>
+            {hasTeam ? <TeamCard snapshot={snapshot} /> : null}
+            {showChecklist ? <ChecklistCard snapshot={snapshot} refresh={refresh} /> : null}
+            {showHelpDesk ? <HelpDeskCard props={live} /> : null}
+          </div>
+        ) : null}
       </div>
     </main>
   );

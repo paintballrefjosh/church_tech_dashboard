@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { BadRequestException } from "@nestjs/common";
-import { LOOK_IDS, PERMISSIONS, updateDashboardPrefsSchema } from "@church/shared";
+import { DASHBOARD_LOOKS, LOOK_IDS, PERMISSIONS, updateDashboardPrefsSchema } from "@church/shared";
 import {
   assertThemeAvailable,
   availableLooks,
+  cleanSections,
   normaliseEnabled,
   normaliseSiteDefault,
 } from "../src/dashboard/dashboard.service";
@@ -58,5 +59,24 @@ describe("dashboard prefs: validation", () => {
   it("rejects an unknown id at the schema", () => {
     expect(updateDashboardPrefsSchema.safeParse({ theme: "bogus" }).success).toBe(false);
     expect(updateDashboardPrefsSchema.safeParse({ theme: null }).success).toBe(true);
+  });
+});
+
+describe("dashboard prefs: sections", () => {
+  it("keeps known section ids per look and drops unknown ones and repeats", () => {
+    expect(cleanSections({ start: ["needs", "bogus", "needs", "recent"] })).toEqual({ start: ["needs", "recent"] });
+  });
+
+  it("drops unknown looks, empty lists and malformed values", () => {
+    expect(cleanSections({ nope: ["needs"], glass: ["bogus"], nave: "x", tiles: ["needs"] })).toEqual({});
+    expect(cleanSections(null)).toEqual({});
+    expect(cleanSections([])).toEqual({});
+  });
+
+  it("never offers the signature of a look as optional", () => {
+    for (const look of DASHBOARD_LOOKS) {
+      for (const s of look.optionalSections) expect(s.label).toMatch(/^[A-Z][^.]*$/);
+    }
+    expect(cleanSections({ nave: ["hero"] })).toEqual({});
   });
 });

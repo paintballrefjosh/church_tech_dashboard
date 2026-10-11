@@ -16,6 +16,7 @@ import {
   type SummaryTone,
 } from "@church/shared";
 import type { LookProps } from "../../look-props";
+import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";
 import { Countdown } from "../../parts/countdown";
 import { NeedActionButton } from "../../parts/need-action";
@@ -157,6 +158,7 @@ function reason(sec: Section<unknown> | undefined): string {
 
 export default function GlassLook(props: LookProps) {
   const { me } = props;
+  const hidden = useSectionHidden();
   const { snapshot, refresh } = useHomeSnapshot(props.snapshot, INCLUDES);
   const tokens = summarize(snapshot);
   const avail = snapshot.availability;
@@ -168,7 +170,11 @@ export default function GlassLook(props: LookProps) {
     { key: "notes", label: "Note", href: "/notes", color: "var(--amber)", icon: <StickyNote aria-hidden="true" /> },
   ].filter((c) => me.access[c.key] !== undefined);
   const activity = snapshot.activity.state === "ok" ? snapshot.activity.data.slice(0, 3) : [];
-  const showStart = canCreate.length > 0 || activity.length > 0;
+  const showStart = !hidden("create") && (canCreate.length > 0 || activity.length > 0);
+  const showService = !hidden("service") && snapshot.service.state === "ok";
+  const showNeeds = !hidden("needs") && snapshot.needs.state === "ok";
+  const showWiki = !hidden("wiki") && snapshot.wiki.state === "ok";
+  const panelCount = [showService, showNeeds, showStart, showWiki].filter(Boolean).length;
 
   return (
     <main data-look="glass" className={`${font.variable} ${styles.root}`}>
@@ -220,10 +226,11 @@ export default function GlassLook(props: LookProps) {
           )}
         </section>
 
-        <div className={styles.leaded}>
-          {snapshot.service.state === "ok" ? <ServicePane s={snapshot.service.data} snapshot={snapshot} /> : null}
+        {panelCount > 0 ? (
+        <div className={styles.leaded} data-count={panelCount}>
+          {showService && snapshot.service.state === "ok" ? <ServicePane s={snapshot.service.data} snapshot={snapshot} /> : null}
 
-          {snapshot.needs.state === "ok" ? (
+          {showNeeds && snapshot.needs.state === "ok" ? (
             <article className={styles.p} aria-labelledby="glass-needs">
               <h2 id="glass-needs">
                 <span className={styles.sw} style={{ ["--c" as string]: "var(--ruby)" }} />
@@ -287,7 +294,7 @@ export default function GlassLook(props: LookProps) {
                 <div className={styles.make}>
                   {canCreate.map((c) => (
                     <Link key={c.key} href={c.href}>
-                      <span className={styles.chip} style={{ ["--c" as string]: c.color }}>
+                      <span className={`${styles.chip} ${c.key === "notes" ? styles.chipDark : ""}`} style={{ ["--c" as string]: c.color }}>
                         {c.icon}
                       </span>
                       {c.label}
@@ -313,7 +320,7 @@ export default function GlassLook(props: LookProps) {
             </article>
           ) : null}
 
-          {snapshot.wiki.state === "ok" ? (
+          {showWiki && snapshot.wiki.state === "ok" ? (
             <article className={`${styles.p} ${styles.wide}`} aria-labelledby="glass-wiki">
               <h2 id="glass-wiki">
                 <span className={styles.sw} style={{ ["--c" as string]: "var(--cobalt)" }} />
@@ -340,6 +347,7 @@ export default function GlassLook(props: LookProps) {
             </article>
           ) : null}
         </div>
+        ) : null}
       </div>
     </main>
   );

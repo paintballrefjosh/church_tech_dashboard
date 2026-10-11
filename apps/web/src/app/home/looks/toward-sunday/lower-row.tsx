@@ -205,6 +205,7 @@ export function LowerRow({
   service,
   teamTitle,
   weekStart,
+  hidden,
 }: {
   snapshot: HomeSnapshot;
   me: LookProps["me"];
@@ -212,14 +213,15 @@ export function LowerRow({
   service: NextService | null;
   teamTitle: string;
   weekStart: string | null;
+  hidden: (id: string) => boolean;
 }) {
+  const showTeam = !hidden("team") && snapshot.service.state === "ok" && service?.source !== "checklist";
+  if (hidden("needs") && !showTeam && hidden("create")) return null;
   return (
     <div className={styles.lower}>
-      <NeedsPanel snapshot={snapshot} refresh={refresh} />
-      {snapshot.service.state === "forbidden" || service?.source === "checklist" ? null : (
-        <TeamPanel service={service} state={snapshot.service.state} title={teamTitle} />
-      )}
-      <CreatePanel snapshot={snapshot} me={me} weekStart={weekStart} />
+      {hidden("needs") ? null : <NeedsPanel snapshot={snapshot} refresh={refresh} />}
+      {showTeam ? <TeamPanel service={service} state={snapshot.service.state} title={teamTitle} /> : null}
+      {hidden("create") ? null : <CreatePanel snapshot={snapshot} me={me} weekStart={weekStart} />}
     </div>
   );
 }

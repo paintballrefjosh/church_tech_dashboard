@@ -5,6 +5,7 @@ import { Figtree } from "next/font/google";
 import { BookOpen, ListChecks, StickyNote, Ticket, type LucideIcon } from "lucide-react";
 import { summarize } from "@church/shared";
 import type { LookProps } from "../../look-props";
+import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";
 import { SearchField } from "../../parts/search-field";
 import { LookPickerButton } from "../../picker/look-picker";
@@ -26,7 +27,10 @@ const CREATE: { module: string; href: string; label: string; Icon: LucideIcon }[
 export default function StartLook(props: LookProps) {
   const { snapshot, refresh } = useHomeSnapshot(props.snapshot, []);
   const tokens = summarize(snapshot);
-  const chips = CREATE.filter((c) => props.me.access[c.module] !== undefined);
+  const hidden = useSectionHidden();
+  const chips = hidden("create") ? [] : CREATE.filter((c) => props.me.access[c.module] !== undefined);
+  const showNeeds = !hidden("needs");
+  const showSide = !(hidden("service") && hidden("systems") && hidden("recent"));
   const tagline = snapshot.site.tagline.trim();
 
   return (
@@ -79,10 +83,12 @@ export default function StartLook(props: LookProps) {
         </ul>
       ) : null}
 
-      <main className={s.body}>
-        <NeedsSection snapshot={snapshot} refresh={() => void refresh()} />
-        <SideColumn snapshot={snapshot} />
-      </main>
+      {showNeeds || showSide ? (
+        <main className={`${s.body} ${showNeeds ? "" : s.bodyWide}`}>
+          {showNeeds ? <NeedsSection snapshot={snapshot} refresh={() => void refresh()} /> : null}
+          {showSide ? <SideColumn snapshot={snapshot} hidden={hidden} wide={!showNeeds} /> : null}
+        </main>
+      ) : null}
 
       <footer className={s.foot}>
         {tagline ? <p>{tagline}</p> : null}

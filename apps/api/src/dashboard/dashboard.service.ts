@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   DASHBOARD_LOOKS,
   DEFAULT_DASHBOARD_LAYOUT,
+  cleanLookSections,
   LOOK_IDS,
   isLookId,
   type LookId,
@@ -48,11 +49,14 @@ export function assertThemeAvailable(theme: LookId | null | undefined, available
   }
 }
 
-function cleanSections(value: unknown): Record<string, string[]> {
+/** Keeps only known looks and, for each, only section ids that look offers (unknown ones are dropped). */
+export function cleanSections(value: unknown): Record<string, string[]> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
   const out: Record<string, string[]> = {};
   for (const [k, v] of Object.entries(value)) {
-    if (Array.isArray(v) && v.every((x) => typeof x === "string")) out[k] = v as string[];
+    if (!isLookId(k) || !Array.isArray(v) || !v.every((x) => typeof x === "string")) continue;
+    const ids = cleanLookSections(k, v as string[]);
+    if (ids.length > 0) out[k] = ids;
   }
   return out;
 }
@@ -85,7 +89,7 @@ export class DashboardService {
     const current = await this.getPrefs(userId, permissions);
     assertThemeAvailable(input.theme, current.available);
     const theme = input.theme === undefined ? current.theme : input.theme;
-    const sections = input.sections === undefined ? current.sections : input.sections;
+    const sections = input.sections === undefined ? current.sections : cleanSections(input.sections);
     const now = new Date();
     await this.db
       .insert(dashboardPrefs)
