@@ -101,6 +101,73 @@ describe("buildWeek", () => {
     expect(d.moreCount).toBe(2);
   });
 
+  it("collapses a day's backups into one lowest-priority event", () => {
+    const base = new Date("2026-10-07T01:00:00Z").getTime();
+    const backups = Array.from({ length: 24 }, (_, i) =>
+      ev({ kind: "backup", title: "Backup finished", tone: "ok", at: new Date(base + i * 600_000) }),
+    );
+    const w = buildWeek({
+      now: new Date("2026-10-08T12:00:00Z"),
+      timezone: "Europe/London",
+      events: [...backups, ev({ title: "wiki", kind: "wiki", at: new Date(base) })],
+      health: none,
+    });
+    expect(w.days[2]!.events.map((e) => e.title)).toEqual(["wiki", "24 backups finished"]);
+    expect(w.days[2]!.moreCount).toBe(0);
+
+    const one = buildWeek({
+      now: new Date("2026-10-08T12:00:00Z"),
+      timezone: "Europe/London",
+      events: [ev({ kind: "backup", title: "Backup finished", tone: "ok", at: new Date(base) })],
+      health: none,
+    });
+    expect(one.days[2]!.events.map((e) => e.title)).toEqual(["Backup finished"]);
+
+    const failed = buildWeek({
+      now: new Date("2026-10-08T12:00:00Z"),
+      timezone: "Europe/London",
+      events: [
+        ev({ kind: "backup", title: "Backup finished", tone: "ok", at: new Date(base) }),
+        ev({ kind: "backup", title: "Backup failed", tone: "bad", at: new Date(base + 60_000) }),
+        ev({ title: "ticket", at: new Date(base) }),
+      ],
+      health: none,
+    });
+    expect(failed.days[2]!.events.map((e) => [e.title, e.tone])).toEqual([
+      ["ticket", "info"],
+      ["2 backups, 1 failed", "bad"],
+    ]);
+  });
+
+  it("collapses repeated incidents of one system on one day", () => {
+    const at = (m: number) => new Date(new Date("2026-10-07T10:00:00Z").getTime() + m * 60_000);
+    const inc = (m: number, group: string, subject: string, durationMs: number | null) =>
+      ev({ kind: "incident", title: `${subject} went down`, tone: durationMs === null ? "bad" : "warn", at: at(m), group, subject, durationMs });
+    const w = buildWeek({
+      now: new Date("2026-10-08T12:00:00Z"),
+      timezone: "Europe/London",
+      events: [
+        inc(0, "d1", "docker01", 4 * 60_000),
+        inc(30, "d1", "docker01", 12 * 60_000),
+        inc(60, "d1", "docker01", 2 * 60_000),
+        inc(5, "other", "Website", 60_000),
+      ],
+      health: none,
+    });
+    const titles = w.days[2]!.events.map((e) => [e.title, e.detail]);
+    expect(titles).toContainEqual(["docker01 went down 3 times", "Longest outage 12 min"]);
+    expect(titles).toContainEqual(["Website went down", null]);
+    expect(w.days[2]!.events).toHaveLength(2);
+
+    const open = buildWeek({
+      now: new Date("2026-10-08T12:00:00Z"),
+      timezone: "Europe/London",
+      events: [inc(0, "d1", "docker01", 4 * 60_000), inc(30, "d1", "docker01", null)],
+      health: none,
+    });
+    expect(open.days[2]!.events[0]).toMatchObject({ title: "docker01 went down 2 times", detail: "Still down", tone: "bad" });
+  });
+
   describe("health", () => {
     const now = new Date("2026-10-08T12:00:00Z"); // 13:00 BST Thursday
     const hour = (iso: string) => iso;

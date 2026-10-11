@@ -15,6 +15,12 @@ export interface WeekEventInput {
   at: Date;
   tone: WeekEvent["tone"];
   href: string | null;
+  /** Incidents of the same system on the same day collapse into one event. */
+  group?: string;
+  /** The system's name, for the collapsed incident title. */
+  subject?: string;
+  /** Incident length in ms; null while it is still open. */
+  durationMs?: number | null;
 }
 
 /** One system's counters for one UTC hour (the shape of an `availability_hourly` row). */
@@ -53,8 +59,65 @@ const KIND_RANK: Record<WeekEvent["kind"], number> = {
   wiki: 5,
 };
 
-/** Most important first: a problem, then a warning, then information; ties by kind, then time. */
+/** "4 min", "2 h 10 min", "1 d 3 h". */
+export function outageText(ms: number): string {
+  const mins = Math.max(1, Math.round(ms / 60_000));
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return mins % 60 === 0 ? `${hours} h` : `${hours} h ${mins % 60} min`;
+  const days = Math.floor(hours / 24);
+  return hours % 24 === 0 ? `${days} d` : `${days} d ${hours % 24} h`;
+}
+
+/**
+ * Cuts the noise of one day: backups become a single event (the lowest priority), and incidents of
+ * one system become a single "went down n times" event.
+ */
+export function collapseDayEvents(events: readonly WeekEventInput[]): WeekEventInput[] {
+  const out: WeekEventInput[] = [];
+  const incidents = new Map<string, WeekEventInput[]>();
+  const backups: WeekEventInput[] = [];
+  for (const e of events) {
+    if (e.kind === "backup") backups.push(e);
+    else if (e.kind === "incident" && e.group) {
+      const list = incidents.get(e.group) ?? [];
+      list.push(e);
+      incidents.set(e.group, list);
+    } else out.push(e);
+  }
+  for (const list of incidents.values()) {
+    const first = [...list].sort((a, b) => a.at.getTime() - b.at.getTime())[0]!;
+    if (list.length === 1) {
+      out.push(first);
+      continue;
+    }
+    const open = list.some((e) => e.durationMs === null);
+    const longest = list.reduce((m, e) => Math.max(m, e.durationMs ?? 0), 0);
+    out.push({
+      ...first,
+      title: `${first.subject ?? "A system"} went down ${list.length} times`,
+      detail: open ? "Still down" : `Longest outage ${outageText(longest)}`,
+      tone: open ? "bad" : "warn",
+    });
+  }
+  if (backups.length === 1) out.push(backups[0]!);
+  else if (backups.length > 1) {
+    const failed = backups.filter((b) => b.tone === "bad").length;
+    const latest = [...backups].sort((a, b) => b.at.getTime() - a.at.getTime())[0]!;
+    out.push({
+      ...latest,
+      title: failed > 0 ? `${backups.length} backups, ${failed} failed` : `${backups.length} backups finished`,
+      detail: null,
+      tone: failed > 0 ? "bad" : "ok",
+    });
+  }
+  return out;
+}
+
+/** Most important first: a problem, then a warning, then information; backups always last. */
 export function compareWeekEvents(a: WeekEventInput, b: WeekEventInput): number {
+  const backup = Number(a.kind === "backup") - Number(b.kind === "backup");
+  if (backup !== 0) return backup;
   return (
     TONE_RANK[a.tone] - TONE_RANK[b.tone] ||
     KIND_RANK[a.kind] - KIND_RANK[b.kind] ||
@@ -141,9 +204,9 @@ export function buildWeek(input: WeekInput): WeekDigest {
     const end = starts[i + 1]!;
     const p = zonedParts(start, tz);
     const date = `${p.year}-${pad(p.month)}-${pad(p.day)}`;
-    const here = input.events
-      .filter((e) => e.at.getTime() >= start.getTime() && e.at.getTime() < end.getTime())
-      .sort(compareWeekEvents);
+    const here = collapseDayEvents(
+      input.events.filter((e) => e.at.getTime() >= start.getTime() && e.at.getTime() < end.getTime()),
+    ).sort(compareWeekEvents);
     let cells: HealthCell[];
     if (input.health) {
       const cellStarts: Date[] = [];

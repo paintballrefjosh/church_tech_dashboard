@@ -216,7 +216,7 @@ export function LowerRow({
   return (
     <div className={styles.lower}>
       <NeedsPanel snapshot={snapshot} refresh={refresh} />
-      {snapshot.service.state === "forbidden" ? null : (
+      {snapshot.service.state === "forbidden" || service?.source === "checklist" ? null : (
         <TeamPanel service={service} state={snapshot.service.state} title={teamTitle} />
       )}
       <CreatePanel snapshot={snapshot} me={me} weekStart={weekStart} />
