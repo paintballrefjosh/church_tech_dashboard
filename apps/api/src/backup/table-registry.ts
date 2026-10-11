@@ -75,6 +75,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   // ---- settings ----
   settings: { policy: "data", group: SETTINGS, title: "Settings", label: ["key"] },
   dashboard_layouts: { policy: "data", group: SETTINGS, title: "Dashboard layouts" },
+  dashboard_prefs: { policy: "data", group: SETTINGS, title: "Dashboard look preferences" },
   saved_views: { policy: "data", group: SETTINGS, title: "Saved views", label: ["name"] },
   notification_prefs: { policy: "data", group: SETTINGS, title: "Notification preferences", label: ["kind"] },
   planning_center_links: { policy: "data", group: SETTINGS, title: "Planning Center links", label: ["pc_email"] },
@@ -132,6 +133,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   monitor_checks: rebuilt("Monitor check history"),
   infra_metric_samples: rebuilt("Infrastructure metric samples"),
   infra_metric_rollups: rebuilt("Infrastructure metric rollups"),
+  availability_hourly: rebuilt("Hourly availability"),
 
   // ---- printers, UPS, Cisco, IPAM (the Monitoring menu) ----
   printers: {

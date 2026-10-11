@@ -7,5 +7,6 @@ import { RealtimeModule } from "../realtime/realtime.module";
   imports: [RealtimeModule],
   controllers: [NotesController],
   providers: [NotesService],
+  exports: [NotesService],
 })
 export class NotesModule {}

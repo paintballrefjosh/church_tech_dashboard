@@ -393,6 +393,20 @@
       "when": 1791513649951,
       "tag": "0055_monitor_check_node",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791694005129,
+      "tag": "0056_dashboard_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791694013104,
+      "tag": "0057_availability_hourly",
+      "breakpoints": true
     }
   ]
 }

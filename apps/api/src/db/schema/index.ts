@@ -27,3 +27,4 @@ export * from "./ups";
 export * from "./dns";
 export * from "./cluster";
 export * from "./backup";
+export * from "./availability";
