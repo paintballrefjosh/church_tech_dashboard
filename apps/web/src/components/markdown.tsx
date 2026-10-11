@@ -1,6 +1,7 @@
 import { Children, isValidElement, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { remarkTableBorders } from "@/lib/wiki-table-markdown";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { ZoomableImage, ZoomableVideo } from "@/components/zoomable-media";
 
@@ -27,7 +28,7 @@ export function Markdown({ children }: { children: string }) {
   return (
     <div className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-brand-600 prose-pre:bg-slate-900 prose-pre:text-slate-100 dark:prose-pre:bg-slate-950 prose-code:before:content-none prose-code:after:content-none">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkTableBorders]}
         components={{
           // Mentions are emitted as <mention> via the pre-pass below. Without
           // rehype-raw, react-markdown won't recognise raw HTML — so we use a

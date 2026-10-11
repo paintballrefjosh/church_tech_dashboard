@@ -15,6 +15,7 @@ import LinkExt from "@tiptap/extension-link";
 import ImageExt from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TableExt from "@tiptap/extension-table";
+import { serializeTable, TABLE_BORDERS_MARKER } from "@/lib/wiki-table-markdown";
 import TableRowExt from "@tiptap/extension-table-row";
 import TableHeaderExt from "@tiptap/extension-table-header";
 import TableCellExt from "@tiptap/extension-table-cell";
@@ -35,6 +36,7 @@ import {
   ImagePlus,
   Minus,
   Table as TableIcon,
+  Columns3,
   Eye,
   Pencil,
   Undo2,
@@ -176,7 +178,42 @@ export const WikiBodyEditor = forwardRef<
       // written back on the next save — even one touching an unrelated part of
       // the page. tiptap-markdown matches these by node name ("table" etc.) to
       // its own bundled parse/serialize spec, so no extra Markdown config is needed.
-      TableExt.configure({ resizable: false }),
+      // The bundled serializer writes the text "[table]" for any table that is
+      // not strictly GFM-shaped (an Excel paste always is not), so override it.
+      TableExt.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            // Per-table column borders; stored in the markdown as a comment
+            // line above the table (see TABLE_BORDERS_MARKER).
+            borders: {
+              default: false,
+              parseHTML: (el: HTMLElement) => el.getAttribute("data-borders") === "true",
+              renderHTML: (attrs: Record<string, unknown>) =>
+                attrs.borders ? { "data-borders": "true" } : {},
+            },
+          };
+        },
+        addStorage() {
+          return {
+            markdown: {
+              serialize: serializeTable,
+              parse: {
+                // With html off the marker comment arrives as a paragraph of
+                // text: fold it into the next table's attribute and drop it.
+                updateDOM(element: HTMLElement) {
+                  element.querySelectorAll("p").forEach((p) => {
+                    if (p.textContent?.trim() !== TABLE_BORDERS_MARKER) return;
+                    const next = p.nextElementSibling;
+                    if (next?.tagName === "TABLE") next.setAttribute("data-borders", "true");
+                    p.remove();
+                  });
+                },
+              },
+            },
+          };
+        },
+      }).configure({ resizable: false }),
       TableRowExt,
       TableHeaderExt,
       TableCellExt,
@@ -989,6 +1026,7 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
   function run(fn: (chain: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) {
     fn(editor.chain().focus()).run();
   }
+  const borders = editor.getAttributes("table").borders === true;
   return (
     <div
       onMouseDown={(e) => e.preventDefault()}
@@ -1040,6 +1078,13 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
       </TableBtn>
       <ToolDivider />
       <TableBtn
+        title={borders ? "Hide column borders" : "Show column borders"}
+        pressed={borders}
+        onClick={() => run((c) => c.updateAttributes("table", { borders: !borders }))}
+      >
+        <Columns3 className="h-3.5 w-3.5" />
+      </TableBtn>
+      <TableBtn
         title="Delete table"
         onClick={() => run((c) => c.deleteTable())}
         disabled={!editor.can().deleteTable()}
@@ -1055,11 +1100,13 @@ function TableBtn({
   title,
   onClick,
   disabled,
+  pressed,
   children,
 }: {
   title: string;
   onClick: () => void;
   disabled?: boolean;
+  pressed?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -1067,10 +1114,11 @@ function TableBtn({
       type="button"
       title={title}
       aria-label={title}
+      aria-pressed={pressed}
       disabled={disabled}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className="inline-flex h-6 items-center gap-0 rounded px-1 text-slate-600 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-700"
+      className={`inline-flex h-6 items-center gap-0 rounded px-1 ${pressed ? "bg-slate-200 dark:bg-slate-700" : ""} text-slate-600 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-700`}
     >
       {children}
     </button>
