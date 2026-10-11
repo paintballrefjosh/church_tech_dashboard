@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
-import { findKnownSetting, findTogglePrerequisite } from "@church/shared";
+import { findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
 import { settings } from "../db/schema";
@@ -111,6 +111,8 @@ export class SettingsService implements OnModuleInit {
     // it holds for every caller, not just the settings form. Turning a toggle
     // OFF is always allowed.
     await this.assertTogglePrereqs(key, value);
+    const invalid = validateSettingValue(key, value);
+    if (invalid) throw new BadRequestException(invalid);
     // Secret-typed keys are encrypted at rest with an AUTH_SECRET-derived key.
     // Non-secrets are stored as-is. The cache holds plaintext on both sides
     // so downstream consumers don't see the cipher.

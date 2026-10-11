@@ -30,6 +30,8 @@ export function useRealtimeRoom(
   const roomsKey = roomList.join(",");
 
   useEffect(() => {
+    // No rooms (a caller that is not allowed any): do not open a socket at all.
+    if (roomList.length === 0) return;
     let socket: Socket | null = null;
     try {
       socket = io({

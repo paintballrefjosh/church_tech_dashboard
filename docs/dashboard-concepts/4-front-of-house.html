@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Front of House</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --console: #1d2025;
+    --panel: #262a30;
+    --panel-2: #2e333a;
+    --edge: #3a4049;
+    --label: #e1e4ea;
+    --dim: #949cab;
+    --dimmer: #646b78;
+    --led-g: #39d97c;
+    --led-a: #ffb21e;
+    --led-r: #ff4d4d;
+    --screen: #0f151b;
+    /* scribble-strip colours, one per channel */
+    --ch-servers: #4c8dff;
+    --ch-internet: #3ccf7d;
+    --ch-wifi: #a77bff;
+    --ch-switch: #ff9a3c;
+    --ch-dns: #2fd0e0;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--console);
+    background-image: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 4px 4px;
+    color: var(--label);
+    font-family: "Barlow", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  a { color: inherit; text-decoration: none; }
+  a:focus-visible, button:focus-visible, input:focus-visible + .box { outline: 2px solid var(--ch-dns); outline-offset: 2px; border-radius: 6px; }
+  .cond { font-family: "Barlow Condensed", "Barlow", sans-serif; }
+  .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 0 24px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .top { border-bottom: 1px solid #14171b; background: #191c20; }
+  .top .wrap { display: flex; align-items: center; gap: 26px; height: 58px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Barlow Condensed", sans-serif; font-size: 22px; font-weight: 600; letter-spacing: 0.01em; }
+  .brand .led { width: 8px; height: 8px; border-radius: 50%; background: var(--led-g); box-shadow: 0 0 8px var(--led-g); }
+  .nav { display: flex; gap: 2px; }
+  .nav a { padding: 6px 10px; border-radius: 6px; color: var(--dim); display: flex; align-items: center; gap: 4px; font-size: 14px; }
+  .nav a:hover { color: var(--label); background: var(--panel); }
+  .nav .icon { width: 14px; height: 14px; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .search { display: flex; align-items: center; gap: 8px; width: 250px; padding: 7px 12px; border: 1px solid var(--edge); border-radius: 8px; color: var(--dimmer); font-size: 14px; background: var(--console); }
+  .search kbd { margin-left: auto; font-family: inherit; font-size: 12px; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; }
+  .iconbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; color: var(--dim); position: relative; background: none; border: 0; }
+  .iconbtn .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--led-a); box-shadow: 0 0 6px var(--led-a); }
+  .avatar { width: 34px; height: 34px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--edge); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+
+  /* Scene display: the console's main screen */
+  .scene { margin-top: 22px; background: var(--screen); border: 1px solid #0a0e12; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 12px 30px -12px rgba(0, 0, 0, 0.6); display: grid; grid-template-columns: 1.2fr auto 1fr; gap: 0; overflow: hidden; }
+  .scene > div { padding: 22px 26px; }
+  .scene .now { color: var(--dim); font-size: 14px; }
+  .scene h1 { margin: 2px 0 2px; font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 46px; line-height: 1; color: #fff; }
+  .scene .sub { color: var(--dim); }
+  .scene .sub b { color: var(--label); font-weight: 500; }
+  .clock { border-left: 1px solid #1e262e; border-right: 1px solid #1e262e; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .clock .t { font-family: "Barlow Condensed", sans-serif; font-weight: 500; font-size: 68px; line-height: 0.95; color: var(--led-a); text-shadow: 0 0 18px rgba(255, 178, 30, 0.35); letter-spacing: 0.01em; }
+  .clock .l { font-size: 13px; color: var(--dim); margin-top: 6px; }
+  .runsheet { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .runsheet li { display: grid; grid-template-columns: 54px 1fr; padding: 3px 0; color: var(--dim); }
+  .runsheet li .tm { font-family: "Barlow Condensed", sans-serif; font-size: 17px; color: var(--label); }
+  .runsheet li.next { color: #fff; }
+  .runsheet li.next .tm { color: var(--led-a); }
+  .runsheet-h { font-size: 13px; color: var(--dimmer); margin: 0 0 6px; }
+
+  /* Channel strips */
+  .bank-h { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; }
+  .bank-h h2 { margin: 0; font-family: "Barlow Condensed", sans-serif; font-size: 22px; font-weight: 600; }
+  .bank-h p { margin: 0; color: var(--dim); font-size: 14px; }
+  .bank-scroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 4px; }
+  .bank { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)) 14px minmax(190px, 1.25fr); gap: 10px; min-width: 980px; }
+  .strip { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--edge); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .scribble { background: var(--c); color: #0b0d10; border-radius: 6px; padding: 5px 9px; font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: 18px; line-height: 1.2; display: flex; justify-content: space-between; align-items: baseline; }
+  .scribble small { font-weight: 600; font-size: 13px; opacity: 0.7; }
+  .readout { display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px; }
+  .readout .v { font-family: "Barlow Condensed", sans-serif; font-size: 36px; font-weight: 500; line-height: 1; color: #fff; }
+  .readout .v small { font-size: 20px; color: var(--dim); }
+  .meterbox { display: flex; gap: 10px; align-items: stretch; background: var(--screen); border-radius: 8px; padding: 10px 10px 8px; }
+  .meter { display: flex; flex-direction: column-reverse; gap: 2px; width: 14px; }
+  .meter i { height: 6px; border-radius: 1px; background: #232a31; transition: background 0.25s; }
+  .meter i.on.g { background: var(--led-g); box-shadow: 0 0 4px rgba(57, 217, 124, 0.5); }
+  .meter i.on.a { background: var(--led-a); }
+  .meter i.on.r { background: var(--led-r); }
+  .meter i.peak.g { background: rgba(57, 217, 124, 0.7); }
+  .meter i.peak.a { background: rgba(255, 178, 30, 0.8); }
+  .metric { display: flex; flex-direction: column; justify-content: space-between; font-size: 12.5px; color: var(--dim); min-width: 0; }
+  .metric b { display: block; font-family: "Barlow Condensed", sans-serif; font-size: 20px; font-weight: 500; color: var(--label); line-height: 1.1; }
+  .state { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); padding: 0 2px; }
+  .led { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .led.g { background: var(--led-g); box-shadow: 0 0 8px var(--led-g); }
+  .led.r { background: var(--led-r); box-shadow: 0 0 10px var(--led-r); }
+  .led.off { background: #3a3f47; }
+  .state.bad { color: #ffb4b4; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: auto; }
+  .key { border: 1px solid var(--edge); background: #31363e; color: var(--label); border-radius: 7px; padding: 7px 0; font-family: "Barlow Condensed", sans-serif; font-size: 16px; font-weight: 600; text-align: center; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #15181c; }
+  .key:hover { background: #393f48; }
+  .key:active { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+  .key.lit-a { background: var(--led-a); color: #1d1300; border-color: var(--led-a); box-shadow: 0 0 14px rgba(255, 178, 30, 0.4); }
+  .key.lit-r { background: var(--led-r); color: #2b0000; border-color: var(--led-r); box-shadow: 0 0 14px rgba(255, 77, 77, 0.45); }
+  .key.full { grid-column: 1 / -1; }
+  .strip.problem { border-color: rgba(255, 77, 77, 0.55); box-shadow: 0 0 0 1px rgba(255, 77, 77, 0.25), 0 0 24px -6px rgba(255, 77, 77, 0.35); }
+
+  .master { background: linear-gradient(180deg, #33383f, #2a2e34); }
+  .master .scribble { background: #f1f2f4; }
+  .master .big { display: flex; align-items: center; gap: 12px; padding: 0 2px; }
+  .master .big .v { font-family: "Barlow Condensed", sans-serif; font-size: 44px; font-weight: 500; line-height: 1; color: #fff; }
+  .master .big .v small { font-size: 22px; color: var(--dim); }
+  .master p { margin: 0; font-size: 13.5px; color: var(--dim); padding: 0 2px; }
+  .master p b { color: #ffb4b4; font-weight: 500; }
+  .mutenote { min-height: 40px; }
+  .alog { list-style: none; margin: 0; padding: 8px 10px; font-size: 13px; background: var(--screen); border-radius: 8px; color: var(--label); }
+  .alog li { display: grid; grid-template-columns: 58px 1fr; padding: 3px 0; }
+  .alog span { color: var(--dimmer); }
+  .scene-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
+  .scene-acts .key { padding: 7px 14px; }
+  .teamline { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--dim); margin-left: 6px; }
+  .teamline .led.a { background: var(--led-a); box-shadow: 0 0 6px var(--led-a); }
+
+  /* Lower deck */
+  .deck { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 14px; margin: 26px 0 48px; }
+  .card { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 18px 20px; min-width: 0; }
+  .card h2 { margin: 0 0 12px; font-family: "Barlow Condensed", sans-serif; font-size: 22px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .card h2 a { font-family: "Barlow", sans-serif; font-size: 13px; font-weight: 500; color: var(--ch-dns); }
+  table.inputs { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .inputs th { text-align: left; font-weight: 500; color: var(--dimmer); font-size: 12.5px; padding: 0 6px 6px 0; }
+  .inputs td { padding: 6px 6px 6px 0; border-top: 1px solid var(--edge); vertical-align: top; }
+  .inputs td.ch { font-family: "Barlow Condensed", sans-serif; color: var(--dim); width: 30px; font-size: 16px; }
+  .inputs td.pos { color: var(--dim); width: 34%; }
+  .inputs td.st { width: 92px; font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+  .inputs td.st .led { display: inline-block; margin-right: 6px; vertical-align: 0; width: 8px; height: 8px; }
+  .inputs .led.a { background: var(--led-a); box-shadow: 0 0 6px var(--led-a); }
+  .inputs tr.me td:not(.ch):not(.st):not(.pos) { color: var(--led-a); }
+  .tasks { list-style: none; margin: 0; padding: 0; }
+  .tasks label { display: flex; gap: 12px; padding: 9px 0; border-top: 1px solid var(--edge); cursor: pointer; font-size: 14px; line-height: 1.35; align-items: flex-start; }
+  .tasks li:first-child label { border-top: 0; }
+  .tasks input { position: absolute; opacity: 0; }
+  .box { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid var(--dimmer); flex: none; display: grid; place-items: center; margin-top: 1px; }
+  .box .icon { width: 13px; height: 13px; stroke-width: 3; opacity: 0; color: #0b0d10; }
+  .tasks input:checked + .box { background: var(--led-g); border-color: var(--led-g); }
+  .tasks input:checked + .box .icon { opacity: 1; }
+  .tasks input:checked ~ span { color: var(--dimmer); text-decoration: line-through; }
+  .evt { font-size: 13px; color: var(--dim); margin: -6px 0 8px; }
+  .progress { height: 6px; background: var(--screen); border-radius: 3px; overflow: hidden; margin: 8px 0 4px; }
+  .progress i { display: block; height: 100%; background: var(--led-g); width: 0; transition: width 0.3s; }
+  .tickets { list-style: none; margin: 0; padding: 0; }
+  .tickets a { display: block; padding: 9px 0; border-top: 1px solid var(--edge); }
+  .tickets li:first-child a { border-top: 0; }
+  .tickets a:hover .t { color: #fff; text-decoration: underline; }
+  .tickets .t { display: block; font-weight: 500; font-size: 14px; line-height: 1.35; }
+  .tickets .m { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+  .prio { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 13px; padding: 0 6px; border-radius: 4px; background: var(--panel-2); color: var(--label); }
+  .prio.hi { background: var(--led-r); color: #2b0000; }
+  .due { color: var(--led-a); }
+  .sec { margin-top: 18px; }
+  .sec h3 { margin: 0 0 4px; font-family: "Barlow Condensed", sans-serif; font-size: 18px; font-weight: 600; }
+  .quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .quick a { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 7px; border: 1px solid var(--edge); font-size: 13.5px; background: var(--panel-2); }
+  .quick a:hover { border-color: var(--dim); }
+
+  @media (max-width: 1080px) {
+    .nav { display: none; }
+    .scene { grid-template-columns: 1fr auto; }
+    .scene .rs { grid-column: 1 / -1; border-top: 1px solid #1e262e; }
+    .clock { border-right: 0; }
+    .deck { grid-template-columns: 1fr 1fr; }
+    .deck .card:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 0 16px; }
+    .search { display: none; }
+    .scene { grid-template-columns: 1fr; }
+    .clock { border: 0; border-top: 1px solid #1e262e; padding-top: 14px !important; padding-bottom: 14px !important; }
+    .scene h1 { font-size: 38px; }
+    .clock .t { font-size: 56px; }
+    .deck { grid-template-columns: 1fr; }
+    .bank-h { flex-direction: column; gap: 2px; }
+    .bank { grid-template-columns: 1fr 1fr; min-width: 0; }
+    .bank > div[aria-hidden] { display: none; }
+    .master { grid-column: 1 / -1; }
+    .meterbox { height: 130px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="led" aria-hidden="true"></span>NorthPointe</a>
+    <nav class="nav" aria-label="Main">
+      <a href="#">IT <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Docs <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Church apps <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Admin <svg class="icon"><use href="#i-down"/></svg></a>
+    </nav>
+    <div class="top-right">
+      <div class="search"><svg class="icon"><use href="#i-search"/></svg>Search everything<kbd>Ctrl K</kbd></div>
+      <button class="iconbtn" aria-label="Notifications, 3 unread"><svg class="icon"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <span class="avatar" aria-label="Josh Scarbrough">JS</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="scene" aria-label="Next service">
+    <div>
+      <div class="now">Good evening, Josh. Up next:</div>
+      <h1>Sunday Gathering</h1>
+      <div class="sub">Tomorrow, Sun 11 Oct. <b>Acts: To the Ends of the Earth</b>, week 4</div>
+      <div class="scene-acts">
+        <a class="key" href="#">Open the plan</a>
+        <a class="key" href="#">Sunday checklists</a>
+        <span class="teamline num"><span class="led a"></span>Team 12 of 15 confirmed</span>
+      </div>
+    </div>
+    <div class="clock">
+      <div class="t num" id="clock">14:20:00</div>
+      <div class="l">until the first service</div>
+    </div>
+    <div class="rs">
+      <p class="runsheet-h">Tomorrow's run sheet</p>
+      <ul class="runsheet num">
+        <li class="next"><span class="tm">7:30</span>Team call, everyone on stage</li>
+        <li><span class="tm">8:00</span>Run-through</li>
+        <li><span class="tm">9:00</span>First service</li>
+        <li><span class="tm">10:45</span>Second service, streamed</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="bank-h">
+    <h2>Systems</h2>
+    <p>Live levels, refreshed every 15 seconds</p>
+  </div>
+  <div class="bank-scroll">
+    <section class="bank" aria-label="System health by area">
+      <div class="strip" style="--c: var(--ch-servers)">
+        <div class="scribble"><span>Servers</span></div>
+        <div class="readout"><span class="v num">25<small>/25</small></span></div>
+        <div class="meterbox"><div class="meter" data-level="0.34"></div><div class="metric"><span>avg CPU<b class="num" data-read>23%</b></span><span>memory<b class="num">61%</b></span></div></div>
+        <div class="state"><span class="led g"></span>All up</div>
+        <div class="btns"><a class="key full" href="#">Open</a></div>
+      </div>
+      <div class="strip" style="--c: var(--ch-internet)">
+        <div class="scribble"><span>Internet</span></div>
+        <div class="readout"><span class="v num">5<small>/5</small></span></div>
+        <div class="meterbox"><div class="meter" data-level="0.22"></div><div class="metric"><span>latency<b class="num">14 ms</b></span><span>fiber<b>Pathway</b></span></div></div>
+        <div class="state"><span class="led g"></span>All up</div>
+        <div class="btns"><a class="key full" href="#">Open</a></div>
+      </div>
+      <div class="strip problem" style="--c: var(--ch-wifi)">
+        <div class="scribble"><span>Wi-Fi</span></div>
+        <div class="readout"><span class="v num">23<small>/24</small></span></div>
+        <div class="meterbox"><div class="meter" data-level="0.48"></div><div class="metric"><span>clients<b class="num">186</b></span><span>APs<b class="num">11 of 12</b></span></div></div>
+        <div class="state bad"><span class="led r"></span>AP-Kids-Wing, 38 min</div>
+        <div class="btns"><a class="key" href="#">Open</a><button class="key" type="button" id="ack">Ack</button></div>
+      </div>
+      <div class="strip" style="--c: var(--ch-switch)">
+        <div class="scribble"><span>Switches</span></div>
+        <div class="readout"><span class="v num">3<small>/3</small></span></div>
+        <div class="meterbox"><div class="meter" data-level="0.28"></div><div class="metric"><span>ports up<b class="num">71</b></span><span>config<b>no drift</b></span></div></div>
+        <div class="state"><span class="led g"></span>All up</div>
+        <div class="btns"><a class="key full" href="#">Open</a></div>
+      </div>
+      <div class="strip" style="--c: var(--ch-dns)">
+        <div class="scribble"><span>DNS</span></div>
+        <div class="readout"><span class="v num">2<small>/2</small></span></div>
+        <div class="meterbox"><div class="meter" data-level="0.4"></div><div class="metric"><span>queries/min<b class="num">412</b></span><span>sync<b>2 min ago</b></span></div></div>
+        <div class="state"><span class="led g"></span>All up</div>
+        <div class="btns"><a class="key full" href="#">Open</a></div>
+      </div>
+      <div aria-hidden="true"></div>
+      <div class="strip master">
+        <div class="scribble"><span>Everything</span></div>
+        <div class="big"><span class="led r" id="mled" style="width:14px;height:14px"></span><span class="v num">58<small>/59</small></span></div>
+        <p class="mutenote" id="mnote">One problem. <b>Alerts are on</b>, so the on-call team gets an email if anything else drops.</p>
+        <ul class="alog num" aria-label="Recent alerts">
+          <li><span>6:02 pm</span>AP-Kids-Wing offline</li>
+          <li><span>11:20 am</span>docker-2 rebooted, back in 2 min</li>
+          <li><span>Tue</span>Fiber gateway dropped, 4 min</li>
+        </ul>
+        <div class="btns">
+          <button class="key full" type="button" id="mute" aria-pressed="false">Mute alerts</button>
+          <a class="key full" href="#">Open monitoring</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="deck">
+    <div class="card">
+      <h2>Sunday's team <a href="#">Planning Center</a></h2>
+      <table class="inputs">
+        <thead><tr><th>Ch</th><th>Position</th><th>Name</th><th>Status</th></tr></thead>
+        <tbody class="num">
+          <tr><td class="ch">01</td><td class="pos">Worship leader</td><td>Sarah Mitchell</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">02</td><td class="pos">Vocals</td><td>Dan Reyes</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">03</td><td class="pos">Vocals</td><td>Priya Shah</td><td class="st"><span class="led a"></span>Waiting</td></tr>
+          <tr><td class="ch">04</td><td class="pos">Keys</td><td>Emily Carter</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">05</td><td class="pos">Guitar</td><td>Marcus Lee</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">06</td><td class="pos">Bass</td><td>Tom Okafor</td><td class="st"><span class="led r"></span>Declined</td></tr>
+          <tr><td class="ch">07</td><td class="pos">Drums</td><td>Ben Hartley</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr class="me"><td class="ch">08</td><td class="pos">Audio</td><td>You</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">09</td><td class="pos">Lights</td><td>Abby Nguyen</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">10</td><td class="pos">ProPresenter</td><td>Caleb Wright</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+          <tr><td class="ch">11</td><td class="pos">Camera</td><td>Noah Fisher, Grace Kim</td><td class="st"><span class="led a"></span>1 waiting</td></tr>
+          <tr><td class="ch">12</td><td class="pos">Stream</td><td>Luke Patel</td><td class="st"><span class="led g"></span>Confirmed</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Your checklist <a href="#">All checklists</a></h2>
+      <p class="evt">FOH station, Wednesday Practice, Wed 14 Oct at 7:00 pm</p>
+      <div class="progress"><i id="prog"></i></div>
+      <p class="evt" id="progtxt" style="margin:0 0 8px">0 of 5 done</p>
+      <ul class="tasks" id="tasks">
+        <li><label><input type="checkbox"><span class="box"><svg class="icon"><use href="#i-check"/></svg></span><span>Load the NP Default scene</span></label></li>
+        <li><label><input type="checkbox"><span class="box"><svg class="icon"><use href="#i-check"/></svg></span><span>Set gains for each instrument and mic as needed</span></label></li>
+        <li><label><input type="checkbox"><span class="box"><svg class="icon"><use href="#i-check"/></svg></span><span>Work on a good overall mix before fine tuning FX, gates, EQ and compressors</span></label></li>
+        <li><label><input type="checkbox"><span class="box"><svg class="icon"><use href="#i-check"/></svg></span><span>Double check your vocal and band ratio</span></label></li>
+        <li><label><input type="checkbox"><span class="box"><svg class="icon"><use href="#i-check"/></svg></span><span>Save to the NP Live scene. Do not overwrite NP Default.</span></label></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Help desk <a href="#">All tickets</a></h2>
+      <ul class="tickets">
+        <li><a href="#"><span class="t">Stream audio drifted out of sync during the 10:45</span><span class="m num"><span class="prio hi">High</span>#201, Luke Patel. <span class="due">Reply by 9:40 pm</span></span></a></li>
+        <li><a href="#"><span class="t">Projector in Room 104 flickers</span><span class="m num"><span class="prio">Normal</span>#199, unassigned</span></a></li>
+        <li><a href="#"><span class="t">My computer doesn't work</span><span class="m num"><span class="prio">Low</span>#196, in progress</span></a></li>
+      </ul>
+      <div class="sec">
+        <h3>Recently in the wiki</h3>
+        <ul class="tickets">
+          <li><a href="#"><span class="t">ProPresenter - Troubleshooting</span><span class="m">Caleb Wright, Tuesday</span></a></li>
+          <li><a href="#"><span class="t">Technitium DNS - Clustered DNS Servers</span><span class="m">You, Thursday</span></a></li>
+        </ul>
+      </div>
+      <div class="quick">
+        <a href="#"><svg class="icon"><use href="#i-plus"/></svg>Ticket</a>
+        <a href="#"><svg class="icon"><use href="#i-plus"/></svg>Wiki page</a>
+        <a href="#"><svg class="icon"><use href="#i-plus"/></svg>Note</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const SEG = 22;
+
+  // Build the LED meters. Green to 70%, amber to 90%, red above.
+  const meters = [...document.querySelectorAll(".meter")].map((m) => {
+    for (let i = 0; i < SEG; i++) {
+      const s = document.createElement("i");
+      s.className = i < SEG * 0.7 ? "g" : i < SEG * 0.9 ? "a" : "r";
+      m.appendChild(s);
+    }
+    return { el: m, base: Number(m.dataset.level), peak: 0, peakAge: 0 };
+  });
+  function draw(m, level) {
+    const lit = Math.round(level * SEG);
+    if (lit >= m.peak || m.peakAge > 6) { m.peak = lit; m.peakAge = 0; } else m.peakAge++;
+    [...m.el.children].forEach((s, i) => {
+      s.classList.toggle("on", i < lit);
+      s.classList.toggle("peak", i === m.peak - 1 && i >= lit);
+    });
+  }
+  meters.forEach((m) => draw(m, m.base));
+  if (!reduce) {
+    // Gentle movement around each channel's real reading, like a meter at rest.
+    setInterval(() => meters.forEach((m) => draw(m, Math.max(0.05, m.base + (Math.random() - 0.5) * 0.14))), 700);
+  }
+
+  // Maintenance mode is the master mute.
+  const mute = document.getElementById("mute"), note = document.getElementById("mnote");
+  mute.addEventListener("click", () => {
+    const on = mute.getAttribute("aria-pressed") !== "true";
+    mute.setAttribute("aria-pressed", String(on));
+    mute.classList.toggle("lit-r", on);
+    mute.textContent = on ? "Alerts muted" : "Mute alerts";
+    note.innerHTML = on
+      ? "<b>Maintenance mode.</b> Problems are still recorded, but nobody is emailed until you unmute."
+      : "One problem. <b>Alerts are on</b>, so the on-call team gets an email if anything else drops.";
+  });
+  const ack = document.getElementById("ack");
+  ack.addEventListener("click", () => {
+    const on = !ack.classList.contains("lit-a");
+    ack.classList.toggle("lit-a", on);
+    ack.textContent = on ? "Acked" : "Ack";
+  });
+
+  // Checklist progress.
+  const boxes = [...document.querySelectorAll("#tasks input")];
+  function prog() {
+    const n = boxes.filter((b) => b.checked).length;
+    document.getElementById("prog").style.width = (n / boxes.length) * 100 + "%";
+    document.getElementById("progtxt").textContent = `${n} of ${boxes.length} done`;
+  }
+  boxes.forEach((b) => b.addEventListener("change", prog));
+  boxes[0].checked = true; prog();
+
+  // Show clock from a fixed "now" (Sat 10 Oct 2026, 6:40 pm).
+  const NOW0 = new Date(2026, 9, 10, 18, 40).getTime(), SVC = new Date(2026, 9, 11, 9, 0).getTime(), t0 = Date.now();
+  const pad = (n) => String(n).padStart(2, "0");
+  function tick() {
+    const left = Math.max(0, SVC - (NOW0 + Date.now() - t0));
+    const s = Math.floor(left / 1000);
+    document.getElementById("clock").textContent = `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

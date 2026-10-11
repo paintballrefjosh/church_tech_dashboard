@@ -1982,6 +1982,14 @@ async function main() {
   const { backupTests } = await import("./backups.mjs");
   await backupTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- home page look preferences (tests/smoke/home-prefs.mjs) ----
+  const { homePrefsTests } = await import("./home-prefs.mjs");
+  await homePrefsTests({ test, assert, fetchWithCookies, jar });
+
+  // ---- home snapshot (tests/smoke/home-snapshot.mjs) ----
+  const { homeSnapshotTests } = await import("./home-snapshot.mjs");
+  await homeSnapshotTests({ test, assert, fetchWithCookies, jar });
+
   // ---- cluster page (tests/smoke/cluster.mjs) ----
   const { clusterTests } = await import("./cluster.mjs");
   await clusterTests({ test, assert, fetchWithCookies, jar });

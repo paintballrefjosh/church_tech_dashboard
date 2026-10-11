@@ -2,7 +2,7 @@
 
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   BookOpen,
@@ -15,7 +15,8 @@ import {
   StickyNote,
   Users,
 } from "lucide-react";
-import { KIND_META, hrefForHit, type SearchHit as Hit } from "@/lib/search-kinds";
+import { KIND_META, hrefForHit } from "@/lib/search-kinds";
+import { useGlobalSearch } from "@/lib/use-global-search";
 
 /**
  * Cmd+K / Ctrl+K command palette. Combines:
@@ -29,9 +30,7 @@ import { KIND_META, hrefForHit, type SearchHit as Hit } from "@/lib/search-kinds
 export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { q, setQ, hits, clear } = useGlobalSearch({ limit: 10, debounceMs: 150 });
 
   // Global Cmd/Ctrl+K toggle.
   useEffect(() => {
@@ -45,35 +44,9 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Search debounce.
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) {
-      setHits([]);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}&limit=10`, {
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (r.ok) {
-          const body = (await r.json()) as { hits: Hit[] };
-          setHits(body.hits ?? []);
-        }
-      } catch {
-        setHits([]);
-      }
-    }, 150);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [q]);
-
   function go(href: string) {
     setOpen(false);
-    setQ("");
+    clear();
     router.push(href);
   }
 

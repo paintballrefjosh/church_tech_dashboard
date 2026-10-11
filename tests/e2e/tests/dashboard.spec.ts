@@ -39,7 +39,8 @@ test.describe("Phase 1.6 — Dashboard tiles", () => {
     await page.evaluate(() =>
       fetch("/api/dashboard/layout", { method: "DELETE", credentials: "same-origin" }),
     );
-    await page.goto("/");
+    // The tile grid is one look of several and not the site default, so ask for it.
+    await page.goto("/?theme=tiles");
   });
 
   test("default layout renders the default tiles", async ({ page }) => {

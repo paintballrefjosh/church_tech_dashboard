@@ -1004,6 +1004,30 @@ carries on. Nodes that only hold the database and object store (`NODE_ROLE=data`
 `--drain-wait`, `--prune`, `--settle <sec>` (pause between nodes, default 10) and `--to <ref>` work as described
 above.
 
+## The home page and its looks
+
+The home page can be shown in six looks: **Tiles** (the original customisable grid), **Start page**, **Nave**,
+**Toward Sunday**, **Glass** and **Front of House**. Everyone picks their own with **Change look** on the home page
+(or the user menu > Home page look), and every look works in light and dark mode.
+
+Admins set the defaults in **Admin > Settings > Site > Home page**:
+
+- **Time zone**: the church's IANA time zone (for example `America/Chicago`). The greeting, "today", the week rail and
+  the hourly history are shown in it. It defaults to `UTC`, so set it after installing.
+- **Default look**: what people see until they choose; Front of House unless you change it. **Offered looks**: which
+  ones the picker offers. The Start page is always available as the fallback, and Glass and Front of House are only
+  offered to people who can see monitoring, so someone without monitoring access sees the Start page instead.
+- **Stream monitors**: the uptime monitors that make up "the stream" in Toward Sunday's readiness check. Leave empty to
+  leave that check out.
+
+For a booth or lobby screen, sign in on that machine, open **Change look**, pick a look and tick **Use on this device
+only**: that browser keeps it whatever the account's own choice is. Adding `?kiosk=1` to the address hides the
+navigation (useful with Front of House on a booth screen); `?theme=<look>` previews a look without saving it
+(`tiles`, `start`, `nave`, `toward-sunday`, `glass`, `front-of-house`).
+
+Glass and Toward Sunday show system history that the dashboard starts recording when it is upgraded: the first
+twelve hours fill in as they pass.
+
 ## Using the API
 
 Scripts and agents use the same REST API as the web UI, at

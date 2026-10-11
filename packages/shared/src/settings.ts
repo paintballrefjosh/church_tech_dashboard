@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
+import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
 
 export type SettingType = "string" | "boolean" | "number" | "secret" | "json";
 
@@ -65,6 +66,42 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Shown on the right side of the footer on every page. Use it for a copyright line, hosting credit, or contact info. Leave blank to hide.",
     defaultValue: "",
+    category: "site",
+  },
+  {
+    key: "site.timezone",
+    type: "string",
+    label: "Time zone",
+    description:
+      "IANA time zone of the church, for example Europe/London. Sets the home page's day boundaries and greeting. Defaults to UTC.",
+    defaultValue: "UTC",
+    category: "site",
+  },
+  {
+    key: "dashboard.default_theme",
+    type: "string",
+    label: "Default home look",
+    description:
+      "The look of the home page for people who have not chosen one: tiles, start, nave, toward-sunday, glass or front-of-house. People who cannot use it (Glass and Front of House need monitoring access) get the Start page.",
+    defaultValue: DEFAULT_LOOK,
+    category: "site",
+  },
+  {
+    key: "dashboard.enabled_themes",
+    type: "json",
+    label: "Offered home looks",
+    description:
+      'JSON list of the looks people may choose from, for example ["tiles","start"]. Remove an id to switch that look off.',
+    defaultValue: [...LOOK_IDS],
+    category: "site",
+  },
+  {
+    key: "dashboard.stream_monitor_ids",
+    type: "json",
+    label: "Stream monitors",
+    description:
+      'JSON list of monitor ids that must be up for the "Stream" readiness check. Leave empty to leave the check out.',
+    defaultValue: [],
     category: "site",
   },
   // Auth — top-level toggles. Provider credentials live in each provider's
@@ -806,4 +843,37 @@ export const TOGGLE_PREREQUISITES: ReadonlyArray<TogglePrerequisite> = [
 
 export function findTogglePrerequisite(key: string): TogglePrerequisite | undefined {
   return TOGGLE_PREREQUISITES.find((t) => t.toggleKey === key);
+}
+
+/**
+ * Extra validation for settings whose value has a fixed shape. Returns an error message, or null
+ * when the value is acceptable (or the key has no special rule).
+ */
+export function validateSettingValue(key: string, value: unknown): string | null {
+  const isLook = (v: unknown) => typeof v === "string" && (LOOK_IDS as readonly string[]).includes(v);
+  switch (key) {
+    case "site.timezone": {
+      if (typeof value !== "string" || value.trim() === "") {
+        return "Enter an IANA time zone, for example Europe/London.";
+      }
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: value });
+      } catch {
+        return `"${value}" is not a known time zone. Use an IANA name such as Europe/London.`;
+      }
+      return null;
+    }
+    case "dashboard.default_theme":
+      return isLook(value) ? null : `Choose one of: ${LOOK_IDS.join(", ")}.`;
+    case "dashboard.enabled_themes":
+      return Array.isArray(value) && value.every(isLook)
+        ? null
+        : `Enter a JSON list using only: ${LOOK_IDS.join(", ")}.`;
+    case "dashboard.stream_monitor_ids":
+      return Array.isArray(value) && value.every((v) => typeof v === "string")
+        ? null
+        : "Enter a JSON list of monitor ids.";
+    default:
+      return null;
+  }
 }

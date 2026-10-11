@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { User, ShieldCheck, Bell, CalendarDays, KeySquare } from "lucide-react";
-import { NOTIFICATION_KINDS, type NotificationKind } from "@church/shared";
+import { NOTIFICATION_KINDS, type LookId, type NotificationKind } from "@church/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
@@ -9,6 +9,7 @@ import { PageTitle } from "@/components/page-title";
 import { ProfileForm } from "./profile-form";
 import { PasswordForm } from "./password-form";
 import { DisplayForm } from "./display-form";
+import { HomeLookForm } from "./home-look-form";
 import { NotificationPrefsForm } from "./notification-prefs-form";
 import { PcLinkForm } from "./pc-link-form";
 
@@ -37,6 +38,10 @@ export default async function ProfilePage() {
     // /me almost never fails for a signed-in user; if it does the page below
     // will just render with the session's bare info.
   }
+
+  const homePrefs = await apiJson<{ theme: LookId | null; siteDefault: LookId; available: LookId[] }>(
+    "/api/v1/dashboard/prefs",
+  ).catch(() => null);
 
   return (
     <>
@@ -78,6 +83,20 @@ export default async function ProfilePage() {
               initialPx={typeof me?.pageWidthPx === "number" ? me.pageWidthPx : null}
             />
           </div>
+
+          {homePrefs ? (
+            <div id="home-look" className="mt-6 scroll-mt-20 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <h3 className="font-medium">Home page look</h3>
+              <p className="mt-1 mb-3 text-sm text-slate-500 dark:text-slate-400">
+                How the home page is laid out. You can also switch from the home page itself.
+              </p>
+              <HomeLookForm
+                initial={homePrefs.theme}
+                siteDefault={homePrefs.siteDefault}
+                available={homePrefs.available}
+              />
+            </div>
+          ) : null}
         </section>
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
