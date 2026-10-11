@@ -58,7 +58,7 @@ function ServicePane({ s, snapshot }: { s: NextService; snapshot: HomeSnapshot }
   const team = s.team;
   const total = team ? team.confirmed + team.waiting + team.declined : 0;
   return (
-    <article className={`${styles.p} ${styles.svc}`} aria-labelledby="glass-svc">
+    <article className={`${styles.p} ${styles.svc} ${team && total > 0 ? styles.svcTall : ""}`} aria-labelledby="glass-svc">
       <h2 id="glass-svc">
         <span className={styles.sw} style={{ ["--c" as string]: "var(--amber)" }} />
         Next service
@@ -141,7 +141,7 @@ function ServicePane({ s, snapshot }: { s: NextService; snapshot: HomeSnapshot }
       <div className={styles.actions}>
         <Link className={`${styles.btn} ${styles.btnDark}`} href={s.href}>
           <CalendarDays size={16} aria-hidden="true" />
-          Open the plan
+          {s.source === "planning_center" ? "Open the plan" : "Open the checklist"}
         </Link>
       </div>
     </article>
