@@ -23,11 +23,11 @@ export type HomeRootProps = LookProps & Omit<HomeLookContextValue, "kiosk">;
  * Renders the chosen look inside a context that tells any part of it which look this is, where
  * that choice came from and which looks the person may switch to (what the picker button needs).
  */
-export function HomeRoot({ look, source, available, siteDefault, ...props }: HomeRootProps) {
+export function HomeRoot({ look, source, available, siteDefault, hiddenSections, ...props }: HomeRootProps) {
   const Look = LOOKS[look];
   const value = useMemo<HomeLookContextValue>(
-    () => ({ look, source, available, siteDefault, kiosk: props.kiosk }),
-    [look, source, available, siteDefault, props.kiosk],
+    () => ({ look, source, available, siteDefault, kiosk: props.kiosk, hiddenSections }),
+    [look, source, available, siteDefault, props.kiosk, hiddenSections],
   );
   return (
     <HomeLookContext.Provider value={value}>

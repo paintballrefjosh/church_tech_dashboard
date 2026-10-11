@@ -5,6 +5,7 @@ import { BookOpen, CalendarDays, FileText, ListChecks, Ticket } from "lucide-rea
 import { summarize } from "@church/shared";
 import { NaveArches, type NaveGlow } from "@/components/nave-arches";
 import type { LookProps } from "../../look-props";
+import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";
 import { Countdown } from "../../parts/countdown";
 import { LookPickerButton } from "../../picker/look-picker";
@@ -87,6 +88,7 @@ function Arches() {
 export default function NaveLook(props: LookProps) {
   const { snapshot, refresh } = useHomeSnapshot(props.snapshot, []);
   const { me, kiosk } = props;
+  const hidden = useSectionHidden();
   const tz = snapshot.timezone;
   const now = new Date(snapshot.generatedAt);
   const svc = snapshot.service.state === "ok" ? snapshot.service.data : null;
@@ -98,17 +100,17 @@ export default function NaveLook(props: LookProps) {
   const summary = summarize(snapshot);
   const isPlan = svc?.source === "planning_center";
 
-  const showSystems = windowWanted(snapshot.systems);
-  const showTeam = team !== null && team.positions.length > 0;
-  const showNeeds = windowWanted(snapshot.needs);
+  const showSystems = !hidden("systems") && windowWanted(snapshot.systems);
+  const showTeam = !hidden("team") && team !== null && team.positions.length > 0;
+  const showNeeds = !hidden("foryou") && windowWanted(snapshot.needs);
   const windowCount = [showSystems, showTeam, showNeeds].filter(Boolean).length;
 
-  const activity = snapshot.activity.state === "ok" ? snapshot.activity.data.slice(0, 5) : null;
-  const wiki = snapshot.wiki.state === "ok" ? snapshot.wiki.data.recent.slice(0, 5) : null;
+  const activity = !hidden("week") && snapshot.activity.state === "ok" ? snapshot.activity.data.slice(0, 5) : null;
+  const wiki = !hidden("wiki") && snapshot.wiki.state === "ok" ? snapshot.wiki.data.recent.slice(0, 5) : null;
   const creates: { href: string; label: string; icon: typeof Ticket }[] = [];
-  if (me.access.tickets) creates.push({ href: "/tickets/new", label: "New ticket", icon: Ticket });
-  if (me.access.wiki) creates.push({ href: "/wiki/new", label: "New wiki page", icon: BookOpen });
-  if (me.access.notes) creates.push({ href: "/notes", label: "Write a note", icon: FileText });
+  if (!hidden("create") && me.access.tickets) creates.push({ href: "/tickets/new", label: "New ticket", icon: Ticket });
+  if (!hidden("create") && me.access.wiki) creates.push({ href: "/wiki/new", label: "New wiki page", icon: BookOpen });
+  if (!hidden("create") && me.access.notes) creates.push({ href: "/notes", label: "Write a note", icon: FileText });
   const aisleCount = [activity !== null, wiki !== null, creates.length > 0].filter(Boolean).length;
 
   return (

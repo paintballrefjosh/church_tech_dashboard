@@ -14,10 +14,12 @@ function weekdayShort(d: Date, tz: string): string {
 function ServiceCard({ snapshot }: { snapshot: HomeSnapshot }) {
   const sec = snapshot.service;
   if (sec.state === "forbidden") return null;
+  // Nothing scheduled that this person can see is not an error: say nothing.
+  if (sec.state === "unavailable" && sec.reason === "no upcoming service") return null;
   if (sec.state !== "ok") {
     return (
       <section className={s.card} aria-labelledby="start-svc-h">
-        <h3 id="start-svc-h">Next service</h3>
+        <h2 id="start-svc-h">Next service</h2>
         <p className={s.quiet}>
           {sec.state === "unconfigured" ? "Planning Center isn't set up." : "Planning Center can't be reached right now."}
         </p>
@@ -38,9 +40,9 @@ function ServiceCard({ snapshot }: { snapshot: HomeSnapshot }) {
   const total = team ? team.confirmed + team.waiting + team.declined : 0;
   return (
     <section className={s.card} aria-labelledby="start-svc-h">
-      <h3 id="start-svc-h">
+      <h2 id="start-svc-h">
         Next service <Link href={svc.href}>Plan</Link>
-      </h3>
+      </h2>
       <div className={s.sunday}>
         {start ? (
           <div className={s.date} aria-hidden>
@@ -86,9 +88,9 @@ function SystemsCard({ snapshot }: { snapshot: HomeSnapshot }) {
   if (areas.length === 0) return null;
   return (
     <section className={s.card} aria-labelledby="start-sys-h">
-      <h3 id="start-sys-h">
+      <h2 id="start-sys-h">
         Systems <Link href="/monitoring">Monitoring</Link>
-      </h3>
+      </h2>
       <ul className={`${s.health} ${s.num}`}>
         {areas.map((a) => {
           const ok = a.state === "ok";
@@ -135,7 +137,7 @@ function RecentCard({ snapshot }: { snapshot: HomeSnapshot }) {
   if (top.length === 0) return null;
   return (
     <section className={s.card} aria-labelledby="start-recent-h">
-      <h3 id="start-recent-h">Recently changed</h3>
+      <h2 id="start-recent-h">Recently changed</h2>
       <ul className={s.recent}>
         {top.map((it) => {
           const Icon = it.kind === "Wiki" ? BookOpen : FileText;
@@ -158,12 +160,20 @@ function RecentCard({ snapshot }: { snapshot: HomeSnapshot }) {
   );
 }
 
-export function SideColumn({ snapshot }: { snapshot: HomeSnapshot }) {
+export function SideColumn({
+  snapshot,
+  hidden,
+  wide,
+}: {
+  snapshot: HomeSnapshot;
+  hidden: (id: string) => boolean;
+  wide: boolean;
+}) {
   return (
-    <aside className={s.side} aria-label="Service, systems and recent changes">
-      <ServiceCard snapshot={snapshot} />
-      <SystemsCard snapshot={snapshot} />
-      <RecentCard snapshot={snapshot} />
+    <aside className={`${s.side} ${wide ? s.sideWide : ""}`} aria-label="Service, systems and recent changes">
+      {hidden("service") ? null : <ServiceCard snapshot={snapshot} />}
+      {hidden("systems") ? null : <SystemsCard snapshot={snapshot} />}
+      {hidden("recent") ? null : <RecentCard snapshot={snapshot} />}
     </aside>
   );
 }

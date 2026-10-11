@@ -325,7 +325,8 @@ export function Bank({
   tools?: ReactNode;
 }) {
   const now = new Date(snapshot.generatedAt);
-  if (snapshot.systems.state !== "ok") return null;
+  // Without the systems section there is no bank, but the look picker must stay reachable.
+  if (snapshot.systems.state !== "ok") return tools ? <div className={s.bankTools}>{tools}</div> : null;
   const systems = snapshot.systems.data;
   const visible = systems.areas.filter((a) => a.state !== "forbidden");
   const meters = snapshot.meters;

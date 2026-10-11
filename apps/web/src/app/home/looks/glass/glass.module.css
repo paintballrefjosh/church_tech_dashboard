@@ -147,7 +147,10 @@
 .glabels a:hover b { text-decoration: underline; }
 .glabels a.bad span { color: var(--ruby-text); font-weight: 600; }
 
-.tip { position: fixed; pointer-events: none; background: var(--lead); color: #fff; border: 1px solid var(--lead-edge); font-size: 12.5px; padding: 6px 9px; border-radius: 8px; z-index: 50; opacity: 0; transition: opacity 0.12s; white-space: nowrap; }
+.tip { position: fixed; pointer-events: none; background: var(--lead); color: #fff; border: 1px solid var(--lead-edge); font-size: 12.5px; padding: 6px 9px; border-radius: 8px; z-index: 50; opacity: 0; white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) {
+  .tip { transition: opacity 0.12s; }
+}
 .tipShow { opacity: 1; }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -193,6 +196,7 @@
 .row { display: flex; gap: 12px; padding: 11px 0; align-items: flex-start; }
 .row:hover .t { color: var(--link); }
 .chip { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: var(--on-glass); background: var(--c); }
+.chipDark { color: var(--lead); }
 .chip svg { width: 16px; height: 16px; }
 .t { display: block; font-weight: 600; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
 .m { display: block; font-size: 12.5px; color: var(--ink-2); }
@@ -213,8 +217,17 @@
 .feed b { color: var(--ink); font-weight: 600; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Fewer panels than four (some are hidden or absent): size the grid to what is shown so nothing is left with a gap. */
+.leaded:not([data-count="4"]) .wide { grid-column: auto; }
+.leaded:not([data-count="4"]) .svcTall { grid-row: auto; }
+.leaded[data-count="1"] { grid-template-columns: 1fr; }
+.leaded[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.leaded[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+
 @media (max-width: 1080px) {
-  .leaded { grid-template-columns: 1fr 1fr; }
+  .leaded, .leaded[data-count="3"] { grid-template-columns: 1fr 1fr; }
+  .leaded[data-count="1"] { grid-template-columns: 1fr; }
+  .leaded[data-count="3"] > :last-child { grid-column: 1 / -1; }
   .svc { grid-row: auto; grid-column: 1 / -1; }
 }
 @media (max-width: 720px) {
@@ -225,7 +238,8 @@
   .group { gap: 1.5px; }
   .glabels { flex-wrap: wrap; gap: 10px 14px; padding: 12px 0 0; }
   .glabels a { flex: 1 1 40%; }
-  .leaded { grid-template-columns: 1fr; border-radius: 16px; }
+  .leaded, .leaded[data-count] { grid-template-columns: 1fr; border-radius: 16px; }
+  .leaded[data-count="3"] > :last-child { grid-column: auto; }
   .wide { grid-column: auto; }
   .svcName { font-size: 28px; }
   .p { padding: 18px 16px; }

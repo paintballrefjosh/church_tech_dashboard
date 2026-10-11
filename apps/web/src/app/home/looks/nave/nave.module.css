@@ -20,6 +20,7 @@
   --focus: #4650b4;
   --shadow: 0 14px 32px -22px rgba(29, 33, 80, 0.35), 0 1px 2px rgba(29, 33, 80, 0.06);
   --moulding: rgba(140, 90, 12, 0.2);
+  --lamp: #b97a0c;
   --lamp-glow: 0 0 9px 2px rgba(227, 164, 47, 0.4);
   --count-glow: 0 0 22px rgba(227, 164, 47, 0.28);
   --plain-bg: rgba(255, 255, 255, 0.6);
@@ -60,6 +61,7 @@
   --focus: #f6c76e;
   --shadow: none;
   --moulding: rgba(246, 199, 110, 0.14);
+  --lamp: #f6c76e;
   --lamp-glow: 0 0 10px 2px rgba(246, 199, 110, 0.55);
   --count-glow: 0 0 24px rgba(246, 199, 110, 0.35);
   --plain-bg: rgba(23, 27, 70, 0.5);
@@ -344,7 +346,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--gold);
+  background: var(--lamp);
   box-shadow: var(--lamp-glow);
   flex: none;
 }

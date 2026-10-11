@@ -60,6 +60,20 @@ async function putTheme(theme: LookId | null): Promise<string | null> {
   return r.ok ? null : readError(r);
 }
 
+/** Saves which optional sections are hidden on one look. The other looks' choices are re-read first and kept. */
+async function putHiddenSections(look: LookId, hidden: string[]): Promise<string | null> {
+  const current = await fetch("/api/dashboard/prefs", { credentials: "same-origin" });
+  if (!current.ok) return readError(current);
+  const prefs = (await current.json()) as { sections?: Record<string, string[]> };
+  const r = await fetch("/api/dashboard/prefs", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sections: { ...(prefs.sections ?? {}), [look]: hidden } }),
+  });
+  return r.ok ? null : readError(r);
+}
+
 async function postDeviceLook(look: LookId | null): Promise<string | null> {
   const r = await fetch("/api/dashboard/device-look", {
     method: "POST",
@@ -78,11 +92,13 @@ async function postDeviceLook(look: LookId | null): Promise<string | null> {
 export function LookPickerButton({ className }: { className?: string }) {
   const ctx = useHomeLook();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   if (!ctx || ctx.kiosk) return null;
   if (ctx.available.length < 2 && ctx.source !== "device") return null;
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         data-testid="look-picker-open"
@@ -93,7 +109,15 @@ export function LookPickerButton({ className }: { className?: string }) {
       >
         <Palette className="h-4 w-4" aria-hidden /> Change look
       </button>
-      {open ? <LookPickerDialog onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <LookPickerDialog
+          onClose={() => {
+            setOpen(false);
+            // The dialog is removed from the page, so put the focus back on the button that opened it.
+            requestAnimationFrame(() => triggerRef.current?.focus());
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -110,6 +134,7 @@ function LookPickerDialog({ onClose }: { onClose: () => void }) {
   const [deviceOnly, setDeviceOnly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<string[]>(() => ctx?.hiddenSections ?? []);
 
   // A native modal dialog gives the focus trap, Esc to close and inert background for free.
   useEffect(() => {
@@ -166,6 +191,23 @@ function LookPickerDialog({ onClose }: { onClose: () => void }) {
 
   function stopDeviceLook() {
     void apply(() => postDeviceLook(null));
+  }
+
+  const currentDef = DASHBOARD_LOOKS.find((l) => l.id === current);
+  const sections = currentDef?.optionalSections ?? [];
+
+  async function toggleSection(id: string, shown: boolean) {
+    const next = shown ? hiddenIds.filter((x) => x !== id) : [...hiddenIds, id];
+    setBusy(true);
+    setErr(null);
+    const failure = await putHiddenSections(current, next);
+    if (failure) {
+      setErr(failure);
+    } else {
+      setHiddenIds(next);
+      router.refresh();
+    }
+    setBusy(false);
   }
 
   const siteDefaultName = DASHBOARD_LOOKS.find((l) => l.id === siteDefault)?.name ?? siteDefault;
@@ -235,7 +277,7 @@ function LookPickerDialog({ onClose }: { onClose: () => void }) {
                   aria-current={isCurrent ? "true" : undefined}
                   data-testid={`look-option-${l.id}`}
                   className={
-                    "block w-full rounded-lg border p-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60 " +
+                    "block w-full rounded-lg border p-2 text-left transition motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60 " +
                     (isCurrent
                       ? "border-brand-600 bg-brand-50 dark:border-brand-500 dark:bg-brand-700/20"
                       : "border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800")
@@ -259,12 +301,39 @@ function LookPickerDialog({ onClose }: { onClose: () => void }) {
           })}
         </ul>
 
+        {sections.length > 0 ? (
+          <fieldset
+            data-testid="look-sections"
+            disabled={busy}
+            className="rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700"
+          >
+            <legend className="px-1 text-sm font-semibold">Sections on {currentDef?.name}</legend>
+            <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+              Untick a section to hide it on this look. The rest of the page moves up to fill the space.
+            </p>
+            <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+              {sections.map((sec) => (
+                <label key={sec.id} className="flex min-h-[2rem] items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenIds.includes(sec.id)}
+                    onChange={(e) => void toggleSection(sec.id, e.target.checked)}
+                    data-testid={`look-section-${sec.id}`}
+                    className="h-4 w-4 accent-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  />
+                  Show {sec.label.charAt(0).toLowerCase() + sec.label.slice(1)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={deviceOnly}
             onChange={(e) => setDeviceOnly(e.target.checked)}
-            className="h-4 w-4 accent-brand-600"
+            className="h-4 w-4 accent-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           />
           Use on this device only
         </label>
