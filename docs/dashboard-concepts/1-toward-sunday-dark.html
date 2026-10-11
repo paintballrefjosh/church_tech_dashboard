@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toward Sunday (dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --paper: #0d1526;
+    --surface: #142038;
+    --raise: #1a2a4a;
+    --ink: #e9eef9;
+    --ink-2: #a9b4cc;
+    --ink-3: #8592ac;
+    --line: #233250;
+    --cobalt: #7c9bff;
+    --cobalt-soft: #1c2c57;
+    --sun: #f5b041;
+    --sun-soft: rgba(245, 176, 65, 0.14);
+    --sun-edge: rgba(245, 176, 65, 0.32);
+    --sun-ink: #f7c065;
+    --ok: #45c495;
+    --ok-soft: #12332f;
+    --warn: #f0a24a;
+    --warn-soft: #35261a;
+    --down: #ff6b74;
+    --down-soft: #3a1c2b;
+    --radius-l: 20px;
+    --radius-s: 10px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    font-variation-settings: "wdth" 100;
+  }
+  a { color: inherit; text-decoration: none; }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; border-radius: 6px; }
+  .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Top bar */
+  .top { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 9px; background: var(--ink); color: var(--paper); display: grid; place-items: center; }
+  .brand .mark .icon { width: 16px; height: 16px; }
+  .nav { display: flex; gap: 4px; }
+  .nav a { padding: 6px 10px; border-radius: 8px; color: var(--ink-2); display: flex; align-items: center; gap: 4px; font-size: 14px; }
+  .nav a:hover { background: var(--paper); color: var(--ink); }
+  .nav .icon { width: 14px; height: 14px; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .search { display: flex; align-items: center; gap: 8px; width: 260px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink-3); font-size: 14px; background: var(--paper); }
+  .search kbd { margin-left: auto; font-family: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; background: var(--surface); }
+  .iconbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; color: var(--ink-2); position: relative; background: none; border: 0; cursor: pointer; }
+  .iconbtn:hover { background: var(--paper); }
+  .iconbtn .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 2px var(--surface); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--cobalt); color: var(--paper); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+
+  /* Hero */
+  .hero { padding: 40px 0 0; }
+  .hero-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+  .when { color: var(--ink-2); font-size: 15px; margin: 0 0 6px; }
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(34px, 5.2vw, 64px);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    font-variation-settings: "wdth" 112;
+  }
+  .countdown { text-align: right; }
+  .countdown .big {
+    font-size: clamp(40px, 6vw, 76px);
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+    font-variation-settings: "wdth" 70;
+  }
+  .countdown .big b { font-weight: 700; }
+  .countdown .lbl { color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+
+  /* Week rail */
+  .rail-card { margin-top: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); overflow: hidden; }
+  .rail-scroll { overflow-x: auto; scrollbar-width: thin; }
+  .rail { display: grid; grid-template-columns: repeat(6, minmax(118px, 1fr)) minmax(270px, 2.1fr); min-width: 980px; position: relative; }
+  .day { border-right: 1px solid var(--line); padding: 14px 14px 0; display: flex; flex-direction: column; min-height: 220px; position: relative; }
+  .day:last-child { border-right: 0; }
+  .day.past { background: #101b30; }
+  .day.past .dname, .day.past .dnum { color: var(--ink-3); }
+  .dhead { display: flex; align-items: baseline; gap: 6px; }
+  .dname { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  .dnum { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; font-variation-settings: "wdth" 75; }
+  .events { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; flex: 1; }
+  .ev { font-size: 12.5px; line-height: 1.3; padding: 6px 8px; border-radius: 8px; background: var(--paper); color: var(--ink-2); border-left: 3px solid var(--line); }
+  .ev b { display: block; color: var(--ink); font-weight: 600; }
+  .ev.done { border-left-color: var(--ok); }
+  .ev.inc { border-left-color: var(--warn); }
+  .ev.due { border-left-color: var(--sun); background: #2e2a20; }
+  .health { display: grid; grid-template-columns: repeat(24, 1fr); gap: 1.5px; margin: 12px -14px 0; padding: 0 14px 14px; }
+  .health i { height: 7px; border-radius: 1.5px; background: #2b7a63; }
+  .health i.bad { background: var(--warn); }
+  .health i.fut { background: var(--line); opacity: .55; }
+  .day.today { background: var(--raise); }
+  .day.sunday { background: linear-gradient(180deg, rgba(245, 176, 65, 0.2), rgba(245, 176, 65, 0.06)); border-left: 1px solid var(--sun-edge); }
+  .day.sunday .dname { color: var(--sun-ink); }
+  .day.sunday .dnum { font-size: 40px; color: var(--ink); }
+  .svc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .svc a { background: var(--raise); border: 1px solid var(--sun-edge); border-radius: 12px; padding: 10px 12px; display: block; }
+  .svc a:hover { border-color: var(--sun); }
+  .svc .t { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; font-variation-settings: "wdth" 80; }
+  .svc .s { font-size: 12px; color: var(--ink-2); }
+  .sun-meta { font-size: 13px; color: var(--sun-ink); margin-top: 10px; }
+  .sun-meta strong { color: var(--ink); font-weight: 600; }
+
+  /* "Now" marker: placed by script at today's elapsed fraction */
+  .now { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--sun); z-index: 2; pointer-events: none; }
+  .now::before { content: ""; position: absolute; top: 46px; left: -7px; width: 12px; height: 12px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 4px rgba(245, 176, 65, .25), 0 0 14px rgba(245, 176, 65, .5); }
+  .now span { position: absolute; top: 14px; right: 8px; font-size: 11px; font-weight: 700; color: var(--sun-ink); background: #3a2f1d; padding: 2px 6px; border-radius: 6px; white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) {
+    .now { animation: travel 1.6s cubic-bezier(.2, .8, .2, 1) both .2s; }
+    @keyframes travel { from { transform: translateX(var(--from)); opacity: 0; } 15% { opacity: 1; } to { transform: none; } }
+  }
+
+  /* Readiness */
+  .ready { margin-top: 18px; display: grid; grid-template-columns: 210px 1fr; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); overflow: hidden; }
+  .ready-sum { padding: 20px 22px; background: linear-gradient(160deg, #1f3158, #172745); box-shadow: inset 4px 0 0 var(--sun); color: var(--ink); display: flex; flex-direction: column; justify-content: space-between; gap: 16px; }
+  .ready-sum h2 { margin: 0; font-size: 18px; letter-spacing: -0.01em; font-weight: 700; }
+  .ready-sum .score { color: var(--sun); font-size: 46px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; font-variation-settings: "wdth" 70; }
+  .ready-sum .score b { font-weight: 700; }
+  .ready-sum p { margin: 0; color: var(--ink-2); font-size: 13px; }
+  .bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+  .bar i { height: 5px; border-radius: 3px; background: #36466b; }
+  .bar i.on { background: var(--ok); }
+  .checks { display: grid; grid-template-columns: repeat(5, 1fr); }
+  .check { padding: 18px 18px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  .check:last-child { border-right: 0; }
+  .check:hover { background: var(--raise); }
+  .check .st { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .badge { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .badge .icon { width: 14px; height: 14px; stroke-width: 3; }
+  .ok .badge { background: var(--ok-soft); color: var(--ok); }
+  .wn .badge { background: var(--warn-soft); color: var(--warn); }
+  .check .v { font-size: 13px; color: var(--ink-2); line-height: 1.4; }
+  .check .v em { font-style: normal; color: var(--warn); font-weight: 600; }
+
+  /* Lower grid */
+  .lower { display: grid; grid-template-columns: 1.15fr 1fr 0.95fr; gap: 18px; margin: 18px 0 48px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 20px 22px; }
+  .panel h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; letter-spacing: -0.01em; }
+  .panel h2 a { font-size: 13px; font-weight: 500; color: var(--cobalt); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li + li { border-top: 1px solid var(--line); }
+  .item { display: flex; gap: 12px; padding: 11px 0; align-items: flex-start; }
+  .item .k { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--cobalt-soft); color: var(--cobalt); }
+  .item .k.hot { background: var(--sun-soft); color: var(--sun-ink); }
+  .item .k.task { background: var(--ok-soft); color: var(--ok); }
+  .item .main { min-width: 0; flex: 1; }
+  .item .ttl, .item .sub { display: block; }
+  .item .ttl { font-weight: 600; font-size: 14px; line-height: 1.35; }
+  .item .sub { font-size: 12.5px; color: var(--ink-2); }
+  .item .sub .sla { color: var(--sun-ink); font-weight: 600; }
+  .roster { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; row-gap: 7px; font-size: 13.5px; margin: 0; }
+  .roster dt { color: var(--ink-3); font-size: 12.5px; padding-top: 1px; }
+  .roster dd { margin: 0; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 99px; padding: 1px 7px; margin-left: 4px; vertical-align: 1px; }
+  .pill.u { background: var(--paper); color: var(--ink-2); }
+  .pill.d { background: var(--down-soft); color: var(--down); }
+  .me { color: var(--cobalt); font-weight: 600; }
+  .create { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .create a { border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+  .create a:hover { border-color: var(--cobalt); color: var(--cobalt); }
+  .create .icon { color: var(--cobalt); }
+  .wiki li a { display: block; padding: 9px 0; font-size: 13.5px; }
+  .wiki li a:hover .wt { color: var(--cobalt); }
+  .wiki .wt { font-weight: 600; display: block; }
+  .wiki .wm { font-size: 12px; color: var(--ink-3); }
+  .sub-h { font-size: 13px; color: var(--ink-2); margin: 0 0 4px; font-weight: 600; }
+
+  @media (max-width: 1080px) {
+    .lower { grid-template-columns: 1fr 1fr; }
+    .lower .panel:last-child { grid-column: 1 / -1; }
+    .ready { grid-template-columns: 1fr; }
+    .checks { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .check { border-bottom: 1px solid var(--line); }
+    .nav { display: none; }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 0 16px; }
+    .search { display: none; }
+    .hero { padding-top: 24px; }
+    .countdown { text-align: left; }
+    .lower { grid-template-columns: 1fr; }
+    .check { border-right: 0; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cross" viewBox="0 0 24 24"><path d="M4 9a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h4a1 1 0 0 1 1 1v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-4a1 1 0 0 1 1-1h4a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-4a1 1 0 0 1-1-1V4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4a1 1 0 0 1-1 1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 8v5"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="mark"><svg class="icon"><use href="#i-cross"/></svg></span>NorthPointe</a>
+    <nav class="nav" aria-label="Main">
+      <a href="#">IT <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Docs <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Church apps <svg class="icon"><use href="#i-down"/></svg></a>
+      <a href="#">Admin <svg class="icon"><use href="#i-down"/></svg></a>
+    </nav>
+    <div class="top-right">
+      <div class="search"><svg class="icon"><use href="#i-search"/></svg>Search everything<kbd>Ctrl K</kbd></div>
+      <button class="iconbtn" aria-label="Notifications, 3 unread"><svg class="icon"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      <span class="avatar" aria-label="Josh Scarbrough">JS</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="hero-head">
+      <div>
+        <p class="when">Saturday evening, 10 October. Good evening, Josh.</p>
+        <h1>Sunday Gathering<br>is tomorrow</h1>
+      </div>
+      <div class="countdown" aria-live="off">
+        <div class="big num" id="cd"><b>14</b>h <b>20</b>m</div>
+        <div class="lbl">until the first service</div>
+      </div>
+    </div>
+
+    <div class="rail-card">
+      <div class="rail-scroll" id="railScroll">
+        <div class="rail" id="rail">
+          <div class="day past">
+            <div class="dhead"><span class="dnum">5</span><span class="dname">Mon</span></div>
+            <div class="events">
+              <div class="ev"><b>#196 opened</b>Office PC won't boot</div>
+            </div>
+            <div class="health" data-bad="" aria-label="All systems up all day"></div>
+          </div>
+          <div class="day past">
+            <div class="dhead"><span class="dnum">6</span><span class="dname">Tue</span></div>
+            <div class="events">
+              <div class="ev inc"><b>Fiber gateway dropped</b>Back after 4 min</div>
+            </div>
+            <div class="health" data-bad="14" aria-label="One incident at 2 pm"></div>
+          </div>
+          <div class="day past">
+            <div class="dhead"><span class="dnum">7</span><span class="dname">Wed</span></div>
+            <div class="events">
+              <div class="ev done"><b>Wednesday Practice</b>6 of 6 stations signed off</div>
+            </div>
+            <div class="health" data-bad="" aria-label="All systems up all day"></div>
+          </div>
+          <div class="day past">
+            <div class="dhead"><span class="dnum">8</span><span class="dname">Thu</span></div>
+            <div class="events">
+              <div class="ev"><b>Wiki: Technitium DNS</b>Updated by Josh</div>
+            </div>
+            <div class="health" data-bad="" aria-label="All systems up all day"></div>
+          </div>
+          <div class="day past">
+            <div class="dhead"><span class="dnum">9</span><span class="dname">Fri</span></div>
+            <div class="events">
+              <div class="ev"><b>Nightly backup</b>1.2 GB, verified</div>
+            </div>
+            <div class="health" data-bad="" aria-label="All systems up all day"></div>
+          </div>
+          <div class="day today" id="today">
+            <div class="dhead"><span class="dnum">10</span><span class="dname">Sat</span></div>
+            <div class="events">
+              <div class="ev inc"><b>Kids wing AP offline</b>Since 6:02 pm</div>
+              <div class="ev due"><b>#201 due 9:40 pm</b>Stream audio sync</div>
+            </div>
+            <div class="health" data-bad="18" data-now="18" aria-label="One device offline since 6 pm"></div>
+          </div>
+          <div class="day sunday">
+            <div class="dhead"><span class="dnum">11</span><span class="dname">Sunday</span></div>
+            <div class="svc">
+              <a href="#"><div class="t num">9:00</div><div class="s">First service</div></a>
+              <a href="#"><div class="t num">10:45</div><div class="s">Second service, streamed</div></a>
+            </div>
+            <p class="sun-meta"><strong>Acts: To the Ends of the Earth</strong>, week 4. Team call at 7:30, run-through at 8:00. 12 of 15 on the team have confirmed.</p>
+            <div class="events"></div>
+          </div>
+          <div class="now" id="now"><span>Now</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ready" aria-labelledby="ready-h">
+    <div class="ready-sum">
+      <h2 id="ready-h">Ready for Sunday</h2>
+      <div>
+        <div class="score num"><b>3</b> of 5</div>
+        <div class="bar" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div>
+      </div>
+      <p>Two things to sort before the team arrives.</p>
+    </div>
+    <div class="checks">
+      <a class="check wn" href="#">
+        <span class="st"><span class="badge"><svg class="icon"><use href="#i-alert"/></svg></span>Systems</span>
+        <span class="v num">58 of 59 up. <em>Kids wing AP is offline.</em></span>
+      </a>
+      <a class="check wn" href="#">
+        <span class="st"><span class="badge"><svg class="icon"><use href="#i-alert"/></svg></span>Team</span>
+        <span class="v num">12 of 15 confirmed. <em>Bass declined.</em></span>
+      </a>
+      <a class="check ok" href="#">
+        <span class="st"><span class="badge"><svg class="icon"><use href="#i-check"/></svg></span>Stream</span>
+        <span class="v">nplife.com and the fiber line are up.</span>
+      </a>
+      <a class="check ok" href="#">
+        <span class="st"><span class="badge"><svg class="icon"><use href="#i-check"/></svg></span>Run-through</span>
+        <span class="v">Wednesday Practice signed off by every station.</span>
+      </a>
+      <a class="check ok" href="#">
+        <span class="st"><span class="badge"><svg class="icon"><use href="#i-check"/></svg></span>Help desk</span>
+        <span class="v">Nothing blocking Sunday. #201 is in hand.</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="panel">
+      <h2>Needs you <a href="#">Help desk</a></h2>
+      <ul class="list">
+        <li><a class="item" href="#"><span class="k hot"><svg class="icon"><use href="#i-ticket"/></svg></span><span class="main"><span class="ttl">Stream audio drifted out of sync during the 10:45</span><span class="sub num">#201, high. <span class="sla">Response due in 3 h</span></span></span></a></li>
+        <li><a class="item" href="#"><span class="k"><svg class="icon"><use href="#i-wifi"/></svg></span><span class="main"><span class="ttl">AP-Kids-Wing stopped answering</span><span class="sub">Offline 38 min. Acknowledge or open the device.</span></span></a></li>
+        <li><a class="item" href="#"><span class="k task"><svg class="icon"><use href="#i-list"/></svg></span><span class="main"><span class="ttl">FOH checklist for Wednesday Practice</span><span class="sub num">5 tasks, Wed 14 Oct at 7:00 pm</span></span></a></li>
+        <li><a class="item" href="#"><span class="k"><svg class="icon"><use href="#i-ticket"/></svg></span><span class="main"><span class="ttl">My computer doesn't work</span><span class="sub num">#196, low, in progress</span></span></a></li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>Sunday's team <a href="#">Planning Center</a></h2>
+      <dl class="roster">
+        <dt>Worship leader</dt><dd>Sarah Mitchell</dd>
+        <dt>Vocals</dt><dd>Dan Reyes, Priya Shah <span class="pill u">unconfirmed</span></dd>
+        <dt>Keys</dt><dd>Emily Carter</dd>
+        <dt>Guitar</dt><dd>Marcus Lee</dd>
+        <dt>Bass</dt><dd>Tom Okafor <span class="pill d">declined</span></dd>
+        <dt>Drums</dt><dd>Ben Hartley</dd>
+        <dt>Audio</dt><dd><span class="me">Josh Scarbrough</span></dd>
+        <dt>Lights</dt><dd>Abby Nguyen</dd>
+        <dt>ProPresenter</dt><dd>Caleb Wright</dd>
+        <dt>Camera</dt><dd>Noah Fisher, Grace Kim <span class="pill u">unconfirmed</span></dd>
+        <dt>Stream</dt><dd>Luke Patel</dd>
+        <dt>Tech director</dt><dd>Rachel Adams</dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <h2>Create</h2>
+      <div class="create">
+        <a href="#"><svg class="icon"><use href="#i-ticket"/></svg>Ticket</a>
+        <a href="#"><svg class="icon"><use href="#i-book"/></svg>Wiki page</a>
+        <a href="#"><svg class="icon"><use href="#i-note"/></svg>Note</a>
+      </div>
+      <p class="sub-h">Changed in the wiki this week</p>
+      <ul class="list wiki">
+        <li><a href="#"><span class="wt">Technitium DNS - Clustered DNS Servers</span><span class="wm">Josh, Thursday</span></a></li>
+        <li><a href="#"><span class="wt">HAProxy + Keepalived - Load Balancer Pair</span><span class="wm">Josh, Wednesday</span></a></li>
+        <li><a href="#"><span class="wt">ProPresenter - Troubleshooting</span><span class="wm">Caleb, Tuesday</span></a></li>
+        <li><a href="#"><span class="wt">Docker Hosts - docker-1, docker-2, docker-3</span><span class="wm">Josh, Monday</span></a></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+  // Fixed "now" for the mockup: Saturday 10 Oct 2026, 6:40 pm. Ticks from load.
+  const NOW0 = new Date(2026, 9, 10, 18, 40, 0).getTime();
+  const SERVICE = new Date(2026, 9, 11, 9, 0, 0).getTime();
+  const loaded = Date.now();
+
+  // Hourly health strips under each day.
+  document.querySelectorAll(".health").forEach((h) => {
+    const bad = h.dataset.bad === "" ? -1 : Number(h.dataset.bad);
+    const nowH = h.dataset.now ? Number(h.dataset.now) : 24;
+    for (let i = 0; i < 24; i++) {
+      const c = document.createElement("i");
+      if (i > nowH) c.className = "fut";
+      else if (i === bad || (h.dataset.now && i >= bad && i <= nowH)) c.className = "bad";
+      h.appendChild(c);
+    }
+  });
+
+  // Place the "now" line inside today's column.
+  function placeNow() {
+    const rail = document.getElementById("rail");
+    const today = document.getElementById("today");
+    const now = document.getElementById("now");
+    const frac = (18 + 40 / 60) / 24;
+    const x = today.offsetLeft + today.offsetWidth * frac;
+    now.style.left = x + "px";
+    now.style.setProperty("--from", -x + "px");
+  }
+  placeNow();
+  addEventListener("resize", placeNow);
+
+  // On narrow screens, start the rail scrolled to the end so today and Sunday show.
+  const rs = document.getElementById("railScroll");
+  rs.scrollLeft = rs.scrollWidth;
+
+  const cd = document.getElementById("cd");
+  function tick() {
+    const left = Math.max(0, SERVICE - (NOW0 + (Date.now() - loaded)));
+    const h = Math.floor(left / 3.6e6);
+    const m = Math.floor((left % 3.6e6) / 6e4);
+    cd.innerHTML = `<b>${h}</b>h <b>${String(m).padStart(2, "0")}</b>m`;
+  }
+  tick();
+  setInterval(tick, 15000);
+</script>
+</body>
+</html>
