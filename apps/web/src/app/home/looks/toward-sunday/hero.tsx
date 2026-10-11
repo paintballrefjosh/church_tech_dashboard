@@ -40,7 +40,7 @@ export function Hero({
               <>
                 {service.title}
                 <br />
-                {start ? whenPhrase(start, now, tz) : "is coming up"}
+                {start ? whenPhrase(start, now, tz, service.title) : "is coming up"}
               </>
             ) : (
               "Your week"

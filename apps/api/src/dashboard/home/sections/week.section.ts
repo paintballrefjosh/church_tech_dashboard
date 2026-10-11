@@ -80,6 +80,9 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
         at: r.startedAt,
         tone: r.resolvedAt ? "warn" : "bad",
         href,
+        group: r.monitorId ?? r.targetId ?? r.id,
+        subject: name,
+        durationMs: r.resolvedAt ? r.resolvedAt.getTime() - r.startedAt.getTime() : null,
       });
     }
     return { events, spans };
@@ -162,12 +165,12 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
 
   private async backupEvents(from: Date, to: Date): Promise<WeekEventInput[]> {
     const rows = await this.db
-      .select({ finishedAt: backupOperations.finishedAt })
+      .select({ finishedAt: backupOperations.finishedAt, status: backupOperations.status })
       .from(backupOperations)
       .where(
         and(
           eq(backupOperations.kind, "backup"),
-          eq(backupOperations.status, "succeeded"),
+          inArray(backupOperations.status, ["succeeded", "failed"]),
           gte(backupOperations.finishedAt, from),
           lt(backupOperations.finishedAt, to),
         ),
@@ -177,7 +180,14 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
     const out: WeekEventInput[] = [];
     for (const r of rows) {
       if (!r.finishedAt) continue;
-      out.push({ kind: "backup", title: "Backup finished", detail: null, at: r.finishedAt, tone: "ok", href: "/admin/backups" });
+      out.push({
+        kind: "backup",
+        title: r.status === "failed" ? "Backup failed" : "Backup finished",
+        detail: null,
+        at: r.finishedAt,
+        tone: r.status === "failed" ? "bad" : "ok",
+        href: "/admin/backups",
+      });
     }
     return out;
   }

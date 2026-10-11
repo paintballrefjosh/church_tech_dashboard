@@ -63,13 +63,15 @@ export function countdownTarget(service: NextService, now: Date): Date | null {
 }
 
 /** "is tomorrow", "is today", "is on Sunday", or for a later week "is on Sunday 18 October". */
-export function whenPhrase(start: Date, now: Date, tz: string): string {
+export function whenPhrase(start: Date, now: Date, tz: string, title = ""): string {
   const days = calendarDaysBetween(now, start, tz);
   if (days <= 0) return "is today";
   if (days === 1) return "is tomorrow";
   const weekday = formatWeekdayInZone(start, tz);
-  if (days < 7) return `is on ${weekday}`;
-  return `is on ${weekday} ${dayAndMonth(start, tz)}`;
+  // A title that already names the weekday ("Wednesday Practice") must not be followed by it again.
+  const repeats = title.toLowerCase().includes(weekday.toLowerCase());
+  if (days < 7) return repeats ? `is in ${days} days` : `is on ${weekday}`;
+  return repeats ? `is on ${dayAndMonth(start, tz)}` : `is on ${weekday} ${dayAndMonth(start, tz)}`;
 }
 
 /** Index (0 to 6) of the week day holding `at`, or -1 when it is not in this week. */
