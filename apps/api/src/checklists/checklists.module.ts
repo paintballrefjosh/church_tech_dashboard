@@ -8,5 +8,6 @@ import { PlanningCenterModule } from "../planning-center/planning-center.module"
   imports: [PlanningCenterModule],
   controllers: [ChecklistsController],
   providers: [ChecklistsService, ChecklistScheduler],
+  exports: [ChecklistsService],
 })
 export class ChecklistsModule {}

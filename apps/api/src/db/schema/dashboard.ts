@@ -1,4 +1,4 @@
-import { pgTable, uuid, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, jsonb, timestamp, text } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /**
@@ -17,5 +17,18 @@ export const dashboardLayouts = pgTable("dashboard_layouts", {
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
   layout: jsonb("layout").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * Per-user home page look preference. theme NULL means "use the site default"; sections maps a look
+ * id to the optional sections the person has hidden or shown (ids are owned by each look).
+ */
+export const dashboardPrefs = pgTable("dashboard_prefs", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  theme: text("theme"),
+  sections: jsonb("sections").notNull().default({}),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
