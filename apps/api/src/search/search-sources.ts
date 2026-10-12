@@ -74,7 +74,8 @@ export function wikiDoc(row: typeof wikiPages.$inferSelect, aclGroupIds: string[
     visibility: row.visibility as "public" | "group",
     aclGroupIds: row.visibility === "group" ? aclGroupIds : [],
     title: row.title,
-    body: row.body ?? "",
+    // The editor's per-table settings comment (`<!-- table: ... -->`) is markup, not content.
+    body: (row.body ?? "").replace(/^<!--\s*table:[^\n]*-->[ \t]*$/gm, ""),
     url: `/wiki/${row.id}`,
     updatedAt: row.updatedAt.toISOString(),
   };

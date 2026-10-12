@@ -444,3 +444,25 @@ html[data-page-width="custom"] :is(.max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .
 .dark .ProseMirror table[data-borders="true"] :is(th, td) {
   border-color: theme("colors.slate.700");
 }
+
+/*
+ * Table hover in the rendered wiki page (components/table-hover.tsx): the cell
+ * under the pointer, its row and its column. The tint is a background-IMAGE so
+ * it sits on top of a cell's own background colour (an inline background-color
+ * from the table's colour settings) instead of replacing it. The cell rule comes
+ * last and is more specific so the three layers do not stack on the hovered cell.
+ */
+[data-table-hover] table tr:hover > :is(td, th),
+[data-table-hover] table :is(td, th)[data-col-hl] {
+  background-image: linear-gradient(theme("colors.brand.500 / 0.12"), theme("colors.brand.500 / 0.12"));
+}
+[data-table-hover] table tr:hover > :is(td, th):hover {
+  background-image: linear-gradient(theme("colors.brand.500 / 0.28"), theme("colors.brand.500 / 0.28"));
+}
+.dark [data-table-hover] table tr:hover > :is(td, th),
+.dark [data-table-hover] table :is(td, th)[data-col-hl] {
+  background-image: linear-gradient(theme("colors.brand.300 / 0.16"), theme("colors.brand.300 / 0.16"));
+}
+.dark [data-table-hover] table tr:hover > :is(td, th):hover {
+  background-image: linear-gradient(theme("colors.brand.300 / 0.32"), theme("colors.brand.300 / 0.32"));
+}

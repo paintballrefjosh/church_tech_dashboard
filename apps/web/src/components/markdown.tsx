@@ -1,8 +1,9 @@
 import { Children, isValidElement, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { remarkTableBorders } from "@/lib/wiki-table-markdown";
+import { remarkTableMeta } from "@/lib/wiki-table-markdown";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
+import { TableHover } from "@/components/table-hover";
 import { ZoomableImage, ZoomableVideo } from "@/components/zoomable-media";
 
 /**
@@ -26,9 +27,9 @@ import { ZoomableImage, ZoomableVideo } from "@/components/zoomable-media";
 export function Markdown({ children }: { children: string }) {
   const highlighted = highlightMentions(children);
   return (
-    <div className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-brand-600 prose-pre:bg-slate-900 prose-pre:text-slate-100 dark:prose-pre:bg-slate-950 prose-code:before:content-none prose-code:after:content-none">
+    <TableHover className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-brand-600 prose-pre:bg-slate-900 prose-pre:text-slate-100 dark:prose-pre:bg-slate-950 prose-code:before:content-none prose-code:after:content-none">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkTableBorders]}
+        remarkPlugins={[remarkGfm, remarkTableMeta]}
         components={{
           // Mentions are emitted as <mention> via the pre-pass below. Without
           // rehype-raw, react-markdown won't recognise raw HTML — so we use a
@@ -95,7 +96,7 @@ export function Markdown({ children }: { children: string }) {
       >
         {highlighted}
       </ReactMarkdown>
-    </div>
+    </TableHover>
   );
 }
 

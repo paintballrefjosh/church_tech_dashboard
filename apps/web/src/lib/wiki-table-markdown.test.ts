@@ -7,14 +7,33 @@ import TableExt from "@tiptap/extension-table";
 import TableRowExt from "@tiptap/extension-table-row";
 import TableHeaderExt from "@tiptap/extension-table-header";
 import TableCellExt from "@tiptap/extension-table-cell";
-import { remarkTableBorders, serializeTable, TABLE_BORDERS_MARKER } from "./wiki-table-markdown";
+import {
+  cellBackgroundCss,
+  formatTableMeta,
+  parseTableMeta,
+  remarkTableMeta,
+  serializeTable,
+} from "./wiki-table-markdown";
+
+const TABLE_BORDERS_MARKER = "<!-- table: borders -->";
 
 const BorderedTable = TableExt.extend({
   addAttributes() {
     return { ...this.parent?.(), borders: { default: false } };
   },
 });
-const schema = getSchema([StarterKit, BorderedTable, TableRowExt, TableHeaderExt, TableCellExt]);
+const withBg = {
+  addAttributes(this: { parent?: () => Record<string, unknown> }) {
+    return { ...this.parent?.(), bg: { default: null } };
+  },
+};
+const schema = getSchema([
+  StarterKit,
+  BorderedTable,
+  TableRowExt,
+  TableHeaderExt.extend(withBg),
+  TableCellExt.extend(withBg),
+]);
 
 function cell(type: "tableCell" | "tableHeader", ...paras: string[]) {
   return schema.nodes[type]!.create(
@@ -128,7 +147,7 @@ describe("serializeTable", () => {
   });
 });
 
-describe("remarkTableBorders", () => {
+describe("remarkTableMeta", () => {
   it("removes the marker and tags the table after it, leaving other tables alone", () => {
     const table = () => ({ type: "table", children: [] });
     const tree = {
@@ -141,11 +160,68 @@ describe("remarkTableBorders", () => {
         { type: "html", value: "<!-- something else -->" },
       ],
     };
-    remarkTableBorders()(tree);
+    remarkTableMeta()(tree);
     expect(tree.children.map((c) => c.type)).toEqual(["paragraph", "table", "table", "html"]);
     expect((tree.children[1] as { data?: unknown }).data).toEqual({
       hProperties: { className: ["table-borders"] },
     });
     expect((tree.children[2] as { data?: unknown }).data).toBeUndefined();
+  });
+});
+
+describe("table meta marker", () => {
+  it("round-trips borders and cell colours, ordered, and ignores bad entries", () => {
+    const text = formatTableMeta({
+      borders: true,
+      bg: new Map([
+        ["2.0", { color: "#FF0000", opacity: 100 }],
+        ["0.1", { color: "#ffd700", opacity: 40 }],
+      ]),
+    });
+    expect(text).toBe("<!-- table: borders bg=0.1:#ffd700@40,2.0:#ff0000@100 -->");
+    const meta = parseTableMeta(text!)!;
+    expect(meta.borders).toBe(true);
+    expect([...meta.bg.keys()]).toEqual(["0.1", "2.0"]);
+    // the colour ends up in a style attribute, so anything but #rrggbb is dropped
+    const evil = parseTableMeta("<!-- table: bg=0.0:red;x:y@40,1.1:#12345g@5,2.2:#abcdef@500 -->")!;
+    expect([...evil.bg.entries()]).toEqual([["2.2", { color: "#abcdef", opacity: 100 }]]);
+    expect(formatTableMeta({ borders: false, bg: new Map() })).toBeNull();
+    expect(parseTableMeta("<!-- something else -->")).toBeNull();
+    expect(cellBackgroundCss({ color: "#ffd700", opacity: 40 })).toBe("rgb(255 215 0 / 0.4)");
+  });
+
+  it("serializes cell colours by position and the plugin styles those cells", () => {
+    const t = schema.nodes.table!.create(null, [
+      row(cell("tableHeader", "A"), cell("tableHeader", "B")),
+      schema.nodes.tableRow!.create(null, [
+        cell("tableCell", "1"),
+        schema.nodes.tableCell!.create(
+          { bg: "#ffd700@40" },
+          schema.nodes.paragraph!.create(null, schema.text("2")),
+        ),
+      ]),
+    ]);
+    const md = run(t);
+    expect(md.split("\n")[0]).toBe("<!-- table: bg=1.1:#ffd700@40 -->");
+
+    const tree = {
+      type: "root",
+      children: [
+        { type: "html", value: md.split("\n")[0]! },
+        {
+          type: "table",
+          children: [
+            { type: "tableRow", children: [{ type: "tableCell" }, { type: "tableCell" }] },
+            { type: "tableRow", children: [{ type: "tableCell" }, { type: "tableCell" }] },
+          ],
+        },
+      ],
+    };
+    remarkTableMeta()(tree as never);
+    const rows = (tree.children[0] as { children: { children: { data?: unknown }[] }[] }).children;
+    expect(rows[1]!.children[1]!.data).toEqual({
+      hProperties: { style: "background-color: rgb(255 215 0 / 0.4)" },
+    });
+    expect(rows[1]!.children[0]!.data).toBeUndefined();
   });
 });

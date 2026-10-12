@@ -15,7 +15,13 @@ import LinkExt from "@tiptap/extension-link";
 import ImageExt from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TableExt from "@tiptap/extension-table";
-import { serializeTable, TABLE_BORDERS_MARKER } from "@/lib/wiki-table-markdown";
+import {
+  applyTableMetaToDom,
+  cellBackgroundCss,
+  formatBgAttr,
+  parseBgAttr,
+  serializeTable,
+} from "@/lib/wiki-table-markdown";
 import TableRowExt from "@tiptap/extension-table-row";
 import TableHeaderExt from "@tiptap/extension-table-header";
 import TableCellExt from "@tiptap/extension-table-cell";
@@ -37,6 +43,7 @@ import {
   Minus,
   Table as TableIcon,
   Columns3,
+  PaintBucket,
   Eye,
   Pencil,
   Undo2,
@@ -185,7 +192,7 @@ export const WikiBodyEditor = forwardRef<
           return {
             ...this.parent?.(),
             // Per-table column borders; stored in the markdown as a comment
-            // line above the table (see TABLE_BORDERS_MARKER).
+            // line above the table (see lib/wiki-table-markdown.ts).
             borders: {
               default: false,
               parseHTML: (el: HTMLElement) => el.getAttribute("data-borders") === "true",
@@ -199,24 +206,16 @@ export const WikiBodyEditor = forwardRef<
             markdown: {
               serialize: serializeTable,
               parse: {
-                // With html off the marker comment arrives as a paragraph of
-                // text: fold it into the next table's attribute and drop it.
-                updateDOM(element: HTMLElement) {
-                  element.querySelectorAll("p").forEach((p) => {
-                    if (p.textContent?.trim() !== TABLE_BORDERS_MARKER) return;
-                    const next = p.nextElementSibling;
-                    if (next?.tagName === "TABLE") next.setAttribute("data-borders", "true");
-                    p.remove();
-                  });
-                },
+                // With html off the marker comment arrives as a paragraph of text.
+                updateDOM: applyTableMetaToDom,
               },
             },
           };
         },
       }).configure({ resizable: false }),
       TableRowExt,
-      TableHeaderExt,
-      TableCellExt,
+      TableHeaderExt.extend({ addAttributes: cellBgAttributes }),
+      TableCellExt.extend({ addAttributes: cellBgAttributes }),
       Markdown.configure({
         html: false,
         tightLists: true,
@@ -500,7 +499,28 @@ export const WikiBodyEditor = forwardRef<
     return () => dom.removeEventListener("keydown", onKeyDown, true);
   });
 
-  // ---- Table floating toolbar (Confluence-style add/delete row/column) --
+  /**
+ * Cell background for the table cell and header extensions: `bg` is
+ * "#rrggbb@opacity" (null = none), saved in the page's table marker comment.
+ * Shared by both so a header cell can be coloured like any other.
+ */
+function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
+  return {
+    ...this.parent?.(),
+    bg: {
+      default: null,
+      parseHTML: (el: HTMLElement) => parseBgAttr(el.getAttribute("data-bg")) && el.getAttribute("data-bg"),
+      renderHTML: (attrs: Record<string, unknown>) => {
+        const bg = parseBgAttr(attrs.bg);
+        return bg
+          ? { "data-bg": formatBgAttr(bg), style: `background-color: ${cellBackgroundCss(bg)}` }
+          : {};
+      },
+    },
+  };
+}
+
+// ---- Table floating toolbar (Confluence-style add/delete row/column) --
 
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -1077,6 +1097,7 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
         <Trash2 className="h-3.5 w-3.5" />
       </TableBtn>
       <ToolDivider />
+      <CellColorMenu editor={editor} />
       <TableBtn
         title={borders ? "Hide column borders" : "Show column borders"}
         pressed={borders}
@@ -1092,6 +1113,110 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
         <TableIcon className="h-3.5 w-3.5" />
         <Trash2 className="-ml-1 h-3 w-3" />
       </TableBtn>
+    </div>
+  );
+}
+
+const CELL_SWATCHES = ["#fde047", "#fdba74", "#fca5a5", "#f9a8d4", "#c4b5fd", "#93c5fd", "#86efac", "#cbd5e1"];
+
+/**
+ * Background colour and opacity for the selected table cells (click a cell, or
+ * drag across several). Every change applies at once; "No colour" clears it.
+ * Opens its own panel, which must keep native mouse behaviour (a range slider
+ * cannot be dragged if mousedown is cancelled), so it stops the toolbar's
+ * focus-keeping handler; the editor selection survives the blur.
+ */
+function CellColorMenu({ editor }: { editor: Editor }) {
+  const [open, setOpen] = useState(false);
+  const [color, setColor] = useState("#fde047");
+  const [opacity, setOpacity] = useState(40);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = parseBgAttr(editor.getAttributes("tableCell").bg ?? editor.getAttributes("tableHeader").bg);
+
+  useEffect(() => {
+    if (!open) return;
+    function away(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+
+  function apply(c: string, o: number) {
+    setColor(c);
+    setOpacity(o);
+    editor.chain().focus().setCellAttribute("bg", formatBgAttr({ color: c, opacity: o })).run();
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <TableBtn
+        title="Cell background colour"
+        pressed={open}
+        onClick={() => {
+          if (!open && current) {
+            setColor(current.color);
+            setOpacity(current.opacity);
+          }
+          setOpen((v) => !v);
+        }}
+      >
+        <PaintBucket className="h-3.5 w-3.5" />
+        <span
+          className="ml-0.5 h-2.5 w-2.5 rounded-sm border border-slate-400"
+          style={current ? { background: cellBackgroundCss(current) } : undefined}
+        />
+      </TableBtn>
+      {open ? (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full z-30 mt-1 w-64 rounded-md border border-slate-300 bg-white p-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="mb-2 flex flex-wrap items-center gap-1">
+            {CELL_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                aria-label={`Colour ${c}`}
+                onClick={() => apply(c, opacity)}
+                className={`h-5 w-5 rounded border ${
+                  current?.color === c ? "ring-2 ring-brand-500" : "border-slate-300 dark:border-slate-600"
+                }`}
+                style={{ background: c }}
+              />
+            ))}
+            <input
+              type="color"
+              aria-label="Custom colour"
+              value={color}
+              onChange={(e) => apply(e.target.value, opacity)}
+              className="h-5 w-7 cursor-pointer rounded border border-slate-300 bg-transparent p-0 dark:border-slate-600"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+            Opacity
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={opacity}
+              aria-label="Opacity"
+              onChange={(e) => apply(color, Number(e.target.value))}
+              className="min-w-0 flex-1"
+            />
+            <span className="w-8 text-right tabular-nums">{opacity}%</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().setCellAttribute("bg", null).run()}
+            className="mt-2 w-full rounded border border-slate-300 py-0.5 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            No colour
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
