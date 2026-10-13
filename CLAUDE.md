@@ -492,6 +492,25 @@ searchable resource: add the `SearchKind`, a doc builder in `search-sources.ts`
 the database, a publisher through `live_search_docs`), the query gate, and an
 entry in `search-kinds.ts`.
 
+## Attachments (allowed types)
+
+Which file types may be uploaded (wiki, notes, tickets share `AttachmentsService`) is the admin-editable setting
+`attachments.allowed_types` (Site settings > Attachments, `attachment-settings.tsx`). **The choices are a closed catalogue,
+`ATTACHMENT_TYPE_CATALOGUE` in `packages/shared/src/schemas/attachment.ts`, never free text**: the stored list is cut down to the
+catalogue on read (`resolveAllowedAttachmentTypes`) and on save (`validateSettingValue`), so HTML, SVG and
+`application/octet-stream` can never be switched on. Each entry has a `check` that `reconcileMime`
+(`attachments/magic-bytes.ts`) applies to the file's own bytes: `magic` (sniffed type must equal the declared one), `zip`
+(docx/xlsx/pptx/OpenDocument), `ole` (legacy doc/xls/ppt), `none` (plain text formats). To add a type, add a catalogue
+entry with a check that can verify it (a new signature goes in `sniffMime`); defaults are `DEFAULT_ATTACHMENT_TYPES`
+(unchanged from before the setting existed). Only images are served inline; everything else is `attachment` + nosniff.
+**Custom extensions** (`attachments.custom_extensions`, "Other file extensions" in the same section) are the deliberate
+exception to "verified": matched by the file NAME only (they win over the browser's declared type), stored and served as
+`application/octet-stream` (download-only, nosniff), and `normaliseCustomExtension` refuses `BLOCKED_ATTACHMENT_EXTENSIONS`
+(html, svg, xml, js, exe, bat, sh, php ... anything that runs in a browser, on a computer or on a server) and any extension
+the checklist already covers (so unticking a type there cannot be undone here). The same function runs in the UI, in
+`validateSettingValue` and when the setting is read (`resolveCustomAttachmentExtensions`). Settings are cached 60 s per node,
+so editing the row in SQL (instead of the UI, which invalidates) takes up to a minute to apply. The upload size cap is still the fixed `MAX_ATTACHMENT_BYTES`. Tests: `apps/api/test/attachment-types.test.ts`.
+
 ## Home page looks
 
 The home page (`/`) can be shown in six looks that each person picks (plan and decisions: [docs/dashboard-themes.md](docs/dashboard-themes.md);

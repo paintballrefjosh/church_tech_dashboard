@@ -7,10 +7,14 @@ import {
 import { and, asc, eq } from "drizzle-orm";
 import type { Readable } from "node:stream";
 import {
-  ATTACHMENT_ALLOWED_CONTENT_TYPES,
-  ATTACHMENT_MAGICLESS_TYPES,
+  ATTACHMENT_CUSTOM_EXTENSIONS_SETTING,
+  ATTACHMENT_TYPES_SETTING,
+  CUSTOM_ATTACHMENT_CONTENT_TYPE,
+  resolveAllowedAttachmentTypes,
+  resolveCustomAttachmentExtensions,
   type AttachmentParentType,
 } from "@church/shared";
+import { SettingsService } from "../settings/settings.service";
 import { DB, type Db } from "../db/db.module";
 import { attachments } from "../db/schema";
 import { getS3 } from "./s3.client";
@@ -42,7 +46,10 @@ export interface StoredAttachment {
  */
 @Injectable()
 export class AttachmentsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly settings: SettingsService,
+  ) {}
 
   async upload(
     parentType: AttachmentParentType,
@@ -51,8 +58,22 @@ export class AttachmentsService {
     file: IncomingFile,
   ): Promise<StoredAttachment> {
     const declared = (file.mimetype || "").toLowerCase();
-    if (!declared || !ATTACHMENT_ALLOWED_CONTENT_TYPES.includes(declared)) {
-      throw new BadRequestException(`content-type ${declared || "<missing>"} not allowed`);
+    const filename = sanitiseFilename(file.filename);
+    // The admin's lists (Site settings): checklist types, cut down to the built-in catalogue,
+    // and custom extensions.
+    const [typeSetting, extSetting] = await Promise.all([
+      this.settings.get(ATTACHMENT_TYPES_SETTING),
+      this.settings.get(ATTACHMENT_CUSTOM_EXTENSIONS_SETTING),
+    ]);
+    const allowed = resolveAllowedAttachmentTypes(typeSetting);
+    const custom = resolveCustomAttachmentExtensions(extSetting);
+    // A custom extension decides by the file NAME and wins over whatever the browser declared:
+    // the file is stored as an opaque download whatever it claims to be (see CUSTOM_ATTACHMENT_CONTENT_TYPE).
+    const isCustom = custom.includes(extOf(filename).slice(1));
+    if (!isCustom && (!declared || !allowed.includes(declared))) {
+      throw new BadRequestException(
+        `content-type ${declared || "<missing>"} is not allowed for attachments. An admin can allow more types, or add a file extension, in Site settings.`,
+      );
     }
 
     // Buffer the upload so we can sniff magic bytes before storing.
@@ -66,13 +87,16 @@ export class AttachmentsService {
     if (buf.length === 0) throw new BadRequestException("empty upload");
 
     let contentType: string;
-    try {
-      contentType = reconcileMime(declared, buf.subarray(0, 16), ATTACHMENT_MAGICLESS_TYPES);
-    } catch (err) {
-      throw new BadRequestException((err as Error).message);
+    if (isCustom) {
+      contentType = CUSTOM_ATTACHMENT_CONTENT_TYPE;
+    } else {
+      try {
+        contentType = reconcileMime(declared, buf.subarray(0, 16));
+      } catch (err) {
+        throw new BadRequestException((err as Error).message);
+      }
     }
 
-    const filename = sanitiseFilename(file.filename);
     const id = crypto.randomUUID();
     const ext = extOf(filename);
     const storageKey = `attachments/${parentType}/${id}${ext}`;

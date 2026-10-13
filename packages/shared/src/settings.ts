@@ -10,6 +10,12 @@
 import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
 import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
+import {
+  DEFAULT_ATTACHMENT_TYPES,
+  MAX_CUSTOM_ATTACHMENT_EXTENSIONS,
+  findAttachmentType,
+  normaliseCustomExtension,
+} from "./schemas/attachment";
 
 export type SettingType = "string" | "boolean" | "number" | "secret" | "json";
 
@@ -75,6 +81,24 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "IANA time zone of the church, for example Europe/London. Sets the home page's day boundaries and greeting. Defaults to UTC.",
     defaultValue: "UTC",
+    category: "site",
+  },
+  {
+    key: "attachments.allowed_types",
+    type: "json",
+    label: "Allowed attachment types",
+    description:
+      "Content types people may upload as attachments (wiki, notes, tickets). A JSON list chosen from the built-in catalogue; edit it on the Site page.",
+    defaultValue: [...DEFAULT_ATTACHMENT_TYPES],
+    category: "site",
+  },
+  {
+    key: "attachments.custom_extensions",
+    type: "json",
+    label: "Custom attachment extensions",
+    description:
+      'Extra file extensions people may upload, for example ["dwg","vsdx"]. Matched by file name only, never checked against the file, and always stored as a download-only file. Edit them on the Site page.',
+    defaultValue: [],
     category: "site",
   },
   {
@@ -860,6 +884,22 @@ export function validateSettingValue(key: string, value: unknown): string | null
         new Intl.DateTimeFormat("en", { timeZone: value });
       } catch {
         return `"${value}" is not a known time zone. Use an IANA name such as Europe/London.`;
+      }
+      return null;
+    }
+    case "attachments.allowed_types":
+      return Array.isArray(value) && value.every((v) => typeof v === "string" && findAttachmentType(v))
+        ? null
+        : "Enter a JSON list using only content types from the attachment catalogue.";
+    case "attachments.custom_extensions": {
+      if (!Array.isArray(value)) return "Enter a JSON list of file extensions.";
+      if (value.length > MAX_CUSTOM_ATTACHMENT_EXTENSIONS) {
+        return `At most ${MAX_CUSTOM_ATTACHMENT_EXTENSIONS} custom extensions.`;
+      }
+      for (const v of value) {
+        if (typeof v !== "string") return "Enter a JSON list of file extensions.";
+        const r = normaliseCustomExtension(v);
+        if (!r.ok) return r.error;
       }
       return null;
     }

@@ -1,10 +1,14 @@
+import { findAttachmentType } from "@church/shared";
+
 /**
- * Tiny MIME sniffer for the file formats we accept as attachments. Covers the
- * "magicful" subset of ATTACHMENT_ALLOWED_CONTENT_TYPES — image/*, video/*,
- * audio/*, application/{pdf,zip}, and docx (a zip container, so it shares
- * zip's signature — see the special case in reconcileMime below). Text
- * formats (plain/markdown/csv/json) have no reliable magic and are
- * validated only by the declared content-type.
+ * Tiny MIME sniffer for the file formats we accept as attachments (the
+ * ATTACHMENT_TYPE_CATALOGUE in @church/shared). Covers image/*, video/*,
+ * audio/*, application/{pdf,zip}, and the Office/OpenDocument formats, which
+ * are zip containers (docx, xlsx, pptx, odt/ods/odp) or OLE2 compound files
+ * (doc, xls, ppt) with no signature of their own: the catalogue's `check` for a
+ * type says which container it must be (see reconcileMime). Text formats
+ * (plain/markdown/csv/json) have no reliable magic and are validated only by
+ * the declared content-type.
  *
  * Returning the detected MIME (not just a boolean) lets the upload path
  * reject mismatches *and* surface a useful error like "you uploaded a PNG
@@ -47,6 +51,14 @@ function sniffMime(head: Buffer): string | null {
   if (head[0] === 0x50 && head[1] === 0x4b && (head[2] === 0x03 || head[2] === 0x05) && (head[3] === 0x04 || head[3] === 0x06)) {
     return "application/zip";
   }
+  // OLE2 compound file (legacy .doc/.xls/.ppt): D0 CF 11 E0 A1 B1 1A E1
+  if (
+    head.length >= 8 &&
+    head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0 &&
+    head[4] === 0xa1 && head[5] === 0xb1 && head[6] === 0x1a && head[7] === 0xe1
+  ) {
+    return "application/x-ole-storage";
+  }
   // MP4 family: 4 bytes size + "ftyp" at offset 4
   if (head.length >= 12 && head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70) {
     const brand = head.subarray(8, 12).toString("ascii");
@@ -78,31 +90,32 @@ function sniffMime(head: Buffer): string | null {
 /**
  * Validate `declared` against the magic-byte sniff of `head`. Returns the
  * effective content-type to store, or throws an Error describing the mismatch.
+ * How strictly a type is checked comes from its catalogue entry (`check`):
  *
- * Behaviour:
- *  - declared type is in the magicless set: trust it.
- *  - sniffer detects a type that matches the declared: accept.
- *  - sniffer detects something else: reject (covers `evil.html` claiming PNG).
- *  - sniffer detects nothing and declared isn't magicless: reject (we can't
- *    verify, so we refuse to store).
+ *  - `none`: trust the declared type (plain text formats have no signature).
+ *  - `magic`: the sniffed type must be exactly the declared one (this covers
+ *    `evil.html` claiming to be a PNG). video/ogg is accepted for an Ogg
+ *    container, which sniffs as audio/ogg.
+ *  - `zip` / `ole`: the bytes must be a zip / OLE2 container. That cannot tell
+ *    a workbook from a document, but it does stop anything else being stored
+ *    under an Office type.
+ *  - not in the catalogue: refused, we cannot verify it.
  */
-export function reconcileMime(declared: string, head: Buffer, magicless: ReadonlyArray<string>): string {
+export function reconcileMime(declared: string, head: Buffer): string {
   const lower = declared.toLowerCase();
-  if (magicless.includes(lower)) return lower;
+  const info = findAttachmentType(lower);
+  if (!info) throw new Error(`content-type ${declared} is not a supported attachment type`);
+  if (info.check === "none") return lower;
   const sniffed = sniffMime(head);
   if (!sniffed) {
     throw new Error(`could not verify file type — declared ${declared}, no magic bytes detected`);
   }
-  if (sniffed === lower) return sniffed;
-  // Accept video/ogg when sniff says audio/ogg, since the container is shared.
-  if (sniffed === "audio/ogg" && lower === "video/ogg") return lower;
-  // docx is a zip container (PK\x03\x04) with no magic bytes of its own —
-  // same accommodation as the audio/video-ogg case above.
-  if (
-    sniffed === "application/zip" &&
-    lower === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    return lower;
+  if (info.check === "zip" && sniffed === "application/zip") return lower;
+  if (info.check === "ole" && sniffed === "application/x-ole-storage") return lower;
+  if (info.check === "magic") {
+    if (sniffed === lower) return sniffed;
+    // The Ogg container is shared by audio and video.
+    if (sniffed === "audio/ogg" && lower === "video/ogg") return lower;
   }
   throw new Error(`declared content-type ${declared} doesn't match file (detected ${sniffed})`);
 }

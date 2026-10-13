@@ -5,19 +5,30 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { DEFAULT_LOOK, KNOWN_SETTINGS, LOOK_IDS, isLookId, type LookId } from "@church/shared";
+import {
+  DEFAULT_LOOK,
+  KNOWN_SETTINGS,
+  LOOK_IDS,
+  isLookId,
+  resolveAllowedAttachmentTypes,
+  resolveCustomAttachmentExtensions,
+  type LookId,
+} from "@church/shared";
 import { headers } from "next/headers";
 import { SettingsForm } from "../settings-form";
 import { findCategory } from "../categories";
 import { OAuthCallbackHint } from "./oauth-callback-hint";
 import { HomePageSettings } from "./home-page-settings";
+import { AttachmentSettings } from "./attachment-settings";
 
-/** Shown by the Home page section on the Site page, so the generic form leaves them out. */
+/** Shown by the Home page and Attachments sections on the Site page, so the generic form leaves them out. */
 const HOME_PAGE_KEYS = new Set([
   "site.timezone",
   "dashboard.default_theme",
   "dashboard.enabled_themes",
   "dashboard.stream_monitor_ids",
+  "attachments.allowed_types",
+  "attachments.custom_extensions",
 ]);
 
 /**
@@ -132,6 +143,13 @@ export default async function AdminSettingsCategoryPage({
             enabledThemes={enabledThemes}
             streamMonitorIds={streamMonitorIds}
             monitors={monitors}
+          />
+        ) : null}
+
+        {slug === "site" ? (
+          <AttachmentSettings
+            allowed={resolveAllowedAttachmentTypes(current["attachments.allowed_types"])}
+            custom={resolveCustomAttachmentExtensions(current["attachments.custom_extensions"])}
           />
         ) : null}
 
