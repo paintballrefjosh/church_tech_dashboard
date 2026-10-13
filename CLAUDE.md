@@ -417,6 +417,20 @@ pin). Tests: `apps/api/test/mcp-tools.test.ts` (incl. the SDK client over HTTP).
 When adding a tool: JSON Schema + zod args + permission + `recordAuditEntry`
 for writes.
 
+**The rest of the app is reached through a route bridge, not through services**
+(plan, phases and rules: [docs/mcp.md](docs/mcp.md)). A catalogue tool
+(`apps/api/src/mcp/bridge/catalogue/*.tools.ts`, `defineTool`) names one REST route,
+reuses the route's Zod schema for its input (the JSON Schema is generated, never
+hand-written), and `ApiBridge` calls the route in-process with `inject` carrying the
+caller's own bearer token. That keeps guards, token limits, audit (with the token id),
+and the controller's own side effects (realtime, notifications) identical to REST;
+never call a service from a new tool when a route exists. **Every route must be a tool or
+named in `route-rules.ts` with a reason** (`mcp-coverage.test.ts` fails otherwise): add
+a tool and delete its `pending` rule, or add an `excluded` rule. `tools/list` shows a
+caller only the tools its permissions allow (read-only tokens: reads only). Read-only
+admin, no delete tools for tickets/wiki/accounts, and a future "operational" token level
+for equipment-touching tools are decided (2026-10-12).
+
 ## Search
 
 Global search ("Search everything…" in the top bar + the Cmd/Ctrl-K palette) is

@@ -1074,9 +1074,11 @@ user for it and issue the token to that user, so its changes are attributed to i
 ## Connecting Claude (MCP)
 
 The dashboard is an [MCP](https://modelcontextprotocol.io) server at `/api/v1/mcp`,
-so an AI agent such as a Claude Code session can read and write the wiki, for example
-to document the systems and services it works on. It uses the same wiki code as the web
-UI, so permissions, page ACLs, revisions, search and notifications all behave the same.
+so an AI agent such as a Claude Code session can work with the dashboard: today the wiki
+(to document the systems and services it works on), global search, and its own profile;
+more modules are being added in phases (plan: `docs/mcp.md`). Every tool goes through the
+same code as the web UI, so permissions, page ACLs, revisions, search, notifications and
+the audit log all behave the same, and an agent sees only the tools its token allows.
 
 1. **Create a user for the agent** at `/admin/users`, e.g. "Claude (docs)", so its edits
    are attributed to it rather than to you. Give it a long random password (it never
@@ -1108,6 +1110,8 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `wiki_create_page` | Create a page, optionally in a folder or under a page |
 | `wiki_update_page` | Change a page's title, body or location |
 | `wiki_create_folder` | Create a folder |
+| `search_everything` | Search wiki, notes, tickets and (when permitted) monitoring data by words |
+| `me_get_profile` | Who the token acts as, its permissions and its limits |
 
 Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
 overwrite an edit made since. Every edit is a revision you can revert from the page's

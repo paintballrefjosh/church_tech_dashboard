@@ -14,6 +14,8 @@ import type { WikiService } from "../src/wiki/wiki.service";
 import type { WikiWritesService } from "../src/wiki/wiki-writes.service";
 import type { WikiFoldersService } from "../src/wiki/wiki-folders.service";
 import type { SettingsService } from "../src/settings/settings.service";
+import type { ApiBridge } from "../src/mcp/bridge/api-bridge.service";
+import type { BridgeTool } from "../src/mcp/bridge/bridge.types";
 
 const PAGE_ID = "11111111-1111-4111-8111-111111111111";
 const FOLDER_ID = "22222222-2222-4222-8222-222222222222";
@@ -74,11 +76,16 @@ function build() {
     create: async (input: unknown) => (rec("createFolder", input), { id: FOLDER_ID, name: "Systems", parentFolderId: null }),
   };
   const settings = { publicBaseUrl: async () => "https://dash.example.org" };
+  // Records the route calls the bridge tools would make.
+  const bridge = {
+    call: async (tool: BridgeTool, args: unknown) => (rec("bridge", tool.name, args), { ok: true, tool: tool.name }),
+  };
   const svc = new McpToolsService(
     wiki as unknown as WikiService,
     writes as unknown as WikiWritesService,
     folders as unknown as WikiFoldersService,
     settings as unknown as SettingsService,
+    bridge as unknown as ApiBridge,
   );
   return { svc, calls };
 }
@@ -87,8 +94,9 @@ const READ_WRITE = [PERMISSIONS.WIKI_READ_OWN, PERMISSIONS.WIKI_CREATE];
 const text = (r: { content: Array<{ type: string; text?: string }> }) => r.content[0]?.text ?? "";
 
 describe("McpToolsService.call", () => {
-  it("exposes the seven wiki tools", () => {
-    expect(build().svc.toolNames()).toEqual([
+  it("exposes the seven wiki tools first, then the catalogue", () => {
+    const names = build().svc.toolNames();
+    expect(names.slice(0, 7)).toEqual([
       "wiki_search",
       "wiki_get_page",
       "wiki_tree",
@@ -97,6 +105,43 @@ describe("McpToolsService.call", () => {
       "wiki_update_page",
       "wiki_create_folder",
     ]);
+    expect(names).toContain("search_everything");
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("lists only the tools the caller may use", () => {
+    const { svc } = build();
+    const wikiReader = svc.visibleToolNames(user([PERMISSIONS.WIKI_READ_OWN]));
+    expect(wikiReader).toContain("wiki_search");
+    expect(wikiReader).toContain("me_get_profile");
+    expect(wikiReader).not.toContain("wiki_create_page");
+
+    const readOnlyToken: AuthenticatedUser = {
+      ...user(READ_WRITE),
+      apiToken: { id: "t1", name: "docs", readOnly: true, modules: ["wiki"] },
+    };
+    const names = svc.visibleToolNames(readOnlyToken);
+    expect(names).toContain("wiki_get_page");
+    expect(names).not.toContain("wiki_create_page");
+    expect(names).not.toContain("wiki_update_page");
+  });
+
+  it("runs a catalogue tool through the bridge with validated arguments", async () => {
+    const { svc, calls } = build();
+    const r = await svc.call({ user: user([]), req: {} }, "search_everything", { q: "vlan", kind: ["cisco_vlan"] });
+    expect(r.isError).toBeFalsy();
+    expect(calls.bridge?.[0]).toEqual(["search_everything", { q: "vlan", kind: ["cisco_vlan"] }]);
+
+    const bad = await svc.call({ user: user([]), req: {} }, "search_everything", { q: "vlan", kind: ["nonsense"] });
+    expect(bad.isError).toBe(true);
+    expect(calls.bridge).toHaveLength(1);
+  });
+
+  it("never records audit entries for bridge tools itself (the route does)", async () => {
+    const { svc } = build();
+    const req: { [AUDIT_ENTRIES_KEY]?: DynamicAuditEntry[] } = {};
+    await svc.call({ user: user([]), req }, "me_get_profile", {});
+    expect(req[AUDIT_ENTRIES_KEY]).toBeUndefined();
   });
 
   it("refuses a tool the user lacks the permission for", async () => {

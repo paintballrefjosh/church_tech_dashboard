@@ -48,7 +48,8 @@
     "turndown": "7.2.4",
     "turndown-plugin-gfm": "1.0.2",
     "undici": "6.21.0",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "zod-to-json-schema": "3.25.2"
   },
   "devDependencies": {
     "@nestjs/cli": "10.4.5",

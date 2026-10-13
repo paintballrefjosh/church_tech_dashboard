@@ -8,7 +8,8 @@ import { DB, type Db } from "../db/db.module";
 import { groupMemberships } from "../db/schema";
 import { SearchService, type SearchKind } from "./search.service";
 
-const VALID_KINDS: SearchKind[] = [
+/** Every kind the search endpoint accepts in `kind` (also the MCP search tool's choices). */
+export const SEARCH_KINDS: SearchKind[] = [
   "ticket",
   "note",
   "wiki",
@@ -54,7 +55,7 @@ export class SearchController {
       .where(eq(groupMemberships.userId, user.id));
 
     const kinds = kind
-      ? (kind.split(",").filter((k) => (VALID_KINDS as string[]).includes(k)) as SearchKind[])
+      ? (kind.split(",").filter((k) => (SEARCH_KINDS as string[]).includes(k)) as SearchKind[])
       : undefined;
 
     const hits = await this.search.search({

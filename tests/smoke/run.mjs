@@ -1990,6 +1990,10 @@ async function main() {
   const { homeSnapshotTests } = await import("./home-snapshot.mjs");
   await homeSnapshotTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- MCP server (tests/smoke/mcp.mjs) ----
+  const { mcpTests } = await import("./mcp.mjs");
+  await mcpTests({ test, assert, fetchWithCookies, jar });
+
   // ---- cluster page (tests/smoke/cluster.mjs) ----
   const { clusterTests } = await import("./cluster.mjs");
   await clusterTests({ test, assert, fetchWithCookies, jar });
