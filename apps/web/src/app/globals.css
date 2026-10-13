@@ -446,6 +446,61 @@ html[data-page-width="custom"] :is(.max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .
 }
 
 /*
+ * Header row: a table that says it has one (`header` in its marker) gets a
+ * tinted, bolder first row with a heavier rule under it. The page view tags the
+ * table `.table-header`, the editor sets data-header. A cell's own background
+ * colour (an inline style) still wins.
+ */
+.prose table.table-header tr:first-child > :is(th, td),
+.ProseMirror table[data-header="true"] tr:first-child > :is(th, td) {
+  background-color: theme("colors.slate.100");
+  color: theme("colors.slate.900");
+  font-weight: 600;
+  border-bottom: 2px solid theme("colors.slate.300");
+}
+.dark .prose table.table-header tr:first-child > :is(th, td),
+.dark .ProseMirror table[data-header="true"] tr:first-child > :is(th, td) {
+  background-color: theme("colors.slate.800");
+  color: theme("colors.slate.50");
+  border-bottom-color: theme("colors.slate.600");
+}
+
+/*
+ * Editor cells hold paragraphs (the page view's cells hold bare text), and the
+ * prose paragraph margins made every row in the editor far taller than on the
+ * page and swamped the cell padding. Paragraphs inside a cell sit flush.
+ */
+.ProseMirror :is(td, th) > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/*
+ * Per-table cell padding (`pad=` in the marker): the value arrives as the
+ * --table-cell-pad custom property on the table. The prose rules it overrides
+ * are zero-specificity :where() selectors (including the first/last column's
+ * zero side padding), so this wins on every side.
+ */
+.prose table.table-pad :is(th, td),
+.ProseMirror table[data-pad] :is(th, td) {
+  padding: var(--table-cell-pad);
+}
+
+/*
+ * Cells selected together in the editor (drag across cells): prosemirror-tables
+ * hides the text selection and marks the cells `.selectedCell`, which is
+ * invisible without a rule. A background-image so it layers over a cell colour.
+ */
+.ProseMirror td.selectedCell,
+.ProseMirror th.selectedCell {
+  background-image: linear-gradient(theme("colors.brand.500 / 0.22"), theme("colors.brand.500 / 0.22"));
+}
+.dark .ProseMirror td.selectedCell,
+.dark .ProseMirror th.selectedCell {
+  background-image: linear-gradient(theme("colors.brand.300 / 0.28"), theme("colors.brand.300 / 0.28"));
+}
+
+/*
  * Table hover in the rendered wiki page (components/table-hover.tsx): the cell
  * under the pointer, its row and its column. The tint is a background-IMAGE so
  * it sits on top of a cell's own background colour (an inline background-color

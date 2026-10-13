@@ -22,14 +22,16 @@ import type { Node as PMNode } from "@tiptap/pm/model";
  * table or cell attributes, and a comment is invisible to every other renderer
  * (and to a person reading the raw text). Form:
  *
- *   <!-- table: borders bg=0.1:#ffd700@40,2.3:#ff0000@100 -->
+ *   <!-- table: borders header pad=8 bg=0.1:#ffd700@40,2.3:#ff0000@100 -->
  *
- * `borders` turns column borders on; `bg=` lists `row.column:#rrggbb@opacity%`
+ * `borders` turns column borders on; `header` styles the first row as a header
+ * (tinted, bold); `pad=` is the cell padding in px for the whole table (0 to
+ * 32; absent = the stylesheet's own); `bg=` lists `row.column:#rrggbb@opacity%`
  * (zero-based; row 0 is the header). Coordinates are written from the document
  * as it is at save time, so adding or deleting rows and columns just works.
  * The editor folds the comment into table/cell attributes on load and writes it
  * back on save; the page view (remarkTableMeta) turns it into a class and
- * inline cell styles. Colours are validated strictly: they end up in a style.
+ * inline styles. Colours are validated strictly: they end up in a style.
  */
 export interface CellBg {
   /** `#rrggbb` */
@@ -40,11 +42,15 @@ export interface CellBg {
 
 export interface TableMeta {
   borders: boolean;
+  header: boolean;
+  /** Cell padding in px, null = default. */
+  pad: number | null;
   /** key `row.col` */
   bg: Map<string, CellBg>;
 }
 
 const META_RE = /^<!--\s*table:\s*(.*?)\s*-->$/;
+export const MAX_TABLE_PAD = 32;
 const BG_ENTRY_RE = /^(\d{1,4})\.(\d{1,4}):(#[0-9a-fA-F]{6})@(\d{1,3})$/;
 
 /** A cell's `bg` attribute value, `#rrggbb@opacity`; null if it is not one. */
@@ -66,13 +72,21 @@ export function cellBackgroundCss(bg: CellBg): string {
   return `rgb(${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255} / ${alpha})`;
 }
 
+/** A table's `pad` attribute as a whole number of px in range, or null. */
+export function parsePad(value: unknown): number | null {
+  const n = typeof value === "string" && /^\d{1,3}$/.test(value) ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= MAX_TABLE_PAD ? n : null;
+}
+
 /** The marker comment's content as settings, or null when `text` is not a table marker. */
 export function parseTableMeta(text: string): TableMeta | null {
   const m = META_RE.exec(text.trim());
   if (!m) return null;
-  const meta: TableMeta = { borders: false, bg: new Map() };
+  const meta: TableMeta = { borders: false, header: false, pad: null, bg: new Map() };
   for (const token of m[1]!.split(/\s+/)) {
     if (token === "borders") meta.borders = true;
+    else if (token === "header") meta.header = true;
+    else if (token.startsWith("pad=")) meta.pad = parsePad(token.slice(4));
     else if (token.startsWith("bg=")) {
       for (const entry of token.slice(3).split(",")) {
         const e = BG_ENTRY_RE.exec(entry);
@@ -87,6 +101,8 @@ export function parseTableMeta(text: string): TableMeta | null {
 export function formatTableMeta(meta: TableMeta): string | null {
   const parts: string[] = [];
   if (meta.borders) parts.push("borders");
+  if (meta.header) parts.push("header");
+  if (meta.pad !== null) parts.push(`pad=${meta.pad}`);
   if (meta.bg.size) {
     const entries = [...meta.bg.entries()].sort((a, b) => {
       const [ar, ac] = a[0].split(".").map(Number) as [number, number];
@@ -109,7 +125,12 @@ function withProps(node: MdNode, props: Record<string, unknown>): void {
   node.data = { ...node.data, hProperties: { ...node.data?.hProperties, ...props } };
 }
 
-/** remark plugin: drop each marker, and apply it to the table that follows it (class and cell colours). */
+/** Inline style for a table with its own cell padding (read by the `.table-pad` rule in globals.css). */
+export function tablePadCss(pad: number): string {
+  return `--table-cell-pad: ${pad}px`;
+}
+
+/** remark plugin: drop each marker, and apply it to the table that follows it (classes, padding, cell colours). */
 export function remarkTableMeta() {
   function walk(parent: MdNode): void {
     const kids = parent.children;
@@ -120,7 +141,13 @@ export function remarkTableMeta() {
       if (meta) {
         const next = kids[i + 1];
         if (next?.type === "table") {
-          if (meta.borders) withProps(next, { className: ["table-borders"] });
+          const classes = [
+            ...(meta.borders ? ["table-borders"] : []),
+            ...(meta.header ? ["table-header"] : []),
+            ...(meta.pad !== null ? ["table-pad"] : []),
+          ];
+          if (classes.length) withProps(next, { className: classes });
+          if (meta.pad !== null) withProps(next, { style: tablePadCss(meta.pad) });
           next.children?.forEach((row, r) =>
             row.children?.forEach((cell, c) => {
               const bg = meta.bg.get(`${r}.${c}`);
@@ -173,7 +200,12 @@ export function serializeTable(state: SerializerState, node: PMNode): void {
   // BEFORE cells are rendered into their scratch buffers: renderInline's first
   // write() would otherwise spend it there, where it is thrown away, and the
   // table would be glued onto the end of the paragraph above it.
-  const meta: TableMeta = { borders: node.attrs.borders === true, bg: new Map() };
+  const meta: TableMeta = {
+    borders: node.attrs.borders === true,
+    header: node.attrs.header === true,
+    pad: parsePad(node.attrs.pad),
+    bg: new Map(),
+  };
   const rows: string[][] = [];
   node.forEach((row, _o, r) => {
     const cells: string[] = [];
@@ -213,7 +245,8 @@ export function serializeTable(state: SerializerState, node: PMNode): void {
 
 /**
  * Editor load: with raw HTML off, a marker comment arrives as a paragraph of
- * text. Fold each into the table after it (`data-borders`, `data-bg` on cells,
+ * text. Fold each into the table after it (`data-borders`, `data-header`,
+ * `data-pad`, `data-bg` on cells,
  * read back by the table extensions' parseHTML) and remove the paragraph.
  */
 export function applyTableMetaToDom(root: HTMLElement): void {
@@ -223,6 +256,8 @@ export function applyTableMetaToDom(root: HTMLElement): void {
     const next = p.nextElementSibling;
     if (next?.tagName === "TABLE") {
       if (meta.borders) next.setAttribute("data-borders", "true");
+      if (meta.header) next.setAttribute("data-header", "true");
+      if (meta.pad !== null) next.setAttribute("data-pad", String(meta.pad));
       next.querySelectorAll("tr").forEach((tr, r) =>
         Array.from(tr.children).forEach((cell, c) => {
           const bg = meta.bg.get(`${r}.${c}`);

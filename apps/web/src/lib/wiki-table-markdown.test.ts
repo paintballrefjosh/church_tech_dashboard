@@ -10,6 +10,7 @@ import TableCellExt from "@tiptap/extension-table-cell";
 import {
   cellBackgroundCss,
   formatTableMeta,
+  parsePad,
   parseTableMeta,
   remarkTableMeta,
   serializeTable,
@@ -19,7 +20,12 @@ const TABLE_BORDERS_MARKER = "<!-- table: borders -->";
 
 const BorderedTable = TableExt.extend({
   addAttributes() {
-    return { ...this.parent?.(), borders: { default: false } };
+    return {
+      ...this.parent?.(),
+      borders: { default: false },
+      header: { default: false },
+      pad: { default: null },
+    };
   },
 });
 const withBg = {
@@ -173,6 +179,8 @@ describe("table meta marker", () => {
   it("round-trips borders and cell colours, ordered, and ignores bad entries", () => {
     const text = formatTableMeta({
       borders: true,
+      header: false,
+      pad: null,
       bg: new Map([
         ["2.0", { color: "#FF0000", opacity: 100 }],
         ["0.1", { color: "#ffd700", opacity: 40 }],
@@ -185,9 +193,41 @@ describe("table meta marker", () => {
     // the colour ends up in a style attribute, so anything but #rrggbb is dropped
     const evil = parseTableMeta("<!-- table: bg=0.0:red;x:y@40,1.1:#12345g@5,2.2:#abcdef@500 -->")!;
     expect([...evil.bg.entries()]).toEqual([["2.2", { color: "#abcdef", opacity: 100 }]]);
-    expect(formatTableMeta({ borders: false, bg: new Map() })).toBeNull();
+    expect(formatTableMeta({ borders: false, header: false, pad: null, bg: new Map() })).toBeNull();
     expect(parseTableMeta("<!-- something else -->")).toBeNull();
     expect(cellBackgroundCss({ color: "#ffd700", opacity: 40 })).toBe("rgb(255 215 0 / 0.4)");
+  });
+
+  it("round-trips the header row and padding, and drops a padding out of range", () => {
+    const text = formatTableMeta({ borders: false, header: true, pad: 0, bg: new Map() });
+    expect(text).toBe("<!-- table: header pad=0 -->");
+    const meta = parseTableMeta(text!)!;
+    expect(meta).toMatchObject({ borders: false, header: true, pad: 0 });
+    expect(parseTableMeta("<!-- table: pad=33 -->")!.pad).toBeNull();
+    expect(parseTableMeta("<!-- table: pad=8px -->")!.pad).toBeNull();
+    expect(parseTableMeta("<!-- table: pad=-1 -->")!.pad).toBeNull();
+    expect(parsePad(12)).toBe(12);
+    expect(parsePad(1.5)).toBeNull();
+  });
+
+  it("serializes header and padding from the table and the plugin applies them", () => {
+    const t = schema.nodes.table!.create({ header: true, pad: 10 }, [
+      row(cell("tableHeader", "A"), cell("tableHeader", "B")),
+      row(cell("tableCell", "1"), cell("tableCell", "2")),
+    ]);
+    const md = run(t);
+    expect(md.split("\n")[0]).toBe("<!-- table: header pad=10 -->");
+    const tree = {
+      type: "root",
+      children: [
+        { type: "html", value: md.split("\n")[0]! },
+        { type: "table", children: [] },
+      ],
+    };
+    remarkTableMeta()(tree as never);
+    expect((tree.children[0] as { data?: unknown }).data).toEqual({
+      hProperties: { className: ["table-header", "table-pad"], style: "--table-cell-pad: 10px" },
+    });
   });
 
   it("serializes cell colours by position and the plugin styles those cells", () => {

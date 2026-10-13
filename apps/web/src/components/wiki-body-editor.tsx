@@ -15,12 +15,16 @@ import LinkExt from "@tiptap/extension-link";
 import ImageExt from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TableExt from "@tiptap/extension-table";
+import { TextSelection } from "@tiptap/pm/state";
 import {
+  MAX_TABLE_PAD,
   applyTableMetaToDom,
   cellBackgroundCss,
   formatBgAttr,
   parseBgAttr,
+  parsePad,
   serializeTable,
+  tablePadCss,
 } from "@/lib/wiki-table-markdown";
 import TableRowExt from "@tiptap/extension-table-row";
 import TableHeaderExt from "@tiptap/extension-table-header";
@@ -44,6 +48,7 @@ import {
   Table as TableIcon,
   Columns3,
   PaintBucket,
+  PanelTop,
   Eye,
   Pencil,
   Undo2,
@@ -199,6 +204,22 @@ export const WikiBodyEditor = forwardRef<
               renderHTML: (attrs: Record<string, unknown>) =>
                 attrs.borders ? { "data-borders": "true" } : {},
             },
+            // First row styled as a header (tinted, bold).
+            header: {
+              default: false,
+              parseHTML: (el: HTMLElement) => el.getAttribute("data-header") === "true",
+              renderHTML: (attrs: Record<string, unknown>) =>
+                attrs.header ? { "data-header": "true" } : {},
+            },
+            // Cell padding in px for the whole table; null = the stylesheet's.
+            pad: {
+              default: null,
+              parseHTML: (el: HTMLElement) => parsePad(el.getAttribute("data-pad")),
+              renderHTML: (attrs: Record<string, unknown>) => {
+                const pad = parsePad(attrs.pad);
+                return pad === null ? {} : { "data-pad": String(pad), style: tablePadCss(pad) };
+              },
+            },
           };
         },
         addStorage() {
@@ -233,6 +254,22 @@ export const WikiBodyEditor = forwardRef<
         "aria-label": ariaLabel,
         class:
           "prose prose-slate max-w-none dark:prose-invert min-h-[18rem] px-4 py-3 focus:outline-none prose-headings:font-semibold prose-a:text-brand-600 prose-pre:bg-slate-900 prose-pre:text-slate-100 dark:prose-pre:bg-slate-950 prose-code:before:content-none prose-code:after:content-none",
+      },
+      // Triple-click in a table cell: prosemirror-tables turns it into a
+      // CellSelection, which hides the text selection and (unstyled) looks like
+      // nothing happened. Select the cell's text instead, like a paragraph.
+      // Editor props run before plugin props, so this wins.
+      handleTripleClick(view, pos) {
+        const $pos = view.state.doc.resolve(pos);
+        for (let d = $pos.depth; d > 0; d--) {
+          const role = $pos.node(d).type.spec.tableRole;
+          if (role !== "cell" && role !== "header_cell") continue;
+          const doc = view.state.doc;
+          const sel = TextSelection.between(doc.resolve($pos.start(d)), doc.resolve($pos.end(d)));
+          view.dispatch(view.state.tr.setSelection(sel));
+          return true;
+        }
+        return false;
       },
       handlePaste(_view, event) {
         const files = Array.from(event.clipboardData?.files ?? []);
@@ -522,14 +559,20 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
 
 // ---- Table floating toolbar (Confluence-style add/delete row/column) --
 
-  const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
+  const [tableMenu, setTableMenu] = useState<TableMenuPos | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editor) return;
+    const show = (next: TableMenuPos | null) =>
+      setTableMenu((prev) =>
+        prev && next && prev.fixed === next.fixed && prev.x === next.x && prev.y === next.y ? prev : next,
+      );
     function checkTable() {
       const ed = editor!;
       if (!ed.isActive("table")) {
-        setTableMenu(null);
+        show(null);
         return;
       }
       const { $from } = ed.state.selection;
@@ -540,30 +583,51 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
           break;
         }
       }
-      if (tableDepth < 0) {
-        setTableMenu(null);
-        return;
-      }
-      const tableDom = ed.view.nodeDOM($from.before(tableDepth)) as HTMLElement | null;
-      if (!tableDom) {
-        setTableMenu(null);
+      const tableDom = tableDepth < 0 ? null : (ed.view.nodeDOM($from.before(tableDepth)) as HTMLElement | null);
+      const surface = surfaceRef.current;
+      if (!tableDom || !surface) {
+        show(null);
         return;
       }
       const tableRect = tableDom.getBoundingClientRect();
-      const containerRect = ed.view.dom.getBoundingClientRect();
-      setTableMenu({
-        x: Math.max(0, tableRect.left - containerRect.left),
+      const surfaceRect = surface.getBoundingClientRect();
+      // Where the menu sticks once the table's top has scrolled under the
+      // (sticky) main toolbar: just below it, until the table's end comes up.
+      const stickAt = (toolbarRef.current?.getBoundingClientRect().bottom ?? 0) + 4;
+      const natural = tableRect.top - TABLE_MENU_H;
+      const lastTop = tableRect.bottom - TABLE_MENU_H;
+      if (natural < stickAt && lastTop >= stickAt) {
+        show({ fixed: true, x: tableRect.left, y: stickAt });
+        return;
+      }
+      show({
+        fixed: false,
+        x: Math.max(0, tableRect.left - surfaceRect.left),
         // Clamp to 0 so a table at the very top of the document doesn't push
-        // the toolbar above the editor's own content area.
-        y: Math.max(0, tableRect.top - containerRect.top - 34),
+        // the toolbar above the editor's own content area; once the table is
+        // almost gone it leaves with the table's last row.
+        y: Math.max(0, (natural < stickAt ? lastTop : natural) - surfaceRect.top),
+      });
+    }
+    let frame = 0;
+    function onScroll() {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        checkTable();
       });
     }
     editor.on("transaction", checkTable);
     editor.on("selectionUpdate", checkTable);
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    window.addEventListener("resize", onScroll);
     checkTable();
     return () => {
       editor.off("transaction", checkTable);
       editor.off("selectionUpdate", checkTable);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
     };
   }, [editor]);
 
@@ -590,6 +654,7 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
       {name ? <input type="hidden" name={name} value={value} readOnly /> : null}
 
       <Toolbar
+        ref={toolbarRef}
         editor={editor}
         mode={mode}
         setMode={setMode}
@@ -619,11 +684,9 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
           className="block w-full resize-y border-0 bg-transparent px-4 py-3 font-mono text-sm leading-6 outline-none focus:ring-0 dark:bg-transparent"
         />
       ) : (
-        <div className="relative">
+        <div ref={surfaceRef} className="relative">
           <EditorContent editor={editor} />
-          {tableMenu ? (
-            <TableFloatingMenu editor={editor} x={tableMenu.x} y={tableMenu.y} />
-          ) : null}
+          {tableMenu ? <TableFloatingMenu editor={editor} pos={tableMenu} /> : null}
           {slash && filteredSlashItems.length > 0 ? (
             <SlashMenu
               items={filteredSlashItems}
@@ -649,23 +712,18 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
 
 // ---- Toolbar -------------------------------------------------------------
 
-function Toolbar({
-  editor,
-  mode,
-  setMode,
-  uploading,
-  pickFile,
-  canUpload,
-  insertLink,
-}: {
-  editor: Editor;
-  mode: WikiBodyEditorMode;
-  setMode: (m: WikiBodyEditorMode) => void;
-  uploading: boolean;
-  pickFile: () => void;
-  canUpload: boolean;
-  insertLink: () => void;
-}) {
+const Toolbar = forwardRef<
+  HTMLDivElement,
+  {
+    editor: Editor;
+    mode: WikiBodyEditorMode;
+    setMode: (m: WikiBodyEditorMode) => void;
+    uploading: boolean;
+    pickFile: () => void;
+    canUpload: boolean;
+    insertLink: () => void;
+  }
+>(function Toolbar({ editor, mode, setMode, uploading, pickFile, canUpload, insertLink }, ref) {
   const sourceMode = mode === "source";
   const c = useCallback(
     (fn: (chain: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) => () =>
@@ -673,7 +731,7 @@ function Toolbar({
     [editor],
   );
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 rounded-t-md border-b border-slate-300 bg-slate-50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900">
+    <div ref={ref} className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 rounded-t-md border-b border-slate-300 bg-slate-50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900">
       <ToolBtn
         title="Bold (Ctrl/Cmd+B)"
         onClick={c((chain) => chain.toggleBold())}
@@ -816,7 +874,7 @@ function Toolbar({
       </div>
     </div>
   );
-}
+});
 
 function ToolBtn({
   title,
@@ -1034,24 +1092,41 @@ function SlashMenu({
 
 // ---- Table floating toolbar ------------------------------------------------
 
+/** Height the table menu needs above a table (its own height plus a gap). */
+const TABLE_MENU_H = 34;
+
+/**
+ * Where the table menu sits: `fixed` = viewport coordinates, stuck below the
+ * main toolbar while the table's top is scrolled past; otherwise coordinates
+ * in the editing surface, just above the table.
+ */
+interface TableMenuPos {
+  fixed: boolean;
+  x: number;
+  y: number;
+}
+
 /**
  * Confluence-style contextual toolbar for the table the caret is currently
- * inside: add/delete rows and columns, and remove the whole table, without
- * dropping into markdown source. Positioned just above the active table
- * (recomputed on every selection change, see the effect in
- * WikiBodyEditor) rather than pinned to the viewport, so it scrolls with
- * the table like a caption.
+ * inside: add/delete rows and columns, cell colour, borders, header row,
+ * padding, and remove the whole table, without dropping into markdown source.
+ * Sits just above the active table and scrolls with it like a caption, but
+ * once the table's top goes under the main toolbar it sticks below that
+ * toolbar until the table itself scrolls away (recomputed on selection
+ * changes and scrolling, see the effect in WikiBodyEditor).
  */
-function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: number }) {
+function TableFloatingMenu({ editor, pos }: { editor: Editor; pos: TableMenuPos }) {
   function run(fn: (chain: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) {
     fn(editor.chain().focus()).run();
   }
-  const borders = editor.getAttributes("table").borders === true;
+  const tableAttrs = editor.getAttributes("table");
+  const borders = tableAttrs.borders === true;
+  const header = tableAttrs.header === true;
   return (
     <div
       onMouseDown={(e) => e.preventDefault()}
-      style={{ left: x, top: y }}
-      className="absolute z-20 flex items-center gap-0.5 rounded-md border border-slate-300 bg-white p-0.5 shadow-md dark:border-slate-700 dark:bg-slate-900"
+      style={{ left: pos.x, top: pos.y }}
+      className={`${pos.fixed ? "fixed" : "absolute"} z-20 flex items-center gap-0.5 rounded-md border border-slate-300 bg-white p-0.5 shadow-md dark:border-slate-700 dark:bg-slate-900`}
     >
       <TableBtn
         title="Insert row above"
@@ -1106,6 +1181,15 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
         <Columns3 className="h-3.5 w-3.5" />
       </TableBtn>
       <TableBtn
+        title={header ? "First row is a header (click to make it a normal row)" : "My table has a header row"}
+        pressed={header}
+        onClick={() => run((c) => c.updateAttributes("table", { header: !header }))}
+      >
+        <PanelTop className="h-3.5 w-3.5" />
+      </TableBtn>
+      <TablePadInput editor={editor} pad={parsePad(tableAttrs.pad)} />
+      <ToolDivider />
+      <TableBtn
         title="Delete table"
         onClick={() => run((c) => c.deleteTable())}
         disabled={!editor.can().deleteTable()}
@@ -1114,6 +1198,51 @@ function TableFloatingMenu({ editor, x, y }: { editor: Editor; x: number; y: num
         <Trash2 className="-ml-1 h-3 w-3" />
       </TableBtn>
     </div>
+  );
+}
+
+/**
+ * Cell padding (px) for the whole table. Blank = the default. Typing needs the
+ * input's own focus, so it stops the menu's focus-keeping mousedown handler and
+ * changes the table without refocusing the editor (its selection survives the
+ * blur, so `updateAttributes("table")` still finds the table).
+ */
+function TablePadInput({ editor, pad }: { editor: Editor; pad: number | null }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  function change(text: string) {
+    setDraft(text);
+    const n = text.trim() === "" ? null : parsePad(Number(text));
+    if (text.trim() !== "" && n === null) return;
+    editor.chain().updateAttributes("table", { pad: n }).run();
+  }
+  return (
+    <label
+      onMouseDown={(e) => e.stopPropagation()}
+      title={`Cell padding for the whole table, 0 to ${MAX_TABLE_PAD} px (blank = default)`}
+      className="inline-flex h-6 items-center gap-1 rounded px-1 text-[11px] text-slate-600 dark:text-slate-300"
+    >
+      Padding
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={MAX_TABLE_PAD}
+        step={1}
+        placeholder="auto"
+        aria-label="Table cell padding in pixels"
+        value={draft ?? (pad === null ? "" : String(pad))}
+        onChange={(e) => change(e.target.value)}
+        onBlur={() => setDraft(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Escape") {
+            e.preventDefault();
+            setDraft(null);
+            editor.commands.focus();
+          }
+        }}
+        className="h-5 w-12 rounded border border-slate-300 bg-white px-1 py-0 text-[11px] tabular-nums dark:border-slate-600 dark:bg-slate-950"
+      />
+    </label>
   );
 }
 
