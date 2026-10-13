@@ -29,8 +29,8 @@ function useResizeMeasure(ref: React.RefObject<HTMLElement | null>, measure: () 
 
 /**
  * Image shown in a wiki page body. When it is rendered smaller than its
- * natural size it becomes clickable (and gets an enlarge button for touch /
- * keyboard users) and opens in the shared Lightbox. An image that already
+ * natural size it becomes clickable (and keyboard-focusable) and opens in the
+ * shared Lightbox, with no overlay button. An image that already
  * fits at full size stays a plain image.
  */
 export function ZoomableImage({
@@ -81,17 +81,6 @@ export function ZoomableImage({
             scaled ? "cursor-zoom-in" : ""
           }`}
         />
-        {scaled ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="View full size"
-            title="View full size"
-            className={ENLARGE_BUTTON}
-          >
-            <Maximize2 className="h-4 w-4" aria-hidden />
-          </button>
-        ) : null}
       </span>
       {open ? (
         <Lightbox onClose={() => setOpen(false)}>
