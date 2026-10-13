@@ -26,7 +26,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
  *
  * `borders` turns column borders on; `header` styles the first row as a header
  * (tinted, bold); `pad=` is the cell padding in px for the whole table (0 to
- * 32; absent = the stylesheet's own); `bg=` lists `row.column:#rrggbb@opacity%`
+ * 32; absent = 5); `bg=` lists `row.column:#rrggbb@opacity%`
  * (zero-based; row 0 is the header). Coordinates are written from the document
  * as it is at save time, so adding or deleting rows and columns just works.
  * The editor folds the comment into table/cell attributes on load and writes it
@@ -51,6 +51,8 @@ export interface TableMeta {
 
 const META_RE = /^<!--\s*table:\s*(.*?)\s*-->$/;
 export const MAX_TABLE_PAD = 32;
+/** Cell padding (px) of a table that sets none; the same value is the CSS fallback in globals.css. */
+export const DEFAULT_TABLE_PAD = 5;
 const BG_ENTRY_RE = /^(\d{1,4})\.(\d{1,4}):(#[0-9a-fA-F]{6})@(\d{1,3})$/;
 
 /** A cell's `bg` attribute value, `#rrggbb@opacity`; null if it is not one. */

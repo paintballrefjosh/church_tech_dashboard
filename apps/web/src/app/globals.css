@@ -451,14 +451,14 @@ html[data-page-width="custom"] :is(.max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .
  * table `.table-header`, the editor sets data-header. A cell's own background
  * colour (an inline style) still wins.
  */
-.prose table.table-header tr:first-child > :is(th, td),
+.prose table.table-header thead :is(th, td),
 .ProseMirror table[data-header="true"] tr:first-child > :is(th, td) {
   background-color: theme("colors.slate.100");
   color: theme("colors.slate.900");
   font-weight: 600;
   border-bottom: 2px solid theme("colors.slate.300");
 }
-.dark .prose table.table-header tr:first-child > :is(th, td),
+.dark .prose table.table-header thead :is(th, td),
 .dark .ProseMirror table[data-header="true"] tr:first-child > :is(th, td) {
   background-color: theme("colors.slate.800");
   color: theme("colors.slate.50");
@@ -484,6 +484,11 @@ html[data-page-width="custom"] :is(.max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .
 .prose table.table-pad :is(th, td),
 .ProseMirror table[data-pad] :is(th, td) {
   padding: var(--table-cell-pad);
+}
+/* A table with no padding of its own gets 5px, in the page view and the editor. */
+.prose table:not(.table-pad) :is(th, td),
+.ProseMirror table:not([data-pad]) :is(th, td) {
+  padding: 5px;
 }
 
 /*

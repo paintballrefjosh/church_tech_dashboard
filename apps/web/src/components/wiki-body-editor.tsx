@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExt from "@tiptap/extension-link";
@@ -17,6 +18,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TableExt from "@tiptap/extension-table";
 import { TextSelection } from "@tiptap/pm/state";
 import {
+  DEFAULT_TABLE_PAD,
   MAX_TABLE_PAD,
   applyTableMetaToDom,
   cellBackgroundCss,
@@ -561,14 +563,11 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
 
   const [tableMenu, setTableMenu] = useState<TableMenuPos | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editor) return;
     const show = (next: TableMenuPos | null) =>
-      setTableMenu((prev) =>
-        prev && next && prev.fixed === next.fixed && prev.x === next.x && prev.y === next.y ? prev : next,
-      );
+      setTableMenu((prev) => (prev && next && prev.x === next.x && prev.y === next.y ? prev : next));
     function checkTable() {
       const ed = editor!;
       if (!ed.isActive("table")) {
@@ -584,39 +583,27 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
         }
       }
       const tableDom = tableDepth < 0 ? null : (ed.view.nodeDOM($from.before(tableDepth)) as HTMLElement | null);
-      const surface = surfaceRef.current;
-      if (!tableDom || !surface) {
+      if (!tableDom) {
         show(null);
         return;
       }
       const tableRect = tableDom.getBoundingClientRect();
-      const surfaceRect = surface.getBoundingClientRect();
-      // Where the menu sticks once the table's top has scrolled under the
-      // (sticky) main toolbar: just below it, until the table's end comes up.
+      // Viewport coordinates. The menu is rendered on document.body (see
+      // TableFloatingMenu): the wiki's .fx-surface puts backdrop-filter on
+      // .bg-white panels, which makes them the containing block for any fixed
+      // descendant, so a fixed menu inside the editor scrolled with it.
+      // It sits just above the table, but never higher than just below the
+      // (sticky) main toolbar, until the table's last row comes up.
       const stickAt = (toolbarRef.current?.getBoundingClientRect().bottom ?? 0) + 4;
       const natural = tableRect.top - TABLE_MENU_H;
       const lastTop = tableRect.bottom - TABLE_MENU_H;
-      if (natural < stickAt && lastTop >= stickAt) {
-        show({ fixed: true, x: tableRect.left, y: stickAt });
+      if (lastTop < stickAt || natural > window.innerHeight) {
+        show(null);
         return;
       }
-      show({
-        fixed: false,
-        x: Math.max(0, tableRect.left - surfaceRect.left),
-        // Clamp to 0 so a table at the very top of the document doesn't push
-        // the toolbar above the editor's own content area; once the table is
-        // almost gone it leaves with the table's last row.
-        y: Math.max(0, (natural < stickAt ? lastTop : natural) - surfaceRect.top),
-      });
+      show({ x: Math.max(0, tableRect.left), y: Math.min(Math.max(natural, stickAt), lastTop) });
     }
-    let frame = 0;
-    function onScroll() {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        checkTable();
-      });
-    }
+    const onScroll = () => checkTable();
     editor.on("transaction", checkTable);
     editor.on("selectionUpdate", checkTable);
     window.addEventListener("scroll", onScroll, { passive: true, capture: true });
@@ -627,7 +614,6 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
       editor.off("selectionUpdate", checkTable);
       window.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("resize", onScroll);
-      cancelAnimationFrame(frame);
     };
   }, [editor]);
 
@@ -684,7 +670,7 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
           className="block w-full resize-y border-0 bg-transparent px-4 py-3 font-mono text-sm leading-6 outline-none focus:ring-0 dark:bg-transparent"
         />
       ) : (
-        <div ref={surfaceRef} className="relative">
+        <div className="relative">
           <EditorContent editor={editor} />
           {tableMenu ? <TableFloatingMenu editor={editor} pos={tableMenu} /> : null}
           {slash && filteredSlashItems.length > 0 ? (
@@ -1095,13 +1081,8 @@ function SlashMenu({
 /** Height the table menu needs above a table (its own height plus a gap). */
 const TABLE_MENU_H = 34;
 
-/**
- * Where the table menu sits: `fixed` = viewport coordinates, stuck below the
- * main toolbar while the table's top is scrolled past; otherwise coordinates
- * in the editing surface, just above the table.
- */
+/** Where the table menu sits, in viewport coordinates. */
 interface TableMenuPos {
-  fixed: boolean;
   x: number;
   y: number;
 }
@@ -1122,11 +1103,11 @@ function TableFloatingMenu({ editor, pos }: { editor: Editor; pos: TableMenuPos 
   const tableAttrs = editor.getAttributes("table");
   const borders = tableAttrs.borders === true;
   const header = tableAttrs.header === true;
-  return (
+  return createPortal(
     <div
       onMouseDown={(e) => e.preventDefault()}
       style={{ left: pos.x, top: pos.y }}
-      className={`${pos.fixed ? "fixed" : "absolute"} z-20 flex items-center gap-0.5 rounded-md border border-slate-300 bg-white p-0.5 shadow-md dark:border-slate-700 dark:bg-slate-900`}
+      className={`fixed z-30 flex items-center gap-0.5 rounded-md border border-slate-300 bg-white p-0.5 shadow-md dark:border-slate-700 dark:bg-slate-900`}
     >
       <TableBtn
         title="Insert row above"
@@ -1197,7 +1178,8 @@ function TableFloatingMenu({ editor, pos }: { editor: Editor; pos: TableMenuPos 
         <TableIcon className="h-3.5 w-3.5" />
         <Trash2 className="-ml-1 h-3 w-3" />
       </TableBtn>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1218,7 +1200,7 @@ function TablePadInput({ editor, pad }: { editor: Editor; pad: number | null }) 
   return (
     <label
       onMouseDown={(e) => e.stopPropagation()}
-      title={`Cell padding for the whole table, 0 to ${MAX_TABLE_PAD} px (blank = default)`}
+      title={`Cell padding for the whole table, 0 to ${MAX_TABLE_PAD} px (blank = ${DEFAULT_TABLE_PAD})`}
       className="inline-flex h-6 items-center gap-1 rounded px-1 text-[11px] text-slate-600 dark:text-slate-300"
     >
       Padding
@@ -1228,7 +1210,7 @@ function TablePadInput({ editor, pad }: { editor: Editor; pad: number | null }) 
         min={0}
         max={MAX_TABLE_PAD}
         step={1}
-        placeholder="auto"
+        placeholder={String(DEFAULT_TABLE_PAD)}
         aria-label="Table cell padding in pixels"
         value={draft ?? (pad === null ? "" : String(pad))}
         onChange={(e) => change(e.target.value)}
