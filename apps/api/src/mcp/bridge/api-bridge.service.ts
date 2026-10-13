@@ -96,6 +96,7 @@ export function buildRequest(
 ): { url: string; payload: string | undefined } {
   const params = new Set(pathParamNames(tool.path));
   const queryKeys = new Set(tool.queryKeys ?? []);
+  const commaKeys = new Set(tool.commaKeys ?? []);
   const query = new URLSearchParams();
   const body: Record<string, unknown> = {};
   const values: Record<string, string> = {};
@@ -106,7 +107,12 @@ export function buildRequest(
       values[key] = String(value);
     } else if (tool.method === "GET" || queryKeys.has(key)) {
       if (value === null) continue;
-      query.set(key, Array.isArray(value) ? value.join(",") : String(value));
+      if (Array.isArray(value)) {
+        if (commaKeys.has(key)) query.set(key, value.join(","));
+        else for (const item of value) query.append(key, String(item));
+      } else {
+        query.set(key, String(value));
+      }
     } else {
       body[key] = value;
     }

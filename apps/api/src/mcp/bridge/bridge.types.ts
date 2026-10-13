@@ -44,6 +44,11 @@ export interface BridgeTool {
   input: z.ZodObject<z.ZodRawShape>;
   /** Non-GET tools only: argument names that go in the query string instead of the body. */
   queryKeys?: string[];
+  /**
+   * Array arguments the route reads as one comma-separated query value (`?kind=a,b`). Every other
+   * array in the query is repeated (`?status=a&status=b`), which is what Fastify turns into an array.
+   */
+  commaKeys?: string[];
   /** Write/operational tools: the call removes or overwrites something that cannot be put back. */
   destructive?: boolean;
   /** Repeating the same call with the same arguments has no further effect. */

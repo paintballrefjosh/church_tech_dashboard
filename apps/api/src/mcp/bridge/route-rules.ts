@@ -27,10 +27,11 @@ export interface RouteRule {
  * Phases whose pending rules must all be gone. Raise it as each phase ships; the
  * coverage test then fails if a rule of a finished phase is still here.
  */
-export const COMPLETED_PHASES: number[] = [0];
+export const COMPLETED_PHASES: number[] = [0, 1];
 
 const SESSION_ONLY = "needs a browser session by design (a leaked token must not be able to do this)";
 const NO_SECRETS = "takes credentials as arguments; connection tests stay in the web UI";
+const NO_DELETE = "agents cannot delete this (decided 2026-10-12); a person does it in the web app";
 const ADMIN_WRITES = "admin writes are out of scope for agents for now (read-only admin, decided 2026-10-12)";
 
 export const ROUTE_RULES: RouteRule[] = [
@@ -67,6 +68,14 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "* /*/*/attachments/**", status: "excluded", reason: "binary upload/download is designed separately and is not in the first pass" },
   { pattern: "POST /wiki/import", status: "excluded", reason: "file upload (multipart)" },
   { pattern: "POST /groups/sync-google", status: "excluded", reason: ADMIN_WRITES },
+  { pattern: "DELETE /tickets/**", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /ticket-categories/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /notes/*", status: "excluded", reason: `${NO_DELETE}; archive a note with notes_update` },
+  { pattern: "DELETE /tags/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /saved-views/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /wiki/**", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /checklists/**", status: "excluded", reason: NO_DELETE },
+  { pattern: "* /dashboard/**", status: "excluded", reason: "the home page's draggable layout and look are personal UI state, set in the web app; dashboard_get_home gives the data" },
   { pattern: "POST|PUT|PATCH|DELETE /users/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "POST|PUT|PATCH|DELETE /groups/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "PUT|DELETE /settings/**", status: "excluded", reason: ADMIN_WRITES },
@@ -111,19 +120,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "* /cisco/**", status: "pending", phase: 2, reason: "monitoring" },
   { pattern: "* /planning-center/**", status: "pending", phase: 2, reason: "Planning Center" },
   { pattern: "GET /propresenter/**", status: "pending", phase: 2, reason: "ProPresenter status" },
-
-  // ---- Phase 1: work content ---------------------------------------------------------------------
-  { pattern: "* /tickets/**", status: "pending", phase: 1, reason: "helpdesk" },
-  { pattern: "* /ticket-categories/**", status: "pending", phase: 1, reason: "helpdesk" },
-  { pattern: "* /notes/**", status: "pending", phase: 1, reason: "notes" },
-  { pattern: "* /tags/**", status: "pending", phase: 1, reason: "tags" },
-  { pattern: "* /saved-views/**", status: "pending", phase: 1, reason: "saved views" },
-  { pattern: "GET /activity", status: "pending", phase: 1, reason: "activity feed" },
-  { pattern: "* /notifications/**", status: "pending", phase: 1, reason: "notification centre" },
-  { pattern: "* /me/**", status: "pending", phase: 1, reason: "own account" },
-  { pattern: "* /dashboard/**", status: "pending", phase: 1, reason: "home page data and preferences" },
-  { pattern: "* /checklists/**", status: "pending", phase: 1, reason: "checklists" },
-  { pattern: "* /wiki/**", status: "pending", phase: 1, reason: "wiki (the first 7 tools exist; the rest are the gaps)" },
 ];
 
 function compile(pattern: string): { methods: Set<string> | null; path: RegExp } {

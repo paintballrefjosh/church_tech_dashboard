@@ -124,4 +124,120 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       await revoke(ro);
     }
   });
+
+  // ---- Phase 1: work content, through the real routes ----
+
+  /** Call a tool and return its parsed JSON, failing the test on a tool error. */
+  async function run(headers, name, args) {
+    const r = await call(headers, name, args);
+    assert(r.status === 200, `${name}: HTTP ${r.status} ${r.text.slice(0, 200)}`);
+    assert(!r.body.result?.isError, `${name}: ${toolText(r).slice(0, 300)}`);
+    const text = toolText(r);
+    return text ? JSON.parse(text) : null;
+  }
+
+  await test("mcp: read tools of every phase 1 area answer for a read-only token", async () => {
+    const ro = await mint({ name: "smoke mcp phase1 reads" });
+    try {
+      const h = auth(ro);
+      const reads = [
+        ["tickets_list", { limit: 5 }],
+        ["tickets_list", { status: ["open", "in_progress"], limit: 5 }],
+        ["ticket_categories_list", {}],
+        ["notes_list", {}],
+        ["tags_list", {}],
+        ["saved_views_list", { resource: "ticket" }],
+        ["activity_list", { limit: 5 }],
+        ["notifications_list", { limit: 5 }],
+        ["notifications_unread_count", {}],
+        ["me_get_notification_prefs", {}],
+        ["dashboard_get_home", {}],
+        ["dashboard_get_home", { include: ["week"] }],
+        ["checklists_list_events", { upcoming: true }],
+        ["checklists_list_templates", {}],
+        ["checklists_list_stations", {}],
+        ["checklists_list_services", {}],
+        ["checklists_my_open_tasks", {}],
+        ["checklists_report_events", { limit: 5 }],
+      ];
+      for (const [name, args] of reads) await run(h, name, args);
+      const home = await run(h, "dashboard_get_home", {});
+      assert(home.user && home.service, "home snapshot shape");
+    } finally {
+      await revoke(ro);
+    }
+  });
+
+  await test("mcp: a ticket and a note are created, changed and audited as the token", async () => {
+    const full = await mint({ name: "smoke mcp phase1 writes", readOnly: false });
+    let ticketId = null;
+    let noteId = null;
+    try {
+      const h = auth(full);
+      const me = await run(h, "me_get_profile", {});
+
+      const ticket = await run(h, "tickets_create", { title: "smoke mcp ticket", description: "created by the MCP smoke test", priority: "low" });
+      ticketId = ticket.id;
+      assert(ticket.number > 0 && /\/tickets\//.test(ticket.url ?? ""), `ticket result: ${JSON.stringify(ticket).slice(0, 200)}`);
+
+      const comment = await run(h, "tickets_add_comment", { id: ticketId, body: "comment from the MCP smoke test" });
+      assert(comment.body.startsWith("comment from"), "comment body");
+      const comments = await run(h, "tickets_list_comments", { id: ticketId });
+      assert(comments.some((c) => c.id === comment.id), "comment not listed");
+
+      const updated = await run(h, "tickets_update", { id: ticketId, status: "in_progress", assignedUserId: me.id });
+      assert(updated.status === "in_progress" && updated.assignedUserId === me.id, "ticket update");
+
+      const bulk = await run(h, "tickets_bulk_update", { ids: [ticketId], action: { kind: "set_status", status: "closed" } });
+      assert(bulk.applied === 1, `bulk: ${JSON.stringify(bulk)}`);
+      const got = await run(h, "tickets_get", { id: ticketId });
+      assert(got.status === "closed", `status after bulk ${got.status}`);
+
+      const noDelete = await call(h, "tickets_bulk_update", { ids: [ticketId], action: { kind: "delete" } });
+      assert(noDelete.body.result?.isError === true, "bulk delete was accepted");
+
+      // The change went through the real route, so the audit row names the token.
+      const audit = await session("/api/v1/audit?action=ticket.create&limit=20");
+      const rows = (await audit.res.json()).items ?? [];
+      const row = rows.find((r) => r.resourceId === ticketId);
+      assert(row, "no ticket.create audit row");
+      assert(row.apiTokenName === "smoke mcp phase1 writes", `audit row not attributed to the token: ${row.apiTokenName}`);
+
+      const note = await run(h, "notes_create", { title: "smoke mcp note", body: "x" });
+      noteId = note.id;
+      const archived = await run(h, "notes_update", { id: noteId, archived: true });
+      assert(archived.archived === true, "note not archived");
+      const active = await run(h, "notes_list", {});
+      assert(!active.some((n) => n.id === noteId), "archived note still in the active list");
+      const old = await run(h, "notes_list", { archived: true });
+      assert(old.some((n) => n.id === noteId), "archived note missing from the archive");
+
+      // Tags: replace semantics on the ticket.
+      const tags = await run(h, "tags_list", {});
+      if (tags.length > 0) {
+        const set = await run(h, "tags_set_for_resource", { resourceType: "ticket", resourceId: ticketId, tagIds: [tags[0].id] });
+        assert(Array.isArray(set), "tags_set_for_resource shape");
+        await run(h, "tags_set_for_resource", { resourceType: "ticket", resourceId: ticketId, tagIds: [] });
+      }
+    } finally {
+      // No delete tools by design: clean up through the browser session.
+      if (ticketId) await session(`/api/v1/tickets/${ticketId}`, { method: "DELETE" });
+      if (noteId) await session(`/api/v1/notes/${noteId}`, { method: "DELETE" });
+      await revoke(full);
+    }
+  });
+
+  await test("mcp: a notes-only token cannot reach tickets or checklists through the tools", async () => {
+    const notes = await mint({ name: "smoke mcp notes only", modules: ["notes"], readOnly: false });
+    try {
+      const h = auth(notes);
+      const t = await call(h, "tickets_list", {});
+      assert(t.body.result?.isError === true, "notes-only token listed tickets");
+      const c = await call(h, "checklists_list_events", {});
+      assert(c.body.result?.isError === true, "notes-only token listed checklists");
+      await run(h, "notes_list", {});
+    } finally {
+      await revoke(notes);
+    }
+  });
 }

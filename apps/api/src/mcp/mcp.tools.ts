@@ -7,7 +7,7 @@ import {
   type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { PERMISSIONS, wikiPageListQuerySchema } from "@church/shared";
+import { PERMISSIONS, WIKI_VISIBILITIES, wikiAclEntrySchema, wikiPageListQuerySchema } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { recordAuditEntry } from "../audit/audit.decorator";
 import { SettingsService } from "../settings/settings.service";
@@ -165,6 +165,8 @@ export class McpToolsService {
         body: z.string().max(200_000).default(""),
         parentFolderId: uuid.optional(),
         parentId: uuid.optional(),
+        visibility: z.enum(WIKI_VISIBILITIES).default("public"),
+        acl: z.array(wikiAclEntrySchema).default([]),
       })
       .strict()
       .refine((v) => !(v.parentFolderId && v.parentId), {
@@ -297,7 +299,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_create_page",
           description:
-            "Create a wiki page visible to everyone who can read the wiki. Put it in a folder (parentFolderId) or under another page (parentId), or omit both for the top level. Check wiki_tree / wiki_search first so you don't duplicate an existing page.",
+            "Create a wiki page, visible to everyone who can read the wiki unless you set visibility 'group' and list the groups in acl (each with canEdit). Put it in a folder (parentFolderId) or under another page (parentId), or omit both for the top level. Check wiki_tree / wiki_search first so you don't duplicate an existing page.",
           inputSchema: {
             type: "object",
             properties: {
@@ -305,6 +307,17 @@ export class McpToolsService {
               body: { type: "string", maxLength: 200000, description: "Markdown" },
               parentFolderId: { type: "string", format: "uuid" },
               parentId: { type: "string", format: "uuid" },
+              visibility: { type: "string", enum: ["public", "group"], default: "public" },
+              acl: {
+                type: "array",
+                description: "With visibility 'group': the groups that can see the page, and which of them can edit it",
+                items: {
+                  type: "object",
+                  properties: { groupId: { type: "string", format: "uuid" }, canEdit: { type: "boolean" } },
+                  required: ["groupId", "canEdit"],
+                  additionalProperties: false,
+                },
+              },
             },
             required: ["title"],
             additionalProperties: false,
@@ -317,8 +330,8 @@ export class McpToolsService {
           const page = await this.writes.createPage(ctx.user, {
             title: a.title,
             body: a.body,
-            visibility: "public",
-            acl: [],
+            visibility: a.visibility,
+            acl: a.acl,
             parentFolderId: a.parentFolderId ?? null,
             parentId: a.parentId ?? null,
           });

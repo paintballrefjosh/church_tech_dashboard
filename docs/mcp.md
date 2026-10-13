@@ -8,8 +8,8 @@ through the MCP server at `/api/v1/mcp`. Decided 2026-10-12. Operator docs: INST
 | Phase | Scope | State |
 |---|---|---|
 | **0. Bridge** | In-process route bridge, tool catalogue, route-coverage test, per-caller tool listing, smoke tests | **done** |
-| 1. Work content | Tickets, notes, tags, saved views, activity, notifications, `me`, dashboard, checklists; wiki gaps (revert, revision, ACL/visibility) | next |
-| 2. Monitoring and IT | Monitors, infra, UniFi, printers, UPS, IPAM, DNS, Cisco, Planning Center, ProPresenter status; their record-level writes | |
+| **1. Work content** | Tickets and categories, notes, tags, saved views, activity, notifications, own notification settings, the home snapshot, checklists; wiki gaps (old revisions, revert, page access, folder rename/move) | **done** |
+| 2. Monitoring and IT (next) | Monitors, infra, UniFi, printers, UPS, IPAM, DNS, Cisco, Planning Center, ProPresenter status; their record-level writes | |
 | 3. Operational | Anything that acts on live equipment (ProPresenter slides, switch ports, DNS records, polls, scans). Needs the new "operational" token level | |
 | 4. Read-only admin | Users, groups and module access, settings (secrets redacted), audit log, cluster status | |
 
@@ -50,6 +50,18 @@ Rules for adding a tool (`apps/api/src/mcp/bridge/catalogue/<area>.tools.ts`, re
    instructions tell the agent to treat it as data. Do not add a tool that returns a stored secret.
 
 The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimistic-lock and audit shapes there).
+
+## Decisions made in phase 1
+
+- **No delete tools** for tickets, ticket categories, notes (archive instead), tags, saved views, wiki pages and folders,
+  or any checklist object. The two deletes that exist are small and per-person: dismissing a notification and taking
+  someone off an event position (`destructive: true`). `POST /tickets/bulk` accepts a delete action on the route; the
+  tool's schema simply leaves it out.
+- **The home page's layout and look** are personal UI state and stay in the web app; `dashboard_get_home` returns the
+  data the home page shows (what needs attention, service health, own tickets and tasks).
+- Query arrays are sent repeated (`?status=a&status=b`); a route that wants one comma-separated value says so with
+  `commaKeys` on the tool (search `kind`, home `include`, checklist template `ids`).
+- `wiki_create_page` now takes `visibility` and `acl`; `wiki_set_page_access` changes them on an existing page.
 
 ## Excluded on purpose
 

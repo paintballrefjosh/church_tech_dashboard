@@ -1075,7 +1075,8 @@ user for it and issue the token to that user, so its changes are attributed to i
 
 The dashboard is an [MCP](https://modelcontextprotocol.io) server at `/api/v1/mcp`,
 so an AI agent such as a Claude Code session can work with the dashboard: today the wiki
-(to document the systems and services it works on), global search, and its own profile;
+(to document the systems and services it works on), tickets, notes, tags, checklists,
+notifications and global search;
 more modules are being added in phases (plan: `docs/mcp.md`). Every tool goes through the
 same code as the web UI, so permissions, page ACLs, revisions, search, notifications and
 the audit log all behave the same, and an agent sees only the tools its token allows.
@@ -1112,6 +1113,16 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `wiki_create_folder` | Create a folder |
 | `search_everything` | Search wiki, notes, tickets and (when permitted) monitoring data by words |
 | `me_get_profile` | Who the token acts as, its permissions and its limits |
+| `wiki_get_revision`, `wiki_revert_page`, `wiki_set_page_access`, `wiki_update_folder` | Old versions, revert, who can see or edit a page, rename or move a folder |
+| `tickets_*`, `ticket_categories_*` | List, read, create, update, bulk-update and comment on tickets; categories |
+| `notes_*`, `tags_*`, `saved_views_*` | The owner's notes (archive, not delete), tags on tickets/notes/pages, saved list filters |
+| `activity_list`, `notifications_*`, `me_*_notification_prefs` | Activity feed, the owner's notifications and how they receive them |
+| `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |
+| `checklists_*` | Events, tasks (tick off), templates, stations, recurring services, assignments, reports |
+
+An agent is offered only the tools its token allows: a read-only token sees the reading tools, and a token limited to
+some modules sees only those modules' tools. Monitoring, IT systems and read-only admin tools are added in later
+phases (`docs/mcp.md`).
 
 Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
 overwrite an edit made since. Every edit is a revision you can revert from the page's

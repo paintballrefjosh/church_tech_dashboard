@@ -23,11 +23,13 @@ const getTool = defineTool({
   cls: "read",
   method: "GET",
   path: "/things/:id/parts/:part",
+  commaKeys: ["ids"],
   permissions: [],
   input: z.object({
     id: z.string().uuid(),
     part: z.string(),
     kind: z.array(z.string()).optional(),
+    ids: z.array(z.string()).optional(),
     limit: z.number().optional(),
     open: z.boolean().optional(),
   }),
@@ -48,8 +50,16 @@ const patchTool = defineTool({
 
 describe("buildRequest", () => {
   it("puts path params in the path (encoded), the rest of a GET in the query", () => {
-    const { url, payload } = buildRequest(getTool, { id: ID, part: "a b/c", kind: ["x", "y"], limit: 5, open: true });
-    expect(url).toBe(`/api/v1/things/${ID}/parts/a%20b%2Fc?kind=x%2Cy&limit=5&open=true`);
+    const { url, payload } = buildRequest(getTool, {
+      id: ID,
+      part: "a b/c",
+      kind: ["x", "y"],
+      ids: ["1", "2"],
+      limit: 5,
+      open: true,
+    });
+    // kind is a repeated parameter, ids (commaKeys) one comma-separated value
+    expect(url).toBe(`/api/v1/things/${ID}/parts/a%20b%2Fc?kind=x&kind=y&ids=1%2C2&limit=5&open=true`);
     expect(payload).toBeUndefined();
   });
 

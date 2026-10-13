@@ -24,6 +24,7 @@ export const GENERAL_TOOLS = [
     method: "GET",
     path: "/search",
     permissions: [],
+    commaKeys: ["kind"],
     input: z.object({
       q: z.string().trim().min(1).max(200).describe("Words to look for"),
       kind: z.array(z.enum(SEARCH_KINDS as [string, ...string[]])).min(1).optional().describe("Only these kinds"),
