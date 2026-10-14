@@ -35,14 +35,14 @@ describe("isReadMethod", () => {
 describe("scopeUserToToken", () => {
   it("leaves an all-modules token with the owner's full access", () => {
     const owner = user({ wiki: "admin", tickets: "user" });
-    const scoped = scopeUserToToken(owner, { readOnly: false, modules: null });
+    const scoped = scopeUserToToken(owner, { readOnly: false, allowOperational: false, modules: null });
     expect(scoped.permissions).toEqual(owner.permissions);
     expect(scoped.access).toEqual(owner.access);
   });
 
   it("keeps only the chosen modules' permissions and tiers", () => {
     const owner = user({ wiki: "moderator", tickets: "admin", notes: "user" });
-    const scoped = scopeUserToToken(owner, { readOnly: false, modules: ["wiki"] });
+    const scoped = scopeUserToToken(owner, { readOnly: false, allowOperational: false, modules: ["wiki"] });
     expect(new Set(scoped.permissions)).toEqual(new Set(permissionsFor("wiki", "moderator")));
     expect(scoped.access).toEqual({ wiki: "moderator" });
     expect(scoped.permissions).not.toContain(PERMISSIONS.TICKETS_ADMIN);
@@ -51,7 +51,7 @@ describe("scopeUserToToken", () => {
   it("never grants more than the owner has", () => {
     // Owner only has the wiki user tier; a wiki token must not pick up wiki:admin.
     const owner = user({ wiki: "user" });
-    const scoped = scopeUserToToken(owner, { readOnly: false, modules: ["wiki", "tickets"] });
+    const scoped = scopeUserToToken(owner, { readOnly: false, allowOperational: false, modules: ["wiki", "tickets"] });
     expect(scoped.permissions).not.toContain(PERMISSIONS.WIKI_ADMIN);
     expect(scoped.permissions).not.toContain(PERMISSIONS.TICKETS_READ_OWN);
     expect(scoped.access).toEqual({ wiki: "user" });
@@ -59,7 +59,7 @@ describe("scopeUserToToken", () => {
 
   it("cuts an admin owner down to the token's modules", () => {
     const owner = user({ wiki: "admin", admin: "admin", monitoring: "admin" }, [...ALL_PERMISSIONS]);
-    const scoped = scopeUserToToken(owner, { readOnly: false, modules: ["monitoring"] });
+    const scoped = scopeUserToToken(owner, { readOnly: false, allowOperational: false, modules: ["monitoring"] });
     expect(new Set(scoped.permissions)).toEqual(new Set(permissionsFor("monitoring", "admin")));
     expect(scoped.permissions).not.toContain(PERMISSIONS.USER_ADMIN);
     expect(scoped.permissions).not.toContain(PERMISSIONS.SITE_ADMIN);
@@ -68,7 +68,7 @@ describe("scopeUserToToken", () => {
   it("does not mutate the owner record (it is shared through the user cache)", () => {
     const owner = user({ wiki: "admin", tickets: "admin" });
     const before = structuredClone(owner);
-    scopeUserToToken(owner, { readOnly: true, modules: ["wiki"] });
+    scopeUserToToken(owner, { readOnly: true, allowOperational: false, modules: ["wiki"] });
     expect(owner).toEqual(before);
   });
 });

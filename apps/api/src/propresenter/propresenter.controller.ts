@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, BadRequestException } from "@nestjs/common
 import { z } from "zod";
 import { PERMISSIONS } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { PropresenterService } from "./propresenter.service";
 
@@ -28,6 +29,7 @@ export class PropresenterController {
   }
 
   @Post("next")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.PROPRESENTER_ADMIN)
   @Audited({ action: "propresenter.next", resourceType: "propresenter" })
   next() {
@@ -35,6 +37,7 @@ export class PropresenterController {
   }
 
   @Post("previous")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.PROPRESENTER_ADMIN)
   @Audited({ action: "propresenter.previous", resourceType: "propresenter" })
   previous() {
@@ -42,6 +45,7 @@ export class PropresenterController {
   }
 
   @Post("clear")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.PROPRESENTER_ADMIN)
   @Audited({ action: "propresenter.clear", resourceType: "propresenter" })
   clear() {

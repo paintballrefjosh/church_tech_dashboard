@@ -15,6 +15,7 @@ import {
   updatePrinterSchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { PrintersService } from "./printers.service";
 
@@ -101,6 +102,7 @@ export class PrintersController {
    * we're not changing config.
    */
   @Post(":id/poll")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.PRINTERS_READ_ANY)
   @Audited({
     action: "printer.poll",

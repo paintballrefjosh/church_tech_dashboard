@@ -18,6 +18,7 @@ import {
   type InfraEntityKind,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { InfraService } from "./infra.service";
@@ -99,6 +100,7 @@ export class InfraController {
    * detail page can update without waiting on its own next poll/realtime tick.
    */
   @Post("targets/:id/poll-now")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
   @Audited({
     action: "infra.target.poll_now",
@@ -117,6 +119,7 @@ export class InfraController {
    * regular poll doesn't pay for a full unit listing every tick.
    */
   @Post("targets/:id/discover-services")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
   @Audited({
     action: "infra.target.discover_services",
@@ -181,6 +184,7 @@ export class InfraController {
    * editing or deleting a target.
    */
   @Post("targets/:id/update-run")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
   @Audited({
     action: "infra.target.update_run.start",

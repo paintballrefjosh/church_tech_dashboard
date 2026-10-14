@@ -4,6 +4,8 @@ import type { AuthenticatedUser } from "./current-user.decorator";
 /** The limits a token puts on its owner. */
 export interface ApiTokenLimits {
   readOnly: boolean;
+  /** May call @OperationalOnly routes (routes that act on live equipment). */
+  allowOperational: boolean;
   /** null = every module the owner can reach. */
   modules: string[] | null;
 }

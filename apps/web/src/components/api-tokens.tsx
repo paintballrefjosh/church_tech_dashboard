@@ -25,11 +25,12 @@ export interface ModuleChoice {
 const DATE_ONLY: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
 const DATE_TIME: Intl.DateTimeFormatOptions = { ...DATE_ONLY, hour: "numeric", minute: "2-digit" };
 
-/** "Read-only, Wiki + Notes" / "Full access". */
-export function accessLabel(t: Pick<ApiTokenSummary, "readOnly" | "modules">): string {
+/** "Read-only, Wiki + Notes" / "Full access" / "Read, write and equipment, Monitoring". */
+export function accessLabel(t: Pick<ApiTokenSummary, "readOnly" | "allowOperational" | "modules">): string {
   const scope = t.modules?.length
     ? t.modules.map((m) => findModule(m)?.label ?? m).join(" + ")
     : "all modules";
+  if (t.allowOperational) return `Read, write and equipment, ${scope}`;
   if (!t.readOnly && !t.modules?.length) return "Full access";
   return `${t.readOnly ? "Read-only" : "Read and write"}, ${scope}`;
 }
@@ -228,7 +229,9 @@ export function TokenCreateForm({
     options.find((o) => o.choice.kind === "days" && o.choice.days === defaultDays)?.value ?? options[0]?.value ?? "date",
   );
   const [date, setDate] = useState("");
-  const [readOnly, setReadOnly] = useState(true);
+  // read < write < operational (operational may also act on live equipment: switch ports, DNS, scans, slides)
+  const [level, setLevel] = useState<"read" | "write" | "operational">("read");
+  const readOnly = level === "read";
   const [allModules, setAllModules] = useState(true);
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -253,6 +256,7 @@ export function TokenCreateForm({
     const body: ApiTokenCreate = {
       name: name.trim(),
       readOnly,
+      allowOperational: level === "operational",
       modules: allModules ? null : picked,
     };
     if (choice.kind === "days") body.expiresInDays = choice.days;
@@ -324,17 +328,26 @@ export function TokenCreateForm({
           <legend className="text-xs text-slate-500">Access</legend>
           <div className="mt-1 space-y-1">
             <label className={radioRow}>
-              <input type="radio" name="access" checked={readOnly} onChange={() => setReadOnly(true)} className="mt-1" />
+              <input type="radio" name="access" checked={level === "read"} onChange={() => setLevel("read")} className="mt-1" />
               <span>
                 Read-only
                 <span className="block text-xs text-slate-500">Can look things up; every change is refused.</span>
               </span>
             </label>
             <label className={radioRow}>
-              <input type="radio" name="access" checked={!readOnly} onChange={() => setReadOnly(false)} className="mt-1" />
+              <input type="radio" name="access" checked={level === "write"} onChange={() => setLevel("write")} className="mt-1" />
               <span>
                 Read and write
                 <span className="block text-xs text-slate-500">Can make changes, as the token&apos;s owner.</span>
+              </span>
+            </label>
+            <label className={radioRow}>
+              <input type="radio" name="access" checked={level === "operational"} onChange={() => setLevel("operational")} className="mt-1" />
+              <span>
+                Read, write and equipment
+                <span className="block text-xs text-slate-500">
+                  Can also act on live equipment: shut a switch port, edit DNS, start scans, move ProPresenter slides.
+                </span>
               </span>
             </label>
           </div>
@@ -369,6 +382,12 @@ export function TokenCreateForm({
 
       {choice.kind === "never" ? (
         <Warning>A token that never expires works until someone revokes it.</Warning>
+      ) : null}
+      {level === "operational" ? (
+        <Warning>
+          This token can change things people see and depend on right now (the screens, the network, DNS). Give it only to an
+          agent you are watching, and only the modules it needs.
+        </Warning>
       ) : null}
       {warnFullAccess && !readOnly && allModules ? (
         <Warning>

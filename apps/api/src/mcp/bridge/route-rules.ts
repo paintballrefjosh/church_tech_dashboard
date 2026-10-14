@@ -27,7 +27,7 @@ export interface RouteRule {
  * Phases whose pending rules must all be gone. Raise it as each phase ships; the
  * coverage test then fails if a rule of a finished phase is still here.
  */
-export const COMPLETED_PHASES: number[] = [0, 1, 2];
+export const COMPLETED_PHASES: number[] = [0, 1, 2, 3];
 
 const SESSION_ONLY = "needs a browser session by design (a leaked token must not be able to do this)";
 const NO_SECRETS = "takes credentials as arguments; connection tests stay in the web UI";
@@ -87,6 +87,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "PATCH|DELETE /cisco/switches/*", status: "excluded", reason: DEVICE_CREDENTIALS },
   { pattern: "DELETE /monitors/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /ipam/subnets/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /dns/zones/*/records", status: "excluded", reason: `${NO_DELETE} (it is still operational-only over REST)` },
   { pattern: "DELETE /cisco/switches/*/backups/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /cisco/switches/*/ports/*", status: "excluded", reason: NO_DELETE },
   { pattern: "POST|DELETE /planning-center/me/link", status: "excluded", reason: "linking a login to a Planning Center person is a personal account setting, done in the web app" },
@@ -96,32 +97,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "POST|PUT|PATCH|DELETE /users/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "POST|PUT|PATCH|DELETE /groups/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "PUT|DELETE /settings/**", status: "excluded", reason: ADMIN_WRITES },
-
-  // ---- Phase 3: acts on live equipment (needs the operational token level) ----------------------
-  { pattern: "POST /propresenter/next", status: "pending", phase: 3, reason: "changes what the projector shows" },
-  { pattern: "POST /propresenter/previous", status: "pending", phase: 3, reason: "changes what the projector shows" },
-  { pattern: "POST /propresenter/clear", status: "pending", phase: 3, reason: "changes what the projector shows" },
-  { pattern: "POST /cisco/switches/*/ports/*/toggle", status: "pending", phase: 3, reason: "shuts or opens a switch port" },
-  { pattern: "POST /cisco/switches/*/drift/**", status: "pending", phase: 3, reason: "pushes configuration to a switch or accepts drift" },
-  { pattern: "POST /cisco/switches/*/backups/trigger-full", status: "pending", phase: 3, reason: "logs into every switch" },
-  { pattern: "POST /cisco/switches/*/collect-l2", status: "pending", phase: 3, reason: "logs into a switch" },
-  { pattern: "POST /cisco/switches/*/discover", status: "pending", phase: 3, reason: "logs into a switch" },
-  { pattern: "POST /cisco/switches/*/poll", status: "pending", phase: 3, reason: "logs into a switch" },
-  { pattern: "POST|PATCH|DELETE /dns/zones/*/records", status: "pending", phase: 3, reason: "edits live DNS" },
-  { pattern: "POST /dns/sync", status: "pending", phase: 3, reason: "writes many DNS records" },
-  { pattern: "POST /dns/reverse-zones", status: "pending", phase: 3, reason: "creates DNS zones" },
-  { pattern: "POST /dns/managed/*/release", status: "pending", phase: 3, reason: "changes DNS ownership markers" },
-  { pattern: "POST /infra/targets/*/poll-now", status: "pending", phase: 3, reason: "logs into a host" },
-  { pattern: "POST /infra/targets/*/discover-services", status: "pending", phase: 3, reason: "logs into a host" },
-  { pattern: "POST /cisco/switches/*/ports", status: "pending", phase: 3, reason: "edits the desired port configuration that is pushed to a switch" },
-  { pattern: "PATCH /cisco/switches/*/ports/*", status: "pending", phase: 3, reason: "edits the desired port configuration that is pushed to a switch" },
-  { pattern: "POST /ipam/subnets", status: "pending", phase: 3, reason: "starts a network scan and can publish names to DNS" },
-  { pattern: "PATCH /ipam/subnets/*", status: "pending", phase: 3, reason: "switches scanning and DNS publishing on or off" },
-  { pattern: "PATCH /ipam/hosts/*", status: "pending", phase: 3, reason: "sets the name published to DNS" },
-  { pattern: "POST /ipam/adopt", status: "pending", phase: 3, reason: "starts a network scan" },
-  { pattern: "POST /ipam/subnets/*/scan", status: "pending", phase: 3, reason: "scans a network" },
-  { pattern: "POST /printers/*/poll", status: "pending", phase: 3, reason: "queries a printer" },
-  { pattern: "POST /ups/*/poll", status: "pending", phase: 3, reason: "queries a UPS" },
 
   // ---- Phase 4: read-only admin ------------------------------------------------------------------
   { pattern: "GET /users/**", status: "pending", phase: 4, reason: "user directory (read-only)" },

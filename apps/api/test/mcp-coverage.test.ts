@@ -100,6 +100,19 @@ describe("MCP tool catalogue", () => {
     }
   });
 
+  it("marks exactly the equipment tools: an operational tool's route is @OperationalOnly, no other tool's is", () => {
+    for (const t of BRIDGE_TOOLS) {
+      const route = BY_KEY.get(`${t.method} ${t.path}`)!;
+      expect(route.operationalOnly, `${t.name} (${t.cls}) vs @OperationalOnly on ${route.key}`).toBe(t.cls === "operational");
+    }
+  });
+
+  it("gives every @OperationalOnly route a tool or a reason it has none", () => {
+    for (const r of ROUTES.filter((x) => x.operationalOnly)) {
+      expect(covered(r) || ruleFor(r)?.status === "excluded", `${r.key} is operational-only but has neither`).toBe(true);
+    }
+  });
+
   it("builds a JSON Schema for every tool", () => {
     for (const t of BRIDGE_TOOLS) {
       const schema = toInputSchema(t) as Record<string, unknown>;

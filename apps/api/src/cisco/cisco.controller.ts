@@ -17,6 +17,7 @@ import {
   updateCiscoPortSchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CiscoService } from "./cisco.service";
 import { CiscoPoller } from "./cisco.poller";
@@ -81,6 +82,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/poll")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.switch.poll", resourceType: "cisco_switch" })
   poll(@Param("id") id: string) {
@@ -89,6 +91,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/discover")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.switch.discover", resourceType: "cisco_switch" })
   discover(@Param("id") id: string) {
@@ -98,6 +101,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/collect-l2")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   collectL2(@Param("id") id: string) {
     void this.poller.pollSwitchById(id).catch(() => undefined);
@@ -137,6 +141,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/backups/trigger-full")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.backup.trigger", resourceType: "cisco_switch" })
   triggerFull(@Param("id") id: string) {
@@ -159,6 +164,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/drift/push-all")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.drift.push", resourceType: "cisco_switch" })
   pushAll(@Param("id") id: string) {
@@ -173,6 +179,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/drift/:driftId/push")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.drift.push", resourceType: "cisco_switch" })
   pushOne(@Param("id") id: string, @Param("driftId") driftId: string) {
@@ -208,6 +215,7 @@ export class CiscoController {
   }
 
   @Post("switches/:id/ports")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.port.create", resourceType: "cisco_switch" })
   async createPort(@Param("id") id: string, @Body() body: unknown) {
@@ -217,6 +225,7 @@ export class CiscoController {
   }
 
   @Patch("switches/:id/ports/:portRowId")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.port.update", resourceType: "cisco_switch" })
   async updatePort(@Param("id") id: string, @Param("portRowId") portRowId: string, @Body() body: unknown) {
@@ -234,6 +243,7 @@ export class CiscoController {
 
   /** Toggle a port's admin state in the desired config AND push it to the device. */
   @Post("switches/:id/ports/:portRowId/toggle")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.port.toggle", resourceType: "cisco_switch" })
   async togglePort(@Param("id") id: string, @Param("portRowId") portRowId: string, @Body() body: unknown) {

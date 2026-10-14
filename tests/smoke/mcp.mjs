@@ -358,26 +358,88 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
     }
   });
 
-  await test("mcp: no tool changes a device, deletes a monitor or touches live equipment", async () => {
-    const full = await mint({ name: "smoke mcp phase2 absent", readOnly: false });
+  // ---- Phase 3: the operational token level ----
+
+  const EQUIPMENT_TOOLS = [
+    "propresenter_next",
+    "propresenter_clear",
+    "cisco_toggle_port",
+    "cisco_push_drift",
+    "dns_create_record",
+    "dns_run_sync",
+    "ipam_scan_subnet",
+    "ups_poll",
+  ];
+  const NEVER_TOOLS = [
+    "monitors_delete",
+    "infra_create_target",
+    "infra_update_target",
+    "printers_create",
+    "ups_create",
+    "cisco_create_switch",
+    "dns_delete_record",
+    "dns_test_connection",
+  ];
+  // A UUID nothing has: the guard and the argument check run, the handler answers "not found" and touches no equipment.
+  const NOBODY = "00000000-0000-4000-8000-000000000000";
+
+  await test("mcp: equipment tools are listed only to a token with the operational level", async () => {
+    const write = await mint({ name: "smoke mcp phase3 write", readOnly: false });
+    const op = await mint({ name: "smoke mcp phase3 operational", readOnly: false, allowOperational: true });
     try {
-      const listed = await rpc(auth(full), "tools/list");
-      const names = (listed.body?.result?.tools ?? []).map((t) => t.name);
-      for (const banned of [
-        "monitors_delete",
-        "infra_create_target",
-        "infra_update_target",
-        "printers_create",
-        "ups_create",
-        "cisco_create_switch",
-        "cisco_toggle_port",
-        "dns_create_record",
-        "propresenter_next",
-      ]) {
-        assert(!names.includes(banned), `${banned} is offered`);
+      assert(op.allowOperational === true && write.allowOperational === false, "level not reported on the token");
+      const namesOf = async (t) => ((await rpc(auth(t), "tools/list")).body?.result?.tools ?? []).map((x) => x.name);
+      const writeNames = await namesOf(write);
+      const opNames = await namesOf(op);
+      for (const n of EQUIPMENT_TOOLS) {
+        assert(!writeNames.includes(n), `${n} is offered to a write token`);
+        assert(opNames.includes(n), `${n} is missing for an operational token`);
       }
+      for (const n of NEVER_TOOLS) {
+        assert(!writeNames.includes(n) && !opNames.includes(n), `${n} is offered`);
+      }
+      assert(opNames.length > writeNames.length, "operational token should see more tools");
     } finally {
-      await revoke(full);
+      await revoke(write);
+      await revoke(op);
+    }
+  });
+
+  await test("mcp: a write token is refused an equipment tool by name, an operational token reaches it", async () => {
+    const write = await mint({ name: "smoke mcp phase3 refused", readOnly: false });
+    const op = await mint({ name: "smoke mcp phase3 reached", readOnly: false, allowOperational: true });
+    try {
+      const refused = await call(auth(write), "ups_poll", { id: NOBODY });
+      assert(refused.body.result?.isError === true && /operational level/.test(toolText(refused)), `not refused: ${toolText(refused)}`);
+      const reached = await call(auth(op), "ups_poll", { id: NOBODY });
+      assert(reached.body.result?.isError === true && /Not found/.test(toolText(reached)), `unexpected: ${toolText(reached)}`);
+    } finally {
+      await revoke(write);
+      await revoke(op);
+    }
+  });
+
+  await test("tokens: the operational level is enforced on the REST routes too, and a read-only token cannot have it", async () => {
+    const write = await mint({ name: "smoke rest phase3 write", readOnly: false });
+    const op = await mint({ name: "smoke rest phase3 operational", readOnly: false, allowOperational: true });
+    try {
+      const post = (t) =>
+        fetchWithCookies(`/api/v1/ups/${NOBODY}/poll`, { method: "POST", headers: { ...auth(t), "content-type": "application/json" }, body: "{}" }, new Map());
+      const refused = await post(write);
+      assert(refused.res.status === 403, `write token: HTTP ${refused.res.status}`);
+      assert(/operational/.test(JSON.stringify(await refused.res.json())), "403 does not say why");
+      const reached = await post(op);
+      assert(reached.res.status === 404, `operational token: HTTP ${reached.res.status}`);
+
+      const bad = await session("/api/v1/me/api-tokens", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "smoke bad level", readOnly: true, allowOperational: true, expiresInDays: 1 }),
+      });
+      assert(bad.res.status === 400, `read-only operational token: HTTP ${bad.res.status}`);
+    } finally {
+      await revoke(write);
+      await revoke(op);
     }
   });
 }

@@ -1,0 +1,326 @@
+import { z } from "zod";
+import {
+  IPAM_SUBNET_SOURCES,
+  PERMISSIONS,
+  ciscoPortInputSchema,
+  cidrSchema,
+  createIpamSubnetSchema,
+  dnsRecordCreateSchema,
+  dnsRecordUpdateSchema,
+  dnsReverseZoneCreateSchema,
+  dnsSyncRunSchema,
+  updateCiscoPortSchema,
+  updateIpamHostSchema,
+  updateIpamSubnetSchema,
+} from "@church/shared";
+import { defineTool } from "../bridge.types";
+
+const id = z.string().uuid();
+const WRITE = PERMISSIONS.MONITORS_WRITE_ANY;
+const READ = PERMISSIONS.MONITORS_READ_ANY;
+
+/**
+ * Tools that act on live equipment or feed it (switches, DNS, the projector, scans, polls). Each route
+ * carries `@OperationalOnly()`, so only a token created with the operational level reaches them, and
+ * `tools/list` shows them to no other token. Read the state first, change one thing, read it back.
+ */
+export const OPERATIONAL_TOOLS = [
+  // ---- ProPresenter ----
+  defineTool({
+    name: "propresenter_next",
+    title: "ProPresenter: next slide",
+    description: "Advance ProPresenter to the next slide. This changes what the congregation sees on the screens: use it only when asked, and check propresenter_get_status first.",
+    cls: "operational",
+    method: "POST",
+    path: "/propresenter/next",
+    permissions: [PERMISSIONS.PROPRESENTER_ADMIN],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "propresenter_previous",
+    title: "ProPresenter: previous slide",
+    description: "Go back to the previous ProPresenter slide. This changes what the congregation sees on the screens: use it only when asked, and check propresenter_get_status first.",
+    cls: "operational",
+    method: "POST",
+    path: "/propresenter/previous",
+    permissions: [PERMISSIONS.PROPRESENTER_ADMIN],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "propresenter_clear",
+    title: "ProPresenter: clear all layers",
+    description: "Clear everything ProPresenter is showing, so the screens go blank. This is visible to the congregation: use it only when asked.",
+    cls: "operational",
+    method: "POST",
+    path: "/propresenter/clear",
+    permissions: [PERMISSIONS.PROPRESENTER_ADMIN],
+    input: z.object({}),
+    idempotent: true,
+  }),
+
+  // ---- Cisco switches ----
+  defineTool({
+    name: "cisco_toggle_port",
+    title: "Shut or open a switch port",
+    description:
+      "Set a switch port's admin state (enabled true opens it, false shuts it) in the desired configuration and push it to the switch. Shutting a port cuts whatever is plugged into it, possibly the uplink you are working over. Look the port up first (cisco_list_ports gives portRowId). The push runs in the background: read the port again to confirm.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/ports/:portRowId/toggle",
+    permissions: [WRITE],
+    input: z.object({ id, portRowId: z.string().uuid(), enabled: z.boolean() }),
+    destructive: true,
+    idempotent: true,
+  }),
+  defineTool({
+    name: "cisco_create_port",
+    title: "Add a port to a switch's desired config",
+    description:
+      "Add a port row to the desired configuration the dashboard keeps for a switch. It is compared with the live switch (drift) and pushed only by the drift push tools. portId is the interface name, such as Gi1/0/5.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/ports",
+    permissions: [WRITE],
+    input: z.object({ id, ...ciscoPortInputSchema.shape }),
+  }),
+  defineTool({
+    name: "cisco_update_port",
+    title: "Change a port in a switch's desired config",
+    description:
+      "Change the desired configuration of one port (description, enabled, speed, duplex, mode, VLANs). Only the fields you give change. It differs from the live switch until pushed with cisco_push_drift; use cisco_toggle_port to change the admin state and push it at once.",
+    cls: "operational",
+    method: "PATCH",
+    path: "/cisco/switches/:id/ports/:portRowId",
+    permissions: [WRITE],
+    input: z.object({ id, portRowId: z.string().uuid(), ...updateCiscoPortSchema.shape }),
+  }),
+  defineTool({
+    name: "cisco_push_drift",
+    title: "Push one drifted setting to the switch",
+    description:
+      "Write the desired value of one drift event to the live switch over SSH and mark it resolved. Read cisco_list_switch_drift first and check the expected value is what the owner wants: this changes the running switch.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/drift/:driftId/push",
+    permissions: [WRITE],
+    input: z.object({ id, driftId: z.string().uuid() }),
+    destructive: true,
+  }),
+  defineTool({
+    name: "cisco_push_all_drift",
+    title: "Push all drifted settings to the switch",
+    description:
+      "Write the desired value of every open drift event of one switch to the live switch over SSH. Read cisco_list_switch_drift first: this overwrites whatever someone changed on the switch by hand.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/drift/push-all",
+    permissions: [WRITE],
+    input: z.object({ id }),
+    destructive: true,
+  }),
+  defineTool({
+    name: "cisco_poll_switch",
+    title: "Poll a switch now",
+    description: "Log into a switch over SSH now and refresh its ports, MAC table and drift, instead of waiting for the next poll. It runs in the background.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/poll",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "cisco_collect_l2",
+    title: "Refresh a switch's MAC and ARP tables",
+    description: "Log into a switch over SSH now and refresh what it has learned (MAC table, ARP). It runs in the background.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/collect-l2",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "cisco_rediscover_switch",
+    title: "Re-baseline a switch",
+    description:
+      "Throw away the desired port configuration and open drift of one switch and re-import them from the live switch. Anything that was deliberately different from the switch is lost: use only when asked to start the baseline over.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/discover",
+    permissions: [WRITE],
+    input: z.object({ id }),
+    destructive: true,
+  }),
+  defineTool({
+    name: "cisco_trigger_backup",
+    title: "Back up a switch's config now",
+    description: "Log into a switch over SSH and save a full configuration backup now. It runs in the background; list the backups afterwards.",
+    cls: "operational",
+    method: "POST",
+    path: "/cisco/switches/:id/backups/trigger-full",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+
+  // ---- DNS (Technitium) ----
+  defineTool({
+    name: "dns_create_record",
+    title: "Add a DNS record",
+    description:
+      "Add a record to a live zone on the DNS primary (zone is its name). data is the structured value by type: A and AAAA (ipAddress), CNAME (cname), PTR (ptrName), MX (preference, exchange), TXT (text), SRV (priority, weight, port, target). name is @ for the apex, a relative name or a full name in the zone. This takes effect for every client: check dns_list_records for an existing record first.",
+    cls: "operational",
+    method: "POST",
+    path: "/dns/zones/:zone/records",
+    permissions: [WRITE],
+    input: z.object({ zone: z.string().min(1).max(253), ...dnsRecordCreateSchema.shape }),
+  }),
+  defineTool({
+    name: "dns_update_record",
+    title: "Change a DNS record",
+    description:
+      "Change one record of a live zone. current is the record as it is now (name and data, copied from dns_list_records); name, ttl, comments and data are the new values and all of them are required, so give the unchanged ones too. The type cannot change. Records owned by the IPAM sync are refused. This takes effect for every client.",
+    cls: "operational",
+    method: "PATCH",
+    path: "/dns/zones/:zone/records",
+    permissions: [WRITE],
+    input: z.object({ zone: z.string().min(1).max(253), ...dnsRecordUpdateSchema.innerType().shape }),
+    destructive: true,
+  }),
+  defineTool({
+    name: "dns_run_sync",
+    title: "Run the IPAM to DNS sync now",
+    description:
+      "Write the A and PTR records the sync plan lists into the live zone, change those that differ and remove those whose host is gone. Read dns_get_sync_plan first. A run that would remove many records stops by itself; force true overrides that stop and should only be used when the owner has confirmed the plan.",
+    cls: "operational",
+    method: "POST",
+    path: "/dns/sync",
+    permissions: [WRITE],
+    input: z.object({ force: dnsSyncRunSchema.shape.force.optional() }),
+    destructive: true,
+  }),
+  defineTool({
+    name: "dns_create_reverse_zone",
+    title: "Create a reverse DNS zone",
+    description: "Create a reverse (in-addr.arpa) zone on the DNS primary so the sync can publish PTR records, for example 10.0.10.in-addr.arpa. Listed as missing in dns_get_sync_plan.",
+    cls: "operational",
+    method: "POST",
+    path: "/dns/reverse-zones",
+    permissions: [WRITE],
+    input: z.object(dnsReverseZoneCreateSchema.shape),
+  }),
+  defineTool({
+    name: "dns_release_managed_record",
+    title: "Release a sync-owned DNS record",
+    description:
+      "Strip the managed-by marker from a record the IPAM sync created, so it becomes hand-owned and the sync no longer changes or removes it. id comes from dns_list_managed_records.",
+    cls: "operational",
+    method: "POST",
+    path: "/dns/managed/:id/release",
+    permissions: [WRITE],
+    input: z.object({ id: z.string().min(1).max(200) }),
+  }),
+
+  // ---- IPAM (a subnet's switches start scans and publish names to DNS) ----
+  defineTool({
+    name: "ipam_create_subnet",
+    title: "Add a managed subnet",
+    description: "Add a subnet (an IPv4 CIDR from /16 to /32) to the IP address manager. With scanEnabled it is scanned at once by pinging and probing every address.",
+    cls: "operational",
+    method: "POST",
+    path: "/ipam/subnets",
+    permissions: [WRITE],
+    input: z.object(createIpamSubnetSchema.shape),
+  }),
+  defineTool({
+    name: "ipam_update_subnet",
+    title: "Change a managed subnet",
+    description:
+      "Change a subnet's label, VLAN, gateway, scanning (scanEnabled) or DNS publishing (dnsSync: named hosts get A and PTR records at the next sync). Only the fields you give change. Editing the label by hand stops it following the source system's name.",
+    cls: "operational",
+    method: "PATCH",
+    path: "/ipam/subnets/:id",
+    permissions: [WRITE],
+    input: z.object({ id, ...updateIpamSubnetSchema.shape }),
+  }),
+  defineTool({
+    name: "ipam_update_host",
+    title: "Set the DNS name of a host",
+    description:
+      "Set the single DNS label (letters, digits, hyphens) the sync publishes for a host, or null to fall back to the discovered name. The record appears at the next sync of a subnet with dnsSync on.",
+    cls: "operational",
+    method: "PATCH",
+    path: "/ipam/hosts/:id",
+    permissions: [WRITE],
+    input: z.object({ id, ...updateIpamHostSchema.shape }),
+  }),
+  defineTool({
+    name: "ipam_adopt_subnet",
+    title: "Adopt a discovered subnet",
+    description: "Make a range from ipam_list_discovered_subnets a managed subnet and scan it. Pass the candidate's cidr, source, sourceDetail, vlanId, gateway and label as listed.",
+    cls: "operational",
+    method: "POST",
+    path: "/ipam/adopt",
+    permissions: [WRITE],
+    input: z.object({
+      cidr: cidrSchema,
+      source: z.enum(IPAM_SUBNET_SOURCES).optional(),
+      sourceDetail: z.string().max(128).nullable().optional(),
+      vlanId: z.number().int().min(1).max(4094).nullable().optional(),
+      gateway: z.string().max(45).nullable().optional(),
+      label: z.string().max(128).nullable().optional(),
+    }),
+  }),
+  defineTool({
+    name: "ipam_scan_subnet",
+    title: "Scan a subnet now",
+    description: "Sweep every address of one subnet now (ping, then TCP) to find live hosts. It runs in the background; read ipam_list_hosts afterwards.",
+    cls: "operational",
+    method: "POST",
+    path: "/ipam/subnets/:id/scan",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+
+  // ---- Hosts, printers and UPS units: poll now ----
+  defineTool({
+    name: "infra_poll_target",
+    title: "Poll a host now",
+    description: "Collect CPU, memory, disk and the other readings of one monitored host now (it logs in over SSH or calls the Proxmox or Docker API) instead of waiting for its interval. Returns the refreshed host.",
+    cls: "operational",
+    method: "POST",
+    path: "/infra/targets/:id/poll-now",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "infra_discover_services",
+    title: "List the services on a host",
+    description: "Log into a monitored host now and list its system services, to choose which ones to watch. Takes a few seconds.",
+    cls: "operational",
+    method: "POST",
+    path: "/infra/targets/:id/discover-services",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "printers_poll",
+    title: "Poll a printer now",
+    description: "Query one printer over SNMP now and return its refreshed state, instead of waiting for the next poll. The SNMP community is hidden.",
+    cls: "operational",
+    method: "POST",
+    path: "/printers/:id/poll",
+    permissions: [PERMISSIONS.PRINTERS_READ_ANY],
+    input: z.object({ id }),
+    redact: ["snmpCommunity"],
+  }),
+  defineTool({
+    name: "ups_poll",
+    title: "Poll a UPS now",
+    description: "Query one UPS over SNMP now and return its refreshed state, instead of waiting for the next poll. The SNMP community is hidden.",
+    cls: "operational",
+    method: "POST",
+    path: "/ups/:id/poll",
+    permissions: [READ],
+    input: z.object({ id }),
+    redact: ["snmpCommunity"],
+  }),
+];

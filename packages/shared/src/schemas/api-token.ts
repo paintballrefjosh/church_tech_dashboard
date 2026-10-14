@@ -4,7 +4,8 @@ import { ALL_MODULE_KEYS } from "../modules";
 /**
  * Personal API tokens (bearer auth for scripts and agents). A token acts as
  * its owner, narrowed by two optional limits: read-only (no POST/PUT/PATCH/
- * DELETE) and a module list. See apps/api/src/api-tokens/.
+ * DELETE) and a module list. A third level, `allowOperational`, lets a token call the routes that act on live
+ * equipment (switch ports, DNS records, scans, ProPresenter); it needs write access. See apps/api/src/api-tokens/.
  */
 
 /** Every token starts with this, so people and secret scanners can spot one. */
@@ -28,13 +29,14 @@ const moduleKey = z.string().refine((k) => ALL_MODULE_KEYS.includes(k), {
  *   - `expiresAt: null` for a token that never expires (only when the
  *     `auth.api_tokens_max_days` setting is 0), or
  *   - neither, for API_TOKEN_DEFAULT_DAYS (capped by the setting).
- * `readOnly` defaults to true. `modules: null` (or omitted) means every module
+ * `readOnly` defaults to true; `allowOperational` to false and it needs `readOnly: false`. `modules: null` (or omitted) means every module
  * the owner can reach.
  */
 export const apiTokenCreateSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
     readOnly: z.boolean().default(true),
+    allowOperational: z.boolean().default(false),
     modules: z.array(moduleKey).min(1).max(ALL_MODULE_KEYS.length).nullable().optional(),
     expiresInDays: z.number().int().min(1).max(3650).optional(),
     expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
@@ -42,6 +44,10 @@ export const apiTokenCreateSchema = z
   .strict()
   .refine((b) => !(b.expiresInDays !== undefined && b.expiresAt !== undefined), {
     message: "Send expiresInDays or expiresAt, not both",
+  })
+  .refine((b) => !(b.allowOperational && b.readOnly), {
+    message: "An operational token cannot be read-only",
+    path: ["allowOperational"],
   });
 
 export type ApiTokenCreate = z.infer<typeof apiTokenCreateSchema>;
@@ -60,6 +66,8 @@ export interface ApiTokenSummary {
   /** First API_TOKEN_DISPLAY_CHARS characters, e.g. "cdt_x7Kq". */
   prefix: string | null;
   readOnly: boolean;
+  /** May call the routes that act on live equipment (never true together with readOnly). */
+  allowOperational: boolean;
   /** null = every module the owner can reach. */
   modules: string[] | null;
   status: ApiTokenStatus;

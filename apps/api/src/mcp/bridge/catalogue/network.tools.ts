@@ -234,6 +234,38 @@ export const NETWORK_TOOLS = [
     }),
   }),
   defineTool({
+    name: "cisco_accept_drift",
+    title: "Accept one drifted setting",
+    description:
+      "Treat the live value of one drift event as correct: the desired configuration in the dashboard is updated to match the switch and the event is resolved. Nothing is sent to the switch.",
+    cls: "write",
+    method: "POST",
+    path: "/cisco/switches/:id/drift/:driftId/accept",
+    permissions: [WRITE],
+    input: z.object({ id, driftId: z.string().uuid() }),
+  }),
+  defineTool({
+    name: "cisco_accept_all_drift",
+    title: "Accept all drifted settings",
+    description:
+      "Treat the live values of every open drift event of one switch as correct: the desired configuration is updated to match the switch. Nothing is sent to the switch. To change the switch instead use the operational push tools.",
+    cls: "write",
+    method: "POST",
+    path: "/cisco/switches/:id/drift/accept-all",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "cisco_resolve_drift",
+    title: "Dismiss all drift events",
+    description: "Mark every open drift event of one switch as resolved without changing the desired configuration or the switch. The events return if the difference is still there at the next poll.",
+    cls: "write",
+    method: "POST",
+    path: "/cisco/switches/:id/drift/resolve",
+    permissions: [WRITE],
+    input: z.object({ id }),
+  }),
+  defineTool({
     name: "cisco_get_topology",
     title: "Network topology from the switches",
     description: "The switches and the neighbour links between them.",

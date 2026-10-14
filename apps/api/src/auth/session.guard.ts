@@ -3,6 +3,7 @@ import { Reflector } from "@nestjs/core";
 import { decode } from "@auth/core/jwt";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
+import { OPERATIONAL_ONLY_KEY } from "./operational-only.decorator";
 import { isReadMethod } from "./api-token-scope";
 import { AuthService } from "./auth.service";
 import type { AuthenticatedUser } from "./current-user.decorator";
@@ -157,6 +158,15 @@ export class SessionGuard implements CanActivate {
           ctx.getClass(),
         ]);
         if (!perOperation) throw new ForbiddenException("This API token is read-only");
+      }
+      const operational = this.reflector.getAllAndOverride<boolean>(OPERATIONAL_ONLY_KEY, [
+        ctx.getHandler(),
+        ctx.getClass(),
+      ]);
+      if (operational && !user.apiToken?.allowOperational) {
+        throw new ForbiddenException(
+          "This route acts on live equipment: it needs an API token created with the operational level",
+        );
       }
       return true;
     }

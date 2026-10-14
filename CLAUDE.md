@@ -312,6 +312,12 @@ audit snapshot.
   through to the cookie. Unknown, revoked, expired, and "feature off"
   (`auth.api_tokens_enabled`) all give the same 401. Bearer requests skip the
   TOTP-enrolment gate (creating a token is session-only, so it already passed).
+- **Three levels:** read-only, read and write, and `allow_operational` (migration 0058, off for every older token; needs a
+  non-read-only token). `@OperationalOnly()` (`auth/operational-only.decorator.ts`) marks a route that acts on live
+  equipment (switch ports and pushes, DNS record writes and sync, scans, polls, host OS updates, ProPresenter slides);
+  `SessionGuard` gives a bearer request without the level a 403, a browser session is unaffected. The MCP `operational`
+  tools are exactly these routes (`mcp-coverage.test.ts`), hidden from `tools/list` and refused for other tokens. A new
+  route that touches equipment gets the decorator.
 - **`@SessionOnly()`** (`auth/session-only.decorator.ts`) refuses bearer requests:
   token create/revoke (own and admin), password change, `PATCH /me` (email), and
   the whole TOTP controller. Put it on anything that would let a leaked token

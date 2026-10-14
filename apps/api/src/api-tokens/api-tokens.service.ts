@@ -38,6 +38,7 @@ function toSummary(row: TokenRow, now = Date.now()): ApiTokenSummary {
     userId: row.userId,
     prefix: row.tokenPrefix,
     readOnly: row.readOnly,
+    allowOperational: row.allowOperational,
     modules: row.modules ?? null,
     status: statusOf(row, now),
     expiresAt: row.expiresAt?.toISOString() ?? null,
@@ -156,6 +157,7 @@ export class ApiTokensService {
         tokenPrefix: token.slice(0, API_TOKEN_DISPLAY_CHARS),
         userId: owner.id,
         readOnly: body.readOnly,
+        allowOperational: body.allowOperational,
         modules: modules ? [...new Set(modules)] : null,
         expiresAt,
       })

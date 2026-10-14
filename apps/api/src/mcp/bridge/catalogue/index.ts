@@ -4,6 +4,7 @@ import { CHURCH_TOOLS } from "./church.tools";
 import { GENERAL_TOOLS } from "./general.tools";
 import { MONITORING_TOOLS } from "./monitoring.tools";
 import { NETWORK_TOOLS } from "./network.tools";
+import { OPERATIONAL_TOOLS } from "./operational.tools";
 import { PERSONAL_TOOLS } from "./personal.tools";
 import { TICKET_TOOLS } from "./tickets.tools";
 import { WIKI_TOOLS } from "./wiki.tools";
@@ -22,4 +23,5 @@ export const BRIDGE_TOOLS: BridgeTool[] = [
   ...MONITORING_TOOLS,
   ...NETWORK_TOOLS,
   ...CHURCH_TOOLS,
+  ...OPERATIONAL_TOOLS,
 ];

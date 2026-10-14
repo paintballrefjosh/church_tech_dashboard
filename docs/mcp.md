@@ -10,7 +10,7 @@ through the MCP server at `/api/v1/mcp`. Decided 2026-10-12. Operator docs: INST
 | **0. Bridge** | In-process route bridge, tool catalogue, route-coverage test, per-caller tool listing, smoke tests | **done** |
 | **1. Work content** | Tickets and categories, notes, tags, saved views, activity, notifications, own notification settings, the home snapshot, checklists; wiki gaps (old revisions, revert, page access, folder rename/move) | **done** |
 | **2. Monitoring and IT** | Monitors (create, update, maintenance mode), service health, hosts (infra), UniFi (read, acknowledge a device), printers, UPS, IPAM, DNS, Cisco (read), Planning Center, ProPresenter status | **done** |
-| 3. Operational (next) | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | |
+| **3. Operational** | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | |
 | 4. Read-only admin | Users, groups and module access, settings (secrets redacted), audit log, cluster status | |
 
 The coverage test lists what is still pending: `ROUTE_RULES` in `apps/api/src/mcp/bridge/route-rules.ts`
@@ -81,6 +81,19 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
 - `cisco_lookup` and `cisco_list_mac` keep the route's `exclude_uplinks` parameter as the strings `"0"` and `"1"`;
   Planning Center plans keep `service_type_id`. A tool's argument names follow the route's, not a prettier style.
 
+## Decisions made in phase 3
+
+- **The operational level is enforced on the routes, not just in MCP**, so a write token cannot call the same route over
+  REST. Routes carry `@OperationalOnly()`; the list is whatever the coverage test finds with that decorator, and each one
+  is either an `operational` tool or an excluded route with a reason (DNS record delete, host OS updates).
+- **Class of each tool.** Pushing to a switch, shutting a port, re-baselining a switch, running the DNS sync and updating a
+  DNS record are `destructive`. Accepting or dismissing Cisco drift only changes the dashboard's own records, so those are
+  ordinary `write` tools.
+- **Desired port configuration and IPAM edits are operational** even though the route itself only writes the database:
+  what they set is later pushed to a switch or published to DNS.
+- **No DNS record delete tool** (still no delete tools); the REST route is operational-only.
+- Existing tokens get the level off. A script that used one of these routes over REST needs a new token.
+
 ## Excluded on purpose
 
 Listed with reasons in `route-rules.ts` (`excluded`); the main groups:
@@ -92,16 +105,17 @@ Listed with reasons in `route-rules.ts` (`excluded`); the main groups:
 - **Binary attachments** (upload and download): need their own design (multipart; return a link for downloads).
 - **Plumbing**: probes, metrics, internal sign-in calls, mail and reindex operations.
 
-## Operational token level (phase 3)
+## Operational token level
 
-A third token level beside "read-only" and "read and write": `read` < `write` < `operational`. It is enforced where tokens
+Built in phase 3 (migration 0058). A third token level beside "read-only" and "read and write": `read` < `write` < `operational`. It is enforced where tokens
 already are, not just in MCP, otherwise a write token could call the same route over REST:
 
 - additive migration: `api_tokens.allow_operational boolean not null default false` (old code ignores it);
 - a `@OperationalOnly()` route decorator (like `@SessionOnly()`), checked in `SessionGuard` for bearer requests;
 - the create form and `ApiTokenSummary` carry the level; `scopeUserToToken` is unchanged;
 - existing tokens get `false`, so nothing that worked for a script over REST changes except the routes marked
-  operational, which are listed in the phase 3 rules.
+  `@OperationalOnly()`.
+- the create form offers "Read, write and equipment"; a read-only token cannot have the level (the schema refuses it).
 
 ## Known limits
 

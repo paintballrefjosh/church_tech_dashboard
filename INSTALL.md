@@ -1055,6 +1055,11 @@ How tokens behave:
   its name.
 - **Read-only** tokens (the default) can call any `GET`; every `POST`, `PUT`, `PATCH` or
   `DELETE` gets `403`.
+- **Read, write and equipment** tokens (the third level) may also call the routes that act on live equipment: shut
+  or open a switch port, push switch configuration, edit DNS records or run the IPAM-to-DNS sync, add or scan
+  subnets and set a host's DNS name, poll a host, printer or UPS now, run host OS updates, delete a DNS record, and move or
+  clear ProPresenter slides. A read-and-write token gets `403` on those routes. Tokens made before this level existed
+  have it off, so a script that did one of those things over REST needs a new token. People using the web app are not affected.
 - **Module limits** keep only what those modules grant. A token limited to the wiki gets
   `403` on, say, `/api/v1/users`, and results such as search leave out other modules.
 - **Every token expires**, within the limit an admin sets (365 days by default; an admin
@@ -1120,14 +1125,15 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |
 | `checklists_*` | Events, tasks (tick off), templates, stations, recurring services, assignments, reports |
 | `monitors_*`, `health_get_services` | Uptime monitors and their incidents; create or change a monitor, maintenance mode (no delete) |
-| `infra_*`, `unifi_*`, `printers_*`, `ups_*` | Hosts, UniFi devices and clients (acknowledge an offline device), printers, UPS units: read-only. Logins and SNMP communities are never shown |
-| `ipam_*`, `dns_*`, `cisco_*` | Subnets and hosts, DNS zones, records and the IPAM sync preview, Cisco switches, ports, config backups, drift, MAC/ARP lookup, VLANs: read-only (`dns_create_health_monitors` only adds monitors) |
-| `planning_center_*`, `propresenter_*` | Planning Center plans and people, ProPresenter status: read-only |
+| `infra_*`, `unifi_*`, `printers_*`, `ups_*` | Hosts, UniFi devices and clients (acknowledge an offline device), printers, UPS units: reading. Logins and SNMP communities are never shown |
+| `ipam_*`, `dns_*`, `cisco_*` | Subnets and hosts, DNS zones, records and the IPAM sync preview, Cisco switches, ports, config backups, drift, MAC/ARP lookup, VLANs: reading (`dns_create_health_monitors` only adds monitors; `cisco_accept_drift` and `cisco_resolve_drift` only change the dashboard's records) |
+| `planning_center_*`, `propresenter_get_*` | Planning Center plans and people, ProPresenter status: reading |
+| `propresenter_next` and 2 more, `cisco_toggle_port` and 10 more, `dns_create_record` and 4 more, `ipam_create_subnet` and 4 more, `*_poll*` | **Equipment tools**, offered only to a token with the *Read, write and equipment* level: slides, switch ports and pushes, DNS records and sync, subnets and scans, "poll now" |
 
 An agent is offered only the tools its token allows: a read-only token sees the reading tools, and a token limited to
-some modules sees only those modules' tools. Adding or editing devices (hosts, printers, UPS, switches), and anything
-that acts on live equipment (switch ports, DNS records, scans, ProPresenter slides) is not offered yet: equipment actions
-come in a later phase behind a separate token level, and read-only admin tools after that (`docs/mcp.md`).
+some modules sees only those modules' tools. Adding or editing devices (hosts, printers, UPS, switches) is not offered: it is done in the web app. Anything that acts on live equipment (switch ports, DNS records, scans, ProPresenter slides)
+are offered only to a token created with the *Read, write and equipment* level; read-only admin tools come after that
+(`docs/mcp.md`). Records are never deleted by a tool, DNS records included.
 
 Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
 overwrite an edit made since. Every edit is a revision you can revert from the page's

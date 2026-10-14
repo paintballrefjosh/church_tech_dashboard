@@ -12,6 +12,7 @@ import {
   type DnsStatsRange,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { DnsService } from "./dns.service";
@@ -58,6 +59,7 @@ export class DnsController {
   }
 
   @Post("zones/:zone/records")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.record.create", resourceType: "dns_record" })
   async createRecord(@Param("zone") zone: string, @Body() body: unknown) {
@@ -69,6 +71,7 @@ export class DnsController {
   }
 
   @Patch("zones/:zone/records")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.record.update", resourceType: "dns_record" })
   async updateRecord(@Param("zone") zone: string, @Body() body: unknown) {
@@ -80,6 +83,7 @@ export class DnsController {
   }
 
   @Delete("zones/:zone/records")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.record.delete", resourceType: "dns_record" })
   async deleteRecord(@Param("zone") zone: string, @Body() body: unknown) {
@@ -128,6 +132,7 @@ export class DnsController {
   }
 
   @Post("sync")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.sync.run", resourceType: "dns_sync_run" })
   runSync(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
@@ -138,6 +143,7 @@ export class DnsController {
 
   /** Strip the managed-by marker so the record becomes hand-owned. */
   @Post("managed/:id/release")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.managed.release", resourceType: "dns_record" })
   async release(@Param("id") id: string) {
@@ -147,6 +153,7 @@ export class DnsController {
   }
 
   @Post("reverse-zones")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "dns.zone.create", resourceType: "dns_zone" })
   createReverseZone(@Body() body: unknown) {

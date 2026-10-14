@@ -3,6 +3,7 @@ import { RequestMethod } from "@nestjs/common";
 import { REQUIRED_PERMISSIONS_KEY } from "../../auth/permissions.decorator";
 import { SESSION_ONLY_KEY } from "../../auth/session-only.decorator";
 import { IS_PUBLIC_KEY } from "../../auth/public.decorator";
+import { OPERATIONAL_ONLY_KEY } from "../../auth/operational-only.decorator";
 
 /** One HTTP route of the API, read from the Nest decorators on a controller. */
 export interface RouteInfo {
@@ -15,6 +16,8 @@ export interface RouteInfo {
   /** Everything `@RequirePermissions` asks for (class and method merged; the guard wants all of them). */
   permissions: string[];
   sessionOnly: boolean;
+  /** `@OperationalOnly()`: a token needs the operational level. */
+  operationalOnly: boolean;
   isPublic: boolean;
 }
 
@@ -47,6 +50,7 @@ export function listRoutes(controllers: Array<abstract new (...args: never[]) =>
     if (base === undefined) continue; // not a @Controller
     const classPerms = (Reflect.getMetadata(REQUIRED_PERMISSIONS_KEY, cls) as string[] | undefined) ?? [];
     const classSessionOnly = Reflect.getMetadata(SESSION_ONLY_KEY, cls) === true;
+    const classOperational = Reflect.getMetadata(OPERATIONAL_ONLY_KEY, cls) === true;
     const classPublic = Reflect.getMetadata(IS_PUBLIC_KEY, cls) === true;
     for (const name of Object.getOwnPropertyNames(cls.prototype)) {
       if (name === "constructor") continue;
@@ -66,6 +70,7 @@ export function listRoutes(controllers: Array<abstract new (...args: never[]) =>
         handler: name,
         permissions: [...new Set([...classPerms, ...methodPerms])],
         sessionOnly: classSessionOnly || Reflect.getMetadata(SESSION_ONLY_KEY, fn) === true,
+        operationalOnly: classOperational || Reflect.getMetadata(OPERATIONAL_ONLY_KEY, fn) === true,
         isPublic: classPublic || Reflect.getMetadata(IS_PUBLIC_KEY, fn) === true,
       });
     }

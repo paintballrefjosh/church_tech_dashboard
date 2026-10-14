@@ -8,6 +8,7 @@ import {
   cidrSchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { IpamService } from "./ipam.service";
 import { IpamScanner } from "./ipam.scanner";
@@ -59,6 +60,7 @@ export class IpamController {
   }
 
   @Post("subnets")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "ipam.subnet.create", resourceType: "ipam_subnet" })
   async createSubnet(@Body() body: unknown) {
@@ -70,6 +72,7 @@ export class IpamController {
   }
 
   @Patch("subnets/:id")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "ipam.subnet.update", resourceType: "ipam_subnet" })
   async updateSubnet(@Param("id") id: string, @Body() body: unknown) {
@@ -82,6 +85,7 @@ export class IpamController {
   }
 
   @Patch("hosts/:id")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "ipam.host.update", resourceType: "ipam_host" })
   async updateHost(@Param("id") id: string, @Body() body: unknown) {
@@ -106,6 +110,7 @@ export class IpamController {
   }
 
   @Post("subnets/:id/scan")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "ipam.subnet.scan", resourceType: "ipam_subnet" })
   scan(@Param("id") id: string) {
@@ -121,6 +126,7 @@ export class IpamController {
   }
 
   @Post("adopt")
+  @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "ipam.subnet.adopt", resourceType: "ipam_subnet" })
   async adopt(@Body() body: unknown) {

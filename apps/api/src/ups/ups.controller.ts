@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import { PERMISSIONS, createUpsSchema, updateUpsSchema } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { UpsService } from "./ups.service";
 
@@ -90,6 +91,7 @@ export class UpsController {
 
   /** Manual on-demand refresh. Reads:any suffices — asking for status now is a read. */
   @Post(":id/poll")
+  @OperationalOnly()
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
   @Audited({
     action: "ups.poll",

@@ -106,7 +106,7 @@ export class AuthService implements OnModuleInit {
         .set({ lastUsedAt: new Date(now), lastUsedIp: ip })
         .where(eq(apiTokens.id, row.id));
     }
-    const limits = { readOnly: row.readOnly, modules: row.modules ?? null };
+    const limits = { readOnly: row.readOnly, allowOperational: row.allowOperational, modules: row.modules ?? null };
     return {
       ...scopeUserToToken(owner, limits),
       apiToken: { id: row.id, name: row.name, ...limits },

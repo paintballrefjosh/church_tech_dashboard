@@ -118,7 +118,7 @@ describe("McpToolsService.call", () => {
 
     const readOnlyToken: AuthenticatedUser = {
       ...user(READ_WRITE),
-      apiToken: { id: "t1", name: "docs", readOnly: true, modules: ["wiki"] },
+      apiToken: { id: "t1", name: "docs", readOnly: true, allowOperational: false, modules: ["wiki"] },
     };
     const names = svc.visibleToolNames(readOnlyToken);
     expect(names).toContain("wiki_get_page");
@@ -157,7 +157,7 @@ describe("McpToolsService.call", () => {
     const { svc, calls } = build();
     const ro: AuthenticatedUser = {
       ...user(READ_WRITE),
-      apiToken: { id: "t1", name: "docs", readOnly: true, modules: ["wiki"] },
+      apiToken: { id: "t1", name: "docs", readOnly: true, allowOperational: false, modules: ["wiki"] },
     };
     const read = await svc.call({ user: ro, req: {} }, "wiki_search", { query: "dns" });
     expect(read.isError).toBeFalsy();

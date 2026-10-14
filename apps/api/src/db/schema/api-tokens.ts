@@ -4,7 +4,7 @@ import { users } from "./users";
 /**
  * Personal API tokens. Only the SHA-256 hash of the token is stored, plus its
  * first few characters for display. A token acts as its owner, narrowed by
- * `read_only` and `modules` (null = every module). Revoking sets `revoked_at`;
+ * `read_only`, `allow_operational` and `modules` (null = every module). Revoking sets `revoked_at`;
  * rows are never deleted by the app, so audit_log.api_token_id keeps resolving.
  */
 export const apiTokens = pgTable(
@@ -18,6 +18,8 @@ export const apiTokens = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     readOnly: boolean("read_only").notNull().default(false),
+    // May call routes marked @OperationalOnly (they act on live equipment). Off for every token that existed before.
+    allowOperational: boolean("allow_operational").notNull().default(false),
     modules: text("modules").array(),
     expiresAt: timestamp("expires_at"),
     lastUsedAt: timestamp("last_used_at"),
