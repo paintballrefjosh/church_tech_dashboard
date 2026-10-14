@@ -1128,12 +1128,13 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `infra_*`, `unifi_*`, `printers_*`, `ups_*` | Hosts, UniFi devices and clients (acknowledge an offline device), printers, UPS units: reading. Logins and SNMP communities are never shown |
 | `ipam_*`, `dns_*`, `cisco_*` | Subnets and hosts, DNS zones, records and the IPAM sync preview, Cisco switches, ports, config backups, drift, MAC/ARP lookup, VLANs: reading (`dns_create_health_monitors` only adds monitors; `cisco_accept_drift` and `cisco_resolve_drift` only change the dashboard's records) |
 | `planning_center_*`, `propresenter_get_*` | Planning Center plans and people, ProPresenter status: reading |
+| `users_*`, `groups_*`, `settings_*`, `audit_list`, `cluster_get_status`, `planning_center_list_links` | Read-only administration: accounts, groups and what each may do, settings, the audit log, cluster health. Secrets in settings and in audit snapshots are hidden |
 | `propresenter_next` and 2 more, `cisco_toggle_port` and 10 more, `dns_create_record` and 4 more, `ipam_create_subnet` and 4 more, `*_poll*` | **Equipment tools**, offered only to a token with the *Read, write and equipment* level: slides, switch ports and pushes, DNS records and sync, subnets and scans, "poll now" |
 
 An agent is offered only the tools its token allows: a read-only token sees the reading tools, and a token limited to
 some modules sees only those modules' tools. Adding or editing devices (hosts, printers, UPS, switches) is not offered: it is done in the web app. Anything that acts on live equipment (switch ports, DNS records, scans, ProPresenter slides)
-are offered only to a token created with the *Read, write and equipment* level; read-only admin tools come after that
-(`docs/mcp.md`). Records are never deleted by a tool, DNS records included.
+are offered only to a token created with the *Read, write and equipment* level. Administration (accounts, groups, settings,
+tokens, backups) can be read but never changed by an agent (`docs/mcp.md`). Records are never deleted by a tool, DNS records included.
 
 Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
 overwrite an edit made since. Every edit is a revision you can revert from the page's

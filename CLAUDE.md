@@ -436,7 +436,7 @@ a tool and delete its `pending` rule, or add an `excluded` rule. `tools/list` sh
 caller only the tools its permissions allow (read-only tokens: reads only). Read-only
 admin, no delete tools for tickets/wiki/accounts, and a future "operational" token level
 for equipment-touching tools are decided (2026-10-12). A tool whose route returns a credential
-sets `redact` (values become `[hidden]`); devices with logins (hosts, printers, UPS, switches)
+sets `redact` (values become `[hidden]`) or `transform` (settings, audit: `bridge/scrub.ts`); devices with logins (hosts, printers, UPS, switches)
 are registered in the web app only.
 
 ## Search

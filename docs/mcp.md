@@ -11,7 +11,7 @@ through the MCP server at `/api/v1/mcp`. Decided 2026-10-12. Operator docs: INST
 | **1. Work content** | Tickets and categories, notes, tags, saved views, activity, notifications, own notification settings, the home snapshot, checklists; wiki gaps (old revisions, revert, page access, folder rename/move) | **done** |
 | **2. Monitoring and IT** | Monitors (create, update, maintenance mode), service health, hosts (infra), UniFi (read, acknowledge a device), printers, UPS, IPAM, DNS, Cisco (read), Planning Center, ProPresenter status | **done** |
 | **3. Operational** | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | |
-| 4. Read-only admin | Users, groups and module access, settings (secrets redacted), audit log, cluster status | |
+| **4. Read-only admin** | Users, groups and module access, settings (secrets hidden), audit log, cluster status | **done** |
 
 The coverage test lists what is still pending: `ROUTE_RULES` in `apps/api/src/mcp/bridge/route-rules.ts`
 (`pending` entries carry their phase). `COMPLETED_PHASES` in the same file is raised when a phase ships.
@@ -93,6 +93,20 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
   what they set is later pushed to a switch or published to DNS.
 - **No DNS record delete tool** (still no delete tools); the REST route is operational-only.
 - Existing tokens get the level off. A script that used one of these routes over REST needs a new token.
+
+## Decisions made in phase 4
+
+- **Settings secrets are hidden for agents even from a site admin.** The route shows a secret in the clear to anyone who can
+  manage the category (right for a person at a form). The two settings tools run `hideSecretSettings` (`bridge/scrub.ts`):
+  a secret that is set reads `[hidden]`, and so does any key the catalogue does not know (it may be one). This is the
+  `BridgeTool.transform` hook, for what a key list (`redact`) cannot say.
+- **The audit log is scrubbed too** (`scrubAudit`): a row keeps a snapshot of what the request carried and not every route strips
+  its secrets from it (a settings change stores the new value; a monitor create stores its `Authorization` header). Under
+  `before` and `after`, keys that look like credentials are hidden, and the value of a setting change is hidden unless
+  it is a known non-secret. Fixing the stored snapshots themselves (`redactKeys` on those routes) is a separate change.
+- `settings_list` and `settings_get` have no `@RequirePermissions` on the route (the handler decides per category), so
+  every token sees them in `tools/list`; a caller without settings access gets an empty list or a 403.
+- No admin writes: users, groups, settings, token management, backups and node removal stay in the web app.
 
 ## Excluded on purpose
 

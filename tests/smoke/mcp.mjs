@@ -348,6 +348,10 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       const same = await run(h, "monitors_set_maintenance", { enabled: before.enabled });
       assert(same.enabled === before.enabled, "maintenance changed");
 
+      // The audit snapshot of the create holds the header; the agent's view of the log must not.
+      const viaTool = await run(h, "audit_list", { action: "monitor.create", limit: 20 });
+      assert(viaTool.items.some((r) => r.resourceId === monitorId), "audit_list does not show the monitor.create row");
+      assert(!JSON.stringify(viaTool).includes("smoke-secret-value"), "secret leaked through audit_list");
       const audit = await session("/api/v1/audit?action=monitor.create&limit=20");
       const row = ((await audit.res.json()).items ?? []).find((r) => r.resourceId === monitorId);
       assert(row, "no monitor.create audit row");
@@ -440,6 +444,60 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
     } finally {
       await revoke(write);
       await revoke(op);
+    }
+  });
+
+  // ---- Phase 4: read-only admin ----
+
+  await test("mcp: read-only admin tools answer, and no secret reaches the model", async () => {
+    const ro = await mint({ name: "smoke mcp phase4 reads" });
+    try {
+      const h = auth(ro);
+      const users = await run(h, "users_list", {});
+      assert(Array.isArray(users) && users.length > 0, "users_list");
+      assert(!/passwordHash|totpSecret/i.test(JSON.stringify(users)), "credential field in users_list");
+      await run(h, "users_get", { id: users[0].id });
+      await run(h, "users_get_groups", { id: users[0].id });
+      const groups = await run(h, "groups_list", {});
+      assert(Array.isArray(groups) && groups.length > 0, "groups_list");
+      await run(h, "groups_get", { id: groups[0].id });
+      await run(h, "groups_list_members", { id: groups[0].id });
+      await run(h, "groups_get_module_access", { id: groups[0].id });
+      await run(h, "groups_get_permissions", { id: groups[0].id });
+      await run(h, "groups_get_matrix", {});
+      await run(h, "audit_list", { limit: 5 });
+      await run(h, "cluster_get_status", {});
+
+      // Every secret setting that is set reads [hidden]; none shows its value. Compare with what the session sees.
+      const settings = await run(h, "settings_list", {});
+      assert(Array.isArray(settings.items) && settings.items.length > 0, "settings_list");
+      const real = await session("/api/v1/settings");
+      const realItems = (await real.res.json()).items ?? [];
+      for (const it of realItems) {
+        if (!/secret|password|token|api_key|community/i.test(it.key)) continue;
+        if (typeof it.value !== "string" || it.value === "") continue; // a secret is text; a number or flag is not one
+        const seen = settings.items.find((x) => x.key === it.key);
+        assert(seen?.value === "[hidden]", `${it.key} is not hidden: ${JSON.stringify(seen?.value)}`);
+      }
+      const one = await run(h, "settings_get", { key: "site.name" });
+      assert(one.key === "site.name", "settings_get");
+    } finally {
+      await revoke(ro);
+    }
+  });
+
+  await test("mcp: a token without admin modules gets no admin data", async () => {
+    const notes = await mint({ name: "smoke mcp phase4 notes only", modules: ["notes"], readOnly: false });
+    try {
+      const h = auth(notes);
+      const names = ((await rpc(h, "tools/list")).body?.result?.tools ?? []).map((t) => t.name);
+      for (const n of ["users_list", "groups_list", "audit_list", "cluster_get_status"]) {
+        assert(!names.includes(n), `${n} is offered to a notes-only token`);
+      }
+      const s = await run(h, "settings_list", {});
+      assert((s.items ?? []).every((i) => !/^(smtp|auth|google|microsoft)\./.test(i.key)), "core settings visible to a notes-only token");
+    } finally {
+      await revoke(notes);
     }
   });
 }

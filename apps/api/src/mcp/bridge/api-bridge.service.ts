@@ -80,6 +80,7 @@ export class ApiBridge {
 
     let result: unknown = body === undefined || body === "" ? { ok: true } : body;
     if (tool.redact?.length) result = redactKeys(result, tool.redact);
+    if (tool.transform) result = tool.transform(result);
     if (tool.link) {
       const path = tool.link(result);
       if (path && result && typeof result === "object" && !Array.isArray(result)) {

@@ -1,4 +1,5 @@
 import type { BridgeTool } from "../bridge.types";
+import { ADMIN_TOOLS } from "./admin.tools";
 import { CHECKLIST_TOOLS } from "./checklists.tools";
 import { CHURCH_TOOLS } from "./church.tools";
 import { GENERAL_TOOLS } from "./general.tools";
@@ -24,4 +25,5 @@ export const BRIDGE_TOOLS: BridgeTool[] = [
   ...NETWORK_TOOLS,
   ...CHURCH_TOOLS,
   ...OPERATIONAL_TOOLS,
+  ...ADMIN_TOOLS,
 ];

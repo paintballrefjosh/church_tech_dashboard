@@ -27,7 +27,7 @@ export interface RouteRule {
  * Phases whose pending rules must all be gone. Raise it as each phase ships; the
  * coverage test then fails if a rule of a finished phase is still here.
  */
-export const COMPLETED_PHASES: number[] = [0, 1, 2, 3];
+export const COMPLETED_PHASES: number[] = [0, 1, 2, 3, 4];
 
 const SESSION_ONLY = "needs a browser session by design (a leaked token must not be able to do this)";
 const NO_SECRETS = "takes credentials as arguments; connection tests stay in the web UI";
@@ -97,15 +97,6 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "POST|PUT|PATCH|DELETE /users/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "POST|PUT|PATCH|DELETE /groups/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "PUT|DELETE /settings/**", status: "excluded", reason: ADMIN_WRITES },
-
-  // ---- Phase 4: read-only admin ------------------------------------------------------------------
-  { pattern: "GET /users/**", status: "pending", phase: 4, reason: "user directory (read-only)" },
-  { pattern: "GET /groups/**", status: "pending", phase: 4, reason: "groups and module access (read-only)" },
-  { pattern: "GET /settings", status: "pending", phase: 4, reason: "settings, secrets redacted (read-only)" },
-  { pattern: "GET /settings/*", status: "pending", phase: 4, reason: "settings, secrets redacted (read-only)" },
-  { pattern: "GET /audit", status: "pending", phase: 4, reason: "audit log (read-only)" },
-  { pattern: "GET /admin/cluster", status: "pending", phase: 4, reason: "cluster status (read-only)" },
-  { pattern: "GET /planning-center/links", status: "pending", phase: 4, reason: "which logins are linked to which Planning Center people (read-only admin)" },
 ];
 
 function compile(pattern: string): { methods: Set<string> | null; path: RegExp } {

@@ -59,6 +59,11 @@ export interface BridgeTool {
    * so a secret never reaches a model's context. A key that is null or empty is left as it is.
    */
   redact?: string[];
+  /**
+   * A last step on the route's answer, for what a key list cannot express (a value that is secret only for
+   * some keys). Runs after `redact`, before the answer is cut to size.
+   */
+  transform?: (result: unknown) => unknown;
   /** A web path (`/tickets/<id>`) for a result, shown to the model as an absolute `url`. */
   link?: (result: unknown) => string | null;
 }

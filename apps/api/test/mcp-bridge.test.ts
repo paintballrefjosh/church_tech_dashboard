@@ -11,6 +11,7 @@ import {
   redactKeys,
   type BridgeCaller,
 } from "../src/mcp/bridge/api-bridge.service";
+import { hideSecretSettings, scrubAudit } from "../src/mcp/bridge/scrub";
 import { defineTool, pathParamNames } from "../src/mcp/bridge/bridge.types";
 import { strictInput, toInputSchema } from "../src/mcp/bridge/bridge-schema";
 import type { SettingsService } from "../src/settings/settings.service";
@@ -204,5 +205,54 @@ describe("ApiBridge.call", () => {
   it("answers { ok: true } for an empty success", async () => {
     const { b } = bridge(() => ({ statusCode: 200, body: "" }));
     await expect(b.call(getTool, { id: ID, part: "p" }, caller)).resolves.toEqual({ ok: true });
+  });
+});
+
+describe("hideSecretSettings", () => {
+  it("hides a set secret, and a key the catalogue does not know, and leaves the rest", () => {
+    const out = hideSecretSettings({
+      items: [
+        { key: "site.name", value: "Grace Church" },
+        { key: "google.oauth.client_secret", value: "s3cret" },
+        { key: "smtp.password", value: "" },
+        { key: "made.up.key", value: "maybe-a-secret" },
+      ],
+    }) as { items: Array<{ key: string; value: unknown }> };
+    const by = Object.fromEntries(out.items.map((i) => [i.key, i.value]));
+    expect(by["site.name"]).toBe("Grace Church");
+    expect(by["google.oauth.client_secret"]).toBe("[hidden]");
+    expect(by["smtp.password"]).toBe("");
+    expect(by["made.up.key"]).toBe("[hidden]");
+  });
+
+  it("does the same for one setting", () => {
+    expect(hideSecretSettings({ key: "google.oauth.client_secret", value: "s3cret" })).toEqual({
+      key: "google.oauth.client_secret",
+      value: "[hidden]",
+    });
+    expect(hideSecretSettings({ key: "site.name", value: "x" })).toEqual({ key: "site.name", value: "x" });
+  });
+});
+
+describe("scrubAudit", () => {
+  it("hides credentials inside the snapshots but not the token name of the row", () => {
+    const out = scrubAudit({
+      items: [
+        {
+          action: "monitor.create",
+          resourceType: "monitor",
+          resourceId: "m1",
+          apiTokenName: "my token",
+          before: null,
+          after: { name: "m", options: { authorization: "Bearer abc" }, requiresToken: false },
+        },
+        { action: "setting.set", resourceType: "setting", resourceId: "made.up.key", before: null, after: { value: "pw" } },
+        { action: "setting.set", resourceType: "setting", resourceId: "site.name", before: { value: "A" }, after: { value: "B" } },
+      ],
+    }) as { items: Array<Record<string, unknown>> };
+    expect(out.items[0]!.apiTokenName).toBe("my token");
+    expect(out.items[0]!.after).toEqual({ name: "m", options: { authorization: "[hidden]" }, requiresToken: false });
+    expect(out.items[1]!.after).toEqual({ value: "[hidden]" });
+    expect(out.items[2]!.after).toEqual({ value: "B" });
   });
 });
