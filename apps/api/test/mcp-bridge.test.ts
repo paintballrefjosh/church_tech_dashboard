@@ -8,6 +8,7 @@ import {
   buildRequest,
   capResult,
   errorText,
+  redactKeys,
   type BridgeCaller,
 } from "../src/mcp/bridge/api-bridge.service";
 import { defineTool, pathParamNames } from "../src/mcp/bridge/bridge.types";
@@ -128,6 +129,20 @@ describe("capResult", () => {
   });
 });
 
+describe("redactKeys", () => {
+  it("hides the named keys at any depth and keeps empty ones readable", () => {
+    const v = [
+      { id: 1, snmpCommunity: "secret", nested: { options: { authorization: "Bearer x", method: "GET" } } },
+      { id: 2, snmpCommunity: null, nested: { options: { authorization: "" } } },
+    ];
+    expect(redactKeys(v, ["snmpCommunity", "authorization"])).toEqual([
+      { id: 1, snmpCommunity: "[hidden]", nested: { options: { authorization: "[hidden]", method: "GET" } } },
+      { id: 2, snmpCommunity: null, nested: { options: { authorization: "" } } },
+    ]);
+    expect(v[0]!.snmpCommunity).toBe("secret");
+  });
+});
+
 describe("tool schemas", () => {
   it("are plain JSON Schema generated from the zod input, strict", () => {
     const schema = toInputSchema(getTool) as Record<string, unknown>;
@@ -178,6 +193,12 @@ describe("ApiBridge.call", () => {
   it("turns an error status into a BridgeError with the API's message", async () => {
     const { b } = bridge(() => ({ statusCode: 403, body: JSON.stringify({ message: "This API token is read-only" }) }));
     await expect(b.call(patchTool, { id: ID }, caller)).rejects.toThrow("Not allowed: This API token is read-only");
+  });
+
+  it("hides the credentials a tool names before the model sees them", async () => {
+    const tool = defineTool({ ...getTool, redact: ["snmpCommunity"] });
+    const { b } = bridge(() => ({ statusCode: 200, body: JSON.stringify({ name: "p1", snmpCommunity: "private" }) }));
+    await expect(b.call(tool, { id: ID, part: "p" }, caller)).resolves.toEqual({ name: "p1", snmpCommunity: "[hidden]" });
   });
 
   it("answers { ok: true } for an empty success", async () => {

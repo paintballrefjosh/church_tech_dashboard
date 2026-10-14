@@ -1119,10 +1119,15 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `activity_list`, `notifications_*`, `me_*_notification_prefs` | Activity feed, the owner's notifications and how they receive them |
 | `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |
 | `checklists_*` | Events, tasks (tick off), templates, stations, recurring services, assignments, reports |
+| `monitors_*`, `health_get_services` | Uptime monitors and their incidents; create or change a monitor, maintenance mode (no delete) |
+| `infra_*`, `unifi_*`, `printers_*`, `ups_*` | Hosts, UniFi devices and clients (acknowledge an offline device), printers, UPS units: read-only. Logins and SNMP communities are never shown |
+| `ipam_*`, `dns_*`, `cisco_*` | Subnets and hosts, DNS zones, records and the IPAM sync preview, Cisco switches, ports, config backups, drift, MAC/ARP lookup, VLANs: read-only (`dns_create_health_monitors` only adds monitors) |
+| `planning_center_*`, `propresenter_*` | Planning Center plans and people, ProPresenter status: read-only |
 
 An agent is offered only the tools its token allows: a read-only token sees the reading tools, and a token limited to
-some modules sees only those modules' tools. Monitoring, IT systems and read-only admin tools are added in later
-phases (`docs/mcp.md`).
+some modules sees only those modules' tools. Adding or editing devices (hosts, printers, UPS, switches), and anything
+that acts on live equipment (switch ports, DNS records, scans, ProPresenter slides) is not offered yet: equipment actions
+come in a later phase behind a separate token level, and read-only admin tools after that (`docs/mcp.md`).
 
 Safety: `wiki_update_page` needs the `updatedAt` the agent last read, so it can't
 overwrite an edit made since. Every edit is a revision you can revert from the page's

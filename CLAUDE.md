@@ -429,7 +429,9 @@ named in `route-rules.ts` with a reason** (`mcp-coverage.test.ts` fails otherwis
 a tool and delete its `pending` rule, or add an `excluded` rule. `tools/list` shows a
 caller only the tools its permissions allow (read-only tokens: reads only). Read-only
 admin, no delete tools for tickets/wiki/accounts, and a future "operational" token level
-for equipment-touching tools are decided (2026-10-12).
+for equipment-touching tools are decided (2026-10-12). A tool whose route returns a credential
+sets `redact` (values become `[hidden]`); devices with logins (hosts, printers, UPS, switches)
+are registered in the web app only.
 
 ## Search
 

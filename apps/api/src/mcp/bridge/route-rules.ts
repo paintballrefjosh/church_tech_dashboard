@@ -27,11 +27,13 @@ export interface RouteRule {
  * Phases whose pending rules must all be gone. Raise it as each phase ships; the
  * coverage test then fails if a rule of a finished phase is still here.
  */
-export const COMPLETED_PHASES: number[] = [0, 1];
+export const COMPLETED_PHASES: number[] = [0, 1, 2];
 
 const SESSION_ONLY = "needs a browser session by design (a leaked token must not be able to do this)";
 const NO_SECRETS = "takes credentials as arguments; connection tests stay in the web UI";
 const NO_DELETE = "agents cannot delete this (decided 2026-10-12); a person does it in the web app";
+const DEVICE_CREDENTIALS =
+  "registering or changing a device handles its address and login (SSH, SNMP, API token); a person does it in the web app";
 const ADMIN_WRITES = "admin writes are out of scope for agents for now (read-only admin, decided 2026-10-12)";
 
 export const ROUTE_RULES: RouteRule[] = [
@@ -75,6 +77,21 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "DELETE /saved-views/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /wiki/**", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /checklists/**", status: "excluded", reason: NO_DELETE },
+  { pattern: "POST /infra/targets", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "PATCH|DELETE /infra/targets/*", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "POST /printers", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "PATCH|DELETE /printers/*", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "POST /ups", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "PATCH|DELETE /ups/*", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "POST /cisco/switches", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "PATCH|DELETE /cisco/switches/*", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "DELETE /monitors/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /ipam/subnets/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /cisco/switches/*/backups/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /cisco/switches/*/ports/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "POST|DELETE /planning-center/me/link", status: "excluded", reason: "linking a login to a Planning Center person is a personal account setting, done in the web app" },
+  { pattern: "POST /planning-center/links", status: "excluded", reason: ADMIN_WRITES },
+  { pattern: "DELETE /planning-center/links/*", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "* /dashboard/**", status: "excluded", reason: "the home page's draggable layout and look are personal UI state, set in the web app; dashboard_get_home gives the data" },
   { pattern: "POST|PUT|PATCH|DELETE /users/**", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "POST|PUT|PATCH|DELETE /groups/**", status: "excluded", reason: ADMIN_WRITES },
@@ -96,6 +113,12 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "POST /dns/managed/*/release", status: "pending", phase: 3, reason: "changes DNS ownership markers" },
   { pattern: "POST /infra/targets/*/poll-now", status: "pending", phase: 3, reason: "logs into a host" },
   { pattern: "POST /infra/targets/*/discover-services", status: "pending", phase: 3, reason: "logs into a host" },
+  { pattern: "POST /cisco/switches/*/ports", status: "pending", phase: 3, reason: "edits the desired port configuration that is pushed to a switch" },
+  { pattern: "PATCH /cisco/switches/*/ports/*", status: "pending", phase: 3, reason: "edits the desired port configuration that is pushed to a switch" },
+  { pattern: "POST /ipam/subnets", status: "pending", phase: 3, reason: "starts a network scan and can publish names to DNS" },
+  { pattern: "PATCH /ipam/subnets/*", status: "pending", phase: 3, reason: "switches scanning and DNS publishing on or off" },
+  { pattern: "PATCH /ipam/hosts/*", status: "pending", phase: 3, reason: "sets the name published to DNS" },
+  { pattern: "POST /ipam/adopt", status: "pending", phase: 3, reason: "starts a network scan" },
   { pattern: "POST /ipam/subnets/*/scan", status: "pending", phase: 3, reason: "scans a network" },
   { pattern: "POST /printers/*/poll", status: "pending", phase: 3, reason: "queries a printer" },
   { pattern: "POST /ups/*/poll", status: "pending", phase: 3, reason: "queries a UPS" },
@@ -107,19 +130,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "GET /settings/*", status: "pending", phase: 4, reason: "settings, secrets redacted (read-only)" },
   { pattern: "GET /audit", status: "pending", phase: 4, reason: "audit log (read-only)" },
   { pattern: "GET /admin/cluster", status: "pending", phase: 4, reason: "cluster status (read-only)" },
-
-  // ---- Phase 2: monitoring and the rest of IT ----------------------------------------------------
-  { pattern: "* /monitors/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "GET /health/services", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /infra/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /unifi/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /printers/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /ups/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /ipam/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /dns/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /cisco/**", status: "pending", phase: 2, reason: "monitoring" },
-  { pattern: "* /planning-center/**", status: "pending", phase: 2, reason: "Planning Center" },
-  { pattern: "GET /propresenter/**", status: "pending", phase: 2, reason: "ProPresenter status" },
+  { pattern: "GET /planning-center/links", status: "pending", phase: 4, reason: "which logins are linked to which Planning Center people (read-only admin)" },
 ];
 
 function compile(pattern: string): { methods: Set<string> | null; path: RegExp } {

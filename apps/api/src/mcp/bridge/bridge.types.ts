@@ -53,6 +53,12 @@ export interface BridgeTool {
   destructive?: boolean;
   /** Repeating the same call with the same arguments has no further effect. */
   idempotent?: boolean;
+  /**
+   * Keys whose values are credentials the route returns to the web app (an SNMP community, a probe's
+   * `Authorization` header). They are replaced by `"[hidden]"` wherever they appear in the result,
+   * so a secret never reaches a model's context. A key that is null or empty is left as it is.
+   */
+  redact?: string[];
   /** A web path (`/tickets/<id>`) for a result, shown to the model as an absolute `url`. */
   link?: (result: unknown) => string | null;
 }

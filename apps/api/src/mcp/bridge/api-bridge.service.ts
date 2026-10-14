@@ -78,7 +78,8 @@ export class ApiBridge {
     }
     if (res.statusCode >= 400) throw new BridgeError(res.statusCode, errorText(res.statusCode, body));
 
-    let result = body === undefined || body === "" ? { ok: true } : body;
+    let result: unknown = body === undefined || body === "" ? { ok: true } : body;
+    if (tool.redact?.length) result = redactKeys(result, tool.redact);
     if (tool.link) {
       const path = tool.link(result);
       if (path && result && typeof result === "object" && !Array.isArray(result)) {
@@ -127,6 +128,22 @@ export function buildRequest(
   const url = `${API_PREFIX}${path}${qs ? `?${qs}` : ""}`;
   const hasBody = tool.method !== "GET" && tool.method !== "DELETE" ? true : Object.keys(body).length > 0;
   return { url, payload: hasBody ? JSON.stringify(body) : undefined };
+}
+
+export const HIDDEN = "[hidden]";
+
+/** Replace the value of the named keys, at any depth, with `[hidden]` (null and empty values stay, so "none set" still reads). */
+export function redactKeys(value: unknown, keys: string[]): unknown {
+  if (Array.isArray(value)) return value.map((v) => redactKeys(v, keys));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (keys.includes(k) && v !== null && v !== undefined && v !== "") out[k] = HIDDEN;
+      else out[k] = redactKeys(v, keys);
+    }
+    return out;
+  }
+  return value;
 }
 
 /** One readable line for the model out of whatever shape the API answered with. */

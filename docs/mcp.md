@@ -9,8 +9,8 @@ through the MCP server at `/api/v1/mcp`. Decided 2026-10-12. Operator docs: INST
 |---|---|---|
 | **0. Bridge** | In-process route bridge, tool catalogue, route-coverage test, per-caller tool listing, smoke tests | **done** |
 | **1. Work content** | Tickets and categories, notes, tags, saved views, activity, notifications, own notification settings, the home snapshot, checklists; wiki gaps (old revisions, revert, page access, folder rename/move) | **done** |
-| 2. Monitoring and IT (next) | Monitors, infra, UniFi, printers, UPS, IPAM, DNS, Cisco, Planning Center, ProPresenter status; their record-level writes | |
-| 3. Operational | Anything that acts on live equipment (ProPresenter slides, switch ports, DNS records, polls, scans). Needs the new "operational" token level | |
+| **2. Monitoring and IT** | Monitors (create, update, maintenance mode), service health, hosts (infra), UniFi (read, acknowledge a device), printers, UPS, IPAM, DNS, Cisco (read), Planning Center, ProPresenter status | **done** |
+| 3. Operational (next) | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | |
 | 4. Read-only admin | Users, groups and module access, settings (secrets redacted), audit log, cluster status | |
 
 The coverage test lists what is still pending: `ROUTE_RULES` in `apps/api/src/mcp/bridge/route-rules.ts`
@@ -63,12 +63,30 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
   `commaKeys` on the tool (search `kind`, home `include`, checklist template `ids`).
 - `wiki_create_page` now takes `visibility` and `acl`; `wiki_set_page_access` changes them on an existing page.
 
+## Decisions made in phase 2
+
+- **Devices are registered in the web app, not by agents.** Creating or editing an infra host, printer, UPS or Cisco switch
+  carries an address and a login (SSH, SNMP, API token); a changed address would also send the stored login somewhere
+  else. Agents read them and can switch monitors on or off, nothing more.
+- **Credentials the read routes return are hidden.** A tool can name `redact` keys (`BridgeTool.redact`); the bridge
+  replaces their values with `[hidden]` before the model sees them. Used for the SNMP community on printers and UPS
+  units, and for a monitor's stored `Authorization` header. `monitors_update` replaces the whole `options` object, so
+  its description tells the agent to leave `options` out when the header shows as hidden.
+- **Monitors can be created and changed, not deleted** (disable one instead). Maintenance mode is a write tool; its
+  description says to switch it back off.
+- **IPAM writes wait for phase 3**: adding or adopting a subnet starts a scan, and the subnet's DNS switch and a host's
+  DNS name publish records to live DNS. Same for the Cisco desired-port edits (they are what gets pushed to a switch).
+- **Cisco config backups can be read** (`cisco_get_backup`; the description warns that a running config can hold hashes
+  and community strings). The route gives the same text to anyone with the monitoring module.
+- `cisco_lookup` and `cisco_list_mac` keep the route's `exclude_uplinks` parameter as the strings `"0"` and `"1"`;
+  Planning Center plans keep `service_type_id`. A tool's argument names follow the route's, not a prettier style.
+
 ## Excluded on purpose
 
 Listed with reasons in `route-rules.ts` (`excluded`); the main groups:
 
 - **Session-only**: backups and restores, API token management, password and email change, TOTP, sign-in.
-- **Secrets as arguments**: the "test connection" routes of every integration.
+- **Secrets as arguments**: the "test connection" routes of every integration, and registering or editing a device.
 - **No undo, or too powerful**: host OS updates (sudo password), hard-delete and password-set for accounts.
 - **Admin writes** (users, groups, settings): read-only admin for now.
 - **Binary attachments** (upload and download): need their own design (multipart; return a link for downloads).

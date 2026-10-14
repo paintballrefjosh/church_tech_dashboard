@@ -1,5 +1,5 @@
 /**
- * MCP server smoke tests (POST /api/v1/mcp), run from run.mjs. Reads only: it creates short-lived API
+ * MCP server smoke tests (POST /api/v1/mcp), run from run.mjs. It creates short-lived API
  * tokens (revoked before the block ends) and speaks the Streamable HTTP protocol with plain fetch.
  */
 export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
@@ -238,6 +238,146 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       await run(h, "notes_list", {});
     } finally {
       await revoke(notes);
+    }
+  });
+
+  // ---- Phase 2: monitoring and IT ----
+
+  await test("mcp: monitoring and IT reads answer for a read-only token; integrations may be unconfigured but never crash", async () => {
+    const ro = await mint({ name: "smoke mcp phase2 reads" });
+    try {
+      const h = auth(ro);
+      // Held in the database: must answer.
+      const stored = [
+        ["monitors_list", {}],
+        ["monitors_summary", {}],
+        ["monitors_list_open_incidents", {}],
+        ["monitors_list_workers", {}],
+        ["monitors_get_maintenance", {}],
+        ["health_get_services", {}],
+        ["infra_get_summary", {}],
+        ["infra_list_open_incidents", {}],
+        ["infra_list_targets", {}],
+        ["printers_list", {}],
+        ["printers_get_summary", {}],
+        ["ups_list", {}],
+        ["ups_get_summary", {}],
+        ["ipam_get_summary", {}],
+        ["ipam_list_subnets", {}],
+        ["cisco_list_switches", {}],
+        ["cisco_get_backup_status", {}],
+        ["cisco_list_backups", { limit: 5 }],
+        ["cisco_list_drift", { limit: 5 }],
+        ["cisco_list_mac", { limit: 5, sort: "ip" }],
+        ["cisco_list_vlans", {}],
+        ["cisco_get_topology", {}],
+        ["cisco_lookup", { q: "00" }],
+        ["dns_get_sync_status", {}],
+        ["dns_list_sync_runs", {}],
+      ];
+      for (const [name, args] of stored) await run(h, name, args);
+
+      // Outside systems: "not configured" or "unreachable" is a fine answer, an internal error is not.
+      const outside = [
+        ["unifi_get_health", {}],
+        ["unifi_get_summary", {}],
+        ["unifi_list_devices", {}],
+        ["dns_get_summary", {}],
+        ["dns_list_zones", {}],
+        ["dns_get_stats", { range: "LastHour" }],
+        ["planning_center_get_health", {}],
+        ["planning_center_list_service_types", {}],
+        ["planning_center_get_my_link", {}],
+        ["propresenter_get_health", {}],
+        ["propresenter_get_status", {}],
+      ];
+      for (const [name, args] of outside) {
+        const r = await call(h, name, args);
+        assert(r.status === 200, `${name}: HTTP ${r.status}`);
+        // 502/503/504 is the outside system being down; a plain 500 is the dashboard failing.
+        assert(!/HTTP 500/.test(toolText(r)), `${name}: server error: ${toolText(r).slice(0, 200)}`);
+      }
+
+      // Drill into the first row of a few lists.
+      const monitors = await run(h, "monitors_list", {});
+      if (monitors.length > 0) {
+        await run(h, "monitors_get", { id: monitors[0].id });
+        await run(h, "monitors_get_history", { id: monitors[0].id, limit: 5 });
+        await run(h, "monitors_list_incidents", { id: monitors[0].id });
+      }
+      const targets = await run(h, "infra_list_targets", {});
+      if (targets.length > 0) {
+        await run(h, "infra_get_target", { id: targets[0].id });
+        await run(h, "infra_list_entities", { id: targets[0].id });
+        await run(h, "infra_get_metrics", { id: targets[0].id });
+      }
+      const subnets = await run(h, "ipam_list_subnets", {});
+      if (subnets.length > 0) await run(h, "ipam_list_hosts", { id: subnets[0].id });
+    } finally {
+      await revoke(ro);
+    }
+  });
+
+  await test("mcp: a monitor is created, changed and audited as the token, and its stored header stays hidden", async () => {
+    const full = await mint({ name: "smoke mcp phase2 writes", readOnly: false });
+    let monitorId = null;
+    try {
+      const h = auth(full);
+      // Created switched off, so the probe worker never touches it and no incident or alert can result.
+      const created = await run(h, "monitors_create", {
+        name: "smoke mcp monitor",
+        kind: "http",
+        target: "http://127.0.0.1:9/",
+        enabled: false,
+        options: { method: "GET", authorization: "Bearer smoke-secret-value" },
+      });
+      monitorId = created.id;
+      assert(created.options?.authorization === "[hidden]", `header not hidden: ${JSON.stringify(created.options)}`);
+      assert(/\/monitoring\//.test(created.url ?? ""), "no link");
+      const got = await run(h, "monitors_get", { id: monitorId });
+      assert(got.name === "smoke mcp monitor" && got.enabled === false, "monitor read back");
+      assert(!JSON.stringify(got).includes("smoke-secret-value"), "secret leaked through monitors_get");
+      const all = await run(h, "monitors_list", {});
+      assert(!JSON.stringify(all).includes("smoke-secret-value"), "secret leaked through monitors_list");
+
+      const renamed = await run(h, "monitors_update", { id: monitorId, name: "smoke mcp monitor renamed" });
+      assert(renamed.name === "smoke mcp monitor renamed", "monitor rename");
+
+      // Maintenance mode: write the state it already has, so nothing changes for anyone else.
+      const before = await run(h, "monitors_get_maintenance", {});
+      const same = await run(h, "monitors_set_maintenance", { enabled: before.enabled });
+      assert(same.enabled === before.enabled, "maintenance changed");
+
+      const audit = await session("/api/v1/audit?action=monitor.create&limit=20");
+      const row = ((await audit.res.json()).items ?? []).find((r) => r.resourceId === monitorId);
+      assert(row, "no monitor.create audit row");
+      assert(row.apiTokenName === "smoke mcp phase2 writes", `audit row not attributed to the token: ${row.apiTokenName}`);
+    } finally {
+      if (monitorId) await session(`/api/v1/monitors/${monitorId}`, { method: "DELETE" });
+      await revoke(full);
+    }
+  });
+
+  await test("mcp: no tool changes a device, deletes a monitor or touches live equipment", async () => {
+    const full = await mint({ name: "smoke mcp phase2 absent", readOnly: false });
+    try {
+      const listed = await rpc(auth(full), "tools/list");
+      const names = (listed.body?.result?.tools ?? []).map((t) => t.name);
+      for (const banned of [
+        "monitors_delete",
+        "infra_create_target",
+        "infra_update_target",
+        "printers_create",
+        "ups_create",
+        "cisco_create_switch",
+        "cisco_toggle_port",
+        "dns_create_record",
+        "propresenter_next",
+      ]) {
+        assert(!names.includes(banned), `${banned} is offered`);
+      }
+    } finally {
+      await revoke(full);
     }
   });
 }
