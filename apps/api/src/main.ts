@@ -86,7 +86,7 @@ async function bootstrap() {
     skipOnError: true,
   });
   // Stricter bucket for the auth endpoints — sign-in, TOTP verify, password
-  // change. 10/minute/IP is enough for a clumsy user, way too few for online
+  // change, and the public password-reset endpoints (mail-bombing, token flooding). 10/minute/IP is enough for a clumsy user, way too few for online
   // password / 6-digit brute force.
   app.getHttpAdapter().getInstance().addHook("onRoute", (route: { path?: string; config?: Record<string, unknown> }) => {
     const path = route.path ?? "";
@@ -94,6 +94,8 @@ async function bootstrap() {
     if (
       path.includes("/auth/verify-credentials") ||
       path.includes("/auth/totp/") ||
+      path.includes("/auth/tokens/request-reset") ||
+      path.includes("/auth/tokens/consume") ||
       path.includes("/me/change-password")
     ) {
       (route.config as { rateLimit?: { max: number; timeWindow: string; shared: boolean; skipOnError: boolean } }).rateLimit = {

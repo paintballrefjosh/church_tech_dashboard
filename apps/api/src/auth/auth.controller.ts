@@ -1,8 +1,6 @@
-import { Controller, Get, Post, Body, BadRequestException, UnauthorizedException, Inject, Req } from "@nestjs/common";
+import { Controller, Get, Post, Body, BadRequestException, HttpException, UnauthorizedException, Inject, Req } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { createHash } from "node:crypto";
 import { z } from "zod";
-import { authenticator } from "otplib";
 import { PERMISSIONS } from "@church/shared";
 import { Public } from "./public.decorator";
 import { RequirePermissions } from "./permissions.decorator";
@@ -10,7 +8,9 @@ import { AuthService } from "./auth.service";
 import { assertInternalCaller } from "./internal-token";
 import { SettingsService } from "../settings/settings.service";
 import { DB, type Db } from "../db/db.module";
-import { users, credentials, totpSecrets } from "../db/schema";
+import { users, credentials } from "../db/schema";
+import { RateLimitService } from "../cluster/rate-limit.service";
+import { UnreadableSecretError } from "../settings/crypto";
 
 const googleTestBodySchema = z.object({
   clientId: z.string().max(256).optional(),
@@ -52,6 +52,10 @@ const verifyBodySchema = z.object({
   totp: z.string().min(6).max(40).optional(),
 });
 
+/** Failed attempts allowed per account in the window, before further attempts are refused until it passes. */
+const MAX_FAILED_SIGNINS = 10;
+const FAILED_SIGNIN_WINDOW_MS = 15 * 60_000;
+
 function normaliseIdentifier(input: string): string {
   return input.includes("@") ? input.toLowerCase().trim() : `${input.toLowerCase().trim()}@local`;
 }
@@ -65,32 +69,9 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly settingsSvc: SettingsService,
+    private readonly limiter: RateLimitService,
     @Inject(DB) private readonly db: Db,
   ) {}
-
-  /**
-   * Check a recovery code against the stored hashed list. Single-use:
-   * matched codes are removed from the array before returning so they
-   * can't be replayed. Returns true on a successful consume.
-   */
-  private async consumeRecoveryCode(userId: string, plaintext: string): Promise<boolean> {
-    const hash = createHash("sha256")
-      .update(plaintext.toUpperCase().replace(/-/g, ""))
-      .digest("hex");
-    const [row] = await this.db
-      .select({ id: totpSecrets.userId, codes: totpSecrets.recoveryCodes })
-      .from(totpSecrets)
-      .where(eq(totpSecrets.userId, userId))
-      .limit(1);
-    const codes = row?.codes ?? [];
-    if (!codes.includes(hash)) return false;
-    const remaining = codes.filter((c) => c !== hash);
-    await this.db
-      .update(totpSecrets)
-      .set({ recoveryCodes: remaining })
-      .where(eq(totpSecrets.userId, userId));
-    return true;
-  }
 
   @Public()
   @Post("verify-credentials")
@@ -100,8 +81,35 @@ export class AuthController {
     const { email: rawEmail, password, totp } = parsed.data;
     const email = normaliseIdentifier(rawEmail);
 
+    // Per-account brake, on top of the per-IP limit: a password guessed from many addresses still runs into it.
+    // Keyed by what was typed, existing account or not, so a lock-out does not tell anyone the account exists.
+    const lock = await this.limiter.failures(email, FAILED_SIGNIN_WINDOW_MS);
+    if (lock.count >= MAX_FAILED_SIGNINS) {
+      throw new HttpException(
+        {
+          statusCode: 429,
+          message: `Too many failed sign-in attempts for this account. Try again in ${Math.ceil(lock.retryAfterSec / 60)} minute(s).`,
+          code: "too_many_attempts",
+        },
+        429,
+      );
+    }
+    const fail = async (message: string): Promise<never> => {
+      await this.limiter.recordFailure(email, FAILED_SIGNIN_WINDOW_MS).catch(() => undefined);
+      throw new UnauthorizedException(message);
+    };
+
     const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (user?.deletedAt) {
+    const [cred] = user
+      ? await this.db.select().from(credentials).where(eq(credentials.userId, user.id)).limit(1)
+      : [];
+
+    // Always spend the time of one password check, so an unknown account answers as slowly as a wrong password.
+    const ok = await this.auth.verifyPasswordOrDecoy(cred?.passwordHash, password);
+    if (!user || !cred || !ok) return fail("Invalid credentials");
+
+    // Only someone who knows the password learns that the account is deleted (or disabled).
+    if (user.deletedAt) {
       // Stable `code` lets the web Credentials authorize() surface a specific
       // message ("account has been deleted") rather than the generic one.
       throw new UnauthorizedException({
@@ -110,35 +118,28 @@ export class AuthController {
         code: "account_deleted",
       });
     }
-    if (!user || !user.isActive) throw new UnauthorizedException("Invalid credentials");
-
-    const [cred] = await this.db
-      .select()
-      .from(credentials)
-      .where(eq(credentials.userId, user.id))
-      .limit(1);
-    if (!cred) throw new UnauthorizedException("Invalid credentials");
-
-    const ok = await this.auth.verifyPassword(cred.passwordHash, password);
-    if (!ok) throw new UnauthorizedException("Invalid credentials");
+    if (!user.isActive) throw new UnauthorizedException("Invalid credentials");
 
     if (user.totpEnabled) {
       if (!totp) return { ok: false, requiresTotp: true };
-      // Distinguish: 6 pure digits → TOTP code; anything else → treat as a
+      // Distinguish: 6 pure digits -> TOTP code; anything else -> treat as a
       // recovery code. Recovery codes are normalised (uppercase, dashes
       // stripped) before hashing for the comparison.
-      const isDigits6 = /^\d{6}$/.test(totp);
-      if (isDigits6) {
-        const secret = await this.auth.getTotpSecret(user.id);
-        if (!secret) throw new UnauthorizedException("TOTP not configured");
-        const valid = authenticator.check(totp, secret);
-        if (!valid) throw new UnauthorizedException("Invalid TOTP");
-      } else {
-        const ok = await this.consumeRecoveryCode(user.id, totp);
-        if (!ok) throw new UnauthorizedException("Invalid TOTP");
+      let valid: boolean;
+      try {
+        valid = /^\d{6}$/.test(totp)
+          ? await this.auth.verifyTotpCode(user.id, totp)
+          : await this.auth.consumeRecoveryCode(user.id, totp);
+      } catch (err) {
+        if (err instanceof UnreadableSecretError) {
+          throw new UnauthorizedException("Two-factor cannot be checked for this account. Ask an administrator to reset it.");
+        }
+        throw err;
       }
+      if (!valid) return fail("Invalid TOTP");
     }
 
+    await this.limiter.clearFailures(email).catch(() => undefined);
     return {
       ok: true,
       user: {

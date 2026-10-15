@@ -3,7 +3,7 @@
 # across builds. Without it, every lockfile change re-downloads + re-extracts
 # every dependency from scratch.
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /app
 # Keep the pnpm store in a stable path so the build-time cache mount and the
@@ -46,5 +46,8 @@ COPY --from=build /app/deploy /app
 # `path.resolve(__dirname, "../../migrations")` still hits the right dir.
 COPY --from=build /app/apps/api/dist /app/dist
 COPY --from=build /app/apps/api/migrations /app/migrations
+# Not root: the app writes nothing under /app, and the one thing that wants a privilege (the IPAM scanner's
+# ping) gets it from the NET_RAW capability the compose files add, or from unprivileged ICMP sockets.
+USER node
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

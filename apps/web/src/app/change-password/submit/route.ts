@@ -17,19 +17,22 @@ const SESSION_COOKIE_CANDIDATES = [
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") ?? "";
   let newPassword = "";
+  let currentPassword = "";
   if (contentType.includes("application/json")) {
-    const body = (await req.json().catch(() => ({}))) as { newPassword?: string };
+    const body = (await req.json().catch(() => ({}))) as { newPassword?: string; currentPassword?: string };
     newPassword = body.newPassword ?? "";
+    currentPassword = body.currentPassword ?? "";
   } else {
     const form = await req.formData();
     newPassword = String(form.get("newPassword") ?? form.get("password1") ?? "");
+    currentPassword = String(form.get("currentPassword") ?? "");
   }
   if (!newPassword || newPassword.length < 8) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
   const res = await apiFetch("/api/v1/me/change-password", {
     method: "POST",
-    body: JSON.stringify({ newPassword }),
+    body: JSON.stringify({ newPassword, ...(currentPassword ? { currentPassword } : {}) }),
   });
   if (!res.ok) {
     let message: string;

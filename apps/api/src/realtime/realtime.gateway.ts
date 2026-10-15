@@ -8,10 +8,11 @@ import {
   type OnGatewayConnection,
   type OnGatewayDisconnect,
 } from "@nestjs/websockets";
-import { Logger, Inject } from "@nestjs/common";
+import { Logger, Inject, type OnModuleDestroy } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
 import { decode } from "@auth/core/jwt";
 import { AuthService } from "../auth/auth.service";
+import { sessionIsCurrent, sessionVersionOf } from "../auth/session-version";
 import { ClusterBus, INTERNAL_ROOM_PREFIX } from "../cluster/cluster-bus.service";
 import type { BusRow } from "../cluster/bus.store";
 
@@ -75,6 +76,37 @@ function wsAllowedOrigin(
   cb(null, allowlist.includes(normalised));
 }
 
+/**
+ * Whether a handshake came from this site. A browser sends `Origin` on every WebSocket handshake, and the WS
+ * protocol itself does not apply the same-origin policy, so a page on another origin of the same site (a
+ * sibling subdomain, say) could otherwise open a socket carrying the session cookie. No `Origin` (a script
+ * or a non-browser client) is let through, as on the HTTP side; the cookie is the credential there.
+ */
+export function handshakeOriginAllowed(headers: Record<string, string | string[] | undefined>): boolean {
+  const first = (v: string | string[] | undefined): string => (Array.isArray(v) ? v[0] ?? "" : v ?? "");
+  const origin = first(headers.origin).trim();
+  if (!origin) return true;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
+    return false;
+  }
+  // Either name the request was addressed by: the proxy chain may rewrite `Host` but sets X-Forwarded-Host
+  // (the sign-in flow depends on it too).
+  const hosts = [first(headers["x-forwarded-host"]), first(headers.host)]
+    .flatMap((h) => h.split(","))
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  if (hosts.includes(originHost)) return true;
+  const raw = process.env.APP_URL?.trim();
+  const allowlist = raw ? raw.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean) : [];
+  return allowlist.includes(origin.replace(/\/$/, ""));
+}
+
+/** How often each node re-checks its open sockets against the users' current access. */
+const REVALIDATE_MS = 30_000;
+
 @WebSocketGateway({
   cors: { origin: wsAllowedOrigin, credentials: true },
   // WebSocket only. Long-polling needs every request of a session to reach the same
@@ -82,8 +114,9 @@ function wsAllowedOrigin(
   // nodes. Clients that cannot open a WebSocket keep polling over plain HTTP instead.
   transports: ["websocket"],
 })
-export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeGateway.name);
+  private revalidateTimer: ReturnType<typeof setInterval> | null = null;
 
   @WebSocketServer()
   server!: Server;
@@ -106,6 +139,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     this.bus.onEvent((row) => this.deliver(row));
     this.bus.setPresenceSource(() => this.localPresence());
     server.use((socket, next) => {
+      if (!handshakeOriginAllowed(socket.handshake.headers)) {
+        next(new Error("unauthorized"));
+        return;
+      }
       void this.authenticate(socket)
         .then((auth) => {
           if (!auth) {
@@ -114,15 +151,56 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
           }
           socket.data.userId = auth.userId;
           socket.data.permissions = auth.permissions;
+          socket.data.sessionVersion = auth.sessionVersion;
           next();
         })
         .catch(() => next(new Error("unauthorized")));
     });
+    // Access is resolved when a socket connects and sockets live for hours: without this, a person who is
+    // signed out, disabled, or loses a module keeps receiving that module's live events until they reconnect.
+    // Per-node work on this node's own sockets, so deliberately not a leased ClusterJobs job.
+    this.revalidateTimer = setInterval(() => void this.revalidateSockets(), REVALIDATE_MS);
+    this.revalidateTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.revalidateTimer) clearInterval(this.revalidateTimer);
+    this.revalidateTimer = null;
+  }
+
+  /**
+   * Re-read each connected user (served from `loadUserById`'s short cache, which other nodes' changes drop
+   * over the bus): disconnect a socket whose user is gone, disabled or signed out, and take a socket out of
+   * any room its user may no longer read.
+   */
+  async revalidateSockets(): Promise<void> {
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return;
+    for (const socket of sockets.values()) {
+      try {
+        const userId = socket.data.userId as string | undefined;
+        const user = userId ? await this.auth.loadUserById(userId) : null;
+        if (!user || user.sessionVersion !== (socket.data.sessionVersion as number | undefined ?? 0)) {
+          socket.disconnect(true);
+          continue;
+        }
+        socket.data.permissions = user.permissions;
+        const perms = new Set(user.permissions);
+        for (const room of [...socket.rooms]) {
+          if (room === socket.id || room.startsWith("user:")) continue;
+          const need = requiredPermission(room);
+          if (!need || !perms.has(need)) await socket.leave(room);
+        }
+      } catch (err) {
+        this.logger.debug(`socket revalidation failed: ${(err as Error).message}`);
+      }
+    }
+    this.bus.touchPresence();
   }
 
   private async authenticate(
     socket: Socket,
-  ): Promise<{ userId: string; permissions: string[] } | null> {
+  ): Promise<{ userId: string; permissions: string[]; sessionVersion: number } | null> {
     const cookies = parseCookies(socket.handshake.headers.cookie);
     const secret = process.env.AUTH_SECRET;
     if (!secret) return null;
@@ -133,7 +211,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         const decoded = await decode({ token, secret, salt: name });
         if (typeof decoded?.sub === "string") {
           const user = await this.auth.loadUserById(decoded.sub);
-          if (user) return { userId: user.id, permissions: user.permissions };
+          if (user && sessionIsCurrent(decoded as { sv?: unknown }, user)) {
+            return { userId: user.id, permissions: user.permissions, sessionVersion: sessionVersionOf(decoded as { sv?: unknown }) };
+          }
         }
       } catch {
         // try next candidate cookie name

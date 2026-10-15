@@ -42,6 +42,9 @@ if (!(await login(PASSWORD))) {
   jar.clear();
   if (!(await login("regression-default-pwd"))) { console.error("could not sign in"); process.exit(2); }
   await call("/api/v1/me/change-password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ newPassword: PASSWORD }) });
+  // The change signs every session out, the one just used included.
+  jar.clear();
+  if (!(await login(PASSWORD))) { console.error("could not sign in after the password change"); process.exit(2); }
 }
 
 const notices = async () => (await (await call("/api/v1/notifications?limit=100")).json()).filter((n) => n.kind === "cluster.node_down" && n.title.includes(TARGET));

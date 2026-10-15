@@ -1,5 +1,6 @@
 import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { authenticator } from "otplib";
 import { createHash, randomBytes } from "node:crypto";
 import argon2 from "argon2";
 import { DB, type Db } from "../db/db.module";
@@ -14,6 +15,7 @@ import {
 } from "../db/schema";
 import type { AuthenticatedUser } from "./current-user.decorator";
 import { scopeUserToToken } from "./api-token-scope";
+import { decryptStoredSecret, encryptSecret, isEncrypted } from "../settings/crypto";
 import {
   MODULES,
   ALL_PERMISSIONS,
@@ -177,6 +179,7 @@ export class AuthService implements OnModuleInit {
       isActive: user.isActive,
       totpEnabled: user.totpEnabled,
       mustChangePassword: user.mustChangePassword,
+      sessionVersion: user.sessionVersion,
       approvalStatus: user.approvalStatus === "pending" ? "pending" : "approved",
       groups: groupNames,
       permissions,
@@ -197,6 +200,19 @@ export class AuthService implements OnModuleInit {
     this.bus.publish({ room: CACHE_ROOM, event: "user", payload: { id: userId } });
   }
 
+  /**
+   * Sign the account out of every browser: bump its session version, so each cookie issued so far stops
+   * matching. Used when the credentials change (password change or reset, two-factor removed or reset).
+   * The caller's own cookie dies too; the web sign-out flow sends the person to the sign-in page.
+   */
+  async revokeSessions(userId: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+    this.invalidateUser(userId);
+  }
+
   /** Drop every cached user. Use sparingly — e.g. when bulk perm changes
    *  cross every user (admin-group reseed). */
   invalidateAllUsers(): void {
@@ -204,12 +220,77 @@ export class AuthService implements OnModuleInit {
     this.bus.publish({ room: CACHE_ROOM, event: "users" });
   }
 
+  /**
+   * The user's TOTP secret in the clear. Stored encrypted like every other secret (`enc:v1:` prefix); a row
+   * written before that was plaintext and is encrypted in place on first read. A secret saved under another
+   * AUTH_SECRET throws `UnreadableSecretError`: the account's two-factor then has to be reset by an admin.
+   */
   async getTotpSecret(userId: string): Promise<string | null> {
     const [row] = await this.db
       .select()
       .from(totpSecrets)
       .where(eq(totpSecrets.userId, userId))
       .limit(1);
-    return row?.secret ?? null;
+    if (!row) return null;
+    if (!isEncrypted(row.secret)) {
+      await this.db
+        .update(totpSecrets)
+        .set({ secret: encryptSecret(row.secret) })
+        .where(and(eq(totpSecrets.userId, userId), eq(totpSecrets.secret, row.secret)))
+        .catch(() => undefined);
+      return row.secret;
+    }
+    return decryptStoredSecret(row.secret, "two-factor secret");
   }
+
+  /**
+   * Check a 6-digit code and burn it: a code is accepted once, and never for a step at or before the last one
+   * accepted, so a code someone watched being typed cannot be replayed within its validity window. The step is
+   * claimed with a conditional update, so two simultaneous requests with the same code cannot both pass.
+   */
+  async verifyTotpCode(userId: string, code: string): Promise<boolean> {
+    const secret = await this.getTotpSecret(userId);
+    if (!secret) return false;
+    const delta = authenticator.checkDelta(code, secret);
+    if (delta === null) return false;
+    const step = Math.floor(Date.now() / (authenticator.allOptions().step * 1000)) + delta;
+    const claimed = await this.db
+      .update(totpSecrets)
+      .set({ lastStep: step })
+      .where(and(eq(totpSecrets.userId, userId), or(isNull(totpSecrets.lastStep), lt(totpSecrets.lastStep, step))))
+      .returning({ userId: totpSecrets.userId });
+    return claimed.length === 1;
+  }
+
+  /**
+   * Spend a recovery code. The code is removed from the stored list in the same statement that finds it, so
+   * of two simultaneous uses of one code exactly one succeeds.
+   */
+  async consumeRecoveryCode(userId: string, plaintext: string): Promise<boolean> {
+    const hash = hashRecoveryCode(plaintext);
+    const spent = await this.db
+      .update(totpSecrets)
+      .set({ recoveryCodes: sql`array_remove(${totpSecrets.recoveryCodes}, ${hash}::text)` })
+      .where(and(eq(totpSecrets.userId, userId), sql`${hash}::text = ANY(${totpSecrets.recoveryCodes})`))
+      .returning({ userId: totpSecrets.userId });
+    return spent.length === 1;
+  }
+
+  private dummyHash: Promise<string> | null = null;
+
+  /**
+   * Verify a password against a stored hash, or burn the same time against a throwaway hash when there is no
+   * account to check, so "no such account" and "wrong password" take equally long.
+   */
+  async verifyPasswordOrDecoy(hash: string | null | undefined, password: string): Promise<boolean> {
+    if (hash) return this.verifyPassword(hash, password);
+    this.dummyHash ??= this.hashPassword(randomBytes(16).toString("hex"));
+    await this.verifyPassword(await this.dummyHash, password);
+    return false;
+  }
+}
+
+/** Recovery codes are compared by the SHA-256 of the code without dashes, upper-cased. */
+export function hashRecoveryCode(code: string): string {
+  return createHash("sha256").update(code.toUpperCase().replace(/-/g, "")).digest("hex");
 }

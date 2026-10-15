@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 export function PasswordForm() {
+  const [current, setCurrent] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ export function PasswordForm() {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ newPassword: pw }),
+        body: JSON.stringify({ newPassword: pw, ...(current ? { currentPassword: current } : {}) }),
       });
       if (!r.ok) {
         const body = (await r.json().catch(() => ({}))) as { message?: string | string[] };
@@ -36,9 +38,12 @@ export function PasswordForm() {
         setErr(msg ?? `Request failed (${r.status})`);
         return;
       }
+      setCurrent("");
       setPw("");
       setPw2("");
-      setOk("Password updated.");
+      setOk("Password updated. Signing you out everywhere; sign in again with the new one.");
+      // Every session of the account, this one included, was just ended on the server.
+      setTimeout(() => void signOut({ redirectTo: "/signin?changed=1" }), 1500);
     } finally {
       setBusy(false);
     }
@@ -46,6 +51,20 @@ export function PasswordForm() {
 
   return (
     <form onSubmit={submit} className="space-y-3 text-sm">
+      <label className="block">
+        <span className="text-xs text-slate-500">Current password</span>
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          maxLength={256}
+          className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+        />
+        <span className="mt-1 block text-xs text-slate-500">
+          Leave blank only if you have never set a password here (you sign in with Google or Microsoft).
+        </span>
+      </label>
       <label className="block">
         <span className="text-xs text-slate-500">New password</span>
         <input

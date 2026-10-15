@@ -14,6 +14,7 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true),
   totpEnabled: boolean("totp_enabled").notNull().default(false),
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -54,10 +54,10 @@ const rebuilt = (title: string): TableInfo => ({ policy: "skip", group: MONITORI
 
 export const TABLE_REGISTRY: Record<string, TableInfo> = {
   // ---- people and access ----
-  users: { policy: "data", group: PEOPLE, title: "Users", label: ["name", "email"] },
+  users: { policy: "data", group: PEOPLE, title: "Users", label: ["name", "email"], volatile: ["session_version"] },
   accounts: { policy: "data", group: PEOPLE, title: "Linked sign-in accounts", label: ["provider"], sensitive: ["refresh_token", "access_token", "id_token", "session_state"] },
   credentials: { policy: "data", group: PEOPLE, title: "Local passwords", sensitive: ["password_hash"] },
-  totp_secrets: { policy: "data", group: PEOPLE, title: "Two-factor secrets", sensitive: ["secret", "recovery_codes"] },
+  totp_secrets: { policy: "data", group: PEOPLE, title: "Two-factor secrets", sensitive: ["secret", "recovery_codes"], volatile: ["last_step"] },
   groups: { policy: "data", group: PEOPLE, title: "Groups", label: ["name"] },
   group_memberships: { policy: "data", group: PEOPLE, title: "Group memberships" },
   group_module_access: { policy: "data", group: PEOPLE, title: "Group access to modules", label: ["module_key", "tier"] },

@@ -593,6 +593,9 @@ function ManageDrawer({
   const [resetMust, setResetMust] = useState(true);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [totpBusy, setTotpBusy] = useState(false);
+  const [totpMsg, setTotpMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [totpOff, setTotpOff] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(true);
   const [resetOpen, setResetOpen] = useState(true);
   const [welcomeBusy, setWelcomeBusy] = useState(false);
@@ -712,6 +715,31 @@ function ManageDrawer({
       });
     } finally {
       setResetBusy(false);
+    }
+  }
+
+  async function resetTotp() {
+    if (
+      !confirm(
+        `Remove two-factor for "${user.name ?? user.email}"? Use this when they have lost their ` +
+          `authenticator and recovery codes. They are signed out everywhere and can enrol again from their profile.`,
+      )
+    ) {
+      return;
+    }
+    setTotpMsg(null);
+    setTotpBusy(true);
+    try {
+      const r = await fetch(`/api/users/${user.id}/totp/reset`, { method: "POST", credentials: "same-origin" });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { message?: string };
+        setTotpMsg({ kind: "err", text: body.message ?? `Reset failed (${r.status})` });
+        return;
+      }
+      setTotpOff(true);
+      setTotpMsg({ kind: "ok", text: "Two-factor removed and the account signed out everywhere." });
+    } finally {
+      setTotpBusy(false);
     }
   }
 
@@ -885,6 +913,33 @@ function ManageDrawer({
         </div>
         )}
       </section>
+
+      {user.totpEnabled && !totpOff ? (
+        <section className="mb-4 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+          <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+            <KeyRound className="h-3 w-3" aria-hidden /> Two-factor
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Two-factor is on for this account. If they have lost their authenticator and their recovery codes, remove it so
+            they can sign in and enrol again.
+          </p>
+          {totpMsg ? (
+            <p className={`mt-2 text-xs ${totpMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{totpMsg.text}</p>
+          ) : null}
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              disabled={totpBusy}
+              onClick={() => void resetTotp()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              {totpBusy ? "Removing…" : "Remove two-factor"}
+            </button>
+          </div>
+        </section>
+      ) : totpMsg ? (
+        <p className={`mb-4 text-xs ${totpMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{totpMsg.text}</p>
+      ) : null}
 
       <UserTokensSection userId={user.id} userEmail={user.email} userName={user.name} />
 

@@ -20,7 +20,7 @@ export default async function ChangePasswordPage() {
             ? "You're using the default password. Pick a new one to continue."
             : "Pick a new password for your account."}
         </p>
-        <ChangePasswordForm />
+        <ChangePasswordForm askCurrent={!forced} />
       </div>
     </main>
   );

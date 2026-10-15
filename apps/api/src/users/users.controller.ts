@@ -163,6 +163,17 @@ export class UsersController {
     return this.users.adminResetPassword(id, parsed.data.password, parsed.data.mustChangePassword);
   }
 
+  /**
+   * Admin removal of someone's two-factor when they have lost the device and the recovery codes. Signs them
+   * out everywhere; they enrol again from their profile.
+   */
+  @Post(":id/totp/reset")
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
+  @Audited({ action: "user.adminResetTotp", resourceType: "user", resourceIdFromParams: (p) => p.id ?? null })
+  adminResetTotp(@Param("id") id: string) {
+    return this.users.adminResetTotp(id);
+  }
+
   // ---- OAuth provisioning hook ----
 
   /**

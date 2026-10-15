@@ -346,6 +346,30 @@ audit snapshot.
   "Using the API".
 - **Not covered:** the Socket.IO handshake still reads the session cookie only.
 
+### Sessions, sign-out and sign-in hardening
+
+- **Sessions can be ended server-side.** `users.session_version` (migration 0060) is stamped into the cookie's JWT as
+  `sv` when the web signs someone in (`jwt` callback in `apps/web/src/lib/auth.ts`, read from the database because
+  OAuth users come from the adapter). `AuthService.revokeSessions(userId)` bumps it; `SessionGuard` and the realtime
+  handshake refuse a cookie whose `sv` differs (`auth/session-version.ts`; a cookie without `sv` counts as 0, so
+  the upgrade signed nobody out). It is bumped by: password change, password reset by link, admin password reset,
+  admin 2FA removal. Everything that ends a session also needs the caller to sign in again: tests and scripts that
+  change the password must sign in afterwards (smoke and `tests/cluster/*` do).
+- **`POST /me/change-password` needs `currentPassword`**, except for a forced change (`mustChangePassword`) and for an
+  account with no local password yet. The web profile form signs the person out after it.
+- **Failed sign-ins are counted per account** (`RateLimitService.failures/recordFailure/clearFailures`, same
+  `rate_limit_buckets` table, key `acct|<identifier typed>`, existing account or not): 10 failures in 15 minutes
+  refuse further attempts with 429 `too_many_attempts`; a success clears it. `verify-credentials` always spends the
+  time of one argon2 check (`verifyPasswordOrDecoy`) and says "deleted" only after the right password.
+- **Public reset routes** (`/auth/tokens/request-reset`, `/consume`) share the strict 10/min/IP bucket. A reset email is
+  sent at most once per account per 5 minutes; a link is claimed with one conditional UPDATE (single use under
+  concurrency), refused for a disabled or deleted account, and spends the account's other outstanding links.
+  The email's link comes from `site.url`/`APP_URL` only (never from the request); with neither set it logs a warning
+  and the link is relative.
+- **The realtime socket** refuses a handshake whose `Origin` is not this site (`handshakeOriginAllowed`: Host or
+  X-Forwarded-Host, or the `APP_URL` list) and every 30 s re-reads each connected user (disconnect when gone, disabled
+  or signed out; leave rooms the user lost access to).
+
 ### TOTP / 2FA is optional, off by default
 
 TOTP enrolment is **per-user** and **opt-in**. Two policy knobs in the settings
@@ -356,10 +380,12 @@ table can require it:
 
 Both default to **off**. When on, the `SessionGuard` lets affected users
 authenticate and read (GETs pass) but refuses all mutating requests until
-they complete `/auth/totp/enroll` + `/auth/totp/confirm`. There is currently
-**no separate recovery-codes flow** — if an admin enables `require_totp_admin`
-and then loses their phone, another admin must flip it back off in
-`/admin/settings`. Plan for recovery before flipping these on in prod.
+they complete `/auth/totp/enroll` + `/auth/totp/confirm`. Recovery: a user with
+recovery codes signs in with one (single use); an admin can remove someone's 2FA at
+`/admin/users` (Manage > Two-factor, `POST /users/:id/totp/reset`, which also signs them out everywhere).
+The TOTP secret is stored encrypted (`enc:v1:` like other secrets; a plaintext row is encrypted on first read), so a
+backup restored under a different `AUTH_SECRET` leaves 2FA accounts needing that admin reset. A code is accepted once
+(`totp_secrets.last_step`) and a recovery code is spent atomically (`AuthService.verifyTotpCode`/`consumeRecoveryCode`).
 
 There is no "admin role implicitly requires TOTP" in the code — earlier
 versions of these docs claimed there was; that claim was aspirational, not
@@ -1037,6 +1063,20 @@ roll back by itself. A failed build or migration puts the code back before anyth
 - **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
 - It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
   harness, and `--dev` on the dev stack.
+
+## Containers and the page policy
+
+- The api, web and monitor images run as the unprivileged `node` user on `node:22-alpine`. Nothing writes under `/app`
+  except the web's `.next/cache`. The IPAM/monitor ping works unprivileged through Docker's default
+  `net.ipv4.ping_group_range`; `NET_RAW` stays in compose for runtimes that restrict that. A new feature that
+  writes to the container filesystem must use `/tmp`, an S3 key or the database.
+- **Content-Security-Policy:** `apps/web/src/middleware.ts` gives every page a per-request script nonce
+  (`script-src 'nonce-...' 'strict-dynamic'`, no `unsafe-eval`) and Next applies it to its scripts; the layout hands it
+  to the theme bootstrap. Caddy sends a looser baseline on every response as well (the browser enforces both). **A new
+  inline `<script>` must take the nonce** (read `x-nonce` from `headers()`); the smoke suite fails on a bare one.
+  Styles stay `unsafe-inline`.
+- `/api/v1/auth/providers/internal`, `/users/ensure-default-group` and `/users/oauth-provision` are 404 at the proxy
+  (and token-gated in the api); a new internal-only route belongs in Caddy's `@internal_only` matcher too.
 
 ## Repository hygiene
 

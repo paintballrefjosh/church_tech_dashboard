@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { authenticator } from "otplib";
 import QRCode from "qrcode";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { CurrentUser, type AuthenticatedUser } from "./current-user.decorator";
-import { AuthService } from "./auth.service";
+import { AuthService, hashRecoveryCode } from "./auth.service";
+import { encryptSecret } from "../settings/crypto";
 import { DB, type Db } from "../db/db.module";
 import { users, totpSecrets } from "../db/schema";
 import { SessionOnly } from "./session-only.decorator";
@@ -28,9 +29,6 @@ function generateRecoveryCodes(): string[] {
     out.push(`${chars.slice(0, 4).join("")}-${chars.slice(4, 8).join("")}-${chars.slice(8, 12).join("")}-${chars.slice(12, 16).join("")}-${chars.slice(16, 20).join("")}`);
   }
   return out;
-}
-function hashRecoveryCode(code: string): string {
-  return createHash("sha256").update(code.toUpperCase().replace(/-/g, "")).digest("hex");
 }
 
 // Enrolling or removing 2FA changes how the account signs in: never by token.
@@ -55,10 +53,10 @@ export class TotpController {
 
     await this.db
       .insert(totpSecrets)
-      .values({ userId: user.id, secret, recoveryCodes: recoveryHashes })
+      .values({ userId: user.id, secret: encryptSecret(secret), recoveryCodes: recoveryHashes })
       .onConflictDoUpdate({
         target: totpSecrets.userId,
-        set: { secret, recoveryCodes: recoveryHashes, enrolledAt: new Date() },
+        set: { secret: encryptSecret(secret), recoveryCodes: recoveryHashes, lastStep: null, enrolledAt: new Date() },
       });
 
     return { otpauth, qr: qrSvg, recoveryCodes: recoveryPlain };
@@ -91,12 +89,13 @@ export class TotpController {
   async disable(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     if (!user.totpEnabled) throw new BadRequestException("TOTP not enrolled");
     const { code } = verifyBody.parse(body);
-    const secret = await this.auth.getTotpSecret(user.id);
-    if (!secret || !authenticator.check(code, secret)) {
+    if (!(await this.auth.verifyTotpCode(user.id, code))) {
       throw new BadRequestException("Invalid code");
     }
     await this.db.update(users).set({ totpEnabled: false }).where(eq(users.id, user.id));
     await this.db.delete(totpSecrets).where(eq(totpSecrets.userId, user.id));
+    // Turning it off needs a current code, so a stolen session alone cannot do this: sessions are left alone
+    // (an admin reset, which may follow a lost phone, does sign the account out everywhere).
     this.auth.invalidateUser(user.id);
     return { ok: true };
   }

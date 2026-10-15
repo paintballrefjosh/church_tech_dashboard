@@ -5,6 +5,7 @@ import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
 import { OPERATIONAL_ONLY_KEY } from "./operational-only.decorator";
 import { isReadMethod } from "./api-token-scope";
+import { sessionIsCurrent } from "./session-version";
 import { AuthService } from "./auth.service";
 import type { AuthenticatedUser } from "./current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
@@ -186,6 +187,8 @@ export class SessionGuard implements CanActivate {
           const userId = decoded?.sub;
           if (typeof userId === "string") {
             user = await this.auth.loadUserById(userId);
+            // Signed out server-side (password changed or reset, 2FA removed since this cookie was issued).
+            if (user && !sessionIsCurrent(decoded as { sv?: unknown }, user)) user = null;
           }
         } catch {
           // Wrong cookie name / tampered token — try the next candidate.

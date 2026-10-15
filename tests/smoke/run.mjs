@@ -122,6 +122,24 @@ async function main() {
     assert(text.includes("Sign in"), "expected 'Sign in' in HTML");
   });
 
+  await test("pages carry a nonce-based Content-Security-Policy, with no eval and no inline-script escape hatch", async () => {
+    const { res } = await fetchWithCookies("/signin");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    assert(/script-src[^;]*'nonce-[A-Za-z0-9+/=]+'/.test(csp), `expected a script nonce in: ${csp}`);
+    assert(!csp.includes("unsafe-eval"), `unsafe-eval must not be allowed: ${csp}`);
+    // Every inline <script> in the page must carry that nonce (the theme bootstrap, Next's flight data).
+    const html = await (await fetchWithCookies("/signin")).res.text();
+    const bare = [...html.matchAll(/<script(?![^>]*\bsrc=)(?![^>]*\bnonce=)[^>]*>/g)].map((m) => m[0]);
+    assert(bare.length === 0, `inline scripts without a nonce: ${bare.slice(0, 3).join(" ")}`);
+  });
+
+  await test("the internal-only API routes are not reachable through the public proxy", async () => {
+    for (const path of ["/api/v1/users/oauth-provision", "/api/v1/users/ensure-default-group", "/api/v1/auth/providers/internal"]) {
+      const { res } = await fetchWithCookies(path, { method: path.endsWith("internal") ? "GET" : "POST" });
+      assert(res.status === 404, `${path} should be 404 at the proxy, got ${res.status}`);
+    }
+  });
+
   await test("GET / redirects unauthed visitors to /signin", async () => {
     const { res } = await fetchWithCookies("/");
     assert(res.status === 307 || res.status === 302, `status ${res.status}`);
@@ -258,6 +276,30 @@ async function main() {
       jar,
     );
     assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+
+    // The change signs the account out everywhere, this cookie included: it must stop working, and a
+    // fresh sign-in with the new password must give one that does.
+    const { res: stale } = await fetchWithCookies("/api/v1/me", {}, jar);
+    assert(stale.status === 401, `the cookie from before the password change should be refused, got ${stale.status}`);
+    jar.clear();
+    const { res: csrfRes } = await fetchWithCookies("/api/auth/csrf", {}, jar);
+    const { csrfToken: freshCsrf } = await csrfRes.json();
+    const { res: again } = await fetchWithCookies(
+      "/api/auth/callback/credentials",
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          csrfToken: freshCsrf,
+          email: TEST_USER_EMAIL,
+          password: TEST_USER_SMOKE_PASSWORD,
+          callbackUrl: BASE + "/",
+          json: "true",
+        }).toString(),
+      },
+      jar,
+    );
+    assert(again.status === 200 || again.status === 302, `sign-in with the new password gave ${again.status}`);
     const { res: me } = await fetchWithCookies("/api/v1/me", {}, jar);
     const body = await me.json();
     assert(body.mustChangePassword === false, "mustChangePassword should be false after the change");
@@ -389,6 +431,19 @@ async function main() {
     const user = await created.res.json();
     assert(typeof user.id === "string", "created user has no id");
 
+    // The create above makes an invite-style account with no password; give it one, so the sign-in
+    // checks below are about a real login and not about an account that has none.
+    const setPwd = await fetchWithCookies(
+      `/api/v1/users/${user.id}/password`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: "smoke-password-1234", mustChangePassword: false }),
+      },
+      jar,
+    );
+    assert(setPwd.res.status === 200 || setPwd.res.status === 201, `set password status ${setPwd.res.status}`);
+
     // Soft-delete it.
     const del = await fetchWithCookies(`/api/v1/users/${user.id}`, { method: "DELETE" }, jar);
     assert(del.res.status === 200, `delete status ${del.res.status}`);
@@ -426,6 +481,17 @@ async function main() {
     assert(login.res.status === 401, `deleted user login should 401, got ${login.res.status}`);
     const loginBody = await login.res.json();
     assert(loginBody.code === "account_deleted", `expected account_deleted code, got ${JSON.stringify(loginBody)}`);
+
+    // Without the password the answer is the same as for any wrong login: whether an account is deleted is not
+    // something to tell a stranger.
+    const stranger = await fetchWithCookies("/api/v1/auth/verify-credentials", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password: "not-the-password-0000" }),
+    });
+    assert(stranger.res.status === 401, `wrong password for a deleted user should 401, got ${stranger.res.status}`);
+    const strangerBody = await stranger.res.json();
+    assert(strangerBody.code === undefined && /invalid credentials/i.test(strangerBody.message ?? ""), `should look like any bad login: ${JSON.stringify(strangerBody)}`);
 
     // Restore re-enables the account.
     const restore = await fetchWithCookies(`/api/v1/users/${user.id}/restore`, { method: "POST" }, jar);

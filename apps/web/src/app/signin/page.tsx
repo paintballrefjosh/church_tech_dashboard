@@ -26,7 +26,9 @@ export default async function SignInPage({
     params.error === "AccountDeleted" || params.code === "account_deleted";
   const initialError = accountDeleted
     ? "This account has been deleted. Contact an administrator."
-    : params.error;
+    : params.code === "too_many_attempts"
+      ? "Too many failed sign-in attempts for this account. Wait a few minutes and try again."
+      : params.error;
   const needsTotp = params.totp === "1";
   const callbackUrl = params.callbackUrl ?? "/";
   const cfg = await getProviderConfig();

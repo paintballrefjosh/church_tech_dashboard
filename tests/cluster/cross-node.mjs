@@ -68,7 +68,10 @@ async function signIn(base) {
   assert(fresh, `could not sign in to ${base} (run reset-test-user in that stack first)`);
   const changed = await req(base, "/api/v1/me/change-password", fresh, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ newPassword: PASSWORD }) });
   assert(changed.status === 200 || changed.status === 201, `password change gave ${changed.status}`);
-  return fresh;
+  // The change signs every session out, the one just used included.
+  const again = await login(base, PASSWORD);
+  assert(again, `could not sign in again after the password change on ${base}`);
+  return again;
 }
 
 const MODE = process.env.MODE ?? "full";

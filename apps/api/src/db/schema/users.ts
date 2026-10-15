@@ -5,6 +5,7 @@ import {
   boolean,
   uuid,
   integer,
+  bigint,
   primaryKey,
   index,
 } from "drizzle-orm/pg-core";
@@ -26,6 +27,9 @@ export const users = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     totpEnabled: boolean("totp_enabled").notNull().default(false),
     mustChangePassword: boolean("must_change_password").notNull().default(false),
+    // Bumped to sign the account out everywhere (password change or reset, 2FA removed): the session cookie
+    // carries the value it was issued under and stops working once it differs. See auth/session-version.ts.
+    sessionVersion: integer("session_version").notNull().default(0),
     // OAuth approval gate. "approved" = full member (has groups, can sign in and
     // use modules). "pending" = signed in via an external Google account while
     // google.allow_external_with_approval is on; can authenticate but has no
@@ -113,5 +117,7 @@ export const totpSecrets = pgTable("totp_secrets", {
     .references(() => users.id, { onDelete: "cascade" }),
   secret: text("secret").notNull(),
   recoveryCodes: text("recovery_codes").array(),
+  // The 30-second step of the last code accepted, so a code (or one an observer saw) cannot be used twice.
+  lastStep: bigint("last_step", { mode: "number" }),
   enrolledAt: timestamp("enrolled_at").notNull().defaultNow(),
 });

@@ -40,16 +40,19 @@
 	#   Referrer-Policy strict-origin-when-cross-origin — leaks only the
 	#     origin (not the path) when navigating to external links.
 	#   Permissions-Policy — disable browser features we never use.
-	#   Content-Security-Policy — restrict scripts/styles to self + the
-	#     Socket.IO endpoint we serve from the same origin. img-src is wider
-	#     to allow OAuth-provided avatars (Google/Microsoft) and inline
-	#     data: URIs that Next emits for the dev experience.
+	#   Content-Security-Policy — a baseline for every response (scripts and
+	#     styles from self, no eval). img-src is wider to allow OAuth-provided
+	#     avatars (Google/Microsoft) and data: URIs. The web app's middleware
+	#     adds a stricter per-request policy to its pages (script nonce, no
+	#     inline scripts); the browser enforces both, so the stricter one
+	#     decides for pages. 'unsafe-inline' here is only the fallback for
+	#     responses that do not pass through that middleware.
 	header {
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		# HSTS deliberately omitted — HTTPS termination is upstream of Caddy
 		# (per CLAUDE.md), so it's the LB's job to set HSTS.
 	}
@@ -88,7 +91,7 @@
 	# directly via api:3001 on the docker bridge — they have no business being
 	# reachable from the public proxy. Defence-in-depth alongside the
 	# X-Internal-Token check on the controller side.
-	@internal_only path /api/v1/auth/providers/internal* /api/v1/users/ensure-default-group*
+	@internal_only path /api/v1/auth/providers/internal* /api/v1/users/ensure-default-group* /api/v1/users/oauth-provision*
 	handle @internal_only {
 		respond "Not found" 404
 	}

@@ -7,6 +7,7 @@ import {
   groups,
   groupMemberships,
   accounts,
+  totpSecrets,
 } from "../db/schema";
 import { AuthService } from "../auth/auth.service";
 import { SettingsService } from "../settings/settings.service";
@@ -470,7 +471,21 @@ export class UsersService {
       .update(users)
       .set({ mustChangePassword, updatedAt: new Date() })
       .where(eq(users.id, userId));
-    this.auth.invalidateUser(userId);
+    // A reset is often the answer to a suspected break-in: end every session the account has.
+    await this.auth.revokeSessions(userId);
+    return { ok: true };
+  }
+
+  /**
+   * Admin removal of another person's two-factor (a lost phone and no recovery codes). Deletes the secret and
+   * recovery codes, turns the flag off and ends the account's sessions; they can enrol again from their profile.
+   * If the policy requires two-factor for them, they are asked to enrol at next sign-in.
+   */
+  async adminResetTotp(userId: string): Promise<{ ok: true }> {
+    await this.getById(userId);
+    await this.db.delete(totpSecrets).where(eq(totpSecrets.userId, userId));
+    await this.db.update(users).set({ totpEnabled: false, updatedAt: new Date() }).where(eq(users.id, userId));
+    await this.auth.revokeSessions(userId);
     return { ok: true };
   }
 

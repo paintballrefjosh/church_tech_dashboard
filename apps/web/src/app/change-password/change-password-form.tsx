@@ -7,7 +7,7 @@ import { useState } from "react";
  * back to "/" on success and to /change-password?error=... on failure. We do a
  * tiny bit of JS so the password-match check happens client-side too.
  */
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ askCurrent = false }: { askCurrent?: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -41,6 +41,18 @@ export function ChangePasswordForm() {
       method="POST"
       className="mt-5 space-y-3"
     >
+      {askCurrent ? (
+        <label className="block">
+          <span className="text-sm text-slate-700 dark:text-slate-300">Current password</span>
+          <input
+            name="currentPassword"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          />
+        </label>
+      ) : null}
       <label className="block">
         <span className="text-sm text-slate-700 dark:text-slate-300">New password</span>
         <input

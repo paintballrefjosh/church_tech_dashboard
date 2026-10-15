@@ -153,9 +153,10 @@ services:
       dockerfile: apps/api/Dockerfile
       args:
         BUILD_ID: ${BUILD_ID:-dev}
-    # NET_RAW lets the IPAM scanner send ICMP echo (via busybox `ping`) for its
-    # host sweep. Node can't open raw sockets itself; without this the scanner
-    # silently falls back to its TCP-connect probe.
+    # The IPAM scanner pings with busybox `ping`. The api runs as the unprivileged `node` user, which can
+    # send ICMP echo through the datagram ICMP sockets Docker enables by default (net.ipv4.ping_group_range);
+    # NET_RAW is kept for hosts or runtimes that restrict that. Without either, the scanner silently falls
+    # back to its TCP-connect probe.
     cap_add:
       - NET_RAW
     env_file: ../.env

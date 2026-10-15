@@ -3,7 +3,7 @@
 # across builds. Without it, every lockfile change re-downloads + re-extracts
 # every dependency from scratch.
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /app
 ENV PNPM_HOME=/root/.local/share/pnpm
@@ -50,6 +50,9 @@ COPY --from=build /app/apps/web/.next/static /app/apps/web/.next/static
 COPY --from=build /app/apps/web/public /app/apps/web/public
 COPY apps/web/entrypoint.sh /app/apps/web/entrypoint.sh
 WORKDIR /app/apps/web
+# Not root. Next writes its response cache under .next/cache; everything else stays read-only to the app.
+RUN mkdir -p .next/cache && chown -R node:node .next/cache
+USER node
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/apps/web/entrypoint.sh"]
 CMD ["node", "server.js"]

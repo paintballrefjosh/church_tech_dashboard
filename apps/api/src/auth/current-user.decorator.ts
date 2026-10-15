@@ -7,6 +7,8 @@ export type AuthenticatedUser = {
   isActive: boolean;
   totpEnabled: boolean;
   mustChangePassword: boolean;
+  // Compared with the session cookie's `sv` claim (auth/session-version.ts); a mismatch means signed out.
+  sessionVersion: number;
   // "approved" = full member; "pending" = external OAuth user awaiting admin
   // approval, blocked from everything but their own /me. See session.guard.
   approvalStatus: "approved" | "pending";

@@ -69,7 +69,7 @@ class DbBuckets {
    * A few retries make every request count; giving up would let a burst of
    * parallel requests slip past the limit uncounted.
    */
-  private async incrWithRetry(key: string): Promise<Hit> {
+  async incrWithRetry(key: string): Promise<Hit> {
     for (let attempt = 1; ; attempt++) {
       try {
         return await this.incrOnce(key);
@@ -122,6 +122,31 @@ export class RateLimitService implements OnModuleInit {
         await this.pool.query(`DELETE FROM rate_limit_buckets WHERE window_start < now() - interval '1 hour'`);
       },
     });
+  }
+
+  /**
+   * Failed sign-in attempts per ACCOUNT (the per-IP limit above does not stop one password guessed from many
+   * addresses). Counted in the same table, so every node sees the same number. The key is the identifier the
+   * person typed, whether or not such an account exists, so the count itself reveals nothing.
+   */
+  async failures(key: string, windowMs: number): Promise<{ count: number; retryAfterSec: number }> {
+    const res = await this.pool.query<{ count: number | string; ttl_ms: number | string }>(
+      `SELECT count, (extract(epoch FROM (window_start + ($2::text || ' milliseconds')::interval - now())) * 1000)::int AS ttl_ms
+       FROM rate_limit_buckets
+       WHERE key = $1 AND window_start + ($2::text || ' milliseconds')::interval > now()`,
+      [`acct|${key}`, String(windowMs)],
+    );
+    const row = res.rows[0];
+    if (!row) return { count: 0, retryAfterSec: 0 };
+    return { count: Number(row.count), retryAfterSec: Math.max(1, Math.ceil(Number(row.ttl_ms) / 1000)) };
+  }
+
+  async recordFailure(key: string, windowMs: number): Promise<void> {
+    await new DbBuckets(this.pool, "acct", windowMs).incrWithRetry(key);
+  }
+
+  async clearFailures(key: string): Promise<void> {
+    await this.pool.query(`DELETE FROM rate_limit_buckets WHERE key = $1`, [`acct|${key}`]);
   }
 
   /** The class to pass as the plugin's `store` option. */

@@ -12,6 +12,8 @@ import { SessionOnly } from "./session-only.decorator";
 
 const changePasswordBody = z.object({
   newPassword: z.string().min(8).max(256),
+  // Required unless the account is being forced to change a password it was just given (see changePassword).
+  currentPassword: z.string().max(256).optional(),
 });
 
 function numberOr(value: unknown, fallback: number): number {
@@ -156,9 +158,19 @@ export class MeController {
   @SessionOnly()
   @Audited({ action: "user.changePassword", resourceType: "user" })
   async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
-    const { newPassword } = changePasswordBody.parse(body);
+    const { newPassword, currentPassword } = changePasswordBody.parse(body);
     if (newPassword === "admin") {
       throw new BadRequestException("Choose a password other than the default");
+    }
+    // A session alone must not be enough to take the account over: prove the current password. Not asked when
+    // the account was just given a temporary one (the forced change), or has no local password yet (an account
+    // that signs in through Google or Microsoft choosing its first one).
+    const [existing] = await this.db.select().from(credentials).where(eq(credentials.userId, user.id)).limit(1);
+    if (existing && !user.mustChangePassword) {
+      if (!currentPassword || !(await this.auth.verifyPassword(existing.passwordHash, currentPassword))) {
+        throw new BadRequestException("The current password is not correct");
+      }
+      if (currentPassword === newPassword) throw new BadRequestException("Choose a password different from the current one");
     }
     const hash = await this.auth.hashPassword(newPassword);
     await this.db
@@ -172,7 +184,9 @@ export class MeController {
       .update(users)
       .set({ mustChangePassword: false, updatedAt: new Date() })
       .where(eq(users.id, user.id));
-    this.auth.invalidateUser(user.id);
+    // Sign every browser out, this one included (the web sends the person to the sign-in page): whoever else
+    // held a session on this account loses it.
+    await this.auth.revokeSessions(user.id);
     return { ok: true };
   }
 

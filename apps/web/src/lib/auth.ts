@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { createHash } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { googleSignInDecision, microsoftSignInDecision } from "@church/shared";
 import { db, schema } from "./db";
 
@@ -157,6 +158,7 @@ function buildProviders(cfg: ProviderConfig) {
             if (!res.ok) {
               const body = (await res.json().catch(() => ({}))) as { code?: string };
               if (body.code === "account_deleted") throw new AccountDeletedSignin();
+              if (res.status === 429) throw new TooManyAttemptsSignin();
               return null;
             }
             const data = (await res.json()) as
@@ -190,7 +192,7 @@ function buildProviders(cfg: ProviderConfig) {
                 typeof data.user.pageWidthPx === "number" ? data.user.pageWidthPx : null,
             } as never;
           } catch (err) {
-            if (err instanceof AccountDeletedSignin) throw err;
+            if (err instanceof AccountDeletedSignin || err instanceof TooManyAttemptsSignin) throw err;
             if (err instanceof Error && err.message === "TOTP_REQUIRED") throw err;
             return null;
           }
@@ -210,6 +212,11 @@ type ProvisionStatus = "approved" | "pending" | "rejected" | "deleted";
  */
 class AccountDeletedSignin extends CredentialsSignin {
   override code = "account_deleted";
+}
+
+/** Thrown from `authorize()` when the API refuses further attempts for the account (`too_many_attempts`). */
+class TooManyAttemptsSignin extends CredentialsSignin {
+  override code = "too_many_attempts";
 }
 
 /**
@@ -322,6 +329,15 @@ async function buildAuthConfig(): Promise<NextAuthConfig> {
       async jwt({ token, user, trigger, session }) {
         if (user?.id) {
           token.sub = user.id;
+          // The account's session version at sign-in: the API refuses this cookie once it is bumped (password
+          // change or reset, 2FA reset). Read from the database because OAuth users come from the adapter,
+          // which does not carry the column.
+          const [row] = await db
+            .select({ sv: schema.users.sessionVersion })
+            .from(schema.users)
+            .where(eq(schema.users.id, user.id))
+            .limit(1);
+          (token as { sv?: number }).sv = row?.sv ?? 0;
           const mcp = (user as { mustChangePassword?: boolean }).mustChangePassword;
           if (typeof mcp === "boolean") {
             (token as { mustChangePassword?: boolean }).mustChangePassword = mcp;

@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -29,4 +29,6 @@ COPY --from=build /app/packages/shared/package.json packages/shared/
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 RUN pnpm install --prod --frozen-lockfile --filter @church/monitor --filter @church/shared
 WORKDIR /app/services/monitor
+# Not root: the probes use unprivileged sockets (see the ping note above).
+USER node
 CMD ["node", "dist/main.js"]

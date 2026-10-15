@@ -53,7 +53,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "Site URL",
     description:
-      "Public base URL of this dashboard, e.g. https://dashboard.mychurch.org — used to build clickable links in welcome, invite, reset, and notification emails. Leave blank to fall back to whatever host each request arrives on (fine for local dev, wrong for real emails).",
+      "Public base URL of this dashboard, e.g. https://dashboard.mychurch.org — used to build clickable links in welcome, invite, reset, and notification emails. Set it for password-reset emails to work: a reset request comes from the public sign-in page, so the link cannot be taken from the request (that would let anyone point it at their own site), and without this setting (or APP_URL) the email carries a link that does not open. Invites sent by an admin fall back to the admin's own address.",
     defaultValue: "",
     category: "site",
   },

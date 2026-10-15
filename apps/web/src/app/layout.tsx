@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { CSSProperties, ReactNode } from "react";
+import { headers } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Footer } from "@/components/footer";
@@ -50,6 +51,9 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The per-request script nonce the middleware put in the Content-Security-Policy (see middleware.ts). Next
+  // adds it to its own scripts; the one inline script that is ours (the theme bootstrap) is given it here.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const session = await auth();
   // Read page width from the DB (source of truth) rather than the JWT session:
   // the JWT snapshots the value at login and a client-side session refresh is
@@ -90,7 +94,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <main mx-auto max-w-*> becomes a flex item whose width shrinks to
           its content size (auto margins resolve to 0). Plain block ✔. */}
       <body className="flex min-h-screen flex-col">
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <div className="flex-1">{children}</div>
           <Footer />
           <ServiceWorkerRegistrar />
