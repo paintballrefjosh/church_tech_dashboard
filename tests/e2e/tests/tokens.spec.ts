@@ -95,6 +95,62 @@ test.describe("API tokens", () => {
     expect(after.status()).toBe(401);
   });
 
+  test("the equipment level is chosen on the form and only that token reaches equipment routes", async ({ page }) => {
+    // POST /ups/:id/poll is @OperationalOnly. The id matches no device, so a token that gets past the guard
+    // answers 404 and nothing on the network is touched.
+    const poll = "/api/v1/ups/00000000-0000-4000-8000-000000000000/poll";
+    const stamp = Date.now();
+    const names = { write: `e2e write ${stamp}`, equipment: `e2e equipment ${stamp}` };
+    await page.goto("/me/api-tokens");
+
+    async function create(name: string, access: string | RegExp): Promise<string> {
+      await page.getByRole("button", { name: "New token" }).click();
+      const form = page.getByTestId("api-token-form");
+      await form.getByLabel("Name").fill(name);
+      await form.getByLabel(access).check();
+      await form.getByRole("button", { name: "Create token" }).click();
+      const reveal = page.getByTestId("api-token-reveal");
+      await expect(reveal).toBeVisible();
+      const token = await reveal.getByLabel("New API token").inputValue();
+      await reveal.getByRole("button", { name: /Done/ }).click();
+      return token;
+    }
+    const post = (token: string) =>
+      page.request.post(poll, { headers: { authorization: `Bearer ${token}` }, data: {} });
+
+    // The warning about live equipment appears for that level only.
+    await page.getByRole("button", { name: "New token" }).click();
+    const form = page.getByTestId("api-token-form");
+    const warning = form.getByText(/can change things people see and depend on right now/);
+    await expect(warning).toHaveCount(0);
+    await form.getByLabel("Read, write and equipment").check();
+    await expect(warning).toBeVisible();
+    await form.getByLabel("Read and write").check();
+    await expect(warning).toHaveCount(0);
+    await form.getByRole("button", { name: "Cancel" }).click();
+
+    const writeToken = await create(names.write, "Read and write");
+    const equipmentToken = await create(names.equipment, "Read, write and equipment");
+    try {
+      await expect(page.getByRole("row", { name: new RegExp(names.equipment) })).toContainText("Read, write and equipment");
+      await expect(page.getByRole("row", { name: new RegExp(names.write) })).not.toContainText("equipment");
+
+      const refused = await post(writeToken);
+      expect(refused.status()).toBe(403);
+      expect(JSON.stringify(await refused.json())).toMatch(/operational/);
+      expect((await post(equipmentToken)).status()).toBe(404);
+    } finally {
+      for (const name of Object.values(names)) {
+        const row = page.getByRole("row", { name: new RegExp(name) });
+        if ((await row.count()) === 0) continue;
+        page.once("dialog", (d) => void d.accept());
+        await row.getByRole("button", { name: "Revoke" }).click();
+        await expect(row).toContainText("revoked");
+      }
+    }
+    expect((await post(equipmentToken)).status()).toBe(401);
+  });
+
   test("an admin sees the token in /admin/api-tokens", async ({ page }) => {
     await page.goto("/admin/api-tokens?status=revoked");
     await expect(page.getByRole("heading", { name: "API tokens" })).toBeVisible();
