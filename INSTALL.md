@@ -162,7 +162,10 @@ Then open <http://localhost:8100> and sign in with:
 |---|---|
 | `admin` | `admin` |
 
-You will be required to set a new password on first login. After that, runtime configuration
+You will be required to set a new password on first login, and until you do, that sign-in can
+reach nothing but the change-password page: the API refuses every other request, reads
+included, so the default `admin` / `admin` cannot be used to browse the instance before a real
+password is set. After that, runtime configuration
 (Google OAuth, SMTP, site name, etc.) lives in the database — edit it at `/admin/settings`,
 no file editing needed.
 
@@ -858,8 +861,10 @@ touch:
 `APP_URL` and `AUTH_URL` are **intentionally unset** — Auth.js derives the public origin
 from the request `Host` header so the app works at any hostname with zero config. Only
 set them if a proxy strips *both* `Host` and `X-Forwarded-Host`. (Links in outbound
-email use the **Site URL** setting in `/admin/settings` first, then `APP_URL`, then the
-origin of the triggering request — set Site URL so emailed links aren't `localhost`.)
+email use the **Site URL** setting in `/admin/settings` first, then `APP_URL`, then, for
+emails an admin triggers, the address of the admin's own browser. Password-reset emails
+never use the request, so they need Site URL or `APP_URL` — set Site URL so emailed links
+aren't `localhost` and reset emails work.)
 
 > OAuth client IDs/secrets, the workspace domain, and SMTP are **not** env vars —
 > configure them at `/admin/settings` after first boot. Earlier versions of this doc
@@ -882,7 +887,11 @@ redeploy (changes take effect within ~1 minute). Local accounts work without any
    Google OAuth** to confirm the credentials, then turn on "Allow sign-in with Google".
    (The toggle won't enable until the ID and secret are present.)
 4. **Workspace domain** (optional): set it to auto-accept everyone on that domain into
-   the default `user` group. Leave blank to allow any Google account.
+   the default `user` group. Leave blank to allow any Google account. Google must report
+   the address as verified, and an account counts as a member of the domain only if
+   Google says a Workspace of that domain manages it (the `hd` claim); an ordinary
+   Google account that merely uses an address on the domain is treated as external
+   (pending approval, or refused, depending on the next setting).
 5. **Allow external accounts (with approval)** (optional): lets non-domain Google
    accounts sign in but holds them *pending* until an admin approves them under
    `/admin/users` → Pending. Useful for volunteers.
@@ -893,7 +902,17 @@ redeploy (changes take effect within ~1 minute). Local accounts work without any
    shown on `/admin/settings/microsoft` (ends with `/api/auth/callback/microsoft-entra-id`).
 2. Create a client secret, then paste the Application (client) ID + secret into
    `/admin/settings/microsoft`, set the tenant (`common` / `organizations` / a tenant id),
-   optionally restrict by email domain, and enable it.
+   and enable it.
+3. **Decide who may sign in.** With the tenant set to `common`, `organizations` or
+   `consumers`, accounts from *any* directory can authenticate, so **Allowed email
+   domains is required**: with it blank on one of those tenants Microsoft sign-in is
+   refused for everyone (the web container logs `[auth] Microsoft sign-in refused: ...`).
+   A specific tenant id (or tenant domain) already limits sign-in to that directory's
+   members and needs no list. The list is matched against the account's sign-in name
+   (user principal name, e.g. `sam@mychurch.org`), not the separate `email` claim, which
+   the owner of any directory can set to someone else's address. If your members sign in
+   with names on another domain (e.g. `@mychurch.onmicrosoft.com`), list that domain, or
+   use a single tenant.
 
 > Google **Groups sync** (Workspace Directory API) is **not implemented** — the "Sync
 > Google Groups" admin action is currently a stub. Manage groups and per-module access
@@ -901,6 +920,43 @@ redeploy (changes take effect within ~1 minute). Local accounts work without any
 
 If you skip SSO entirely, the app still works with local accounts and locally managed
 groups.
+
+## Accounts, sessions and two-factor
+
+How sign-in behaves, for the person running the server:
+
+- **Changing a password signs the account out everywhere.** A password change (yours, or a
+  reset by link) and an admin password reset end every session of that account, including
+  the browser that made the change; the person signs in again with the new password.
+  Changing your own password asks for the current one, except right after an admin gave
+  you a temporary password, and for accounts that only ever signed in with Google or
+  Microsoft and are choosing their first. An admin removing someone's two-factor also signs
+  them out everywhere. (Turning off your own two-factor needs a current code and leaves
+  your sessions alone.) Sessions made before an upgrade keep working until one of these
+  happens.
+- **Failed sign-ins are limited per account.** On top of the 10-per-minute limit per IP
+  address, 10 failed attempts at one account within 15 minutes make the sign-in page say
+  "too many failed attempts" for the rest of the window, whether or not that account
+  exists. A successful sign-in clears the count. If someone is locked out, they only have
+  to wait; there is nothing to reset.
+- **Password-reset emails need Site URL.** The "forgot password" page is public, so the
+  link in the email is built from **Site URL** in `/admin/settings` (or `APP_URL`), never
+  from the request, which would let anyone aim it at their own site. With neither set the
+  email carries a link that does not open, and the api logs a warning. A reset link works
+  once, for 2 hours; asking again within 5 minutes sends nothing new. The reset page and
+  the request page share the strict 10-per-minute-per-IP limit.
+- **Two-factor** is opt-in per person (and can be required for admins or everyone in
+  `/admin/settings`). Each person gets one-time recovery codes at enrolment; a code, or a
+  recovery code, works once. If someone loses their phone and codes, an admin removes
+  their two-factor under `/admin/users` > Manage > Two-factor, and they enrol again. Secrets
+  are stored encrypted with a key derived from `AUTH_SECRET`, so **a backup restored on an
+  install with a different `AUTH_SECRET` cannot read them**: those people need that admin
+  reset. Keep `AUTH_SECRET` with your backups.
+- **The realtime connection** (live monitoring updates) only accepts a handshake from the
+  site's own address (`Host` or `X-Forwarded-Host`, or an origin listed in `APP_URL`), and
+  every 30 seconds each node re-checks who is connected: someone who is signed out, disabled
+  or has lost a module stops receiving it. A load balancer must therefore keep passing the
+  original host (see [Requirements](#requirements)).
 
 ## Production
 
@@ -921,6 +977,19 @@ The prod compose file:
 - Publishes no object-store port (Garage is reachable only on the stack's network)
 - Restarts on failure (`restart: unless-stopped`)
 - Locks every non-proxy port behind the internal compose network
+- Runs the api, web and monitor containers as the unprivileged `node` user (Node 22). They
+  write nothing under `/app` (the web's response cache lives in its own folder; everything
+  else is the database or the object store). The IPAM scanner and the ICMP monitors ping
+  through Docker's default unprivileged ICMP sockets (`net.ipv4.ping_group_range`); the api
+  keeps the `NET_RAW` capability for runtimes that restrict that. If pings fail and you see
+  hosts only found by their TCP ports, check that sysctl on the host or the container runtime
+- Sends two Content-Security-Policy headers on pages, which the browser enforces together:
+  the proxy's baseline (no `eval`) and the web app's own per-request policy, in which only
+  scripts carrying a fresh nonce run. Anything in front of the proxy that rewrites or
+  strips response headers must leave both alone
+- Answers 404 at the proxy for the internal-only API routes the web container calls
+  directly (`/api/v1/auth/providers/internal`, `/api/v1/users/ensure-default-group`,
+  `/api/v1/users/oauth-provision`); they also need a token only the containers hold
 
 Behind your load balancer, terminate TLS and proxy HTTP to the host's `:EXTERNAL_PORT`.
 Set `X-Forwarded-Proto: https` and `X-Forwarded-For: <client ip>` on the LB; Caddy
@@ -966,6 +1035,25 @@ removes the dangling images the builds leave, and `--prod` / `--dev` choose the 
 (a cluster is always prod). Logs and the recorded previous version are in `data/upgrade/`. After a
 `--rollback` the checkout is on a detached commit: `git checkout <your branch>` before the next upgrade.
 A browser tab left open across an upgrade may need a reload.
+
+**Changes you may notice after upgrading to the security-hardening release** (migrations `0059`,
+`0060`; both only add columns):
+
+- Containers run as the `node` user on Node 22, and pages carry a nonce-based
+  Content-Security-Policy. A proxy or browser extension that injects inline scripts into pages
+  will have them blocked.
+- **Microsoft sign-in** is refused until **Allowed email domains** is set (or the tenant is a
+  specific tenant id), if it was running open on `common`. See
+  [Microsoft (Entra ID)](#microsoft-entra-id).
+- **Cisco switches** record the SSH host key they present on their next poll and refuse a
+  different one afterwards. If a switch is replaced or its keys regenerated, its page shows the
+  error with a **Trust new host key** button. Changing a switch's IP address forgets the key.
+  Pushing configuration or taking a manual backup waits until a key has been recorded.
+- Notifications older than 180 days and activity older than 90 days are removed (see
+  [what is kept](#what-is-kept-and-for-how-long)); raise or zero the windows first if you want them.
+- Existing two-factor secrets are encrypted the first time each is used.
+- In a cluster, nodes that have not been upgraded yet do not enforce the new sign-out-everywhere
+  rule for the minutes the upgrade takes.
 
 ### Upgrading every node of a cluster
 
@@ -1285,6 +1373,22 @@ download and upload, and let a schedule fire.
 
 ## Data & backup
 
+### What is kept, and for how long
+
+Tables that only grow are cleaned by age in the background (small batches, one node at a
+time). Each window is a setting under `/admin/settings` > Site, and 0 keeps everything:
+
+| Setting | Default | What it removes |
+|---|---|---|
+| `audit.retention_days` | 365 | audit log rows older than this |
+| `notifications.retention_days` | 180 | notifications, read or not, older than this |
+| `activity.retention_days` | 90 | activity feed events older than this |
+
+Infrastructure metrics (raw 7 days, 5-minute rollups 90 days, hourly 365 days) and uptime
+checks (30 days) prune themselves. The first run after upgrading to a version with the
+notification and activity windows removes whatever is older than them; a large backlog is
+cleared over several runs.
+
 These are the operator-level backups of the servers' own storage. For backups an administrator
 makes and restores from the web UI (including scheduled ones), see
 [Backups and restores in the app](#backups-and-restores-in-the-app-admin--backups).
@@ -1374,6 +1478,13 @@ cache (`docker builder prune -f`: build cache only, no images, containers or vol
 | Google sign-in fails with `redirect_uri_mismatch` | redirect URI in the OAuth client doesn't match | Copy the exact URI shown on `/admin/settings/google` into the client's Authorized redirect URIs |
 | Enabled a provider but no sign-in button appears | toggle on but credentials missing, or cache | The button needs client ID + secret saved; provider config caches ~1 min — wait and reload `/signin` |
 | Sessions log out on every request | `AUTH_SECRET` not stable | Ensure `.env` is mounted into both `web` and `api` (it is by default) |
+| Signed out everywhere after changing a password | by design: a password change or reset ends every session of that account | Sign in again with the new password |
+| Sign-in says "too many failed attempts" for a correct password | 10 failures on that account in 15 minutes (someone guessing, or a forgotten password) | Wait for the window to pass (the page says roughly how long); nothing to reset |
+| Password-reset email arrives but its link does not open | **Site URL** (and `APP_URL`) unset, so the link is relative | Set **Site URL** in `/admin/settings`; the api log shows "has a relative link" |
+| Microsoft sign-in does nothing or returns to the sign-in page | no allowed domains on a `common`/`organizations`/`consumers` tenant, or the account's sign-in name is on another domain | Set **Allowed email domains** (list the sign-in domain) or a specific tenant; the web log names the reason |
+| A switch shows "SSH host key ... is not the one recorded" | the switch was replaced or its keys regenerated (or something is intercepting the connection) | If you expected it, press **Trust new host key** on the switch page; otherwise investigate |
+| Someone lost their phone and recovery codes | two-factor enrolled | `/admin/users` > Manage > Two-factor > Remove, then they enrol again |
+| Live updates stop after putting a proxy in front | the handshake's origin differs from the host the proxy passes | Pass the original `Host` (or `X-Forwarded-Host`), or list the public origin in `APP_URL` |
 | Audit log empty after mutations | hitting an unaudited route or interceptor disabled | Check the route exists in `apps/api/src` and the controller is under a module that imports `AuditModule` |
 
 For anything else, `make logs` and grep for `error`. If it's a code bug, file an issue.
