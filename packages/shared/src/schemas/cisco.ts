@@ -38,6 +38,8 @@ export const ciscoSwitchSchema = z.object({
   checkPortState: z.boolean(),
   alertPrefs: ciscoAlertPrefsSchema,
   hasPassword: z.boolean(),
+  /** The switch's SSH host key has been recorded; a different key is refused. */
+  hostKeyPinned: z.boolean().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   // Present on list rows (aggregated); optional on single-get.

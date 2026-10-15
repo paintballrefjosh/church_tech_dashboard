@@ -125,14 +125,42 @@ export class CiscoPoller implements OnModuleInit {
     await Promise.all(workers);
   }
 
+  /**
+   * SSH settings for one switch. The host key is pinned on first use: `knownHostKey` is read at each connect,
+   * so the later commands of the same poll are held to the key the first one recorded. The record is a
+   * conditional update (only while still empty), so two nodes cannot overwrite each other's pin.
+   */
   conn(sw: SwitchRow) {
+    let pinned = sw.knownHostKey ?? null;
     return {
       host: sw.ipAddress,
       port: 22,
       username: sw.username,
       password: sw.passwordEnc ? decryptStoredSecret(sw.passwordEnc, "SSH password") : "",
       timeoutMs: SSH_TIMEOUT_MS,
+      get knownHostKey(): string | null {
+        return pinned;
+      },
+      onHostKey: (fingerprint: string): void => {
+        if (pinned) return;
+        pinned = fingerprint;
+        void this.db
+          .update(ciscoSwitches)
+          .set({ knownHostKey: fingerprint })
+          .where(and(eq(ciscoSwitches.id, sw.id), isNull(ciscoSwitches.knownHostKey)))
+          .catch((err: unknown) => this.logger.warn(`could not record the host key of ${sw.hostname}: ${(err as Error).message}`));
+      },
     };
+  }
+
+  /** Connection settings for a write to the switch: refuses to send credentials to a host not yet recognised. */
+  private pinnedConn(sw: SwitchRow) {
+    if (!sw.knownHostKey) {
+      throw new Error(
+        `The SSH host key of ${sw.hostname} has not been recorded yet. Let the switch be polled once (or press Poll), then try again.`,
+      );
+    }
+    return this.conn(sw);
   }
 
   async pollSwitchById(id: string): Promise<void> {
@@ -144,7 +172,7 @@ export class CiscoPoller implements OnModuleInit {
   async triggerManualBackup(id: string): Promise<void> {
     const [sw] = await this.db.select().from(ciscoSwitches).where(eq(ciscoSwitches.id, id)).limit(1);
     if (!sw) return;
-    const cfg = this.conn(sw);
+    const cfg = this.pinnedConn(sw);
     const versionRaw = await sshShell(cfg, ["show version"]);
     const os = detectOS(versionRaw);
     const runCmd = os === "nxos" ? "show run all" : "show running-config";
@@ -676,6 +704,6 @@ export class CiscoPoller implements OnModuleInit {
       cmds.push("exit");
     }
     cmds.push("end", "write memory");
-    await sshShell(this.conn(sw), cmds);
+    await sshShell(this.pinnedConn(sw), cmds);
   }
 }

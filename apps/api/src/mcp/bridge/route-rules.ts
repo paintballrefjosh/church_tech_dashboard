@@ -85,6 +85,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "PATCH|DELETE /ups/*", status: "excluded", reason: DEVICE_CREDENTIALS },
   { pattern: "POST /cisco/switches", status: "excluded", reason: DEVICE_CREDENTIALS },
   { pattern: "PATCH|DELETE /cisco/switches/*", status: "excluded", reason: DEVICE_CREDENTIALS },
+  { pattern: "POST /cisco/switches/*/reset-host-key", status: "excluded", reason: "accepting a changed SSH host key is a trust decision for a person to make in the web app" },
   { pattern: "DELETE /monitors/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /ipam/subnets/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /dns/zones/*/records", status: "excluded", reason: `${NO_DELETE} (it is still operational-only over REST)` },

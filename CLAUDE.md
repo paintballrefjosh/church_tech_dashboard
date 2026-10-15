@@ -158,6 +158,12 @@ UniFi `unifi:read:any` / `unifi:admin` permissions are now granted by the
 settings category (`/admin/settings/monitoring`). The API endpoints stay at
 `/api/v1/unifi/*` — only the module/UI grouping changed.
 
+Cisco SSH **pins the switch's host key** (`cisco_switches.known_host_key`, migration 0059): trust on first use,
+then a different key is refused before the password is sent (`SshHostKeyMismatchError`, shown on the switch
+page with a "Trust new host key" action: `POST /cisco/switches/:id/reset-host-key`). Changing a switch's IP
+clears the pin. Writes to a switch (`pushToSwitch`, manual backup) refuse to run until a key is recorded
+(`pinnedConn`). Test: `apps/api/test/cisco-host-key.test.ts` runs a real in-process ssh2 server.
+
 There is also a **UPS** tab (`/monitoring/ups` — the `ups` module: an SNMP poller
 over UPS-MIB / RFC 1628, mirroring the `printers` module — `ups_devices` table, a
 `setInterval` poller in `ups.service.ts`, per-device SNMP creds falling back to
@@ -366,8 +372,11 @@ allowlist until cleared (and each throws a **403**, not a 401 — the enforcemen
 calls run outside the cookie-decode try/catch so the 403 isn't swallowed):
 
 - **`must_change_password`** — set on the bootstrap admin, on admin password
-  resets, and optionally on admin-created users. Blocks all mutations except
-  `POST /me/change-password`; the web force-routes to `/change-password`.
+  resets, and optionally on admin-created users. Blocks everything, reads
+  included, except `GET /me` and `POST /me/change-password`
+  (`enforceMustChangePassword`, unit-tested); the web force-routes to
+  `/change-password`. Reads are blocked on purpose: the seeded `admin`/`admin`
+  must not be able to browse the instance's data before a real password is set.
 - **`approval_status = "pending"`** — an external OAuth account awaiting admin
   approval. Blocked from everything except `GET /me`; the web routes them to
   `/pending`.
@@ -379,6 +388,15 @@ group/permissions until an admin approves them at `/admin/users` (Pending tab).
 Workspace-domain accounts are auto-approved into the default `user` group. The
 decision lives in `usersService.provisionOAuthUser`. (Microsoft accounts don't
 use the pending gate.)
+
+**Who may sign in through OAuth** is decided by the pure functions in
+`packages/shared/src/oauth-policy.ts` (tested in `apps/api/test/oauth-policy.test.ts`), called from the
+`signIn` callback in `apps/web/src/lib/auth.ts`: Google must report `email_verified`, and a Google
+account counts as a workspace member only if its `hd` claim equals `google.workspace_domain` (the web
+sends it as `hostedDomain` to `oauth-provision`; an absent field, from an older web build, falls back to
+the address). Microsoft sign-in is refused when no allowed domains are set and the tenant is a shared
+endpoint (`common`/`organizations`/`consumers`); the allowed-domain list is matched against the user
+principal name, never the free `email` claim (only a single tenant also falls back to `email`).
 
 **Soft delete:** `DELETE /users/:id` tombstones the row (`deleted_at`,
 `is_active=false`) but keeps authored content + audit attribution;
@@ -446,6 +464,15 @@ are registered in the web app only.
 Files on tickets, notes and wiki pages are tools too (`catalogue/attachments.tools.ts`, `bridge/attachments.ts`): a tool with `binary: "download"` answers with
 content blocks (an image as an image, text as text, other types described only) and `binary: "upload"` sends `text` or `contentBase64` (1 MiB) to the route as
 multipart. No delete tool.
+
+## Activity feed
+
+`GET /activity` and the home page's activity section go through `ActivityService.list(user, limit)`, which holds
+each event to the read rule of the thing it is about (`visibleTo`): a note's event is only ever its owner's, a
+ticket's is its creator's or a `tickets:read:any` holder's, a wiki page's follows visibility + ACL (or
+`wiki:read:any`), infra/monitor events need `monitors:read:any`, and an event type the filter does not know is
+visible to its actor only. **A new kind of event must be added to `visibleTo`**, or it stays private. Test:
+`apps/api/test/activity-visibility.integration.test.ts` (needs `TEST_DATABASE_URL`; empties the tables it uses).
 
 ## Search
 

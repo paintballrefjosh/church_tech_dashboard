@@ -43,6 +43,7 @@ export default function CiscoSwitchDetailPage() {
   const [form, setForm] = useState<PortForm | null>(null);
   const [confirmDel, setConfirmDel] = useState<CiscoPortRow | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmTrust, setConfirmTrust] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -110,6 +111,23 @@ export default function CiscoSwitchDetailPage() {
       });
       setStatus({ ok: true, text: `Pushing ${p.portId} ${p.adminEnabled ? "shutdown" : "no shutdown"} to the switch…` });
       setTimeout(() => void load(), 3000);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function trustNewHostKey() {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/cisco/switches/${id}/reset-host-key`, { method: "POST", credentials: "same-origin" });
+      if (!r.ok) {
+        const b = (await r.json().catch(() => ({}))) as { message?: string };
+        setStatus({ ok: false, text: b.message ?? `Failed (${r.status})` });
+        return;
+      }
+      setConfirmTrust(false);
+      setStatus({ ok: true, text: "Forgot the old host key. The switch is being polled and the key it presents now will be recorded." });
+      setTimeout(() => void load(), 5000);
     } finally {
       setBusy(false);
     }
@@ -257,6 +275,42 @@ export default function CiscoSwitchDetailPage() {
       ) : null}
 
       <StatusLine status={status} />
+
+      {sw?.lastError && /host key/i.test(sw.lastError) ? (
+        <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          <p>{sw.lastError}</p>
+          {canWrite ? (
+            confirmTrust ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span>Only do this if you know the switch was replaced or its SSH keys were regenerated.</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void trustNewHostKey()}
+                  className="rounded-md bg-amber-700 px-3 py-1 text-white hover:bg-amber-800 disabled:opacity-50"
+                >
+                  Yes, trust the new key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmTrust(false)}
+                  className="rounded-md border border-amber-400 px-3 py-1 hover:bg-amber-100 dark:hover:bg-amber-900"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmTrust(true)}
+                className="mt-2 rounded-md border border-amber-400 px-3 py-1 hover:bg-amber-100 dark:hover:bg-amber-900"
+              >
+                Trust new host key
+              </button>
+            )
+          ) : null}
+        </div>
+      ) : null}
 
       <DataTable
         rows={ports}

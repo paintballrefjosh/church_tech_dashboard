@@ -414,6 +414,13 @@
       "when": 1791936356778,
       "tag": "0058_operational_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792097016990,
+      "tag": "0059_cisco_known_host_key",
+      "breakpoints": true
     }
   ]
 }

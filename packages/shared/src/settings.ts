@@ -343,7 +343,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "Allowed email domains",
     description:
-      "Comma-separated list of email domains permitted to sign in via Microsoft (e.g. 'mychurch.org,contoso.com'). Blank = allow any.",
+      "Comma-separated list of domains permitted to sign in via Microsoft (e.g. 'mychurch.org,contoso.com'), matched against the account's sign-in name (user principal name). Required unless the tenant above is one specific tenant id: with 'common', 'organizations' or 'consumers' and no domains, Microsoft sign-in is refused.",
     defaultValue: "",
     category: "microsoft",
   },

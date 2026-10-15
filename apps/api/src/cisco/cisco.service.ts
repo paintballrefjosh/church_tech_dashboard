@@ -132,7 +132,11 @@ export class CiscoService {
       patch.alertPrefs = { ...normalizePrefs(current.alertPrefs), ...input.alertPrefs };
     }
     if (input.hostname !== undefined) patch.hostname = input.hostname.trim();
-    if (input.ipAddress !== undefined) patch.ipAddress = input.ipAddress.trim();
+    if (input.ipAddress !== undefined) {
+      patch.ipAddress = input.ipAddress.trim();
+      // A different address may be a different device: forget the pinned key so the next poll records the new one.
+      if (patch.ipAddress !== current.ipAddress) patch.knownHostKey = null;
+    }
     if (input.username !== undefined) patch.username = input.username.trim();
     if (input.model !== undefined) patch.model = input.model?.trim() || null;
     if (input.location !== undefined) patch.location = input.location?.trim() || null;
@@ -141,6 +145,16 @@ export class CiscoService {
     if (input.password && input.password.length > 0) patch.passwordEnc = encryptSecret(input.password);
     await this.db.update(ciscoSwitches).set(patch).where(eq(ciscoSwitches.id, id));
     return this.getById(id);
+  }
+
+  /** Forget the pinned SSH host key: the next poll records whatever key the switch presents (a replaced switch, new keys). */
+  async resetHostKey(id: string): Promise<{ ok: true }> {
+    await this.rowById(id);
+    await this.db
+      .update(ciscoSwitches)
+      .set({ knownHostKey: null, updatedAt: new Date() })
+      .where(eq(ciscoSwitches.id, id));
+    return { ok: true };
   }
 
   async remove(id: string): Promise<{ ok: true }> {
@@ -863,6 +877,7 @@ function toSwitch(row: SwitchRow): CiscoSwitch {
     checkPortState: row.checkPortState,
     alertPrefs: normalizePrefs(row.alertPrefs),
     hasPassword: Boolean(row.passwordEnc),
+    hostKeyPinned: Boolean(row.knownHostKey),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

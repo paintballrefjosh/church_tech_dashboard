@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { createHash } from "node:crypto";
+import { googleSignInDecision, microsoftSignInDecision } from "@church/shared";
 import { db, schema } from "./db";
 
 const apiInternalUrl = process.env.API_INTERNAL_URL ?? "http://api:3001";
@@ -225,6 +226,7 @@ async function provisionOAuthUser(input: {
   userId: string;
   email: string;
   provider: string;
+  hostedDomain?: string;
 }): Promise<ProvisionStatus> {
   try {
     const res = await fetch(`${apiInternalUrl}/api/v1/users/oauth-provision`, {
@@ -241,10 +243,11 @@ async function provisionOAuthUser(input: {
   }
 }
 
-function emailDomain(email: string | null | undefined): string {
-  if (!email) return "";
-  const at = email.lastIndexOf("@");
-  return at < 0 ? "" : email.slice(at + 1).toLowerCase();
+/** Google's `hd` claim ("" when absent). Sent for Google only; the API ignores it for other providers. */
+function hostedDomainOf(provider: string, profile: unknown): string | undefined {
+  if (provider !== "google") return undefined;
+  const hd = (profile as { hd?: unknown } | undefined)?.hd;
+  return typeof hd === "string" ? hd : "";
 }
 
 /**
@@ -277,16 +280,24 @@ async function buildAuthConfig(): Promise<NextAuthConfig> {
         const provider = account?.provider;
         if (provider !== "google" && provider !== "microsoft-entra-id") return true;
 
-        // Microsoft email-domain allowlist (blank = allow any). Google's domain
-        // policy is handled by oauth-provision below (which can also gate
-        // external accounts to a pending state).
-        if (provider === "microsoft-entra-id" && cfg.microsoft.allowedDomains.length) {
-          const dom = emailDomain(
-            (profile as { email?: string; preferred_username?: string } | undefined)?.email ??
-              (profile as { preferred_username?: string } | undefined)?.preferred_username ??
-              user?.email,
+        // Who may sign in at all (see packages/shared/src/oauth-policy.ts): Google must have verified the
+        // address; Microsoft needs an allowed-domain list or a single tenant, and the domain is judged on
+        // the account's user principal name, not the editable email claim.
+        if (provider === "google") {
+          const verdict = googleSignInDecision(profile as { email_verified?: unknown } | undefined);
+          if (!verdict.ok) {
+            console.warn(`[auth] Google sign-in refused: ${verdict.reason}`);
+            return false;
+          }
+        } else {
+          const verdict = microsoftSignInDecision(
+            profile as { email?: string | null; preferred_username?: string | null } | undefined,
+            { tenant: cfg.microsoft.tenant, allowedDomains: cfg.microsoft.allowedDomains },
           );
-          if (!cfg.microsoft.allowedDomains.includes(dom)) return false;
+          if (!verdict.ok) {
+            console.warn(`[auth] Microsoft sign-in refused: ${verdict.reason}`);
+            return false;
+          }
         }
 
         if (!user?.id) return true;
@@ -296,6 +307,7 @@ async function buildAuthConfig(): Promise<NextAuthConfig> {
           userId: user.id,
           email,
           provider: provider === "google" ? "google" : "microsoft",
+          hostedDomain: hostedDomainOf(provider, profile),
         });
         if (status === "rejected") return false;
         // Soft-deleted account: deny and route to a specific message rather than
@@ -372,6 +384,7 @@ async function buildAuthConfig(): Promise<NextAuthConfig> {
           userId: user.id,
           email,
           provider: provider === "google" ? "google" : "microsoft",
+          hostedDomain: hostedDomainOf(provider, profile),
         });
       },
     },

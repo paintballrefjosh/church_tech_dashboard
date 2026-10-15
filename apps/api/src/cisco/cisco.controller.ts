@@ -74,6 +74,16 @@ export class CiscoController {
     return this.cisco.update(id, parsed.data);
   }
 
+  @Post("switches/:id/reset-host-key")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "cisco.switch.reset_host_key", resourceType: "cisco_switch", resourceIdFromParams: (p) => p.id ?? null })
+  async resetHostKey(@Param("id") id: string) {
+    const result = await this.cisco.resetHostKey(id);
+    // Record the key the switch presents now rather than waiting for the next scheduled poll.
+    void this.poller.pollSwitchById(id).catch(() => undefined);
+    return result;
+  }
+
   @Delete("switches/:id")
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.switch.delete", resourceType: "cisco_switch" })

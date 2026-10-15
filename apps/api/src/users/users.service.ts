@@ -15,13 +15,7 @@ import { MailerService } from "../mailer/mailer.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { renderEmail } from "../mailer/templates";
 import { AuthTokensService } from "../auth-tokens/auth-tokens.service";
-import { DEFAULT_GROUPS, type ApprovalStatus } from "@church/shared";
-
-/** Lowercase domain portion of an email, or "" if malformed. */
-function emailDomain(email: string): string {
-  const at = email.lastIndexOf("@");
-  return at < 0 ? "" : email.slice(at + 1).toLowerCase();
-}
+import { DEFAULT_GROUPS, isWorkspaceMember, type ApprovalStatus } from "@church/shared";
 
 export type ProvisionResult = "approved" | "pending" | "rejected" | "deleted";
 
@@ -335,6 +329,8 @@ export class UsersService {
     userId: string;
     email: string;
     provider: string;
+    /** Google's `hd` claim; see `isWorkspaceMember`. */
+    hostedDomain?: string;
   }): Promise<{ status: ProvisionResult }> {
     const [existing] = await this.db
       .select({ deletedAt: users.deletedAt })
@@ -362,7 +358,7 @@ export class UsersService {
     const domainRaw = await this.settings.get("google.workspace_domain");
     const domain = (typeof domainRaw === "string" ? domainRaw : "").trim().toLowerCase();
     const approval = (await this.settings.get("google.allow_external_with_approval")) === true;
-    const inWorkspace = domain !== "" && emailDomain(input.email) === domain;
+    const inWorkspace = isWorkspaceMember({ email: input.email, domain, hostedDomain: input.hostedDomain });
 
     if (inWorkspace) {
       if (userExists) {

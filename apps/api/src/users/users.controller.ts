@@ -19,6 +19,8 @@ const oauthProvisionBody = z.object({
   userId: z.string().uuid(),
   email: z.string().email(),
   provider: z.string().min(1).max(64),
+  /** Google's `hd` claim ("" when the account is not managed by a Workspace domain). */
+  hostedDomain: z.string().max(253).optional(),
 });
 const setGroupsBody = z.object({ groupIds: z.array(z.string().uuid()).max(50) });
 const resendWelcomeBody = z.object({ appOrigin: z.string().url().optional() });

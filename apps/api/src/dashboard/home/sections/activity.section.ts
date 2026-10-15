@@ -8,8 +8,8 @@ import { loadUserNames } from "../names";
 export const ACTIVITY_LIMIT = 10;
 
 /**
- * The newest activity events, exactly as `GET /activity` returns them: that endpoint does not
- * filter by person or permission (any signed-in user sees the feed), so neither does this.
+ * The newest activity events this person may see, exactly as `GET /activity` returns them
+ * (`ActivityService.list` holds each event to the read rule of the thing it is about).
  */
 @Injectable()
 export class HomeActivitySection implements SectionBuilder<ActivityItem[]> {
@@ -18,8 +18,8 @@ export class HomeActivitySection implements SectionBuilder<ActivityItem[]> {
     @Inject(DB) private readonly db: Db,
   ) {}
 
-  async build(_ctx: HomeContext): Promise<Section<ActivityItem[]>> {
-    const rows = await this.activity.list(ACTIVITY_LIMIT);
+  async build(ctx: HomeContext): Promise<Section<ActivityItem[]>> {
+    const rows = await this.activity.list(ctx.user, ACTIVITY_LIMIT);
     const names = await loadUserNames(this.db, rows.map((r) => r.actorUserId));
     return sectionOk(
       rows.map((r) => ({

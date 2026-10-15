@@ -10,16 +10,19 @@ import type { AuthenticatedUser } from "./current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 
 /**
- * Routes that remain reachable for a user whose `mustChangePassword` is true.
- * Pages can still render (GETs pass) and the user can submit the password
- * change. Everything else (mutating writes on other resources) is blocked so
- * a stolen seed-default cookie can't be used to modify state before the
- * operator changes the password.
+ * Routes that remain reachable for a user whose `mustChangePassword` is true:
+ * the password change itself, and `GET /me` (the web reads it to know who is
+ * signing in). Everything else is refused, reads included. The flag is set on
+ * the seeded `admin`/`admin` account, so a session that only knows the default
+ * password must not be able to read the instance's data (tickets, settings,
+ * device inventory) before the operator has chosen a real one.
  *
  * Paths are matched against the URL after stripping a leading "/api/v{N}".
  */
 const MUST_CHANGE_PASSWORD_ALLOW: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/me/change-password" },
+  { method: "GET", path: "/me" },
+  { method: "HEAD", path: "/me" },
 ];
 
 function pathWithoutApiPrefix(url: string): string {
@@ -27,11 +30,10 @@ function pathWithoutApiPrefix(url: string): string {
   return noQuery.replace(/^\/api\/v\d+/, "") || "/";
 }
 
-function enforceMustChangePassword(user: AuthenticatedUser, req: { method?: string; url?: string }): void {
+export function enforceMustChangePassword(user: AuthenticatedUser, req: { method?: string; url?: string }): void {
   if (!user.mustChangePassword) return;
   const method = (req.method || "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return;
-  const path = pathWithoutApiPrefix(req.url || "/");
+  const path = pathWithoutApiPrefix(req.url || "/").replace(/\/+$/, "") || "/";
   for (const allow of MUST_CHANGE_PASSWORD_ALLOW) {
     if (allow.method === method && allow.path === path) return;
   }

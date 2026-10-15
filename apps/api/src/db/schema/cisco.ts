@@ -18,6 +18,7 @@ export const ciscoSwitches = pgTable(
     ipAddress: text("ip_address").notNull(),
     username: text("username").notNull(),
     passwordEnc: text("password_enc"), // encrypted SSH password; write-only over the API
+    knownHostKey: text("known_host_key"), // SSH host-key fingerprint, pinned on first connect (TOFU)
     model: text("model"),
     location: text("location"),
     // Poller-updated denormalised state.

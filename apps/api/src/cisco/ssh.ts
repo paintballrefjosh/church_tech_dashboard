@@ -1,4 +1,6 @@
 import { Client, type ClientChannel } from "ssh2";
+import { createHash } from "node:crypto";
+import { SshHostKeyMismatchError } from "../infra/collectors/ssh";
 
 /**
  * Interactive-shell SSH runner for Cisco devices, ported from the cisco-switch
@@ -20,6 +22,13 @@ export interface SshShellOpts {
   username: string;
   password: string;
   timeoutMs: number;
+  /**
+   * Pinned host-key fingerprint (sha256 of the raw key, base64 - the same form the infra collectors keep).
+   * When set, a different key is refused with `SshHostKeyMismatchError` before any credential is sent.
+   * When null the first key seen is accepted and reported through `onHostKey` (trust on first use).
+   */
+  knownHostKey?: string | null;
+  onHostKey?: (fingerprint: string) => void;
 }
 
 const LEGACY_ALGORITHMS = {
@@ -77,6 +86,7 @@ export function sshShell(opts: SshShellOpts, commands: string[]): Promise<string
     let idx = 0;
     let nudges = 0;
     let settled = false;
+    let mismatch = false;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Global watchdog: give up (with whatever we have) if the whole exchange
@@ -149,7 +159,15 @@ export function sshShell(opts: SshShellOpts, commands: string[]): Promise<string
         s.on("close", () => done(null, output));
       });
     });
-    conn.on("error", (e) => done(e as Error));
+    conn.on("error", (e) =>
+      done(
+        mismatch
+          ? new SshHostKeyMismatchError(
+              `The SSH host key of ${opts.host} is not the one recorded when it was first seen. If the switch was replaced or its keys were regenerated, choose "Trust new host key" on the switch; otherwise treat this as a possible interception.`,
+            )
+          : (e as Error),
+      ),
+    );
 
     conn.connect({
       host: opts.host,
@@ -157,6 +175,16 @@ export function sshShell(opts: SshShellOpts, commands: string[]): Promise<string
       username: opts.username,
       password: opts.password,
       readyTimeout: opts.timeoutMs,
+      // Trust on first use, then pin. The check runs during the key exchange, before the password is sent.
+      hostVerifier: (key: Buffer) => {
+        const fp = createHash("sha256").update(key).digest("base64");
+        if (opts.knownHostKey && opts.knownHostKey !== fp) {
+          mismatch = true;
+          return false;
+        }
+        opts.onHostKey?.(fp);
+        return true;
+      },
       // @ts-expect-error ssh2 accepts a partial algorithms override.
       algorithms: LEGACY_ALGORITHMS,
     });
