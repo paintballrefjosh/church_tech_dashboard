@@ -200,6 +200,9 @@ export function InfraDetailClient({
       const started = (await r.json().catch(() => null)) as InfraUpdateRun | null;
       if (started?.id) setWatchRunId(started.id);
       setRunModalOpen(false);
+      // The password is in: put the terminal away. The run's progress shows on the Updates card, and the watch
+      // effect above brings the dialog back only if sudo refuses it (wrong password).
+      if (sudo) setSudoRun(null);
       await loadRuns();
     } finally {
       setStarting(false);
