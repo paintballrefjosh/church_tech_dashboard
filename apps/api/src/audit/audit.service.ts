@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger, type OnModuleInit } from "@nestjs/common";
-import { desc, eq, and, lt, gt, gte, asc, sql, getTableColumns, type SQL } from "drizzle-orm";
+import { desc, eq, and, lt, gt, gte, asc, sql, inArray, getTableColumns, type SQL } from "drizzle-orm";
+import { deleteInBatches } from "../retention/batched-delete";
 import { DB, type Db } from "../db/db.module";
 import { auditLog, apiTokens } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
@@ -97,12 +98,17 @@ export class AuditService implements OnModuleInit {
       const days = typeof raw === "number" && raw > 0 ? raw : 0;
       if (days <= 0) return;
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const deleted = await this.db
-        .delete(auditLog)
-        .where(lt(auditLog.ts, cutoff))
-        .returning({ id: auditLog.id });
-      if (deleted.length > 0) {
-        this.logger.log(`audit prune: removed ${deleted.length} rows older than ${days}d`);
+      // In batches: the first run on a long-lived install can face years of rows, and one DELETE ... RETURNING
+      // of all of them is a single huge transaction whose ids all come back into memory.
+      const removed = await deleteInBatches(async (limit) => {
+        const gone = await this.db
+          .delete(auditLog)
+          .where(inArray(auditLog.id, this.db.select({ id: auditLog.id }).from(auditLog).where(lt(auditLog.ts, cutoff)).limit(limit)))
+          .returning({ id: auditLog.id });
+        return gone.length;
+      });
+      if (removed > 0) {
+        this.logger.log(`audit prune: removed ${removed} rows older than ${days}d`);
       }
     } catch (err) {
       this.logger.warn(`audit prune failed: ${(err as Error).message}`);

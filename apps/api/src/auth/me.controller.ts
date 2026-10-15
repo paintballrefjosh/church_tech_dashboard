@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Post, Patch, Body, BadRequestException, ConflictException, Inject } from "@nestjs/common";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { NOTIFICATION_KINDS, TICKET_PRIORITIES, type TicketSlaMap } from "@church/shared";
 import { CurrentUser, type AuthenticatedUser } from "./current-user.decorator";
@@ -215,17 +215,19 @@ export class MeController {
     }
     if (parsed.data.pageWidthPx !== undefined) patch.pageWidthPx = parsed.data.pageWidthPx;
 
-    if (parsed.data.email !== undefined && parsed.data.email !== user.email) {
+    // Emails are stored lower-case (sign-in lower-cases what is typed, so a mixed-case address would never match),
+    // and "taken" is judged without regard to case.
+    if (parsed.data.email !== undefined && parsed.data.email.toLowerCase() !== user.email.toLowerCase()) {
       // Reject anything that isn't either a real email or our local "<user>@local"
       // convention. We deliberately stay tolerant of "@local" so this stays
       // useful for self-hosted installs without an SMTP-bound identity.
-      const e = parsed.data.email;
+      const e = parsed.data.email.toLowerCase();
       const valid = /^[^\s@]+@[^\s@]+$/.test(e);
       if (!valid) throw new BadRequestException("Invalid email format");
       const [taken] = await this.db
         .select({ id: users.id })
         .from(users)
-        .where(and(eq(users.email, e), ne(users.id, user.id)))
+        .where(and(sql`lower(${users.email}) = ${e}`, ne(users.id, user.id)))
         .limit(1);
       if (taken) throw new ConflictException("That email is already in use");
       patch.email = e;

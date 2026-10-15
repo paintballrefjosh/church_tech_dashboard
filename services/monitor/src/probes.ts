@@ -1,4 +1,5 @@
-import { connect as tcpConnect } from "node:net";
+import { connect as tcpConnect, isIP } from "node:net";
+import { connect as tlsConnect } from "node:tls";
 import { spawn } from "node:child_process";
 import { Resolver } from "node:dns/promises";
 
@@ -208,5 +209,95 @@ export async function probeDns(ctx: ProbeContext): Promise<ProbeResult> {
   } finally {
     if (timer) clearTimeout(timer);
     resolver.cancel();
+  }
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Pure verdict for the TLS probe: whole days left until `validToMs` (negative once expired), and whether that
+ * counts as healthy. Fails once `warnDays` or fewer remain, so the incident opens while there is still time
+ * to renew (the form says "warn when days left <=").
+ */
+export function tlsVerdict(validToMs: number, nowMs: number, warnDays: number): { daysLeft: number; ok: boolean } {
+  const daysLeft = Math.floor((validToMs - nowMs) / DAY_MS);
+  return { daysLeft, ok: validToMs > nowMs && daysLeft > warnDays };
+}
+
+/**
+ * TLS certificate expiry probe. `target` is the host name (a pasted `https://host:port/path` is reduced to
+ * it); the port and warning threshold come from the options (`monitorTlsOptionsSchema`). It connects, reads
+ * the leaf certificate and fails when it has expired or has `warnDays` or fewer days left.
+ *
+ * Only expiry is judged: the chain is NOT validated (`rejectUnauthorized: false`), because internal services
+ * with a private CA are exactly what a church monitors, and an untrusted chain is not an expiring one. The
+ * result says when the chain was not trusted, so it is visible without being an outage.
+ */
+export function probeTls(ctx: ProbeContext): Promise<ProbeResult> {
+  const opts = (ctx.options ?? {}) as { port?: number; warnDays?: number; timeoutMs?: number };
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const warnDays = opts.warnDays ?? 21;
+  let host = ctx.target.trim();
+  let port = opts.port ?? 443;
+  const asUrl = /^[a-z]+:\/\//i.test(host) ? safeUrl(host) : null;
+  if (asUrl) {
+    host = asUrl.hostname;
+    if (asUrl.port) port = parseInt(asUrl.port, 10);
+  } else {
+    const m = /^([^:/\s]+):(\d{1,5})$/.exec(host);
+    if (m) {
+      host = m[1]!;
+      port = parseInt(m[2]!, 10);
+    }
+  }
+  if (!host) return Promise.resolve({ ok: false, latencyMs: 0, info: "invalid target (expected a host name)" });
+
+  return new Promise((resolve) => {
+    const start = Date.now();
+    let settled = false;
+    const finish = (r: ProbeResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(r);
+    };
+    const socket = tlsConnect({
+      host,
+      port,
+      // SNI must be a name, never an IP address.
+      servername: isIP(host) ? undefined : host,
+      rejectUnauthorized: false,
+    });
+    const timer = setTimeout(
+      () => finish({ ok: false, latencyMs: Date.now() - start, info: `timeout after ${timeoutMs}ms` }),
+      timeoutMs,
+    );
+    socket.once("secureConnect", () => {
+      const latency = Date.now() - start;
+      const cert = socket.getPeerCertificate();
+      const validTo = cert && cert.valid_to ? Date.parse(cert.valid_to) : NaN;
+      if (Number.isNaN(validTo)) return finish({ ok: false, latencyMs: latency, info: "no certificate presented" });
+      const { daysLeft, ok } = tlsVerdict(validTo, Date.now(), warnDays);
+      const when = new Date(validTo).toISOString().slice(0, 10);
+      const trust = socket.authorized ? "" : " (chain not trusted by this host)";
+      const info =
+        validTo <= Date.now()
+          ? `certificate expired ${when}`
+          : `expires ${when} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left)${trust}`;
+      finish({ ok, latencyMs: latency, info });
+    });
+    socket.once("error", (err) => {
+      const e = err as { code?: string; message: string };
+      finish({ ok: false, latencyMs: Date.now() - start, info: e.code ?? e.message });
+    });
+  });
+}
+
+function safeUrl(s: string): URL | null {
+  try {
+    return new URL(s);
+  } catch {
+    return null;
   }
 }

@@ -47,18 +47,22 @@ export class AuthTokensController {
   async requestReset(@Body() body: unknown) {
     const parsed = requestResetBody.safeParse(body);
     if (!parsed.success) throw new BadRequestException("invalid request");
-    // We need to look up the user without exposing existence. Do the work
-    // best-effort and always respond the same way.
-    try {
-      const [user] = await this.db
-        .select({ id: users.id, isActive: users.isActive })
-        .from(users)
-        .where(eq(users.email, parsed.data.email.toLowerCase()))
-        .limit(1);
-      if (user?.isActive) await this.tokens.issue("reset", user.id);
-    } catch {
-      /* swallow */
-    }
+    // We need to look up the user without exposing existence. The work is done best-effort AFTER answering, so
+    // how long the response takes (a lookup, a token write and an email queued, or nothing) says nothing about
+    // whether the address is registered.
+    const email = parsed.data.email.toLowerCase();
+    void (async () => {
+      try {
+        const [user] = await this.db
+          .select({ id: users.id, isActive: users.isActive })
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+        if (user?.isActive) await this.tokens.issue("reset", user.id);
+      } catch {
+        /* swallow */
+      }
+    })();
     return { ok: true };
   }
 

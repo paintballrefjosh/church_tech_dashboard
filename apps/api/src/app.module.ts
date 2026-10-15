@@ -29,6 +29,7 @@ import { TagsModule } from "./tags/tags.module";
 import { TicketCategoriesModule } from "./ticket-categories/ticket-categories.module";
 import { MentionsModule } from "./mentions/mentions.module";
 import { ActivityModule } from "./activity/activity.module";
+import { RetentionModule } from "./retention/retention.module";
 import { PlanningCenterModule } from "./planning-center/planning-center.module";
 import { ChecklistsModule } from "./checklists/checklists.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -86,6 +87,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     TicketCategoriesModule,
     MentionsModule,
     ActivityModule,
+    RetentionModule,
     PlanningCenterModule,
     ChecklistsModule,
     SavedViewsModule,

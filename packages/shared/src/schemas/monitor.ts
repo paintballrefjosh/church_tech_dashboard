@@ -38,7 +38,8 @@ export type MonitorIcmpOptions = z.infer<typeof monitorIcmpOptionsSchema>;
 /**
  * TLS certificate expiry monitor. `target` is the hostname; the probe opens a
  * TLS connection, reads the leaf certificate, and treats the check as failing
- * once fewer than `warnDays` days remain before `valid_to`.
+ * once it has expired or `warnDays` or fewer days remain before `valid_to`.
+ * Only expiry is judged, not whether the chain is trusted (see `probeTls`).
  */
 export const monitorTlsOptionsSchema = z.object({
   port: z.number().int().min(1).max(65_535).default(443),

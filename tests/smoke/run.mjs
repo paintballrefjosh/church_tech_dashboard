@@ -411,6 +411,28 @@ async function main() {
     );
   });
 
+  await test("an email is stored lower-case and 'already in use' ignores case", async () => {
+    const stamp = Date.now();
+    const typed = `Mixed-Case-${stamp}@Example.com`;
+    const create = (email) =>
+      fetchWithCookies(
+        "/api/v1/users",
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, displayName: "Case Smoke" }) },
+        jar,
+      );
+    const first = await create(typed);
+    assert(first.res.status === 201 || first.res.status === 200, `create status ${first.res.status}`);
+    const user = await first.res.json();
+    try {
+      assert(user.email === typed.toLowerCase(), `expected the stored email to be lower-case, got ${user.email}`);
+      const again = await create(typed.toUpperCase().replace("@EXAMPLE.COM", "@example.com"));
+      assert(again.res.status === 409, `a different-case duplicate should be 409, got ${again.res.status}`);
+    } finally {
+      await fetchWithCookies(`/api/v1/users/${user.id}`, { method: "DELETE" }, jar);
+      await fetchWithCookies(`/api/v1/users/${user.id}/hard-delete`, { method: "POST" }, jar);
+    }
+  });
+
   await test("user soft-delete lifecycle: delete keeps the row, blocks re-create, restore re-enables", async () => {
     const email = `soft-delete-smoke-${Date.now()}@example.com`;
     // Create a throwaway local user.

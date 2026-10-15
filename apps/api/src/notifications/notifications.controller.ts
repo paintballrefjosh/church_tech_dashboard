@@ -53,23 +53,13 @@ export class NotificationsController {
   }
 
   /**
-   * Body: { to?: string } — sends a one-line test message to the caller, or
-   * to the email supplied. Useful from /admin/settings to validate SMTP is
-   * wired correctly. Anyone signed in can test against themselves; aiming at
-   * a different recipient is gated to admin role.
+   * Sends the caller a test notification (in-app, and by email where their preferences say so). It always goes
+   * to the caller: it used to accept a `to` that was only printed in the message, never mailed. To test SMTP
+   * against any address, an admin uses `POST /mailer/test` (Site settings > SMTP > Test connection).
    */
   @Post("test-email")
-  async testEmail(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() body: unknown,
-  ) {
-    const to = (body && typeof body === "object" && "to" in body && typeof (body as { to?: unknown }).to === "string")
-      ? (body as { to: string }).to
-      : user.email;
-    // Self-test always allowed; only admin can mail another address.
-    if (to !== user.email && !user.permissions.includes("settings:write:any")) {
-      throw new BadRequestException("Only admins can test-mail another address");
-    }
+  async testEmail(@CurrentUser() user: AuthenticatedUser) {
+    const to = user.email;
     await this.notifications.create({
       recipientUserId: user.id,
       kind: "system.test",

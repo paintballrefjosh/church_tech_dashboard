@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, Logger } from "@nestjs/common";
-import { eq, asc, inArray, and, isNull } from "drizzle-orm";
+import { eq, asc, inArray, and, isNull, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import {
   users,
@@ -68,10 +68,12 @@ export class UsersService {
     /** Public origin (window.location.origin) for the welcome link. */
     appOrigin?: string;
   }) {
+    // Stored lower-case: sign-in lower-cases what is typed, and "already in use" ignores case.
+    const email = input.email.trim().toLowerCase();
     const [existing] = await this.db
       .select({ id: users.id, deletedAt: users.deletedAt })
       .from(users)
-      .where(eq(users.email, input.email))
+      .where(sql`lower(${users.email}) = ${email}`)
       .limit(1);
     if (existing) {
       throw new ConflictException(
@@ -84,7 +86,7 @@ export class UsersService {
     const [user] = await this.db
       .insert(users)
       .values({
-        email: input.email,
+        email,
         name: input.displayName,
         isActive: true,
         mustChangePassword: input.mustChangePassword === true,

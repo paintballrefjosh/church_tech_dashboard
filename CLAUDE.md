@@ -117,9 +117,11 @@ Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 
 The `monitoring` module is a single section covering tabbed views under
 `/monitoring`: **Services** (uptime probes run by the `services/monitor` worker —
-`http`/`tcp`/`icmp`/`dns`; per-kind config lives in the monitor's freeform
-`options` blob, no migration to add a kind. **`tls` is in `MONITOR_KINDS` but the
-worker has no probe for it**: a `tls` monitor reports `unknown kind` (down). The
+`http`/`tcp`/`icmp`/`dns`/`tls`; per-kind config lives in the monitor's freeform
+`options` blob, no migration to add a kind. The `tls` probe (`probeTls`) judges certificate
+expiry only (down once expired or `warnDays` or fewer days remain), not chain trust, so private-CA
+services work. A kind in `MONITOR_KINDS` needs a case in the worker's `runProbe`, or it reports
+`unknown kind` (down). The
 worker fans incidents out to the monitoring recipients like infra alerts), **Infrastructure**
 (`/monitoring/infra` — host/Docker/Proxmox; the per-host detail page charts
 CPU/mem/disk plus load/temperature — persisted into rollups — and network/disk-IO,
@@ -1077,6 +1079,18 @@ roll back by itself. A failed build or migration puts the code back before anyth
   Styles stay `unsafe-inline`.
 - `/api/v1/auth/providers/internal`, `/users/ensure-default-group` and `/users/oauth-provision` are 404 at the proxy
   (and token-gated in the api); a new internal-only route belongs in Caddy's `@internal_only` matcher too.
+
+## Retention
+
+Tables that only grow are pruned by age, in batches (`retention/batched-delete.ts`: portable `WHERE pk IN (SELECT pk ...
+LIMIT n)` loops, capped per run), by cluster jobs, each window a setting where 0 keeps everything: audit log
+(`audit.retention_days`, 365, in `AuditService`), notifications (`notifications.retention_days`, 180) and the activity
+feed (`activity.retention_days`, 90), the last two in `RetentionService`. A new table that grows without bound needs a
+window here (or in its own service, as infra metrics and mail do), not a one-off `DELETE`. Test:
+`apps/api/test/retention.integration.test.ts`.
+
+Emails are stored lower-case and "already in use" ignores case (admin create and `PATCH /me`): sign-in lower-cases what
+is typed, so a mixed-case row could never be matched.
 
 ## Repository hygiene
 

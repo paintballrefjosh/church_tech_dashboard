@@ -209,6 +209,24 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: 365,
     category: "site",
   },
+  {
+    key: "notifications.retention_days",
+    type: "number",
+    label: "Notification retention (days)",
+    description:
+      "Notifications older than this are removed from everyone's notification centre by a background job, read or not. 0 keeps them all. Defaults to 180 days.",
+    defaultValue: 180,
+    category: "site",
+  },
+  {
+    key: "activity.retention_days",
+    type: "number",
+    label: "Activity feed retention (days)",
+    description:
+      "Activity feed events older than this are removed by a background job. 0 keeps them all. Defaults to 90 days.",
+    defaultValue: 90,
+    category: "site",
+  },
   // Ticket SLAs. Targets are in minutes; "response" = time-to-first-engagement
   // (a non-creator comment or an assignment), "resolution" = time-to-status≥resolved.
   // 0 disables the clock for that priority. Default values are a starting
