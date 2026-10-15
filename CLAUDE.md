@@ -394,6 +394,11 @@ Every mutating action (POST/PUT/PATCH/DELETE that hits an audited route) writes 
 resource_type, resource_id, before, after, ip, user_agent, ts)`. Do **not** bypass the
 interceptor; if you find yourself needing to, fix the interceptor instead.
 
+The snapshot is the route's response, and `AuditService.write` runs `scrubSnapshot` (`audit/audit-scrub.ts`) on `before` and
+`after` of every row: a string or object under a key that looks like a credential (`password`, `token`, `authorization`,
+`community`, `secret`, `api key`, `cookie` ...) is stored as `[hidden]`. Nothing has to opt in; `redactKeys` on `@Audited` only
+drops a key outright. A key that is only an identifier or count (`tokenId`, `prefix`) is left alone. Test: `audit-scrub.test.ts`.
+
 A handler whose action depends on what the request turned out to do (the MCP
 endpoint multiplexes reads and writes over one POST) calls
 `startDynamicAudit(req)` and then `recordAuditEntry(req, {...})` per change

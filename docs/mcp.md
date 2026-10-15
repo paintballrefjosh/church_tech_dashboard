@@ -100,10 +100,11 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
   manage the category (right for a person at a form). The two settings tools run `hideSecretSettings` (`bridge/scrub.ts`):
   a secret that is set reads `[hidden]`, and so does any key the catalogue does not know (it may be one). This is the
   `BridgeTool.transform` hook, for what a key list (`redact`) cannot say.
-- **The audit log is scrubbed too** (`scrubAudit`): a row keeps a snapshot of what the request carried and not every route strips
-  its secrets from it (a settings change stores the new value; a monitor create stores its `Authorization` header). Under
-  `before` and `after`, keys that look like credentials are hidden, and the value of a setting change is hidden unless
-  it is a known non-secret. Fixing the stored snapshots themselves (`redactKeys` on those routes) is a separate change.
+- **The audit log is scrubbed twice.** A row's snapshot is the route's answer, and not every route strips its secrets from it (a
+  monitor create stored its `Authorization` header). `AuditService.write` now runs `scrubSnapshot` (`audit/audit-scrub.ts`) on
+  `before` and `after` of every row, so no route needs to remember `redactKeys`; a one-time job (`audit-scrub-backfill`) rewrote the
+  rows stored earlier. `audit_list` still runs `scrubAudit` over what it returns, as a second layer. Both hide strings and objects
+  under a credential-looking key; numbers, booleans, null and empty values stay, as do identifier keys (`tokenId`, `prefix`).
 - `settings_list` and `settings_get` have no `@RequirePermissions` on the route (the handler decides per category), so
   every token sees them in `tools/list`; a caller without settings access gets an empty list or a 403.
 - No admin writes: users, groups, settings, token management, backups and node removal stay in the web app.

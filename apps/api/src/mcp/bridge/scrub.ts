@@ -1,5 +1,5 @@
 import { findKnownSetting } from "@church/shared";
-import { HIDDEN } from "./api-bridge.service";
+import { HIDDEN, scrubSnapshot } from "../../audit/audit-scrub";
 
 const present = (v: unknown) => v !== null && v !== undefined && v !== "";
 
@@ -31,23 +31,9 @@ export function hideSecretSettings(result: unknown): unknown {
   return result;
 }
 
-const SECRET_KEY = /pass(word)?|secret|token|authorization|community|private.?key|api.?key|credential|cookie/i;
-
-function scrubDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(scrubDeep);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = SECRET_KEY.test(k) && present(v) && typeof v !== "boolean" ? HIDDEN : scrubDeep(v);
-    }
-    return out;
-  }
-  return value;
-}
-
 /**
  * Audit rows as an agent may see them. A row keeps a snapshot of what a request carried, and not every route
- * strips its secrets from it (a settings change stores the new value). Inside `before` and `after` anything
+ * strips its secrets from it, and rows from before the audit writer scrubbed may still hold some). Inside `before` and `after` anything
  * under a key that looks like a credential is hidden, and the value of a setting change is hidden unless the
  * setting is a known non-secret one.
  */
@@ -59,8 +45,8 @@ export function scrubAudit(result: unknown): unknown {
     ...r,
     items: r.items.map((it) => {
       const row = it as Record<string, unknown>;
-      let before = scrubDeep(row.before);
-      let after = scrubDeep(row.after);
+      let before = scrubSnapshot(row.before);
+      let after = scrubSnapshot(row.after);
       if (row.resourceType === "setting" && !(typeof row.resourceId === "string" && showable(row.resourceId))) {
         const hide = (s: unknown) => (s && typeof s === "object" && present((s as { value?: unknown }).value) ? { ...(s as object), value: HIDDEN } : s);
         before = hide(before);

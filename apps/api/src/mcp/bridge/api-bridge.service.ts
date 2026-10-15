@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
 import type { FastifyInstance } from "fastify";
+import { HIDDEN } from "../../audit/audit-scrub";
 import { SettingsService } from "../../settings/settings.service";
 import { pathParamNames, type BridgeTool } from "./bridge.types";
 
@@ -131,7 +132,7 @@ export function buildRequest(
   return { url, payload: hasBody ? JSON.stringify(body) : undefined };
 }
 
-export const HIDDEN = "[hidden]";
+export { HIDDEN };
 
 /** Replace the value of the named keys, at any depth, with `[hidden]` (null and empty values stay, so "none set" still reads). */
 export function redactKeys(value: unknown, keys: string[]): unknown {

@@ -1,9 +1,14 @@
 import { Injectable, Inject, Logger, type OnModuleInit } from "@nestjs/common";
-import { desc, eq, and, lt, gte, getTableColumns, type SQL } from "drizzle-orm";
+import { desc, eq, and, lt, gt, gte, asc, sql, getTableColumns, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { auditLog, apiTokens } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { JobStateService } from "../cluster/job-state.service";
+import { needsScrub, scrubSnapshot } from "./audit-scrub";
+
+const BACKFILL_JOB = "audit-scrub-backfill";
+const BACKFILL_BATCH = 500;
 
 export interface AuditWrite {
   actorUserId?: string | null;
@@ -27,6 +32,7 @@ export class AuditService implements OnModuleInit {
     @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
     private readonly jobs: ClusterJobs,
+    private readonly state: JobStateService,
   ) {}
 
   /**
@@ -38,6 +44,51 @@ export class AuditService implements OnModuleInit {
     // First run 60s after boot, then every 24 hours. We don't bother locking to
     // wall-clock 02:00 — uniform-jitter is fine for an internal IT tool.
     this.jobs.register({ name: "audit-prune", everyMs: 24 * 60 * 60 * 1000, initialDelayMs: 60_000, run: () => this.pruneOnce() });
+    // Rows written before snapshots were scrubbed may still hold a secret. Runs once per database.
+    this.jobs.register({ name: BACKFILL_JOB, everyMs: 6 * 60 * 60 * 1000, initialDelayMs: 90_000, run: async () => void (await this.backfillOnce()) });
+  }
+
+  /**
+   * Rewrite stored snapshots that hold a credential-looking key (a monitor's Authorization header, from before
+   * `write` scrubbed). Pages through the table by id and changes only rows the scrub would change, so it is
+   * safe to repeat; a marker in job_state stops later runs from scanning again.
+   */
+  async backfillOnce(): Promise<number> {
+    try {
+      if (await this.state.get(BACKFILL_JOB, "done")) return 0;
+      let last: string | null = null;
+      let changed = 0;
+      for (;;) {
+        const rows: { id: string; before: unknown; after: unknown }[] = await this.db
+          .select({ id: auditLog.id, before: auditLog.before, after: auditLog.after })
+          .from(auditLog)
+          .where(
+            and(
+              last ? gt(auditLog.id, last) : undefined,
+              sql`(coalesce(${auditLog.before}::text, '') || coalesce(${auditLog.after}::text, '')) ~* 'pass|secret|token|authorization|bearer|community|private.?key|api.?key|credential|cookie'`,
+            ),
+          )
+          .orderBy(asc(auditLog.id))
+          .limit(BACKFILL_BATCH);
+        if (rows.length === 0) break;
+        for (const r of rows) {
+          if (needsScrub(r.before) || needsScrub(r.after)) {
+            await this.db
+              .update(auditLog)
+              .set({ before: scrubSnapshot(r.before) as never, after: scrubSnapshot(r.after) as never })
+              .where(eq(auditLog.id, r.id));
+            changed++;
+          }
+        }
+        last = rows[rows.length - 1]!.id;
+      }
+      await this.state.set(BACKFILL_JOB, "done", { at: new Date().toISOString(), changed });
+      if (changed > 0) this.logger.log(`audit scrub: hid secrets in ${changed} stored snapshots`);
+      return changed;
+    } catch (err) {
+      this.logger.warn(`audit scrub backfill failed: ${(err as Error).message}`);
+      return 0;
+    }
   }
 
   private async pruneOnce(): Promise<void> {
@@ -65,8 +116,9 @@ export class AuditService implements OnModuleInit {
       action: entry.action,
       resourceType: entry.resourceType,
       resourceId: entry.resourceId ?? null,
-      before: (entry.before ?? null) as never,
-      after: (entry.after ?? null) as never,
+      // Whatever a route answered with is the snapshot, and not every route strips its secrets first.
+      before: scrubSnapshot(entry.before ?? null) as never,
+      after: scrubSnapshot(entry.after ?? null) as never,
       ip: entry.ip ?? null,
       userAgent: entry.userAgent ?? null,
       apiTokenId: entry.apiTokenId ?? null,

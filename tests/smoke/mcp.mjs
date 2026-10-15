@@ -419,6 +419,8 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       assert(reached.body.result?.isError === true && /Not found/.test(toolText(reached)), `unexpected: ${toolText(reached)}`);
     } finally {
       await revoke(write);
+      // The route itself (what a web admin reads) holds no secret either: the writer scrubs the stored snapshot.
+      assert(!JSON.stringify(row).includes("smoke-secret-value"), "secret stored in the audit snapshot");
       await revoke(op);
     }
   });
