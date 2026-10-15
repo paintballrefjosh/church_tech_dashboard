@@ -67,7 +67,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "DELETE /admin/cluster/nodes/:id", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "POST /users/:id/hard-delete", status: "excluded", reason: "permanent removal of an account" },
   { pattern: "POST /users/:id/password", status: "excluded", reason: "sets another person's password" },
-  { pattern: "* /*/*/attachments/**", status: "excluded", reason: "binary upload/download is designed separately and is not in the first pass" },
+  { pattern: "DELETE /*/*/attachments/*", status: "excluded", reason: `${NO_DELETE}; list, read and add are tools` },
   { pattern: "POST /wiki/import", status: "excluded", reason: "file upload (multipart)" },
   { pattern: "POST /groups/sync-google", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "DELETE /tickets/**", status: "excluded", reason: NO_DELETE },

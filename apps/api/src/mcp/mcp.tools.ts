@@ -17,6 +17,7 @@ import { WikiFoldersService } from "../wiki/wiki-folders.service";
 import { ApiBridge, type BridgeCaller } from "./bridge/api-bridge.service";
 import { strictInput, toInputSchema } from "./bridge/bridge-schema";
 import type { BridgeTool } from "./bridge/bridge.types";
+import { ContentResult } from "./bridge/attachments";
 import { BRIDGE_TOOLS } from "./bridge/catalogue";
 
 const SERVER_INFO = { name: "church-dashboard", version: "1.0.0" };
@@ -127,6 +128,8 @@ export class McpToolsService {
     }
     try {
       const result = await def.run(ctx, parsed.data as never);
+      // A tool that already built its content blocks (an attachment: an image, a file's text).
+      if (result instanceof ContentResult) return { content: result.content };
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       return toolError(describeError(err));

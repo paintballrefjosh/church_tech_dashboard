@@ -443,6 +443,9 @@ admin, no delete tools for tickets/wiki/accounts, and a future "operational" tok
 for equipment-touching tools are decided (2026-10-12). A tool whose route returns a credential
 sets `redact` (values become `[hidden]`) or `transform` (settings, audit: `bridge/scrub.ts`); devices with logins (hosts, printers, UPS, switches)
 are registered in the web app only.
+Files on tickets, notes and wiki pages are tools too (`catalogue/attachments.tools.ts`, `bridge/attachments.ts`): a tool with `binary: "download"` answers with
+content blocks (an image as an image, text as text, other types described only) and `binary: "upload"` sends `text` or `contentBase64` (1 MiB) to the route as
+multipart. No delete tool.
 
 ## Search
 

@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { HIDDEN } from "../../audit/audit-scrub";
 import { SettingsService } from "../../settings/settings.service";
 import { pathParamNames, type BridgeTool } from "./bridge.types";
+import { downloadContent, filenameFromDisposition, multipartFile, uploadBytes, type UploadArgs } from "./attachments";
 
 /** The parts of the incoming MCP request the route call must carry on. */
 export interface BridgeCaller {
@@ -52,22 +53,18 @@ export class ApiBridge {
   }
 
   async call(tool: BridgeTool, args: Record<string, unknown>, caller: BridgeCaller): Promise<unknown> {
-    const { url, payload } = buildRequest(tool, args);
-    const headers: Record<string, string> = {
-      authorization: caller.authorization,
-      accept: "application/json",
-      "user-agent": "church-dashboard-mcp",
-    };
-    if (payload !== undefined) headers["content-type"] = "application/json";
-    if (caller.readYourWrites) headers.cookie = `church_rv=${caller.readYourWrites}`;
+    if (tool.binary === "download") return this.download(tool, args, caller);
 
-    const res = await this.app.inject({
-      method: tool.method,
-      url,
-      headers,
-      payload,
-      ...(caller.ip ? { remoteAddress: caller.ip } : {}),
-    });
+    let request: { url: string; payload: string | Buffer | undefined } = buildRequest(tool, args);
+    let contentType = "application/json";
+    if (tool.binary === "upload") {
+      const { filename, contentType: declared, text, contentBase64, ...params } = args;
+      const file = uploadBytes({ filename, contentType: declared, text, contentBase64 } as UploadArgs);
+      const multipart = multipartFile(String(filename), file.contentType, file.bytes);
+      request = { url: buildRequest(tool, params).url, payload: multipart.body };
+      contentType = `multipart/form-data; boundary=${multipart.boundary}`;
+    }
+    const res = await this.send(tool, request.url, request.payload, contentType, caller);
 
     let body: unknown = undefined;
     if (res.body) {
@@ -89,6 +86,44 @@ export class ApiBridge {
       }
     }
     return capResult(result);
+  }
+
+  /** A GET that streams a file: described, and handed over where a model can read it (images, text). */
+  private async download(tool: BridgeTool, args: Record<string, unknown>, caller: BridgeCaller) {
+    const { url } = buildRequest(tool, args);
+    const res = await this.send(tool, url, undefined, "application/json", caller);
+    if (res.statusCode >= 400) {
+      let body: unknown = res.body;
+      try {
+        body = JSON.parse(res.body);
+      } catch {
+        /* a plain-text error */
+      }
+      throw new BridgeError(res.statusCode, errorText(res.statusCode, body));
+    }
+    return downloadContent({
+      filename: filenameFromDisposition(res.headers["content-disposition"] as string | undefined),
+      contentType: String(res.headers["content-type"] ?? "application/octet-stream"),
+      bytes: res.rawPayload,
+    });
+  }
+
+  /** One in-process request to a route, carrying the caller's token, address and read-your-writes cookie. */
+  private send(tool: BridgeTool, url: string, payload: string | Buffer | undefined, contentType: string, caller: BridgeCaller) {
+    const headers: Record<string, string> = {
+      authorization: caller.authorization,
+      accept: tool.binary === "download" ? "*/*" : "application/json",
+      "user-agent": "church-dashboard-mcp",
+    };
+    if (payload !== undefined) headers["content-type"] = contentType;
+    if (caller.readYourWrites) headers.cookie = `church_rv=${caller.readYourWrites}`;
+    return this.app.inject({
+      method: tool.method,
+      url,
+      headers,
+      payload,
+      ...(caller.ip ? { remoteAddress: caller.ip } : {}),
+    });
   }
 }
 

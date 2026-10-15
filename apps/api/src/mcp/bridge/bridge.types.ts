@@ -64,6 +64,13 @@ export interface BridgeTool {
    * some keys). Runs after `redact`, before the answer is cut to size.
    */
   transform?: (result: unknown) => unknown;
+  /**
+   * The route moves bytes, not JSON. `download`: a GET that streams a file; the answer is the file's description plus
+   * the file itself where a model can use it (an image, text). `upload`: a POST that takes one multipart `file`; the
+   * tool's arguments are the parent's path parameters plus `filename`, `contentType` and `text` or `contentBase64`
+   * (see bridge/attachments.ts).
+   */
+  binary?: "download" | "upload";
   /** A web path (`/tickets/<id>`) for a result, shown to the model as an absolute `url`. */
   link?: (result: unknown) => string | null;
 }

@@ -227,6 +227,70 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
     }
   });
 
+  await test("mcp: files are attached to a ticket, note and wiki page, listed, read back and audited as the token", async () => {
+    const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    const full = await mint({ name: "smoke mcp attachments", readOnly: false });
+    const ro = await mint({ name: "smoke mcp attachments ro" });
+    let ticketId = null;
+    let noteId = null;
+    let pageId = null;
+    try {
+      const h = auth(full);
+      ticketId = (await run(h, "tickets_create", { title: "smoke mcp attachments", description: "x", priority: "low" })).id;
+      noteId = (await run(h, "notes_create", { title: "smoke mcp attachments", body: "x" })).id;
+      pageId = (await run(h, "wiki_create_page", { title: "smoke mcp attachments" })).id;
+
+      for (const [area, id] of [["tickets", ticketId], ["notes", noteId], ["wiki", pageId]]) {
+        const added = await run(h, `${area}_add_attachment`, { id, filename: "smoke.txt", text: "smoke attachment text" });
+        assert(added.filename === "smoke.txt" && added.contentType === "text/plain", `${area}: ${JSON.stringify(added)}`);
+        const list = await run(h, `${area}_list_attachments`, { id });
+        assert(list.some((a) => a.id === added.id), `${area}: attachment not listed`);
+
+        const read = await call(h, `${area}_get_attachment`, { id, aid: added.id });
+        assert(!read.body.result?.isError, `${area}: ${toolText(read).slice(0, 200)}`);
+        const blocks = read.body.result.content;
+        assert(JSON.parse(blocks[0].text).filename === "smoke.txt", `${area}: description block`);
+        assert(blocks[1]?.type === "text" && blocks[1].text === "smoke attachment text", `${area}: text block ${JSON.stringify(blocks[1])}`);
+      }
+
+      // An image round trip: the bytes come back as an image block.
+      const img = await run(h, "tickets_add_attachment", { id: ticketId, filename: "pixel.png", contentType: "image/png", contentBase64: PNG });
+      assert(img.contentType === "image/png", `image upload: ${JSON.stringify(img)}`);
+      const shown = await call(h, "tickets_get_attachment", { id: ticketId, aid: img.id });
+      const block = shown.body.result.content[1];
+      assert(block?.type === "image" && block.mimeType === "image/png" && block.data === PNG, "image not returned as an image block");
+
+      // The route's own checks still apply: a type nobody allowed, and bytes that do not match the declared type.
+      const exe = await call(h, "tickets_add_attachment", { id: ticketId, filename: "x.exe", contentType: "application/x-msdownload", text: "MZ" });
+      assert(exe.body.result?.isError === true, "a disallowed type was accepted");
+      const liar = await call(h, "tickets_add_attachment", { id: ticketId, filename: "x.png", contentType: "image/png", text: "this is not a png" });
+      assert(liar.body.result?.isError === true, "text declared as png was accepted");
+      const both = await call(h, "tickets_add_attachment", { id: ticketId, filename: "x.txt", text: "a", contentBase64: "YQ==" });
+      assert(both.body.result?.isError === true, "text and base64 together were accepted");
+
+      // Attributed to the token, like every other change (the row's resource id is the attachment's, the response's id).
+      const audit = await session("/api/v1/audit?action=ticket.attachment.upload&limit=20");
+      const row = ((await audit.res.json()).items ?? []).find((r) => r.resourceId === img.id);
+      assert(row?.apiTokenName === "smoke mcp attachments", `upload not attributed to the token: ${row?.apiTokenName}`);
+
+      // A read-only token reads but cannot add, and there is no delete tool.
+      const hr = auth(ro);
+      const names = (await rpc(hr, "tools/list")).body.result.tools.map((t) => t.name);
+      assert(names.includes("tickets_get_attachment") && !names.includes("tickets_add_attachment"), "read-only tool list for attachments");
+      assert(!names.some((n) => /delete_attachment|remove_attachment/.test(n)), "an attachment delete tool exists");
+      const refused = await call(hr, "tickets_add_attachment", { id: ticketId, filename: "x.txt", text: "a" });
+      assert(refused.body.result?.isError === true, "a read-only token added a file");
+      const looked = await call(hr, "tickets_list_attachments", { id: ticketId });
+      assert(!looked.body.result?.isError, "a read-only token could not list files");
+    } finally {
+      if (ticketId) await session(`/api/v1/tickets/${ticketId}`, { method: "DELETE" });
+      if (noteId) await session(`/api/v1/notes/${noteId}`, { method: "DELETE" });
+      if (pageId) await session(`/api/v1/wiki/${pageId}`, { method: "DELETE" });
+      await revoke(full);
+      await revoke(ro);
+    }
+  });
+
   await test("mcp: a notes-only token cannot reach tickets or checklists through the tools", async () => {
     const notes = await mint({ name: "smoke mcp notes only", modules: ["notes"], readOnly: false });
     try {
@@ -355,6 +419,8 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       const audit = await session("/api/v1/audit?action=monitor.create&limit=20");
       const row = ((await audit.res.json()).items ?? []).find((r) => r.resourceId === monitorId);
       assert(row, "no monitor.create audit row");
+      // The route itself (what a web admin reads) holds no secret either: the writer scrubs the stored snapshot.
+      assert(!JSON.stringify(row).includes("smoke-secret-value"), "secret stored in the audit snapshot");
       assert(row.apiTokenName === "smoke mcp phase2 writes", `audit row not attributed to the token: ${row.apiTokenName}`);
     } finally {
       if (monitorId) await session(`/api/v1/monitors/${monitorId}`, { method: "DELETE" });
@@ -419,8 +485,6 @@ export async function mcpTests({ test, assert, fetchWithCookies, jar }) {
       assert(reached.body.result?.isError === true && /Not found/.test(toolText(reached)), `unexpected: ${toolText(reached)}`);
     } finally {
       await revoke(write);
-      // The route itself (what a web admin reads) holds no secret either: the writer scrubs the stored snapshot.
-      assert(!JSON.stringify(row).includes("smoke-secret-value"), "secret stored in the audit snapshot");
       await revoke(op);
     }
   });

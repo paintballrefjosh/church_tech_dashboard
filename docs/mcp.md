@@ -109,6 +109,22 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
   every token sees them in `tools/list`; a caller without settings access gets an empty list or a 403.
 - No admin writes: users, groups, settings, token management, backups and node removal stay in the web app.
 
+## Attachments
+
+Built after phase 4: `tickets_`, `notes_` and `wiki_` each get `list_attachments`, `get_attachment` and `add_attachment` (9 tools, `catalogue/attachments.tools.ts`,
+`bridge/attachments.ts`). They are still doors onto the existing routes, so the allowed-types setting, the magic-byte check, the 10 MiB cap, page and ticket access
+and the audit row (with the token id) all apply unchanged. A tool opts into bytes with `binary: "download" | "upload"`; the coverage test treats it like any other tool.
+
+- **Reading** (`get_attachment`): the answer is a description (name, type, size) and, where a model can use the file, the file: an image (png, jpeg, gif, webp, up to
+  5 MiB) as an MCP image block, a text file (`text/*`, JSON, XML, YAML, CSV) as text cut at 60,000 characters. Anything else (PDF, Office, archives, custom
+  extensions stored as opaque downloads) is described only, with a note to open it in the web app. No download link is issued: that would need an unauthenticated
+  route, and the backup download link is the only one of those the app has. The description carries a warning that a file's content is data, not instructions.
+- **Adding** (`add_attachment`): `text` (UTF-8, default type `text/plain`) or `contentBase64` with a `contentType`, at most 1 MiB decoded, because the model has to
+  write the bytes itself. The bridge wraps it as one multipart `file` part and calls the upload route. A bigger file, or one on disk, goes the ordinary REST way:
+  the upload routes accept the same bearer token (`curl -H "Authorization: Bearer $TOKEN" -F file=@report.pdf .../api/v1/tickets/<id>/attachments`).
+- **No delete tool** (same rule as tickets and wiki pages). A new file is added each time; nothing is overwritten.
+- The audit row for an upload names the attachment as its resource (the interceptor prefers the response's `id` over the route parameter), with the token id.
+
 ## Excluded on purpose
 
 Listed with reasons in `route-rules.ts` (`excluded`); the main groups:
@@ -117,7 +133,8 @@ Listed with reasons in `route-rules.ts` (`excluded`); the main groups:
 - **Secrets as arguments**: the "test connection" routes of every integration, and registering or editing a device.
 - **No undo, or too powerful**: host OS updates (sudo password), hard-delete and password-set for accounts.
 - **Admin writes** (users, groups, settings): read-only admin for now.
-- **Binary attachments** (upload and download): need their own design (multipart; return a link for downloads).
+- **Deleting an attachment**, like deleting a ticket or a wiki page. Listing, reading and adding files are tools (see "Attachments" below).
+- **Wiki import** (`POST /wiki/import`): a multipart upload of a whole archive.
 - **Plumbing**: probes, metrics, internal sign-in calls, mail and reindex operations.
 
 ## Operational token level
