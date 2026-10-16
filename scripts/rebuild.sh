@@ -11,6 +11,7 @@
 # Usage: scripts/rebuild.sh        # rebuild what changed, then migrate
 #        scripts/rebuild.sh --all  # force-rebuild both services
 #        scripts/rebuild.sh --no-migrate
+#        REBUILD_PRUNE=0 scripts/rebuild.sh   # skip the image/build-cache prune afterwards
 #
 # Marker files (.last-rebuild, .last-migrate) live at the repo root and are
 # gitignored. They're touched only on success so an interrupted run re-tries
@@ -128,5 +129,16 @@ if [ "$proxy_changed" = 1 ]; then
   echo "==> Proxy config changed: recreating/restarting the proxy"
   "${COMPOSE[@]}" up -d proxy
   "${COMPOSE[@]}" restart proxy
+fi
+
+# Every rebuild leaves the previous images dangling and adds BuildKit layers that nothing ever
+# reuses; on a dev host that filled the disk (150 GB of cache in a month). Tidy up after a build that
+# succeeded: dangling images go (the running ones are tagged, so they stay), and the build cache is
+# trimmed to the most recently used REBUILD_CACHE_KEEP (default 20GB) so the next build still hits
+# it. Volumes are never touched. Failures here are not failures of the rebuild.
+if [ ${#services[@]} -gt 0 ] && [ "${REBUILD_PRUNE:-1}" = 1 ]; then
+  echo "==> Pruning dangling images and old build cache"
+  docker image prune -f | tail -n 1 || true
+  docker builder prune -f --keep-storage "${REBUILD_CACHE_KEEP:-20GB}" 2>/dev/null | tail -n 1 || true
 fi
 touch "$REBUILD_MARKER"

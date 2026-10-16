@@ -18,10 +18,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 FROM base AS build
 ENV NEXT_TELEMETRY_DISABLED=1
-# Which build this is: the Next.js build id and deployment id (see next.config.mjs),
-# shown as the node's version. Every node of a cluster must run the same build.
-ARG BUILD_ID=dev
-ENV BUILD_ID=$BUILD_ID
 # Dummy env vars so `next build` can collect page data without trying to connect
 # to a real DB or read a real secret. Both are overridden at runtime by env_file.
 ENV COCKROACH_URL=postgresql://build@127.0.0.1:5432/build?sslmode=disable
@@ -30,6 +26,13 @@ ENV AUTH_TRUST_HOST=true
 COPY --from=deps /app /app
 COPY packages/shared packages/shared
 COPY apps/web apps/web
+# Declared here, after the COPYs, not at the top of the stage: the id changes with every edit
+# (scripts/build-id.sh), and an ARG/ENV invalidates the cache of every instruction below it. Up
+# top it made each build copy the whole ~870 MB node_modules tree from the deps stage again.
+# Which build this is: the Next.js build id and deployment id (see next.config.mjs),
+# shown as the node's version. Every node of a cluster must run the same build.
+ARG BUILD_ID=dev
+ENV BUILD_ID=$BUILD_ID
 # Server Action ids are hashed with the build's encryption key, and Next generates a
 # random key for every build, so two builds of the same source gave two incompatible
 # sets of ids (a sign-in form rendered by one node was rejected by another). Building
