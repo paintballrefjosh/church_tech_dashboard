@@ -1537,6 +1537,31 @@ async function main() {
   // Best-effort cleanup of any monitors a prior run left behind, then exercise
   // the CRUD + history endpoints against a freshly-created HTTP monitor.
   let monitorId = null;
+  await test("maintenance mode: a window with an end time reports it, bad input is a 400, and it ends switched off", async () => {
+    const post = (body) =>
+      fetchWithCookies("/api/v1/monitors/maintenance", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, jar);
+    try {
+      const before = Date.now();
+      const { res } = await post({ enabled: true, minutes: 5 });
+      assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+      const on = await res.json();
+      assert(on.enabled === true && typeof on.until === "string", `reply: ${JSON.stringify(on)}`);
+      const end = Date.parse(on.until);
+      assert(end > before + 4 * 60_000 && end < before + 6 * 60_000, `end time should be about 5 minutes away, got ${on.until}`);
+      const { res: g } = await fetchWithCookies("/api/v1/monitors/maintenance", {}, jar);
+      assert((await g.json()).until === on.until, "GET should report the same end time");
+      assert((await post({ enabled: true, minutes: 0 })).res.status === 400, "0 minutes should be refused");
+      assert((await post({ enabled: true, minutes: 100000 })).res.status === 400, "more than a week should be refused");
+      const { res: open } = await post({ enabled: true });
+      const noEnd = await open.json();
+      assert(noEnd.enabled === true && noEnd.until === null, `no minutes means no end time: ${JSON.stringify(noEnd)}`);
+    } finally {
+      const { res } = await post({ enabled: false });
+      const off = await res.json();
+      assert(off.enabled === false && off.until === null, `must end switched off: ${JSON.stringify(off)}`);
+    }
+  });
+
   await test("GET /api/v1/monitors returns 401 without session", async () => {
     const { res } = await fetchWithCookies("/api/v1/monitors");
     assert(res.status === 401, `status ${res.status}`);

@@ -666,8 +666,17 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "boolean",
     label: "Maintenance mode (silence alerts)",
     description:
-      "When on, monitoring alert notifications (infrastructure thresholds, service up/down, UniFi device offline) are suppressed. Incidents are still recorded so history stays intact — only the in-app/email fan-out is paused. Toggle from the banner at the top of any Monitoring tab.",
+      "When on, monitoring alert notifications (infrastructure thresholds, service up/down, UniFi device offline) are suppressed. Incidents are still recorded so history stays intact — only the in-app/email fan-out is paused. Toggle from the switch at the top of any Monitoring tab, which can give it an end time.",
     defaultValue: false,
+    category: "monitoring",
+  },
+  {
+    key: "monitoring.maintenance_until",
+    type: "string",
+    label: "Maintenance mode ends at",
+    description:
+      "When maintenance mode has an end time (ISO date and time, e.g. 2026-10-16T18:00:00Z), alerts resume by themselves then. Blank means no end. Set from the switch at the top of any Monitoring tab, which offers 1 hour to 24 hours; a background job turns the switch off once the time has passed.",
+    defaultValue: "",
     category: "monitoring",
   },
   {

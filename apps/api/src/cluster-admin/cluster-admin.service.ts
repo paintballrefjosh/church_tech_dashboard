@@ -8,6 +8,7 @@ import { JobStateService } from "../cluster/job-state.service";
 import { NODE_LIVE_SEC, NodeService } from "../cluster/node.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { SettingsService } from "../settings/settings.service";
+import { maintenanceActive } from "../monitors/maintenance";
 import { getS3 } from "../attachments/s3.client";
 import { describeS3, resolveS3Config } from "../attachments/s3.config";
 import { engineFromVersion, engineLabel } from "../db/connection";
@@ -182,7 +183,7 @@ export class ClusterAdminService implements OnModuleInit {
     const next = before.filter((id) => stale.has(id)).concat(down);
     if (down.length > 0 || back.length > 0 || next.length !== before.length) await this.jobState.set("cluster-watch", "alerted", next);
     if (down.length === 0 && back.length === 0) return;
-    if ((await this.settings.get("monitoring.maintenance_mode")) === true) return;
+    if (await maintenanceActive(this.settings)) return;
     for (const id of down) {
       const n = stale.get(id)!;
       await this.notify(`App node ${id} stopped`, `It has not checked in for ${Math.round(n.ageSec / 60) || 1} minute(s)${n.addr ? ` (${n.addr})` : ""}. Its background jobs have moved to the other nodes.`);

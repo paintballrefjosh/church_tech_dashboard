@@ -12,6 +12,7 @@ import { infraTargets, infraMetricSamples, infraEntities, monitorIncidents } fro
 import { NotificationsService } from "../notifications/notifications.service";
 import { ActivityService } from "../activity/activity.service";
 import { SettingsService } from "../settings/settings.service";
+import { maintenanceActive } from "../monitors/maintenance";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { InfraService } from "./infra.service";
@@ -361,7 +362,7 @@ export class InfraCollector implements OnModuleInit {
     try {
       // Maintenance mode silences the notification fan-out only; the incident
       // and the activity-feed entry below still record so history is intact.
-      const silenced = (await this.settings.get("monitoring.maintenance_mode")) === true;
+      const silenced = await maintenanceActive(this.settings);
       const recipientIds = silenced ? [] : await this.infra.monitoringRecipientIds();
       if (recipientIds.length) {
         await this.notifications.createMany(

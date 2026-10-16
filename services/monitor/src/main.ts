@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { acquireLease, restoreInProgress } from "@church/shared/db";
+import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState } from "@church/shared";
 import { db, pool } from "./db";
 import { claimDueMonitors, releaseMonitorClaim } from "./claim";
 import {
@@ -89,10 +90,11 @@ async function notificationRecipients(): Promise<{ id: string; email: string | n
   return rows.map((r) => ({ id: r.id, email: r.email, muted: r.muted ?? [] }));
 }
 
-/** Mirrors SettingsService.get for the one key this worker cares about. */
+/** Mirrors SettingsService.get for the two keys this worker cares about; the rule is shared with the API. */
 async function maintenanceModeOn(): Promise<boolean> {
-  const [row] = await db.select().from(settings).where(eq(settings.key, "monitoring.maintenance_mode")).limit(1);
-  return row?.value === true;
+  const rows = await db.select().from(settings).where(inArray(settings.key, [MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY]));
+  const value = (key: string) => rows.find((r) => r.key === key)?.value;
+  return maintenanceState(value(MAINTENANCE_MODE_KEY), value(MAINTENANCE_UNTIL_KEY)).active;
 }
 
 async function notifyAll(kind: string, title: string, body: string, link: string) {

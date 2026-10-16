@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   INFRA_ENTITY_KINDS,
+  MAINTENANCE_MAX_MINUTES,
   PERMISSIONS,
   createMonitorSchema,
   updateMonitorSchema,
@@ -99,7 +100,7 @@ export const MONITORING_TOOLS = [
     name: "monitors_get_maintenance",
     title: "Maintenance mode state",
     description:
-      "Whether maintenance mode is on. In maintenance mode incidents are still recorded but alert notifications (in-app and email) are paused.",
+      "Whether maintenance mode is on, and when it ends (until, null = no end time). In maintenance mode incidents are still recorded but alert notifications (in-app and email) are paused.",
     cls: "read",
     method: "GET",
     path: "/monitors/maintenance",
@@ -110,12 +111,12 @@ export const MONITORING_TOOLS = [
     name: "monitors_set_maintenance",
     title: "Set maintenance mode",
     description:
-      "Turn maintenance mode on (enabled true: alert notifications are silenced) or off. Switch it back off when the work is done, or real outages go unnoticed.",
+      "Turn maintenance mode on (enabled true: alert notifications are silenced) or off. Give minutes (up to 10080) so it ends by itself; without it the silence lasts until someone switches it off, and real outages go unnoticed meanwhile. Prefer an end time.",
     cls: "write",
     method: "POST",
     path: "/monitors/maintenance",
     permissions: [WRITE],
-    input: z.object({ enabled: z.boolean() }),
+    input: z.object({ enabled: z.boolean(), minutes: z.number().int().min(1).max(MAINTENANCE_MAX_MINUTES).optional() }),
     idempotent: true,
   }),
   defineTool({

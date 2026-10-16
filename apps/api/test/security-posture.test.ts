@@ -19,6 +19,7 @@ function facts(over: Partial<PostureFacts> = {}): PostureFacts {
     apiTokens: { enabled: true, active: 2, neverExpire: 0, operational: 0, idle: 0 },
     ciscoUnpinned: 0,
     maintenanceMode: false,
+    maintenanceUntil: null,
     backups: { lastReadyAt: NOW - DAY, scheduleEnabled: true },
     auditRetentionDays: 365,
     ...over,
@@ -82,6 +83,15 @@ describe("security posture", () => {
     const r = evaluatePosture(facts({ ciscoUnpinned: 2, maintenanceMode: true, siteUrlSet: false, smtpConfigured: false }));
     for (const id of ["cisco-host-keys", "maintenance-mode", "site-url", "smtp"]) expect(byId(r, id)?.severity).toBe("warn");
     expect(byId(r, "cisco-host-keys")!.title).toBe("2 switches without a pinned host key");
+  });
+
+  it("maintenance: no end time warns, a window with an end is only a note and says how long is left", () => {
+    expect(byId(evaluatePosture(facts({ maintenanceMode: true, maintenanceUntil: null })), "maintenance-mode")).toMatchObject({ severity: "warn", title: "Alert notifications are paused with no end time" });
+    const timed = (ms: number) => byId(evaluatePosture(facts({ maintenanceMode: true, maintenanceUntil: NOW + ms })), "maintenance-mode")!;
+    expect(timed(30 * 60_000)).toMatchObject({ severity: "info", title: "Alert notifications are paused for another 30 minutes" });
+    expect(timed(4 * 3_600_000).title).toContain("4 hours");
+    expect(timed(3 * DAY).title).toContain("3 days");
+    expect(byId(evaluatePosture(facts()), "maintenance-mode")).toBeUndefined();
   });
 
   it("backups: none, stale, fresh", () => {

@@ -91,8 +91,10 @@ export function MonitoringTabs() {
     };
   }, []);
 
+  // relative z-20: the row gets a backdrop-filter from the page's glass styling, which makes it its own stacking
+  // context, so without this the cards below (painted later) cover the maintenance duration menu.
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
+    <div className="relative z-20 mb-6 flex flex-wrap items-center gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
       {TABS.map((t) => {
         const active = t.match(pathname);
         return (

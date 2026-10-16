@@ -32,6 +32,8 @@ export interface PostureFacts {
   };
   ciscoUnpinned: number;
   maintenanceMode: boolean;
+  /** End of the maintenance window (epoch ms), or null when it has none. Only meaningful while `maintenanceMode`. */
+  maintenanceUntil: number | null;
   backups: { lastReadyAt: number | null; scheduleEnabled: boolean };
   auditRetentionDays: number;
 }
@@ -205,13 +207,23 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
   }
 
   // ---- running the site ----
-  if (f.maintenanceMode) {
+  if (f.maintenanceMode && f.maintenanceUntil === null) {
     add({
       id: "maintenance-mode",
-      title: "Alert notifications are paused",
+      title: "Alert notifications are paused with no end time",
       severity: "warn",
-      detail: "Maintenance mode is on: incidents are recorded but nobody is told. Turn it off when the work is done.",
-      fix: { label: "Monitoring settings", href: "/admin/settings/monitoring" },
+      detail: "Maintenance mode is on and nothing will turn it off: incidents are recorded but nobody is told. Switch it off when the work is done, or set it again with an end time.",
+      fix: { label: "Open Monitoring", href: "/monitoring" },
+    });
+  } else if (f.maintenanceMode && f.maintenanceUntil !== null) {
+    const mins = Math.max(1, Math.round((f.maintenanceUntil - f.now) / 60_000));
+    const left = mins < 90 ? plural(mins, "minute") : mins < 36 * 60 ? plural(Math.round(mins / 60), "hour") : plural(Math.round(mins / 1440), "day");
+    add({
+      id: "maintenance-mode",
+      title: `Alert notifications are paused for another ${left}`,
+      severity: "info",
+      detail: "Maintenance mode has an end time, so alerts resume by themselves. Incidents are recorded meanwhile.",
+      fix: { label: "Open Monitoring", href: "/monitoring" },
     });
   }
   if (!f.siteUrlSet) {

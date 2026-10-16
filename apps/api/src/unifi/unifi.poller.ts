@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { SettingsService } from "../settings/settings.service";
+import { maintenanceActive } from "../monitors/maintenance";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SearchService } from "../search/search.service";
@@ -183,7 +184,7 @@ export class UnifiPoller implements OnModuleInit {
     try {
       // Maintenance mode silences the notification; device-state tracking above
       // continues so we don't mis-baseline when it's switched back off.
-      if ((await this.settings.get("monitoring.maintenance_mode")) === true) return;
+      if (await maintenanceActive(this.settings)) return;
       const recipients = await this.infra.monitoringRecipientIds();
       if (!recipients.length) return;
       await this.notifications.createMany(

@@ -9,18 +9,33 @@ import {
   Query,
   BadRequestException,
 } from "@nestjs/common";
+import { z } from "zod";
 import {
+  MAINTENANCE_MAX_MINUTES,
+  MAINTENANCE_MODE_KEY,
+  MAINTENANCE_UNTIL_KEY,
   PERMISSIONS,
   createMonitorSchema,
   updateMonitorSchema,
+  type MaintenanceState,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { MonitorsService } from "./monitors.service";
+import { readMaintenance } from "./maintenance";
 
-const MAINTENANCE_KEY = "monitoring.maintenance_mode";
+const maintenanceBody = z.object({
+  enabled: z.boolean(),
+  /** How long to stay in maintenance; left out = until switched off by hand. */
+  minutes: z.number().int().min(1).max(MAINTENANCE_MAX_MINUTES).optional(),
+});
+
+/** `enabled`: alerts are silenced now. `until`: ISO end time, or null when it has none. */
+function maintenanceReply(state: MaintenanceState): { enabled: boolean; until: string | null } {
+  return { enabled: state.active, until: state.active && state.until !== null ? new Date(state.until).toISOString() : null };
+}
 
 @Controller("monitors")
 export class MonitorsController {
@@ -35,16 +50,26 @@ export class MonitorsController {
   @Get("maintenance")
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
   async getMaintenance() {
-    return { enabled: (await this.settings.get(MAINTENANCE_KEY)) === true };
+    return maintenanceReply(await readMaintenance(this.settings));
   }
 
   @Post("maintenance")
   @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
   @Audited({ action: "monitor.maintenance", resourceType: "setting" })
   async setMaintenance(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser | null) {
-    const enabled = Boolean((body as { enabled?: unknown })?.enabled);
-    await this.settings.set(MAINTENANCE_KEY, enabled, user?.id ?? null);
-    return { enabled };
+    const parsed = maintenanceBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const { enabled, minutes } = parsed.data;
+    const by = user?.id ?? null;
+    if (enabled) {
+      // End time first: the switch is not on yet, so nothing is silenced by a half-written pair.
+      await this.settings.set(MAINTENANCE_UNTIL_KEY, minutes ? new Date(Date.now() + minutes * 60_000).toISOString() : "", by);
+      await this.settings.set(MAINTENANCE_MODE_KEY, true, by);
+    } else {
+      await this.settings.set(MAINTENANCE_MODE_KEY, false, by);
+      await this.settings.set(MAINTENANCE_UNTIL_KEY, "", by);
+    }
+    return maintenanceReply(await readMaintenance(this.settings));
   }
 
   @Get()

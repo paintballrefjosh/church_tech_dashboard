@@ -944,7 +944,7 @@ How sign-in behaves, for the person running the server:
 - **The Security overview** (`/admin/security`, site administrators) is a checklist of how the site is set
   up: the install password still in place, administrators without two-factor, how wide Google and
   Microsoft sign-in are, API tokens that never expire or are unused, switches without a pinned host key,
-  maintenance mode left on, the Site URL and mail settings, the age of the last backup and how long the
+  maintenance mode left on with no end time, the Site URL and mail settings, the age of the last backup and how long the
   audit log is kept. It only reads settings and counts, so it changes nothing and shows no secrets;
   each line links to where it is fixed.
 - **Failed sign-ins are limited per account.** On top of the 10-per-minute limit per IP

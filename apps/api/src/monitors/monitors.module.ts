@@ -1,6 +1,7 @@
 import { Module, Global } from "@nestjs/common";
 import { MonitorsController } from "./monitors.controller";
 import { MonitorsService } from "./monitors.service";
+import { MaintenanceExpiry } from "./maintenance-expiry";
 
 /**
  * Probing itself lives entirely in the dedicated `services/monitor` worker
@@ -17,7 +18,7 @@ import { MonitorsService } from "./monitors.service";
 @Global()
 @Module({
   controllers: [MonitorsController],
-  providers: [MonitorsService],
+  providers: [MonitorsService, MaintenanceExpiry],
   exports: [MonitorsService],
 })
 export class MonitorsModule {}

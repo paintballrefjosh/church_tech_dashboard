@@ -17,6 +17,7 @@ import { decryptStoredSecret } from "../settings/crypto";
 import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SettingsService } from "../settings/settings.service";
+import { maintenanceActive } from "../monitors/maintenance";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { LeaseService, type Mutex } from "../cluster/lease.service";
 import { normalizePrefs } from "./cisco.service";
@@ -340,7 +341,7 @@ export class CiscoPoller implements OnModuleInit {
     try {
       // Global maintenance mode silences the notification fan-out (all Cisco
       // alert kinds route through here); drift/state tracking still happens.
-      if ((await this.settings.get("monitoring.maintenance_mode")) === true) return;
+      if (await maintenanceActive(this.settings)) return;
       const recipients = await this.infra.monitoringRecipientIds();
       if (!recipients.length) return;
       await this.notifications.createMany(

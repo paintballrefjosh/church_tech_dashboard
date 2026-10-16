@@ -263,13 +263,19 @@ overview greys the card and says "Disabled"; the host page greys its last readin
 
 **Maintenance mode:** the `monitoring.maintenance_mode` boolean setting silences
 alert *notifications* across infra thresholds, service up/down, UniFi
-device-offline, and Cisco switch alerts — incidents are still recorded, only the
+device-offline, DNS, cluster-node and Cisco switch alerts — incidents are still recorded, only the
 in-app/email fan-out is paused. (UPS has no alert fan-out; IPAM none either.)
-Each fan-out point reads the setting fresh (`SettingsService.get`). Presented as
-an inverted "Enabled" switch (on = alerts fire, the default; off = maintenance)
-right-aligned on the Monitoring tab row (`maintenance-control.tsx`, rendered
-inside `MonitoringTabs`) via `GET`/`POST /api/v1/monitors/maintenance`, or from
-`/admin/settings/monitoring`.
+**It can carry an end time** (`monitoring.maintenance_until`, ISO timestamp, blank = none; at most 7 days at once,
+`MAINTENANCE_MAX_MINUTES`) so a pause nobody remembers ends by itself. **Never read the boolean on its own to decide
+whether to notify:** ask `readMaintenance(settings)` / `maintenanceActive(settings)` (`monitors/maintenance.ts`), and in the
+probe worker `maintenanceState` (`packages/shared/src/maintenance.ts`, unit-tested), which judge the end time against the
+current time on each call. The `maintenance-expiry` cluster job (`monitors/maintenance-expiry.ts`) then flips the stored
+switch off so the settings page stays truthful; nothing depends on it. `POST /monitors/maintenance` takes
+`{enabled, minutes?}` (no `minutes` = no end, which the Security overview flags as a warning). Presented as
+an inverted "Enabled" switch (on = alerts fire, the default; off = a menu asking for 1/4/8/24 hours or "until I turn it
+back on") right-aligned on the Monitoring tab row (`maintenance-control.tsx`, rendered
+inside `MonitoringTabs`), which shows when alerts resume and lets the time be changed, via `GET`/`POST
+/api/v1/monitors/maintenance`, or from `/admin/settings/monitoring`.
 
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to

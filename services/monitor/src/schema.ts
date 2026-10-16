@@ -99,7 +99,7 @@ export const groupModuleAccess = pgTable(
   (t) => ({ pk: primaryKey({ columns: [t.groupId, t.moduleKey] }) }),
 );
 
-// Only the one key this worker reads (monitoring.maintenance_mode).
+// Only the keys this worker reads (monitoring.maintenance_mode and monitoring.maintenance_until).
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull(),

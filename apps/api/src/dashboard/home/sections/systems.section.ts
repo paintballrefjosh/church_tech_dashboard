@@ -8,6 +8,7 @@ import {
   type SystemsHealth,
 } from "@church/shared";
 import { SettingsService } from "../../../settings/settings.service";
+import { readMaintenance } from "../../../monitors/maintenance";
 import { MonitorsService } from "../../../monitors/monitors.service";
 import { InfraService } from "../../../infra/infra.service";
 import { UnifiService } from "../../../unifi/unifi.service";
@@ -91,11 +92,11 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
 
     const [shared, maintenance] = await Promise.all([
       this.cache.get(`systems|${canUnifi}`, SYSTEMS_SHARED_MS, () => this.compute(canUnifi)),
-      this.settings.get("monitoring.maintenance_mode").catch(() => false),
+      readMaintenance(this.settings),
     ]);
     return sectionOk({
       ...shared,
-      maintenanceMode: maintenance === true,
+      maintenanceMode: maintenance.active,
       canWrite: perms.includes(PERMISSIONS.MONITORS_WRITE_ANY),
     });
   }

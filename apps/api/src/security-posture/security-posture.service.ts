@@ -4,6 +4,7 @@ import { evaluatePosture, type PostureFacts, type PostureReport } from "@church/
 import { DB, type Db } from "../db/db.module";
 import { apiTokens, backupSchedules, backups, ciscoSwitches, groupMemberships, groups, users } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
+import { readMaintenance } from "../monitors/maintenance";
 
 const DAY_MS = 86_400_000;
 /** The seeded administrator (`admin` / `admin`), stored as this address. */
@@ -72,6 +73,7 @@ export class SecurityPostureService {
     const flag = async (key: string): Promise<boolean> => (await this.settings.get(key)) === true;
     const domains = (await text("microsoft.allowed_domains")).split(",").map((d) => d.trim()).filter(Boolean);
     const retention = await this.settings.get("audit.retention_days");
+    const maintenance = await readMaintenance(this.settings, now.getTime());
     const lastReady = lastBackup[0]?.at != null ? Number(lastBackup[0].at) : null;
 
     return {
@@ -104,7 +106,8 @@ export class SecurityPostureService {
         idle: n(tokenRows[0]?.idle),
       },
       ciscoUnpinned: n(ciscoRows[0]?.c),
-      maintenanceMode: await flag("monitoring.maintenance_mode"),
+      maintenanceMode: maintenance.active,
+      maintenanceUntil: maintenance.until,
       backups: { lastReadyAt: lastReady, scheduleEnabled: n(schedules[0]?.c) > 0 },
       auditRetentionDays: typeof retention === "number" && retention >= 0 ? Math.floor(retention) : 365,
     };
