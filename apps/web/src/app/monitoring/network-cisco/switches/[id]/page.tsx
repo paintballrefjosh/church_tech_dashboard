@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud, Loader2 } from "lucide-react";
 import {
   CISCO_DUPLEX_CHOICES,
   CISCO_SPEED_CHOICES,
@@ -13,7 +13,7 @@ import {
   type CiscoSwitch,
   type CiscoPortRow,
 } from "@church/shared";
-import { useCanWrite, StatusPill, computeStatus, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
+import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 
 /** The standard speeds, plus the port's own value when it is something else (a typo stays visible, not hidden). */
@@ -58,6 +58,9 @@ export default function CiscoSwitchDetailPage() {
   const [confirmDel, setConfirmDel] = useState<CiscoPortRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmTrust, setConfirmTrust] = useState(false);
+  // Ports whose shutdown / no shutdown is on its way to the switch (the server sends it in the background), by port row
+  // id. Several can be under way at once; the server makes the pushes to this one switch take turns.
+  const [pushingPorts, setPushingPorts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -115,7 +118,9 @@ export default function CiscoSwitchDetailPage() {
   }
 
   async function toggleAdmin(p: CiscoPortRow) {
-    setBusy(true);
+    if (pushingPorts[p.id]) return;
+    const verb = p.adminEnabled ? "shutdown" : "no shutdown";
+    setPushingPorts((m) => ({ ...m, [p.id]: `Pushing ${p.portId} ${verb} to the switch and saving its config.` }));
     try {
       await fetch(`/api/cisco/switches/${id}/ports/${p.id}/toggle`, {
         method: "POST",
@@ -123,10 +128,16 @@ export default function CiscoSwitchDetailPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ enabled: !p.adminEnabled }),
       });
-      setStatus({ ok: true, text: `Pushing ${p.portId} ${p.adminEnabled ? "shutdown" : "no shutdown"} to the switch…` });
-      setTimeout(() => void load(), 3000);
+      // The switch is configured in the background, so there is no completion to wait for: keep the spinner for the
+      // few seconds a push takes, then reload to show the saved state.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await load();
     } finally {
-      setBusy(false);
+      setPushingPorts((m) => {
+        const next = { ...m };
+        delete next[p.id];
+        return next;
+      });
     }
   }
 
@@ -169,7 +180,7 @@ export default function CiscoSwitchDetailPage() {
         canWrite ? (
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !!pushingPorts[p.id]}
             onClick={() => void toggleAdmin(p)}
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] disabled:opacity-60 ${
               p.adminEnabled
@@ -177,8 +188,14 @@ export default function CiscoSwitchDetailPage() {
                 : "border-slate-300 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             }`}
           >
-            {p.adminEnabled ? <Power className="h-3 w-3" aria-hidden /> : <PowerOff className="h-3 w-3" aria-hidden />}
-            {p.adminEnabled ? "enabled" : "shut"}
+            {!!pushingPorts[p.id] ? (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            ) : p.adminEnabled ? (
+              <Power className="h-3 w-3" aria-hidden />
+            ) : (
+              <PowerOff className="h-3 w-3" aria-hidden />
+            )}
+            {!!pushingPorts[p.id] ? "pushing…" : p.adminEnabled ? "enabled" : "shut"}
           </button>
         ) : (
           <span className="text-xs">{p.adminEnabled ? "enabled" : "shut"}</span>
@@ -288,6 +305,9 @@ export default function CiscoSwitchDetailPage() {
         </div>
       ) : null}
 
+      {Object.entries(pushingPorts).map(([portRowId, text]) => (
+        <PendingLine key={portRowId} text={text} />
+      ))}
       <StatusLine status={status} />
 
       {sw?.lastError && /host key/i.test(sw.lastError) ? (

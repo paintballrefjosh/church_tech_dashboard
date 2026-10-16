@@ -18,6 +18,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { InfraService } from "../infra/infra.service";
 import { SettingsService } from "../settings/settings.service";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
+import { LeaseService, type Mutex } from "../cluster/lease.service";
 import { normalizePrefs } from "./cisco.service";
 import { sshShell, stripAnsi } from "./ssh";
 import { configChecksum, normalizeConfig } from "./config-normalize";
@@ -39,6 +40,8 @@ const POLL_SEC = Math.max(30, parseInt(process.env.CISCO_POLL_SEC ?? "300", 10))
 const SSH_TIMEOUT_MS = Math.max(5, parseInt(process.env.CISCO_SSH_TIMEOUT_SEC ?? "15", 10)) * 1000;
 const CONCURRENCY = 4;
 const BACKUP_RETENTION = 30;
+/** How long a push waits for an earlier push to the same switch before giving up. */
+const PUSH_WAIT_MS = 120_000;
 
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
 
@@ -101,6 +104,7 @@ export class CiscoPoller implements OnModuleInit {
     private readonly infra: InfraService,
     private readonly settings: SettingsService,
     private readonly jobs: ClusterJobs,
+    private readonly leases: LeaseService,
   ) {}
 
   onModuleInit(): void {
@@ -653,7 +657,34 @@ export class CiscoPoller implements OnModuleInit {
 
   // ---- drift push (write desired to the device over SSH) ----
 
+  /**
+   * Pushes to different switches run side by side; pushes to the SAME switch take turns. Two SSH sessions both in
+   * configuration mode and both ending in `write memory` can fail each other ("startup-config is being written"),
+   * so a push waits for the one ahead of it. The lease is in the database, so this holds across nodes too.
+   */
   async pushToSwitch(
+    id: string,
+    changes: Array<{ portId: string; field: string; value: string | null }>,
+  ): Promise<void> {
+    const mutex = await this.waitForPushTurn(id);
+    try {
+      await this.pushNow(id, changes);
+    } finally {
+      await mutex.release();
+    }
+  }
+
+  private async waitForPushTurn(id: string): Promise<Mutex> {
+    const deadline = Date.now() + PUSH_WAIT_MS;
+    for (;;) {
+      const mutex = await this.leases.acquireMutex(`cisco-push:${id}`, 60);
+      if (mutex) return mutex;
+      if (Date.now() >= deadline) throw new Error("Another change to this switch is still running; try again in a moment");
+      await new Promise((resolve) => setTimeout(resolve, 300 + Math.floor(Math.random() * 200)));
+    }
+  }
+
+  private async pushNow(
     id: string,
     changes: Array<{ portId: string; field: string; value: string | null }>,
   ): Promise<void> {

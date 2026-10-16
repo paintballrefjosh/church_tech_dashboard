@@ -201,7 +201,7 @@ export default function CiscoDashboardPage() {
                 <th className="px-3 py-2">Location</th>
                 <th className="px-3 py-2">Uptime</th>
                 <th className="px-3 py-2 text-right">Ports</th>
-                <th className="px-3 py-2">{canWrite ? "Actions" : "Last polled"}</th>
+                <th className={`px-3 py-2 ${canWrite ? "text-right" : ""}`}>{canWrite ? "Actions" : "Last polled"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
