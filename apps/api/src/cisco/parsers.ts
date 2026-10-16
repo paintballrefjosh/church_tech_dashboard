@@ -288,7 +288,7 @@ export function parseVlans(raw: string): VlanRow[] {
   const out: VlanRow[] = [];
   for (const rawLine of stripAnsi(raw).split("\n")) {
     const line = rawLine.replace(/\r$/, "");
-    const m = /^(\d+)\s+([\w-]+)\s+(active|act\/unsup|suspended|act\/lshut)/i.exec(line.trim());
+    const m = /^(\d+)\s+(\S+)\s+(active|act\/unsup|suspended|act\/lshut)/i.exec(line.trim());
     if (!m) continue;
     const id = Number(m[1]);
     if (id < 1 || id > 4094) continue;

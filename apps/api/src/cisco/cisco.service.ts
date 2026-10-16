@@ -9,7 +9,6 @@ import {
   ciscoConfigBackups,
   ciscoMacTable,
   ciscoArpCache,
-  ciscoVlanDb,
   ciscoNeighbors,
 } from "../db/schema";
 import { encryptSecret } from "../settings/crypto";
@@ -23,7 +22,6 @@ import type {
   CiscoDriftRow,
   CiscoLookupRow,
   CiscoArpOnlyRow,
-  CiscoVlanRow,
   CiscoPortRow,
   CiscoPortInput,
   UpdateCiscoPortInput,
@@ -32,7 +30,9 @@ import type {
   CiscoTopologyEdge,
   CiscoAlertPrefs,
 } from "@church/shared";
-import { normaliseDuplex, normaliseSpeed } from "@church/shared";
+import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shared";
+import { CiscoVlansService } from "./cisco-vlans.service";
+import { parseVlanScope } from "./vlan-drift";
 import { diffConfigs, type DiffResult } from "./diff";
 
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
@@ -51,7 +51,10 @@ const ACCEPTABLE_PORT_FIELDS = new Set([
 
 @Injectable()
 export class CiscoService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly vlans: CiscoVlansService,
+  ) {}
 
   // ---- switch CRUD ----
 
@@ -271,7 +274,9 @@ export class CiscoService {
   async acceptDrift(switchId: string, driftId?: string): Promise<{ ok: true; count: number }> {
     const open = await this.openDrift(switchId, driftId);
     for (const d of open) {
-      if (d.portId === "__device__") {
+      if (parseVlanScope(d.portId) !== null) {
+        await this.vlans.accept(switchId, d);
+      } else if (d.portId === "__device__") {
         const col = d.field === "hostname" ? "hostname" : d.field === "location" ? "location" : d.field === "model" ? "model" : null;
         if (col) {
           await this.db
@@ -615,6 +620,7 @@ export class CiscoService {
       .where(and(eq(ciscoPorts.switchId, switchId), eq(ciscoPorts.portId, input.portId)))
       .limit(1);
     if (dup) throw new ConflictException("That port already exists on this switch");
+    await this.assertPortVlans(switchId, input, null);
     const [row] = await this.db
       .insert(ciscoPorts)
       // The column defaults ("1G") are not what a switch does when nothing is configured; a port added without a speed
@@ -629,6 +635,13 @@ export class CiscoService {
     portRowId: string,
     input: UpdateCiscoPortInput,
   ): Promise<{ id: string; portId: string }> {
+    const [current] = await this.db
+      .select()
+      .from(ciscoPorts)
+      .where(and(eq(ciscoPorts.id, portRowId), eq(ciscoPorts.switchId, switchId)))
+      .limit(1);
+    if (!current) throw new NotFoundException("Port not found");
+    await this.assertPortVlans(switchId, input, current);
     const [row] = await this.db
       .update(ciscoPorts)
       .set({ ...portInsert(input), updatedAt: new Date() })
@@ -636,6 +649,20 @@ export class CiscoService {
       .returning({ id: ciscoPorts.id, portId: ciscoPorts.portId });
     if (!row) throw new NotFoundException("Port not found");
     return row;
+  }
+
+  /** A port can only be put in a VLAN the switch has (checked for values that change; an old reference is left alone). */
+  private async assertPortVlans(
+    switchId: string,
+    input: CiscoPortInput | UpdateCiscoPortInput,
+    current: typeof ciscoPorts.$inferSelect | null,
+  ): Promise<void> {
+    if (input.accessVlan !== undefined && input.accessVlan !== current?.accessVlan) {
+      await this.vlans.assertDefined(switchId, [input.accessVlan], "Access VLAN");
+    }
+    if (input.trunkNativeVlan !== undefined && input.trunkNativeVlan !== current?.trunkNativeVlan) {
+      await this.vlans.assertDefined(switchId, [input.trunkNativeVlan], "Trunk native VLAN");
+    }
   }
 
   async deletePort(switchId: string, portRowId: string): Promise<{ ok: true }> {
@@ -832,36 +859,6 @@ export class CiscoService {
     }
     return { nodes: [...nodes.values()], edges };
   }
-
-  // ---- VLAN database (fleet-wide) ----
-
-  async vlans(): Promise<CiscoVlanRow[]> {
-    const rows = await this.db
-      .select({
-        vlanId: ciscoVlanDb.vlanId,
-        vlanName: ciscoVlanDb.vlanName,
-        vlanStatus: ciscoVlanDb.vlanStatus,
-        switchId: ciscoVlanDb.switchId,
-        hostname: ciscoSwitches.hostname,
-      })
-      .from(ciscoVlanDb)
-      .innerJoin(ciscoSwitches, eq(ciscoSwitches.id, ciscoVlanDb.switchId))
-      .orderBy(asc(ciscoVlanDb.vlanId), asc(ciscoSwitches.hostname));
-    const byId = new Map<number, CiscoVlanRow>();
-    for (const r of rows) {
-      let row = byId.get(r.vlanId);
-      if (!row) {
-        row = { vlanId: r.vlanId, nameConflict: false, switches: [] };
-        byId.set(r.vlanId, row);
-      }
-      row.switches.push({ switchId: r.switchId, hostname: r.hostname, vlanName: r.vlanName, vlanStatus: r.vlanStatus });
-    }
-    for (const row of byId.values()) {
-      const names = new Set(row.switches.map((s) => (s.vlanName ?? "").toLowerCase()).filter(Boolean));
-      row.nameConflict = names.size > 1;
-    }
-    return [...byId.values()].sort((a, b) => a.vlanId - b.vlanId);
-  }
 }
 
 function toSwitch(row: SwitchRow): CiscoSwitch {
@@ -908,7 +905,7 @@ function portInsert(input: CiscoPortInput | UpdateCiscoPortInput): Partial<typeo
   if (input.hasSwitchport !== undefined) p.hasSwitchport = input.hasSwitchport;
   if (input.accessVlan !== undefined) p.accessVlan = input.accessVlan;
   if (input.trunkNativeVlan !== undefined) p.trunkNativeVlan = input.trunkNativeVlan;
-  if (input.trunkAllowedVlans !== undefined) p.trunkAllowedVlans = input.trunkAllowedVlans;
+  if (input.trunkAllowedVlans !== undefined) p.trunkAllowedVlans = normaliseVlanList(input.trunkAllowedVlans);
   return p;
 }
 
@@ -927,7 +924,7 @@ function portFieldPatch(field: string, observed: string | null): Partial<typeof 
     case "mode":
       return { mode: observed ?? "access" };
     case "trunk_allowed_vlans":
-      return { trunkAllowedVlans: observed ?? "1-4094" };
+      return { trunkAllowedVlans: normaliseVlanList(observed ?? "1-4094") };
     case "description":
       return { description: observed ?? "" };
     default:

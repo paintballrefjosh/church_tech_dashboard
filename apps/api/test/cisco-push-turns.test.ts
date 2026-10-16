@@ -33,7 +33,7 @@ class FakeLeases {
 
 function poller() {
   const db = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "sw" }] }) }) }) };
-  const p = new CiscoPoller(db as never, {} as never, {} as never, {} as never, {} as never, new FakeLeases() as never);
+  const p = new CiscoPoller(db as never, {} as never, {} as never, {} as never, {} as never, new FakeLeases() as never, {} as never);
   (p as unknown as { pinnedConn: () => object }).pinnedConn = () => ({});
   return p;
 }

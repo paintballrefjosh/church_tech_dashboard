@@ -306,11 +306,22 @@ export const NETWORK_TOOLS = [
   defineTool({
     name: "cisco_list_vlans",
     title: "VLANs across the switches",
-    description: "Every VLAN with the switches that carry it and whether its name differs between them.",
+    description:
+      "Every VLAN with the switches that carry it. For each switch: the name the switch reports, the name the dashboard wants (desiredName), and a state: in_sync, missing (wanted but not on the switch yet), extra (on the switch but not wanted) or name (names differ). Missing, extra and name become drift until pushed or accepted. nameConflict flags a VLAN named differently on different switches. managed is false for VLAN 1 and 1002-1005, which are never edited.",
     cls: "read",
     method: "GET",
     path: "/cisco/vlans",
     permissions: [READ],
     input: z.object({}),
+  }),
+  defineTool({
+    name: "cisco_list_switch_vlans",
+    title: "VLANs a switch's ports can use",
+    description: "The VLANs the dashboard wants on one switch (VLAN 1 plus its own list): the choices for a port's access VLAN and trunk native VLAN.",
+    cls: "read",
+    method: "GET",
+    path: "/cisco/switches/:id/vlans",
+    permissions: [READ],
+    input: z.object({ id: z.string().uuid() }),
   }),
 ];

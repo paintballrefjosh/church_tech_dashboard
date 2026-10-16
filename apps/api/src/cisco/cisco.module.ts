@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { CiscoController } from "./cisco.controller";
 import { CiscoService } from "./cisco.service";
 import { CiscoPoller } from "./cisco.poller";
+import { CiscoVlansService } from "./cisco-vlans.service";
 
 /**
  * Cisco switch management — SSH poller (config backups, drift, L2 caches) +
@@ -10,7 +11,7 @@ import { CiscoPoller } from "./cisco.poller";
  */
 @Module({
   controllers: [CiscoController],
-  providers: [CiscoService, CiscoPoller],
-  exports: [CiscoService],
+  providers: [CiscoService, CiscoVlansService, CiscoPoller],
+  exports: [CiscoService, CiscoVlansService],
 })
 export class CiscoModule {}

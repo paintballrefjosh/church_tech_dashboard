@@ -3,10 +3,12 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Delete,
   Param,
   Body,
   Query,
+  BadGatewayException,
   BadRequestException,
 } from "@nestjs/common";
 import {
@@ -14,6 +16,7 @@ import {
   createCiscoSwitchSchema,
   updateCiscoSwitchSchema,
   ciscoPortInputSchema,
+  ciscoVlanSetSchema,
   updateCiscoPortSchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
@@ -21,6 +24,9 @@ import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CiscoService } from "./cisco.service";
 import { CiscoPoller } from "./cisco.poller";
+import { CiscoVlansService } from "./cisco-vlans.service";
+import { VLAN_FIELD_EXISTS, parseVlanScope } from "./vlan-drift";
+import type { PushChange } from "./push-commands";
 
 /**
  * Cisco switch management API. Reads require the `monitoring` module at any
@@ -38,6 +44,7 @@ export class CiscoController {
   constructor(
     private readonly cisco: CiscoService,
     private readonly poller: CiscoPoller,
+    private readonly vlans: CiscoVlansService,
   ) {}
 
   // ---- switches ----
@@ -207,10 +214,28 @@ export class CiscoController {
   private async pushDrift(id: string, driftId?: string): Promise<{ ok: true; count: number }> {
     const open = await this.cisco.openDrift(id, driftId);
     if (open.length) {
-      await this.poller.pushToSwitch(
-        id,
-        open.map((d) => ({ portId: d.portId, field: d.field, value: d.expected })),
-      );
+      const names = await this.vlans.desiredNames(id);
+      const changes: PushChange[] = open.map((d) => {
+        const vlanId = parseVlanScope(d.portId);
+        return {
+          portId: d.portId,
+          field: d.field,
+          value: d.expected,
+          ...(vlanId !== null && d.field === VLAN_FIELD_EXISTS ? { name: names.get(vlanId) } : {}),
+        };
+      });
+      // A VLAN is only taken off the switch when nothing there uses it, whatever the wanted list says.
+      for (const c of changes) {
+        const vlanId = parseVlanScope(c.portId);
+        if (vlanId !== null && c.field === VLAN_FIELD_EXISTS && c.value === "0") await this.vlans.assertDeletable(id, vlanId);
+      }
+      try {
+        await this.poller.pushToSwitch(id, changes);
+      } catch (err) {
+        // The message says what went wrong (refused command, no connection, another push still running); a bare 500 would not.
+        throw new BadGatewayException(`Could not push to the switch: ${(err as Error).message}`);
+      }
+      await this.vlans.applyPushed(id, changes);
       await this.cisco.markResolved(open.map((d) => d.id));
       await this.cisco.recomputeDrift(id);
     }
@@ -353,10 +378,41 @@ export class CiscoController {
     return this.cisco.macForSwitch(id);
   }
 
-  // ---- VLAN database ----
+  // ---- VLANs (layer 2) ----
   @Get("vlans")
   @RequirePermissions(READ)
-  vlans() {
-    return this.cisco.vlans();
+  vlanList() {
+    return this.vlans.fleetView();
+  }
+
+  @Get("switches/:id/vlans")
+  @RequirePermissions(READ)
+  switchVlans(@Param("id") id: string) {
+    return this.vlans.forSwitch(id);
+  }
+
+  /** Set one VLAN's name and which switches should have it (others lose it). Desired config only; a push sends it. */
+  @Put("vlans/:vlanId")
+  @OperationalOnly()
+  @RequirePermissions(WRITE)
+  @Audited({ action: "cisco.vlan.set", resourceType: "cisco_vlan" })
+  async setVlan(@Param("vlanId") vlanId: string, @Body() body: unknown) {
+    const parsed = ciscoVlanSetSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.vlans.setVlan(this.vlanIdParam(vlanId), parsed.data.name, parsed.data.switchIds);
+  }
+
+  @Delete("vlans/:vlanId")
+  @OperationalOnly()
+  @RequirePermissions(WRITE)
+  @Audited({ action: "cisco.vlan.delete", resourceType: "cisco_vlan" })
+  removeVlan(@Param("vlanId") vlanId: string) {
+    return this.vlans.removeVlan(this.vlanIdParam(vlanId));
+  }
+
+  private vlanIdParam(raw: string): number {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 4094) throw new BadRequestException("VLAN id must be a whole number from 1 to 4094");
+    return n;
   }
 }

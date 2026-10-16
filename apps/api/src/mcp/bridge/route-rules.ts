@@ -91,6 +91,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "DELETE /dns/zones/*/records", status: "excluded", reason: `${NO_DELETE} (it is still operational-only over REST)` },
   { pattern: "DELETE /cisco/switches/*/backups/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /cisco/switches/*/ports/*", status: "excluded", reason: NO_DELETE },
+  { pattern: "DELETE /cisco/vlans/*", status: "excluded", reason: `${NO_DELETE}; cisco_set_vlan leaves a VLAN off the switches it is not listed for` },
   { pattern: "POST|DELETE /planning-center/me/link", status: "excluded", reason: "linking a login to a Planning Center person is a personal account setting, done in the web app" },
   { pattern: "POST /planning-center/links", status: "excluded", reason: ADMIN_WRITES },
   { pattern: "DELETE /planning-center/links/*", status: "excluded", reason: ADMIN_WRITES },

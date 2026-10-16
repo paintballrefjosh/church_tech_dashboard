@@ -3,6 +3,7 @@ import {
   IPAM_SUBNET_SOURCES,
   PERMISSIONS,
   ciscoPortInputSchema,
+  ciscoVlanSetSchema,
   cidrSchema,
   createIpamSubnetSchema,
   dnsRecordCreateSchema,
@@ -93,6 +94,18 @@ export const OPERATIONAL_TOOLS = [
     path: "/cisco/switches/:id/ports/:portRowId",
     permissions: [WRITE],
     input: z.object({ id, portRowId: z.string().uuid(), ...updateCiscoPortSchema.shape }),
+  }),
+  defineTool({
+    name: "cisco_set_vlan",
+    title: "Add, rename or move a VLAN in the desired config",
+    description:
+      "Set one VLAN's name and the switches that should have it, in the desired configuration the dashboard keeps (layer 2 only). Switches in switchIds get the VLAN (added or renamed); switches that have it wanted but are not listed lose it, which is refused while a port, a trunk native VLAN or a VLAN interface still uses it. An empty name means the default name (VLAN0010). Nothing reaches a switch until the drift is pushed with cisco_push_drift: read cisco_list_vlans afterwards to see what is pending. Names are letters, digits, dot, dash and underscore, up to 32. VLAN 1 and 1002-1005 cannot be changed.",
+    cls: "operational",
+    method: "PUT",
+    path: "/cisco/vlans/:vlanId",
+    permissions: [WRITE],
+    input: z.object({ vlanId: z.number().int().min(2).max(4094), ...ciscoVlanSetSchema.shape }),
+    idempotent: true,
   }),
   defineTool({
     name: "cisco_push_drift",

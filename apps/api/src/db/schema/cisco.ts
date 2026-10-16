@@ -28,6 +28,9 @@ export const ciscoSwitches = pgTable(
     lastError: text("last_error"),
     configDrift: boolean("config_drift").notNull().default(false),
     checkPortState: boolean("check_port_state").notNull().default(true),
+    // Set once the desired VLAN list has been taken from the switch (see cisco_vlans), so removing the last
+    // wanted VLAN is not mistaken for "never seeded" and put back on the next poll.
+    vlanBaselineAt: timestamp("vlan_baseline_at"),
     // Per-category alert toggles (CiscoAlertPrefs): deviceOffline,
     // portStateChange, configChange, uptimeChange. Empty = all off.
     alertPrefs: jsonb("alert_prefs").notNull().default({}),
@@ -167,6 +170,25 @@ export const ciscoVlanDb = pgTable(
     polledAt: timestamp("polled_at"),
   },
   (t) => ({ uq: unique("cisco_vlan_uq").on(t.switchId, t.vlanId) }),
+);
+
+/**
+ * Desired VLANs per switch (layer 2), the wanted side of VLAN drift; `cisco_vlan_db` is what the switch reports.
+ * Only manageable VLANs are kept (not 1, not 1002-1005). An empty `name` means the switch's default name.
+ */
+export const ciscoVlans = pgTable(
+  "cisco_vlans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    switchId: uuid("switch_id")
+      .notNull()
+      .references(() => ciscoSwitches.id, { onDelete: "cascade" }),
+    vlanId: integer("vlan_id").notNull(),
+    name: text("name").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({ uq: unique("cisco_vlans_switch_vlan_uq").on(t.switchId, t.vlanId) }),
 );
 
 /** LLDP/CDP neighbors — used for MAC-lookup uplink exclusion. */

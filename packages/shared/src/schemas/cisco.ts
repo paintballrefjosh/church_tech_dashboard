@@ -126,10 +126,115 @@ export interface CiscoArpOnlyRow {
   polledAt: string | null;
 }
 
+// ---- VLANs (layer 2) ----
+
+/** VLAN 1 and the legacy FDDI / Token Ring VLANs (1002-1005) exist on every switch and cannot be added, renamed or removed. */
+export function isManagedVlan(id: number): boolean {
+  return Number.isInteger(id) && id >= 2 && id <= 4094 && !(id >= 1002 && id <= 1005);
+}
+
+/** The name a switch gives a VLAN that was never named: "VLAN0010". */
+export function defaultVlanName(id: number): string {
+  return `VLAN${String(id).padStart(4, "0")}`;
+}
+
+/** A VLAN name as a switch takes it: up to 32 letters, digits, dot, dash, underscore. Empty means the default name. */
+export const vlanNameSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .regex(/^[A-Za-z0-9_.-]*$/, "Letters, digits, dot, dash and underscore only");
+
+/** "10,30-35" / "all" / "none" as a set of VLAN ids. Parts it cannot read are ignored. */
+export function parseVlanList(raw: string | null | undefined): Set<number> {
+  const out = new Set<number>();
+  const text = String(raw ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (text === "" || text === "none") return out;
+  if (text === "all") {
+    for (let v = 1; v <= 4094; v++) out.add(v);
+    return out;
+  }
+  for (const part of text.split(",")) {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(part);
+    if (!m) continue;
+    const a = Number(m[1]);
+    const b = m[2] === undefined ? a : Number(m[2]);
+    if (a < 1 || b > 4094 || a > b) continue;
+    for (let v = a; v <= b; v++) out.add(v);
+  }
+  return out;
+}
+
+/** A set of VLAN ids as the shortest list a switch accepts: "1,5,10-12". Empty is "none". */
+export function formatVlanList(ids: Iterable<number>): string {
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  if (sorted.length === 0) return "none";
+  const parts: string[] = [];
+  let start = sorted[0]!;
+  let prev = start;
+  for (const v of sorted.slice(1)) {
+    if (v === prev + 1) {
+      prev = v;
+      continue;
+    }
+    parts.push(start === prev ? String(start) : `${start}-${prev}`);
+    start = prev = v;
+  }
+  parts.push(start === prev ? String(start) : `${start}-${prev}`);
+  return parts.join(",");
+}
+
+/** One spelling of a trunk's allowed list, so "all", "1-4094", "103,30" and "30,103" compare equal where they should. */
+export function normaliseVlanList(raw: string | null | undefined): string {
+  return formatVlanList(parseVlanList(raw));
+}
+
+/**
+ * How one switch's wanted VLAN compares with what the switch reports.
+ * in_sync, missing (wanted, not on the switch), extra (on the switch, not wanted), name (both, names differ).
+ */
+export type CiscoVlanState = "in_sync" | "missing" | "extra" | "name";
+
+export interface CiscoVlanSwitchRow {
+  switchId: string;
+  hostname: string;
+  /** Observed: what the last poll saw (null when the switch does not have it). */
+  vlanName: string | null;
+  vlanStatus: string | null;
+  /** Wanted: the dashboard's desired config for this switch. */
+  desired: boolean;
+  desiredName: string | null;
+  state: CiscoVlanState;
+}
+
 export interface CiscoVlanRow {
   vlanId: number;
   nameConflict: boolean;
-  switches: Array<{ switchId: string; hostname: string; vlanName: string | null; vlanStatus: string | null }>;
+  /** False for VLAN 1 and 1002-1005: shown, never edited. */
+  managed: boolean;
+  switches: CiscoVlanSwitchRow[];
+}
+
+/** A VLAN a switch's ports can be put in (the dashboard's desired list for it, plus VLAN 1). */
+export interface CiscoSwitchVlan {
+  vlanId: number;
+  /** The name it has: an unnamed VLAN shows as "VLAN0010". */
+  name: string;
+}
+
+/** Body of PUT /cisco/vlans/:vlanId: the VLAN's name and the switches that should have it (others lose it). */
+export const ciscoVlanSetSchema = z.object({
+  name: vlanNameSchema,
+  switchIds: z.array(z.string().uuid()).min(1).max(200),
+});
+export type CiscoVlanSetInput = z.infer<typeof ciscoVlanSetSchema>;
+
+export interface CiscoVlanSetResult {
+  vlanId: number;
+  created: string[];
+  renamed: string[];
+  removed: string[];
+  unchanged: string[];
 }
 
 // ---- ports (desired config editing) ----

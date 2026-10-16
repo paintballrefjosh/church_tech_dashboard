@@ -132,7 +132,19 @@ poller for Cisco IOS/NX-OS switches with config backups, drift, MAC/ARP/VLAN
 caches; ported from the standalone `cisco-switch` app. Port drift (`driftFieldsFor` in `cisco.poller.ts`) compares admin
 state, mode, VLANs, **description, speed and duplex** with the running config. Speed is held as the switch writes it
 (`1000`, `auto`) and every path goes through `normaliseSpeed` (shared), so `1G` and `1000` agree; a description is compared
-exactly and must be one CLI line (the push refuses control characters). Reads gate on
+exactly and must be one CLI line (the push refuses control characters). **VLANs (layer 2)** work the same way
+(`cisco-vlans.service.ts`, `vlan-drift.ts`, `push-commands.ts`): the wanted list per switch is `cisco_vlans` (migration 0061;
+`cisco_vlan_db` stays what the last poll saw), taken from the switch once per switch (`cisco_switches.vlan_baseline_at`, so
+removing the last wanted VLAN is not "never seeded"), then compared on every poll and right after each edit as drift events
+with `port_id = vlan:<id>` and field `vlan_exists` (`1`/`0`) or `vlan_name`. VLAN 1 and 1002-1005 are never managed
+(`isManagedVlan`). Edits are `PUT /cisco/vlans/:vlanId` (name + the switches that should have it; others lose it) and
+`DELETE`; a removal is refused (409) while a wanted or live access port, a trunk native VLAN or an `interface Vlan<id>` in the
+latest backup uses it, and the push re-checks that. Nothing reaches a switch except through the drift push, which creates and
+renames VLANs first, then ports, and removes VLANs last (`buildPushCommands`); the port editor picks its VLANs from the
+switch's list (`GET /cisco/switches/:id/vlans`) and a port cannot be put in a VLAN the switch does not have. A trunk's allowed
+list is compared as a set (`normaliseVlanList`). Per-switch VLANs assume VTP transparent/off (all three switches are): a
+switch in VTP server/client mode would propagate edits, so do not add that without detecting it first. The push also reads the
+session output and fails on `Invalid input` / `ERROR:` lines instead of reporting success. Reads gate on
 `monitors:read:any`, writes on `monitors:write:any`), and **IPAM**
 (its own page, `/ipam` in the IT menu, not a Monitoring tab since 2026-10-04;
 `/monitoring/ipam*` redirects there via `next.config.mjs` — the `ipam` module: a

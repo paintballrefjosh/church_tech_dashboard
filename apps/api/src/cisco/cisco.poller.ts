@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleInit, Inject } from "@nestjs/common";
 import { and, eq, inArray, isNull, desc, sql } from "drizzle-orm";
-import { normaliseDuplex, normaliseSpeed } from "@church/shared";
+import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import {
   ciscoSwitches,
@@ -20,6 +20,8 @@ import { SettingsService } from "../settings/settings.service";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { LeaseService, type Mutex } from "../cluster/lease.service";
 import { normalizePrefs } from "./cisco.service";
+import { CiscoVlansService } from "./cisco-vlans.service";
+import { buildPushCommands, findCliError, type PushChange } from "./push-commands";
 import { sshShell, stripAnsi } from "./ssh";
 import { configChecksum, normalizeConfig } from "./config-normalize";
 import {
@@ -62,7 +64,8 @@ export function driftFieldsFor(desired: typeof ciscoPorts.$inferSelect, obs: Cfg
     }
     if (desired.mode === "trunk" && obs.mode === "trunk") {
       pairs.push(["trunk_native_vlan", String(desired.trunkNativeVlan), String(obs.trunkNativeVlan)]);
-      pairs.push(["trunk_allowed_vlans", desired.trunkAllowedVlans, obs.trunkAllowedVlans]);
+      // "all", "1-4094" and an unsorted list are the same set; compare the sets.
+      pairs.push(["trunk_allowed_vlans", normaliseVlanList(desired.trunkAllowedVlans), normaliseVlanList(obs.trunkAllowedVlans)]);
     }
   }
   return pairs;
@@ -105,6 +108,7 @@ export class CiscoPoller implements OnModuleInit {
     private readonly settings: SettingsService,
     private readonly jobs: ClusterJobs,
     private readonly leases: LeaseService,
+    private readonly vlans: CiscoVlansService,
   ) {}
 
   onModuleInit(): void {
@@ -293,6 +297,7 @@ export class CiscoPoller implements OnModuleInit {
     try {
       const l2raw = await sshShell(cfg, ["show mac address-table", "show ip arp", "show vlan brief"]);
       await this.saveL2(sw.id, l2raw, os, now);
+      await this.vlans.detect(sw.id);
     } catch (err) {
       this.logger.debug(`l2 ${sw.hostname}: ${(err as Error).message}`);
     }
@@ -429,6 +434,7 @@ export class CiscoPoller implements OnModuleInit {
   /** Force a fresh baseline: clear desired ports + open drift, then re-seed. */
   async reimportPorts(id: string): Promise<{ imported: number }> {
     await this.db.delete(ciscoPorts).where(eq(ciscoPorts.switchId, id));
+    await this.vlans.resetBaseline(id);
     await this.db
       .update(ciscoDriftEvents)
       .set({ resolvedAt: new Date() })
@@ -486,6 +492,7 @@ export class CiscoPoller implements OnModuleInit {
         and(
           eq(ciscoDriftEvents.switchId, switchId),
           sql`${ciscoDriftEvents.portId} <> '__device__'`,
+          sql`${ciscoDriftEvents.portId} NOT LIKE 'vlan:%'`,
           isNull(ciscoDriftEvents.resolvedAt),
         ),
       );
@@ -662,10 +669,7 @@ export class CiscoPoller implements OnModuleInit {
    * configuration mode and both ending in `write memory` can fail each other ("startup-config is being written"),
    * so a push waits for the one ahead of it. The lease is in the database, so this holds across nodes too.
    */
-  async pushToSwitch(
-    id: string,
-    changes: Array<{ portId: string; field: string; value: string | null }>,
-  ): Promise<void> {
+  async pushToSwitch(id: string, changes: PushChange[]): Promise<void> {
     const mutex = await this.waitForPushTurn(id);
     try {
       await this.pushNow(id, changes);
@@ -684,60 +688,12 @@ export class CiscoPoller implements OnModuleInit {
     }
   }
 
-  private async pushNow(
-    id: string,
-    changes: Array<{ portId: string; field: string; value: string | null }>,
-  ): Promise<void> {
+  private async pushNow(id: string, changes: PushChange[]): Promise<void> {
     const [sw] = await this.db.select().from(ciscoSwitches).where(eq(ciscoSwitches.id, id)).limit(1);
     if (!sw) throw new Error("switch not found");
-    const cmds: string[] = ["configure terminal"];
-    const byPort = new Map<string, Array<{ field: string; value: string | null }>>();
-    for (const c of changes) {
-      if (c.portId === "__device__") {
-        if (c.field === "hostname" && c.value) cmds.push(`hostname ${c.value}`);
-        if (c.field === "location" && c.value) cmds.push(`snmp-server location ${c.value}`);
-        continue;
-      }
-      if (!byPort.has(c.portId)) byPort.set(c.portId, []);
-      byPort.get(c.portId)!.push({ field: c.field, value: c.value });
-    }
-    for (const [portId, fields] of byPort) {
-      cmds.push(`interface ${portId}`);
-      for (const f of fields) {
-        switch (f.field) {
-          case "admin_enabled":
-            cmds.push(f.value === "1" || f.value === "true" ? "no shutdown" : "shutdown");
-            break;
-          case "description":
-            cmds.push(f.value ? `description ${f.value}` : "no description");
-            break;
-          case "access_vlan":
-            if (f.value) cmds.push(`switchport access vlan ${f.value}`);
-            break;
-          case "trunk_native_vlan":
-            if (f.value) cmds.push(`switchport trunk native vlan ${f.value}`);
-            break;
-          case "trunk_allowed_vlans":
-            if (f.value) cmds.push(`switchport trunk allowed vlan ${f.value}`);
-            break;
-          case "mode":
-            if (f.value) cmds.push(`switchport mode ${f.value}`);
-            break;
-          case "speed":
-            cmds.push(`speed ${normaliseSpeed(f.value)}`);
-            break;
-          case "duplex":
-            cmds.push(`duplex ${normaliseDuplex(f.value)}`);
-            break;
-          default:
-            break;
-        }
-      }
-      cmds.push("exit");
-    }
-    cmds.push("end", "write memory");
-    // Every entry is one CLI line; a value with a line break would run as a second command on the switch.
-    if (cmds.some((c) => /[\u0000-\u001f\u007f]/.test(c))) throw new Error("refusing to push a value with control characters");
-    await sshShell(this.pinnedConn(sw), cmds);
+    const output = await sshShell(this.pinnedConn(sw), buildPushCommands(changes));
+    // The session ends normally even when the switch refused a command, so look for its error lines.
+    const refused = findCliError(output);
+    if (refused) throw new Error(`The switch refused a command: ${refused}`);
   }
 }

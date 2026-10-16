@@ -75,7 +75,7 @@ The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimist
 - **Monitors can be created and changed, not deleted** (disable one instead). Maintenance mode is a write tool; its
   description says to switch it back off.
 - **IPAM writes wait for phase 3**: adding or adopting a subnet starts a scan, and the subnet's DNS switch and a host's
-  DNS name publish records to live DNS. Same for the Cisco desired-port edits (they are what gets pushed to a switch).
+  DNS name publish records to live DNS. Same for the Cisco desired-port and VLAN edits (`cisco_set_vlan`; they are what gets pushed to a switch).
 - **Cisco config backups can be read** (`cisco_get_backup`; the description warns that a running config can hold hashes
   and community strings). The route gives the same text to anyone with the monitoring module.
 - `cisco_lookup` and `cisco_list_mac` keep the route's `exclude_uplinks` parameter as the strings `"0"` and `"1"`;
