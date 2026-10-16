@@ -1,11 +1,8 @@
-import { Controller, Get, Post, Query, Inject } from "@nestjs/common";
-import { eq, inArray } from "drizzle-orm";
+import { Controller, Get, Post, Query } from "@nestjs/common";
 import { PERMISSIONS } from "@church/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
-import { DB, type Db } from "../db/db.module";
-import { groupMemberships } from "../db/schema";
 import { SearchService, type SearchKind } from "./search.service";
 
 /** Every kind the search endpoint accepts in `kind` (also the MCP search tool's choices). */
@@ -30,10 +27,7 @@ export const SEARCH_KINDS: SearchKind[] = [
 
 @Controller("search")
 export class SearchController {
-  constructor(
-    private readonly search: SearchService,
-    @Inject(DB) private readonly db: Db,
-  ) {}
+  constructor(private readonly search: SearchService) {}
 
   @Get()
   async query(
@@ -46,14 +40,6 @@ export class SearchController {
       return { hits: [] };
     }
 
-    // Look up the user's group memberships so wiki ACL filtering works.
-    // One round-trip per request — fine for the latency budget of a typeahead
-    // (Meilisearch itself is ~10ms locally).
-    const myGroups = await this.db
-      .select({ id: groupMemberships.groupId })
-      .from(groupMemberships)
-      .where(eq(groupMemberships.userId, user.id));
-
     const kinds = kind
       ? (kind.split(",").filter((k) => (SEARCH_KINDS as string[]).includes(k)) as SearchKind[])
       : undefined;
@@ -61,7 +47,9 @@ export class SearchController {
     const hits = await this.search.search({
       q: q.trim(),
       userId: user.id,
-      userGroupIds: myGroups.map((g) => g.id),
+      // Group ids come with the cached user (dropped on every membership change), so wiki ACL filtering costs
+      // no query here: this runs on every keystroke that survives the debounce.
+      userGroupIds: user.groupIds,
       canSeeAnyTicket: user.permissions.includes(PERMISSIONS.TICKETS_READ_ANY),
       canSeeAnyWiki: user.permissions.includes(PERMISSIONS.WIKI_READ_ANY),
       canSeeMonitoring: user.permissions.includes(PERMISSIONS.MONITORS_READ_ANY),

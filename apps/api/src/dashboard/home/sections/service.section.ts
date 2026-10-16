@@ -146,7 +146,7 @@ export class HomeServiceSection implements SectionBuilder<NextService> {
     let pcState: "unconfigured" | "none" | "failed" = canPc ? "unconfigured" : "none";
     if (canPc) {
       try {
-        const loaded = await this.cache.get("pc-next", PC_CACHE_MS, () => this.loadPc());
+        const loaded = await this.cache.get("pc-next", PC_CACHE_MS, () => this.loadPc(), { failTtlMs: 30_000 });
         if (loaded.kind === "plan") return sectionOk(markMe(loaded.data, ctx.user.id));
         pcState = loaded.kind;
       } catch {

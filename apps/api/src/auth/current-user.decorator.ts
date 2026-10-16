@@ -13,6 +13,7 @@ export type AuthenticatedUser = {
   // approval, blocked from everything but their own /me. See session.guard.
   approvalStatus: "approved" | "pending";
   groups: string[]; // group names the user is a member of
+  groupIds: string[]; // the same groups' ids, for queries that filter by membership (wiki ACLs, search)
   permissions: string[]; // resolved permission strings (derived from access)
   // Highest tier the user has per module (across all their groups). The
   // primary user-facing access model; permissions are derived from this via

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   PERMISSIONS,
@@ -37,6 +37,10 @@ export const METERS_UNIFI_CACHE_MS = 15_000;
 export const METERS_DNS_CACHE_MS = 60_000;
 /** Each channel gets less than the section's own 2.5 s, so one slow source leaves the others standing. */
 export const METERS_DEADLINE_MS = 2_200;
+/** One computed answer is shared by everyone who may see the section for this long (see SYSTEMS_SHARED_MS). */
+export const METERS_SHARED_MS = 5_000;
+/** An integration that failed or timed out is not asked again for this long. */
+export const METERS_FAIL_MS = 15_000;
 /** A host's reading counts only if it is this fresh. */
 export const SERVERS_SAMPLE_WINDOW_MS = 5 * 60_000;
 export const DRIFT_WINDOW_MS = 24 * 3_600_000;
@@ -69,6 +73,7 @@ function num(v: unknown): number {
 @Injectable()
 export class HomeMetersSection implements SectionBuilder<SystemMeters> {
   private readonly cache = new TtlCache();
+  private readonly log = new Logger(HomeMetersSection.name);
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -81,24 +86,31 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
     const perms = ctx.user.permissions;
     if (!perms.includes(PERMISSIONS.MONITORS_READ_ANY)) return sectionOff("forbidden");
     const canUnifi = perms.includes(PERMISSIONS.UNIFI_READ_ANY);
+    // Everyone allowed to see this section gets the same answer (the UniFi permission only adds a channel), so
+    // it is computed once for all of them, not once per open page.
+    return this.cache.get(`meters|${canUnifi}`, METERS_SHARED_MS, () => this.compute(ctx, canUnifi));
+  }
 
-    const guard = async <T>(run: () => Promise<T>, fallback: T): Promise<T> => {
+  private async compute(ctx: HomeContext, canUnifi: boolean): Promise<Section<SystemMeters>> {
+    const guard = async <T>(name: string, run: () => Promise<T>, fallback: T): Promise<T> => {
+      const t0 = Date.now();
       try {
         return await withDeadline(run(), METERS_DEADLINE_MS, "timed out");
-      } catch {
+      } catch (err) {
+        this.log.debug(`meters channel "${name}" unavailable after ${Date.now() - t0} ms: ${err instanceof Error ? err.message : String(err)}`);
         return fallback;
       }
     };
 
     const [servers, internet, wifi, switches, dns, incidents] = await Promise.all([
-      guard(() => this.servers(), off("servers", ["avg CPU", "memory"])),
-      guard(() => this.internet(), off("internet", ["latency", "monitors"])),
+      guard("servers", () => this.servers(), off("servers", ["avg CPU", "memory"])),
+      guard("internet", () => this.internet(), off("internet", ["latency", "monitors"])),
       canUnifi
-        ? guard(() => this.wifi(), { channel: off("wifi", ["clients", "devices online"]), offline: [] })
+        ? guard("wifi", () => this.wifi(), { channel: off("wifi", ["clients", "devices online"]), offline: [] })
         : Promise.resolve(null),
-      guard(() => this.switches(ctx.now), off("switches", ["ports up", "config drift"])),
-      guard(() => this.dnsChannel(ctx.now), off("dns", ["queries/min", "sync"])),
-      guard(() => this.incidents(), [] as Alert[]),
+      guard("switches", () => this.switches(ctx.now), off("switches", ["ports up", "config drift"])),
+      guard("dns", () => this.dnsChannel(ctx.now), off("dns", ["queries/min", "sync"])),
+      guard("incidents", () => this.incidents(), [] as Alert[]),
     ]);
 
     const channels: Channel[] = [servers, internet];
@@ -190,14 +202,19 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
 
   /** Clients and devices online from the cached controller summary; offline devices feed the alert log. */
   private async wifi(): Promise<{ channel: Channel; offline: UnifiDeviceRow[] }> {
-    const data = await this.cache.get("unifi", METERS_UNIFI_CACHE_MS, async () => {
-      const summary = await this.unifi.summary();
-      const offline: UnifiDeviceRow[] =
-        summary.configured && summary.reachable && summary.devices.offline > 0
-          ? ((await this.unifi.devices()) as UnifiDeviceRow[]).filter((d) => d.state !== 1)
-          : [];
-      return { summary, offline };
-    });
+    const data = await this.cache.get(
+      "unifi",
+      METERS_UNIFI_CACHE_MS,
+      async () => {
+        const summary = await this.unifi.summary();
+        const offline: UnifiDeviceRow[] =
+          summary.configured && summary.reachable && summary.devices.offline > 0
+            ? ((await this.unifi.devices()) as UnifiDeviceRow[]).filter((d) => d.state !== 1)
+            : [];
+        return { summary, offline };
+      },
+      { failTtlMs: METERS_FAIL_MS, deadlineMs: METERS_DEADLINE_MS },
+    );
     const s = data.summary;
     if (!s.configured || !s.reachable) return { channel: off("wifi", ["clients", "devices online"]), offline: [] };
     return {
@@ -244,7 +261,10 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
   /** Queries per minute over the last hour (cached 60 s), and when the IPAM-to-DNS sync last ran. */
   private async dnsChannel(now: Date): Promise<Channel> {
     const [stats, status] = await Promise.all([
-      this.cache.get("dns-stats", METERS_DNS_CACHE_MS, () => this.dns.stats("LastHour")),
+      this.cache.get("dns-stats", METERS_DNS_CACHE_MS, () => this.dns.stats("LastHour"), {
+        failTtlMs: METERS_FAIL_MS,
+        deadlineMs: METERS_DEADLINE_MS,
+      }),
       this.dnsSync.status().catch(() => null),
     ]);
     const qpm = Math.round(stats.totals.queries / 60);

@@ -610,6 +610,17 @@ the original concepts: `docs/dashboard-concepts/`): `tiles` (the original dragga
   signals; never the `network` room, which turns the UniFi poller on) and never fetch their own data. The rules (what "needs you"
   means, the summary sentence, week events, readiness, availability buckets, meter scales) are pure functions in
   `packages/shared/src/dashboard/`, tested in `apps/api/test/home-*.test.ts`.
+- **Cost control (measure with a signed-in script before changing: the snapshot was ~600 ms for every poll).**
+  (1) `HomeService.snapshot` coalesces identical simultaneous requests (same person, access and `include`) into one
+  build and keeps nothing afterwards, so a refetch after an action always sees its effect: never add a TTL there.
+  (2) Sections whose answer is the same for everyone who may see them (`systems`, `meters`, the availability and
+  week-incident reads) are computed once per few seconds (`SYSTEMS_SHARED_MS`, `METERS_SHARED_MS`,
+  `WEEK_SHARED_MS`, `HOURLY_READ_CACHE_MS`) and shared; the permission gate stays outside the cache, and anything an
+  action changes (maintenance mode, the write flag) is read live. A new section that is the same for everyone
+  belongs behind a `TtlCache` like these; one that depends on the person (tickets, checklists, wiki ACLs) does not.
+  (3) Reads of other systems use `TtlCache.get(..., { failTtlMs, deadlineMs })`: a dependency that is down or slow
+  costs one wait per window, not one per request, and is not asked again meanwhile. The cache is bounded
+  (`maxEntries`). Cached arrays/objects are shared between callers: never mutate what a cached read returns.
 - **Nothing is faked.** A section that is not `ok` is hidden or says why in one plain line. `unavailable` with reason
   "no upcoming service" means nothing is scheduled that this person can see: hide, never "can't be reached".
 - **Actions reuse existing audited routes** (UniFi ack, take a ticket, tick a checklist task, maintenance mode) through

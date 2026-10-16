@@ -19,6 +19,7 @@ import { AVAILABILITY_KINDS, AvailabilityStore } from "../../../availability/ava
 import { WikiService } from "../../../wiki/wiki.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
 import { HomeServiceSection } from "./service.section";
+import { TtlCache } from "../cache";
 import { checklistEventsBetween, responseTargets, unansweredTickets } from "./week-queries";
 import { SettingsService } from "../../../settings/settings.service";
 
@@ -32,8 +33,17 @@ export function durationText(ms: number): string {
   return hours % 24 === 0 ? `${days} d` : `${days} d ${hours % 24} h`;
 }
 
+/**
+ * Reads that give every person the same answer (incidents, backups, the wiki edit log) are shared for this long,
+ * so a burst of open home pages (a monitoring event wakes them all at once) costs one query, not one each. What is
+ * per person (tickets, checklists, which wiki pages they may see) is still read for them.
+ */
+export const WEEK_SHARED_MS = 10_000;
+
 @Injectable()
 export class HomeWeekSection implements SectionBuilder<WeekDigest> {
+  private readonly shared = new TtlCache();
+
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
@@ -193,26 +203,7 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
   }
 
   private async wikiEvents(ctx: HomeContext, from: Date, to: Date): Promise<WeekEventInput[]> {
-    const rows = await this.db
-      .select({
-        resourceId: activityEvents.resourceId,
-        action: activityEvents.action,
-        title: activityEvents.title,
-        actorEmail: activityEvents.actorEmail,
-        link: activityEvents.link,
-        ts: activityEvents.ts,
-      })
-      .from(activityEvents)
-      .where(
-        and(
-          eq(activityEvents.resourceType, "wiki_page"),
-          inArray(activityEvents.action, ["wiki.created", "wiki.updated", "wiki.update", "wiki.create", "wiki.revert"]),
-          gte(activityEvents.ts, from),
-          lt(activityEvents.ts, to),
-        ),
-      )
-      .orderBy(desc(activityEvents.ts))
-      .limit(200);
+    const rows = await this.shared.get(`wiki|${from.getTime()}|${to.getTime()}`, WEEK_SHARED_MS, () => this.wikiActivityRows(from, to));
     if (rows.length === 0) return [];
     // Page ACLs: only pages the person can read.
     const visible = new Set((await this.wiki.list(ctx.user, { limit: 200 })).map((p) => p.id));
@@ -238,6 +229,30 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
     return out;
   }
 
+  /** The wiki edit log for the week, the same for everyone (the caller drops pages the person cannot read). */
+  private async wikiActivityRows(from: Date, to: Date) {
+    return this.db
+      .select({
+        resourceId: activityEvents.resourceId,
+        action: activityEvents.action,
+        title: activityEvents.title,
+        actorEmail: activityEvents.actorEmail,
+        link: activityEvents.link,
+        ts: activityEvents.ts,
+      })
+      .from(activityEvents)
+      .where(
+        and(
+          eq(activityEvents.resourceType, "wiki_page"),
+          inArray(activityEvents.action, ["wiki.created", "wiki.updated", "wiki.update", "wiki.create", "wiki.revert"]),
+          gte(activityEvents.ts, from),
+          lt(activityEvents.ts, to),
+        ),
+      )
+      .orderBy(desc(activityEvents.ts))
+      .limit(200);
+  }
+
   async build(ctx: HomeContext): Promise<Section<WeekDigest>> {
     const perms = ctx.user.permissions;
     const has = (p: string) => perms.includes(p);
@@ -252,11 +267,15 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
 
     const empty = Promise.resolve<WeekEventInput[]>([]);
     const [inc, ticketEvents, checklistEvents, pcEvents, backupEvents, wikiEvents, rows] = await Promise.all([
-      canMonitor ? this.incidents(from, to) : Promise.resolve({ events: [] as WeekEventInput[], spans: [] as IncidentSpan[] }),
+      canMonitor
+        ? this.shared.get(`inc|${from.getTime()}|${to.getTime()}`, WEEK_SHARED_MS, () => this.incidents(from, to))
+        : Promise.resolve({ events: [] as WeekEventInput[], spans: [] as IncidentSpan[] }),
       has(PERMISSIONS.TICKETS_READ_OWN) ? this.ticketEvents(ctx, from, to) : empty,
       has(PERMISSIONS.CHECKLISTS_READ_ASSIGNED) ? this.checklistEvents(ctx, from, to) : empty,
       has(PERMISSIONS.PLANNING_CENTER_READ_ANY) ? this.planningCenterEvents(ctx, from, to) : empty,
-      has(PERMISSIONS.SITE_ADMIN) ? this.backupEvents(from, to) : empty,
+      has(PERMISSIONS.SITE_ADMIN)
+        ? this.shared.get(`backup|${from.getTime()}|${to.getTime()}`, WEEK_SHARED_MS, () => this.backupEvents(from, to))
+        : empty,
       has(PERMISSIONS.WIKI_READ_OWN) ? this.wikiEvents(ctx, from, to) : empty,
       canMonitor ? this.availability.hourly(from, kinds) : Promise.resolve([]),
     ]);

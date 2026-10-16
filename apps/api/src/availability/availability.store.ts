@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { and, gte, inArray, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { availabilityHourly } from "../db/schema";
+import { TtlCache } from "../dashboard/home/cache";
 
 export const AVAILABILITY_KINDS = ["monitor", "infra_target", "unifi_device", "cisco_switch", "dns_node"] as const;
 export type AvailabilityKind = (typeof AVAILABILITY_KINDS)[number];
@@ -38,8 +39,14 @@ export function utcHourStart(at: Date): Date {
   return d;
 }
 
+/** The sampler adds a tick a minute, so a read this old is as good as a fresh one for hourly buckets. */
+export const HOURLY_READ_CACHE_MS = 15_000;
+
 @Injectable()
 export class AvailabilityStore implements AvailabilityWriter {
+  /** Reads of the history are the same for every caller, and every open home page asks for them. */
+  private readonly readCache = new TtlCache();
+
   constructor(@Inject(DB) private readonly db: Db) {}
 
   /** Adds one tick of samples to `hour`'s counters, one multi-row upsert per 500 systems. */
@@ -56,6 +63,7 @@ export class AvailabilityStore implements AvailabilityWriter {
       } else folded.set(key, { s, samples: 1, down: s.down ? 1 : 0 });
     }
     const rows = [...folded.values()];
+    this.readCache.clear(); // a write on this node is visible to its next read at once
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK);
       await this.db
@@ -83,6 +91,7 @@ export class AvailabilityStore implements AvailabilityWriter {
 
   /** Deletes hours before `before` in batches of 500; returns how many rows went. */
   async prune(before: Date): Promise<number> {
+    this.readCache.clear();
     let total = 0;
     for (;;) {
       const res = await this.db.execute(sql`
@@ -96,8 +105,16 @@ export class AvailabilityStore implements AvailabilityWriter {
     }
   }
 
-  /** Rows from `since` (inclusive), optionally limited to some kinds. */
-  async hourly(since: Date, kinds?: string[]): Promise<HourlyRow[]> {
+  /**
+   * Rows from `since` (inclusive), optionally limited to some kinds. Served from a 15-second shared read, so the
+   * returned array is shared: callers must not change it.
+   */
+  hourly(since: Date, kinds?: string[]): Promise<HourlyRow[]> {
+    const key = `${since.getTime()}|${(kinds ?? []).slice().sort().join(",")}`;
+    return this.readCache.get(key, HOURLY_READ_CACHE_MS, () => this.readHourly(since, kinds), { failTtlMs: 10_000 });
+  }
+
+  private async readHourly(since: Date, kinds?: string[]): Promise<HourlyRow[]> {
     const where =
       kinds && kinds.length > 0
         ? and(gte(availabilityHourly.hour, since), inArray(availabilityHourly.kind, kinds))

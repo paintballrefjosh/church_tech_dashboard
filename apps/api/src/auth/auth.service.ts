@@ -182,6 +182,7 @@ export class AuthService implements OnModuleInit {
       sessionVersion: user.sessionVersion,
       approvalStatus: user.approvalStatus === "pending" ? "pending" : "approved",
       groups: groupNames,
+      groupIds,
       permissions,
       access,
     };

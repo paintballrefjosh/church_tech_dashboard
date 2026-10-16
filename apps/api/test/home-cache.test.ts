@@ -73,6 +73,99 @@ describe("TtlCache", () => {
   });
 });
 
+describe("TtlCache failure memory and deadline", () => {
+  const boom = async (): Promise<string> => {
+    throw new Error("down");
+  };
+
+  it("by default tries again straight after a failure", async () => {
+    const cache = new TtlCache(clock().now);
+    let loads = 0;
+    const flaky = async () => {
+      loads++;
+      throw new Error("down");
+    };
+    await expect(cache.get("k", 100, flaky)).rejects.toThrow("down");
+    await expect(cache.get("k", 100, flaky)).rejects.toThrow("down");
+    expect(loads).toBe(2);
+  });
+
+  it("with failTtlMs, remembers a failure and answers at once instead of asking the dead dependency again", async () => {
+    const c = clock();
+    const cache = new TtlCache(c.now);
+    let loads = 0;
+    const down = async () => {
+      loads++;
+      throw new Error("down");
+    };
+    await expect(cache.get("k", 100, down, { failTtlMs: 50 })).rejects.toThrow("down");
+    c.advance(10);
+    await expect(cache.get("k", 100, down, { failTtlMs: 50 })).rejects.toThrow("down");
+    expect(loads).toBe(1);
+    c.advance(50);
+    await expect(cache.get("k", 100, down, { failTtlMs: 50 })).rejects.toThrow("down");
+    expect(loads).toBe(2);
+  });
+
+  it("a success ends the failure window", async () => {
+    const c = clock();
+    const cache = new TtlCache(c.now);
+    await expect(cache.get("k", 100, boom, { failTtlMs: 1000 })).rejects.toThrow();
+    c.advance(1001);
+    expect(await cache.get("k", 100, async () => "ok", { failTtlMs: 1000 })).toBe("ok");
+    expect(await cache.get("k", 100, boom, { failTtlMs: 1000 })).toBe("ok");
+  });
+
+  it("serves the last good value through a failure window", async () => {
+    const c = clock();
+    const cache = new TtlCache(c.now);
+    await cache.get("k", 100, async () => "good");
+    c.advance(150);
+    expect(await cache.get("k", 100, boom, { failTtlMs: 500 })).toBe("good");
+    c.advance(10);
+    expect(await cache.get("k", 100, async () => "never loaded", { failTtlMs: 500 })).toBe("good");
+  });
+
+  it("deadlineMs stops a caller waiting, remembers the miss, and still fills the cache when the load finishes", async () => {
+    const cache = new TtlCache();
+    let release: (v: string) => void = () => undefined;
+    let loads = 0;
+    const slow = () => {
+      loads++;
+      return new Promise<string>((r) => (release = r));
+    };
+    const t0 = Date.now();
+    await expect(cache.get("k", 10_000, slow, { deadlineMs: 30, failTtlMs: 10_000 })).rejects.toThrow("timed out");
+    expect(Date.now() - t0).toBeLessThan(500);
+    // Inside the window the next caller is told at once and no second load starts.
+    const t1 = Date.now();
+    await expect(cache.get("k", 10_000, slow, { deadlineMs: 30, failTtlMs: 10_000 })).rejects.toThrow("timed out");
+    expect(Date.now() - t1).toBeLessThan(20);
+    expect(loads).toBe(1);
+    // The load finishes after all: its value is kept and the failure forgotten.
+    release("late");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(await cache.get("k", 10_000, slow, { deadlineMs: 30, failTtlMs: 10_000 })).toBe("late");
+  });
+
+  it("holds at most maxEntries keys, dropping expired ones first", async () => {
+    const c = clock();
+    const cache = new TtlCache(c.now, 3);
+    for (const k of ["a", "b", "c"]) await cache.get(k, 10, async () => k);
+    c.advance(10 * STALE_FACTOR + 1); // all three are now beyond use
+    await cache.get("d", 10, async () => "d");
+    let loads = 0;
+    await cache.get("a", 10, async () => ++loads);
+    expect(loads).toBe(1); // "a" had been swept, so it loaded again
+    // Over the limit with nothing expired: the oldest goes.
+    const tight = new TtlCache(c.now, 2);
+    for (const k of ["x", "y", "z"]) await tight.get(k, 1000, async () => k);
+    let again = 0;
+    await tight.get("x", 1000, async () => ++again);
+    expect(again).toBe(1);
+  });
+});
+
 describe("withDeadline", () => {
   it("resolves with the work when it is quick", async () => {
     expect(await withDeadline(Promise.resolve(5), 50)).toBe(5);

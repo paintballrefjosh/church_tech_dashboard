@@ -23,6 +23,15 @@ export const UNIFI_CACHE_MS = 15_000;
 export const DNS_CACHE_MS = 60_000;
 /** Each area gets less than the section's own 2.5 s, so one slow source leaves the others standing. */
 export const AREA_DEADLINE_MS = 2_200;
+/**
+ * How long one computed "systems" answer is shared by everyone who may see it. The answer is the same for every
+ * such person (only the UniFi permission changes which areas exist), and a monitoring event makes every open home
+ * page ask at the same moment: this turns that burst into one computation. Maintenance mode and the write flag are
+ * read live, so toggling it shows at once.
+ */
+export const SYSTEMS_SHARED_MS = 5_000;
+/** An integration that failed or timed out is not asked again for this long (its areas show unavailable). */
+export const INTEGRATION_FAIL_MS = 15_000;
 
 const AREA_META: Record<AreaKey, { label: string; href: string }> = {
   servers: { label: "Servers", href: "/monitoring/infra" },
@@ -80,6 +89,19 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
     if (!perms.includes(PERMISSIONS.MONITORS_READ_ANY)) return sectionOff("forbidden");
     const canUnifi = perms.includes(PERMISSIONS.UNIFI_READ_ANY);
 
+    const [shared, maintenance] = await Promise.all([
+      this.cache.get(`systems|${canUnifi}`, SYSTEMS_SHARED_MS, () => this.compute(canUnifi)),
+      this.settings.get("monitoring.maintenance_mode").catch(() => false),
+    ]);
+    return sectionOk({
+      ...shared,
+      maintenanceMode: maintenance === true,
+      canWrite: perms.includes(PERMISSIONS.MONITORS_WRITE_ANY),
+    });
+  }
+
+  /** The part of the answer that is the same for everyone who may see the section. */
+  private async compute(canUnifi: boolean): Promise<Pick<SystemsHealth, "areas" | "totals" | "problems">> {
     const guard = async (key: AreaKey, run: () => Promise<AreaResult>): Promise<AreaResult> => {
       try {
         return await withDeadline(run(), AREA_DEADLINE_MS, "timed out");
@@ -88,13 +110,12 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
       }
     };
 
-    const [servers, internet, wifi, switches, dns, maintenance] = await Promise.all([
+    const [servers, internet, wifi, switches, dns] = await Promise.all([
       guard("servers", () => this.servers()),
       guard("internet", () => this.internet()),
       canUnifi ? guard("wifi", () => this.wifi()) : Promise.resolve(blank("wifi", "forbidden", null)),
       guard("switches", () => this.switches()),
       guard("dns", () => this.dnsArea()),
-      this.settings.get("monitoring.maintenance_mode").catch(() => false),
     ]);
 
     const results = [servers, internet, wifi, switches, dns];
@@ -106,13 +127,7 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
       totals.down += a.down;
       totals.total += a.total;
     }
-    return sectionOk({
-      areas,
-      totals,
-      problems: results.flatMap((r) => r.problems),
-      maintenanceMode: maintenance === true,
-      canWrite: perms.includes(PERMISSIONS.MONITORS_WRITE_ANY),
-    });
+    return { areas, totals, problems: results.flatMap((r) => r.problems) };
   }
 
   private async servers(): Promise<AreaResult> {
@@ -187,14 +202,19 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
   }
 
   private async wifi(): Promise<AreaResult> {
-    const data = await this.cache.get("unifi", UNIFI_CACHE_MS, async () => {
-      const summary = await this.unifi.summary();
-      const offline: UnifiDeviceRow[] =
-        summary.configured && summary.reachable && summary.devices.offline > 0
-          ? ((await this.unifi.devices()) as UnifiDeviceRow[]).filter((d) => d.state !== 1)
-          : [];
-      return { summary, offline };
-    });
+    const data = await this.cache.get(
+      "unifi",
+      UNIFI_CACHE_MS,
+      async () => {
+        const summary = await this.unifi.summary();
+        const offline: UnifiDeviceRow[] =
+          summary.configured && summary.reachable && summary.devices.offline > 0
+            ? ((await this.unifi.devices()) as UnifiDeviceRow[]).filter((d) => d.state !== 1)
+            : [];
+        return { summary, offline };
+      },
+      { failTtlMs: INTEGRATION_FAIL_MS, deadlineMs: AREA_DEADLINE_MS },
+    );
     const s = data.summary;
     if (!s.configured) return blank("wifi", "unconfigured", "not configured");
     if (!s.reachable) return blank("wifi", "unavailable", "controller unreachable");
@@ -248,7 +268,10 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
   }
 
   private async dnsArea(): Promise<AreaResult> {
-    const s = await this.cache.get("dns", DNS_CACHE_MS, () => this.dns.summary());
+    const s = await this.cache.get("dns", DNS_CACHE_MS, () => this.dns.summary(), {
+      failTtlMs: INTEGRATION_FAIL_MS,
+      deadlineMs: AREA_DEADLINE_MS,
+    });
     if (!s.configured) return blank("dns", "unconfigured", "not configured");
     const meta = AREA_META.dns;
     if (!s.reachable) {

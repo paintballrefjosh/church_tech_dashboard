@@ -28,12 +28,15 @@ export function useGlobalSearch({ limit = 10, debounceMs = 150 }: UseGlobalSearc
       setBusy(false);
       return;
     }
+    // An older request still in flight is cancelled when the text changes again, not just ignored.
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setBusy(true);
       try {
         const r = await fetch(`/api/search?q=${encodeURIComponent(term)}&limit=${limit}`, {
           credentials: "same-origin",
           cache: "no-store",
+          signal: controller.signal,
         });
         if (mine !== seq.current) return;
         if (r.ok) {
@@ -46,7 +49,10 @@ export function useGlobalSearch({ limit = 10, debounceMs = 150 }: UseGlobalSearc
         if (mine === seq.current) setBusy(false);
       }
     }, debounceMs);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [q, limit, debounceMs]);
 
   function clear() {

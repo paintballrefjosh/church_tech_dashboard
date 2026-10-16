@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import {
   sectionOff,
   type HomeInclude,
@@ -105,7 +106,28 @@ export class HomeService {
     }
   }
 
-  async snapshot(user: AuthenticatedUser, includes: readonly HomeInclude[], now = new Date()): Promise<HomeSnapshot> {
+  /** Snapshots being built right now, by person and request, so identical simultaneous requests share one build. */
+  private readonly building = new Map<string, Promise<HomeSnapshot>>();
+
+  /**
+   * The snapshot for `user`. Requests that arrive while an identical one (same person, same access, same
+   * `include`) is still being built wait for that build instead of starting their own: a person with several tabs
+   * open, or a page that fetches twice on load and on focus, costs one build. Nothing is kept once the build ends,
+   * so a request made after an action (taking a ticket, ticking a task) always sees its effect.
+   */
+  snapshot(user: AuthenticatedUser, includes: readonly HomeInclude[], now?: Date): Promise<HomeSnapshot> {
+    if (now) return this.build(user, includes, now);
+    const access = createHash("sha1").update([...(user.permissions ?? [])].sort().join(",")).update([...(user.groupIds ?? [])].sort().join(",")).digest("hex");
+    const key = `${user.id}|${access}|${[...includes].sort().join(",")}`;
+    let flight = this.building.get(key);
+    if (!flight) {
+      flight = this.build(user, includes, new Date()).finally(() => this.building.delete(key));
+      this.building.set(key, flight);
+    }
+    return flight;
+  }
+
+  private async build(user: AuthenticatedUser, includes: readonly HomeInclude[], now: Date): Promise<HomeSnapshot> {
     const [tz, siteName, tagline] = await Promise.all([
       this.settings.get("site.timezone").catch(() => "UTC"),
       this.settings.get("site.name").catch(() => ""),
