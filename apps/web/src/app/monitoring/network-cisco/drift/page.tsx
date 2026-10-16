@@ -6,6 +6,14 @@ import type { CiscoDriftRow } from "@church/shared";
 import { useCanWrite, fmtTime, PendingLine, ToastStack, useToasts } from "../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 
+const FIELD_LABEL: Record<string, string> = { vlan_exists: "VLAN exists", vlan_name: "VLAN name" };
+
+/** "1" / "0" in a VLAN-exists event read as yes / no; everything else is shown as stored. */
+function showValue(field: string, v: string | null): string {
+  if (field === "vlan_exists") return v === "1" ? "yes" : "no";
+  return v ?? "—";
+}
+
 export default function CiscoDriftPage() {
   const canWrite = useCanWrite();
   const [rows, setRows] = useState<CiscoDriftRow[]>([]);
@@ -95,7 +103,11 @@ export default function CiscoDriftPage() {
       key: "scope",
       label: "Scope",
       render: (r) =>
-        r.portId === "__device__" ? (
+        r.portId.startsWith("vlan:") ? (
+          <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+            VLAN {r.portId.slice(5)}
+          </span>
+        ) : r.portId === "__device__" ? (
           <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
             device
           </span>
@@ -104,17 +116,17 @@ export default function CiscoDriftPage() {
         ),
       sortValue: (r) => r.portId,
     },
-    { key: "field", label: "Field", render: (r) => <span className="text-xs">{r.field}</span>, sortValue: (r) => r.field },
+    { key: "field", label: "Field", render: (r) => <span className="text-xs">{FIELD_LABEL[r.field] ?? r.field}</span>, sortValue: (r) => r.field },
     {
       key: "expected",
       label: "Expected",
-      render: (r) => <code className="rounded bg-emerald-50 px-1 text-xs text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">{r.expected ?? "—"}</code>,
+      render: (r) => <code className="rounded bg-emerald-50 px-1 text-xs text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">{showValue(r.field, r.expected)}</code>,
       sortValue: (r) => r.expected ?? "",
     },
     {
       key: "observed",
       label: "Observed",
-      render: (r) => <code className="rounded bg-rose-50 px-1 text-xs text-rose-800 dark:bg-rose-950/50 dark:text-rose-300">{r.observed ?? "—"}</code>,
+      render: (r) => <code className="rounded bg-rose-50 px-1 text-xs text-rose-800 dark:bg-rose-950/50 dark:text-rose-300">{showValue(r.field, r.observed)}</code>,
       sortValue: (r) => r.observed ?? "",
     },
     { key: "detected", label: "Detected", render: (r) => <span className="text-xs text-slate-500">{fmtTime(r.detectedAt)}</span>, sortValue: (r) => new Date(r.detectedAt).getTime() },

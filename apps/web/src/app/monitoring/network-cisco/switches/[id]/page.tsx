@@ -11,8 +11,10 @@ import {
   normaliseSpeed,
   speedLabel,
   type CiscoSwitch,
+  type CiscoSwitchVlan,
   type CiscoPortRow,
 } from "@church/shared";
+import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
 import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 
@@ -54,6 +56,7 @@ export default function CiscoSwitchDetailPage() {
   const canWrite = useCanWrite();
   const [sw, setSw] = useState<CiscoSwitch | null>(null);
   const [ports, setPorts] = useState<CiscoPortRow[]>([]);
+  const [vlans, setVlans] = useState<CiscoSwitchVlan[]>([{ vlanId: 1, name: "default" }]);
   const [form, setForm] = useState<PortForm | null>(null);
   const [confirmDel, setConfirmDel] = useState<CiscoPortRow | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,12 +67,14 @@ export default function CiscoSwitchDetailPage() {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const [s, p] = await Promise.all([
+    const [s, p, v] = await Promise.all([
       fetch(`/api/cisco/switches/${id}`, { credentials: "same-origin", cache: "no-store" }),
       fetch(`/api/cisco/switches/${id}/ports`, { credentials: "same-origin", cache: "no-store" }),
+      fetch(`/api/cisco/switches/${id}/vlans`, { credentials: "same-origin", cache: "no-store" }),
     ]);
     if (s.ok) setSw((await s.json()) as CiscoSwitch);
     if (p.ok) setPorts((await p.json()) as CiscoPortRow[]);
+    if (v.ok) setVlans((await v.json()) as CiscoSwitchVlan[]);
   }, [id]);
 
   useEffect(() => {
@@ -373,16 +378,20 @@ export default function CiscoSwitchDetailPage() {
               </Field>
               {form.mode === "access" ? (
                 <Field label="Access VLAN">
-                  <input type="number" min={1} max={4094} value={form.accessVlan} onChange={(e) => setForm({ ...form, accessVlan: Number(e.target.value) || 1 })} className={`w-full ${inputCls}`} />
+                  <VlanSelect value={form.accessVlan} vlans={vlans} onChange={(v) => setForm({ ...form, accessVlan: v })} />
                 </Field>
               ) : (
                 <>
                   <Field label="Native VLAN">
-                    <input type="number" min={1} max={4094} value={form.trunkNativeVlan} onChange={(e) => setForm({ ...form, trunkNativeVlan: Number(e.target.value) || 1 })} className={`w-full ${inputCls}`} />
+                    <VlanSelect value={form.trunkNativeVlan} vlans={vlans} onChange={(v) => setForm({ ...form, trunkNativeVlan: v })} />
                   </Field>
-                  <Field label="Allowed VLANs">
-                    <input value={form.trunkAllowedVlans} onChange={(e) => setForm({ ...form, trunkAllowedVlans: e.target.value })} className={`w-full font-mono text-xs ${inputCls}`} />
-                  </Field>
+                  {/* Not a Field: that is a <label>, and a click on blank space in it would flip the first radio inside. */}
+                  <div className="sm:col-span-2">
+                    <span className="text-xs text-slate-500">Allowed VLANs</span>
+                    <div className="mt-1">
+                      <TrunkVlanField value={form.trunkAllowedVlans} vlans={vlans} onChange={(list) => setForm({ ...form, trunkAllowedVlans: list })} />
+                    </div>
+                  </div>
                 </>
               )}
               <Field label="Speed">
