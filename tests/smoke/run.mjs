@@ -305,6 +305,93 @@ async function main() {
     assert(body.mustChangePassword === false, "mustChangePassword should be false after the change");
   });
 
+  // ---- browser sessions ("where you are signed in") ----
+  async function signInFresh() {
+    const j = new Map();
+    const { res: csrfRes } = await fetchWithCookies("/api/auth/csrf", {}, j);
+    const { csrfToken: t } = await csrfRes.json();
+    const { res } = await fetchWithCookies(
+      "/api/auth/callback/credentials",
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ csrfToken: t, email: TEST_USER_EMAIL, password: TEST_USER_SMOKE_PASSWORD, callbackUrl: BASE + "/", json: "true" }).toString(),
+      },
+      j,
+    );
+    assert(res.status === 200 || res.status === 302, `second sign-in gave ${res.status}`);
+    return j;
+  }
+  const FIREFOX_WINDOWS = { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0" };
+  const settle = (ms = 400) => new Promise((r) => setTimeout(r, ms));
+  const sessionsOf = async (j) => (await (await fetchWithCookies("/api/v1/me/sessions", {}, j)).res.json()).sessions;
+
+  await test("GET /api/v1/me/sessions lists this browser and marks it current", async () => {
+    await fetchWithCookies("/api/v1/me", {}, jar);
+    await settle();
+    const { res } = await fetchWithCookies("/api/v1/me/sessions", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const { sessions } = await res.json();
+    assert(Array.isArray(sessions) && sessions.length >= 1, `sessions: ${JSON.stringify(sessions)}`);
+    const current = sessions.filter((x) => x.current);
+    assert(current.length === 1, `expected exactly one current session, got ${current.length}`);
+    assert(typeof current[0].browser?.label === "string" && current[0].lastSeenAt, `unexpected row: ${JSON.stringify(current[0])}`);
+  });
+
+  await test("a second sign-in is its own session; ending it signs only that browser out", async () => {
+    const other = await signInFresh();
+    assert((await fetchWithCookies("/api/v1/me", { headers: FIREFOX_WINDOWS }, other)).res.status === 200, "the second browser should be signed in");
+    await settle();
+    const list = await sessionsOf(jar);
+    const theirs = list.find((x) => !x.current && /Firefox on Windows/.test(x.browser.label));
+    assert(theirs, `the second browser should be listed with its user agent: ${JSON.stringify(list.map((x) => x.browser))}`);
+    const { res: del } = await fetchWithCookies(`/api/v1/me/sessions/${theirs.id}`, { method: "DELETE" }, jar);
+    assert(del.status === 200, `DELETE session status ${del.status}`);
+    assert((await fetchWithCookies("/api/v1/me", {}, other)).res.status === 401, "the ended browser should be refused");
+    assert((await fetchWithCookies("/api/v1/me", {}, jar)).res.status === 200, "this browser must stay signed in");
+    const { res: again } = await fetchWithCookies(`/api/v1/me/sessions/${theirs.id}`, { method: "DELETE" }, jar);
+    assert(again.status === 404, `ending it twice should be 404, got ${again.status}`);
+  });
+
+  await test("POST /me/sessions/revoke-others keeps this browser and ends the rest", async () => {
+    const a = await signInFresh();
+    const b = await signInFresh();
+    await fetchWithCookies("/api/v1/me", {}, a);
+    await fetchWithCookies("/api/v1/me", {}, b);
+    await settle();
+    const { res } = await fetchWithCookies("/api/v1/me/sessions/revoke-others", { method: "POST" }, jar);
+    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
+    assert((await res.json()).ended >= 2, "should have ended the two new browsers");
+    assert((await fetchWithCookies("/api/v1/me", {}, a)).res.status === 401, "browser a should be refused");
+    assert((await fetchWithCookies("/api/v1/me", {}, b)).res.status === 401, "browser b should be refused");
+    assert((await fetchWithCookies("/api/v1/me", {}, jar)).res.status === 200, "this browser must stay signed in");
+  });
+
+  await test("DELETE /me/sessions/current signs this browser out (what the sign-out button does)", async () => {
+    const mine = await signInFresh();
+    await fetchWithCookies("/api/v1/me", {}, mine);
+    const { res } = await fetchWithCookies("/api/v1/me/sessions/current", { method: "DELETE" }, mine);
+    assert(res.status === 200, `status ${res.status}`);
+    assert((await fetchWithCookies("/api/v1/me", {}, mine)).res.status === 401, "the cookie should stop working");
+  });
+
+  await test("sessions endpoints are not reachable with an API token alone", async () => {
+    const { res } = await fetchWithCookies("/api/v1/me/sessions", { headers: { authorization: "Bearer cdt_not-a-real-token" } });
+    assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/admin/security-posture returns ordered checks", async () => {
+    const { res } = await fetchWithCookies("/api/v1/admin/security-posture", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const body = await res.json();
+    assert(Array.isArray(body.checks) && body.checks.length >= 5, `checks: ${JSON.stringify(body).slice(0, 200)}`);
+    const rank = { critical: 0, warn: 1, info: 2, ok: 3 };
+    for (let i = 1; i < body.checks.length; i++) assert(rank[body.checks[i - 1].severity] <= rank[body.checks[i].severity], "checks should be ordered by severity");
+    const total = Object.values(body.counts).reduce((a, b) => a + b, 0);
+    assert(total === body.checks.length, "counts should add up to the checks");
+    assert(!JSON.stringify(body).match(/password_hash|secret|token_hash/i), "the overview must not carry secrets");
+  });
+
   await test("PATCH /api/v1/me cycles through every preset", async () => {
     for (const value of ["fluid", "narrow", "wide", "standard"]) {
       const patch = await fetchWithCookies(

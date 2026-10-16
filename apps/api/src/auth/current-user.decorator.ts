@@ -9,6 +9,8 @@ export type AuthenticatedUser = {
   mustChangePassword: boolean;
   // Compared with the session cookie's `sv` claim (auth/session-version.ts); a mismatch means signed out.
   sessionVersion: number;
+  // Ids of this account's browser sessions that were ended one by one (user_sessions.revoked_at, last 90 days).
+  revokedSessions: string[];
   // "approved" = full member; "pending" = external OAuth user awaiting admin
   // approval, blocked from everything but their own /me. See session.guard.
   approvalStatus: "approved" | "pending";
@@ -31,3 +33,9 @@ export const CurrentUser = createParamDecorator(
     return req.user ?? null;
   }
 );
+
+/** The id of the browser session the request came in on (the cookie's `sid`), or null for a token or an older cookie. */
+export const SessionId = createParamDecorator((_: unknown, ctx: ExecutionContext): string | null => {
+  const req = ctx.switchToHttp().getRequest();
+  return typeof req.sessionId === "string" ? req.sessionId : null;
+});

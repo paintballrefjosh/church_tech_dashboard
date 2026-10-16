@@ -934,6 +934,19 @@ How sign-in behaves, for the person running the server:
   them out everywhere. (Turning off your own two-factor needs a current code and leaves
   your sessions alone.) Sessions made before an upgrade keep working until one of these
   happens.
+- **Each person can see and end their own sessions.** **Security** in the user menu lists every browser
+  signed in to the account (what browser, from which address, when it was last used), with **End session**
+  for one, **Sign out all other browsers**, and **Sign out everywhere**. An administrator can do the last
+  one for someone else under `/admin/users` > Manage > Signed-in browsers, for a lost laptop or a shared
+  computer left open; the account itself is untouched. A browser that was signed in before an upgrade to
+  this version is not listed (it has no session number yet) but "Sign out everywhere" still ends it.
+  Signing out with the button also ends that session on the server.
+- **The Security overview** (`/admin/security`, site administrators) is a checklist of how the site is set
+  up: the install password still in place, administrators without two-factor, how wide Google and
+  Microsoft sign-in are, API tokens that never expire or are unused, switches without a pinned host key,
+  maintenance mode left on, the Site URL and mail settings, the age of the last backup and how long the
+  audit log is kept. It only reads settings and counts, so it changes nothing and shows no secrets;
+  each line links to where it is fixed.
 - **Failed sign-ins are limited per account.** On top of the 10-per-minute limit per IP
   address, 10 failed attempts at one account within 15 minutes make the sign-in page say
   "too many failed attempts" for the rest of the window, whether or not that account
@@ -1383,6 +1396,8 @@ time). Each window is a setting under `/admin/settings` > Site, and 0 keeps ever
 | `audit.retention_days` | 365 | audit log rows older than this |
 | `notifications.retention_days` | 180 | notifications, read or not, older than this |
 | `activity.retention_days` | 90 | activity feed events older than this |
+
+Signed-in browser records (the "where you are signed in" list) are removed 30 days after their last use, and ended ones after 90 days.
 
 Infrastructure metrics (raw 7 days, 5-minute rollups 90 days, hourly 365 days) and uptime
 checks (30 days) prune themselves. The first run after upgrading to a version with the

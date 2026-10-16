@@ -174,6 +174,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   dns_sync_runs: { policy: "skip", group: MONITORING, title: "DNS sync runs", reason: "A history of background runs." },
 
   // ---- never rewound ----
+  user_sessions: runtime("Browser sessions", "Signed-in browsers of this moment; a restore must not bring a signed-out session back."),
   audit_log: { policy: "skip", group: OTHER, title: "Audit log", reason: "A record of what happened; a restore must not rewrite it." },
   mail_outbox: runtime("Outgoing mail queue", "Mail waiting to be sent must not be lost or re-sent by a restore."),
   job_state: runtime("Background job state", "Per-cluster runtime state."),

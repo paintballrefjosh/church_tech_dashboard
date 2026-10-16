@@ -12,7 +12,7 @@ import { Logger, Inject, type OnModuleDestroy } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
 import { decode } from "@auth/core/jwt";
 import { AuthService } from "../auth/auth.service";
-import { sessionIsCurrent, sessionVersionOf } from "../auth/session-version";
+import { sessionIdOf, sessionIsCurrent, sessionVersionOf } from "../auth/session-version";
 import { ClusterBus, INTERNAL_ROOM_PREFIX } from "../cluster/cluster-bus.service";
 import type { BusRow } from "../cluster/bus.store";
 
@@ -152,6 +152,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
           socket.data.userId = auth.userId;
           socket.data.permissions = auth.permissions;
           socket.data.sessionVersion = auth.sessionVersion;
+          socket.data.sessionId = auth.sessionId;
           next();
         })
         .catch(() => next(new Error("unauthorized")));
@@ -180,7 +181,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       try {
         const userId = socket.data.userId as string | undefined;
         const user = userId ? await this.auth.loadUserById(userId) : null;
-        if (!user || user.sessionVersion !== (socket.data.sessionVersion as number | undefined ?? 0)) {
+        const sid = socket.data.sessionId as string | null | undefined;
+        if (!user || user.sessionVersion !== (socket.data.sessionVersion as number | undefined ?? 0) || (sid && user.revokedSessions.includes(sid))) {
           socket.disconnect(true);
           continue;
         }
@@ -200,7 +202,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   private async authenticate(
     socket: Socket,
-  ): Promise<{ userId: string; permissions: string[]; sessionVersion: number } | null> {
+  ): Promise<{ userId: string; permissions: string[]; sessionVersion: number; sessionId: string | null } | null> {
     const cookies = parseCookies(socket.handshake.headers.cookie);
     const secret = process.env.AUTH_SECRET;
     if (!secret) return null;
@@ -211,8 +213,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         const decoded = await decode({ token, secret, salt: name });
         if (typeof decoded?.sub === "string") {
           const user = await this.auth.loadUserById(decoded.sub);
-          if (user && sessionIsCurrent(decoded as { sv?: unknown }, user)) {
-            return { userId: user.id, permissions: user.permissions, sessionVersion: sessionVersionOf(decoded as { sv?: unknown }) };
+          if (user && sessionIsCurrent(decoded as { sv?: unknown; sid?: unknown }, user)) {
+            return {
+              userId: user.id,
+              permissions: user.permissions,
+              sessionVersion: sessionVersionOf(decoded as { sv?: unknown }),
+              sessionId: sessionIdOf(decoded as { sid?: unknown }),
+            };
           }
         }
       } catch {

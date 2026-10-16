@@ -215,7 +215,11 @@ export function UserMenu({ email }: { email: string }) {
             type="button"
             onClick={() => {
               setOpen(false);
-              void signOut({ redirectTo: "/signin" });
+              // End this browser's session on the server first (it would otherwise stay in "your sessions" until
+              // it expired); a failure or an older cookie without a session id must not stop the sign-out.
+              void fetch("/api/me/sessions/current", { method: "DELETE", credentials: "same-origin" })
+                .catch(() => undefined)
+                .finally(() => void signOut({ redirectTo: "/signin" }));
             }}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30"
           >

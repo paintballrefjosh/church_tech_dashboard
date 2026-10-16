@@ -19,6 +19,7 @@ import {
   Presentation,
   DatabaseBackup,
   Network,
+  ShieldCheck,
 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
@@ -107,6 +108,14 @@ const CARDS: AdminCard[] = [
     description: "Every user's API tokens: who owns them, what they can reach, when they were last used. Revoke any.",
     section: "admin",
     perm: "user:admin",
+  },
+  {
+    href: "/admin/security",
+    label: "Security overview",
+    Icon: ShieldCheck,
+    description: "A checklist of how the site is set up: two-factor, sign-in rules, API tokens, backups, and anything that needs attention.",
+    section: "admin",
+    perm: "site:admin",
   },
   {
     href: "/admin/backups",

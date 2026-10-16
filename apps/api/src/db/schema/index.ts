@@ -28,3 +28,4 @@ export * from "./dns";
 export * from "./cluster";
 export * from "./backup";
 export * from "./availability";
+export * from "./sessions";

@@ -30,6 +30,7 @@ import { TicketCategoriesModule } from "./ticket-categories/ticket-categories.mo
 import { MentionsModule } from "./mentions/mentions.module";
 import { ActivityModule } from "./activity/activity.module";
 import { RetentionModule } from "./retention/retention.module";
+import { SecurityPostureModule } from "./security-posture/security-posture.module";
 import { PlanningCenterModule } from "./planning-center/planning-center.module";
 import { ChecklistsModule } from "./checklists/checklists.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -88,6 +89,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     MentionsModule,
     ActivityModule,
     RetentionModule,
+    SecurityPostureModule,
     PlanningCenterModule,
     ChecklistsModule,
     SavedViewsModule,

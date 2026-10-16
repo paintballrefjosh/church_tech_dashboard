@@ -491,6 +491,13 @@ export class UsersService {
     return { ok: true };
   }
 
+  /** Sign the account out of every browser, without touching the account. */
+  async adminRevokeSessions(userId: string): Promise<{ ok: true }> {
+    await this.getById(userId);
+    await this.auth.revokeSessions(userId);
+    return { ok: true };
+  }
+
   /** List the user's group membership ids. */
   async getAssignments(userId: string) {
     await this.getById(userId);

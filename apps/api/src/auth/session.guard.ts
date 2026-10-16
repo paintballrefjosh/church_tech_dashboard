@@ -5,7 +5,8 @@ import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
 import { OPERATIONAL_ONLY_KEY } from "./operational-only.decorator";
 import { isReadMethod } from "./api-token-scope";
-import { sessionIsCurrent } from "./session-version";
+import { sessionIdOf, sessionIsCurrent } from "./session-version";
+import { SessionsService } from "./sessions.service";
 import { AuthService } from "./auth.service";
 import type { AuthenticatedUser } from "./current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
@@ -122,6 +123,7 @@ export class SessionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly auth: AuthService,
     private readonly settings: SettingsService,
+    private readonly sessions: SessionsService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -182,13 +184,15 @@ export class SessionGuard implements CanActivate {
         const raw = cookies[name];
         if (!raw) continue;
         let user: AuthenticatedUser | null = null;
+        let sid: string | null = null;
         try {
           const decoded = await decode({ token: raw, secret, salt: name });
           const userId = decoded?.sub;
           if (typeof userId === "string") {
             user = await this.auth.loadUserById(userId);
             // Signed out server-side (password changed or reset, 2FA removed since this cookie was issued).
-            if (user && !sessionIsCurrent(decoded as { sv?: unknown }, user)) user = null;
+            if (user && !sessionIsCurrent(decoded as { sv?: unknown; sid?: unknown }, user)) user = null;
+            sid = user ? sessionIdOf(decoded as { sid?: unknown }) : null;
           }
         } catch {
           // Wrong cookie name / tampered token — try the next candidate.
@@ -196,6 +200,10 @@ export class SessionGuard implements CanActivate {
         }
         if (user) {
           req.user = user;
+          if (sid) {
+            req.sessionId = sid;
+            this.sessions.touch(user.id, sid, typeof req.ip === "string" ? req.ip : null, typeof req.headers?.["user-agent"] === "string" ? req.headers["user-agent"] : null);
+          }
           // Enforcement must run OUTSIDE the decode try/catch: these throw a
           // 403 to deliberately block pending / must-change-password / TOTP-
           // required users. Inside the try, that 403 was swallowed and the

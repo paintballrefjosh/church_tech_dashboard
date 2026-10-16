@@ -1,8 +1,9 @@
-import { Controller, Get, Put, Post, Patch, Body, BadRequestException, ConflictException, Inject } from "@nestjs/common";
+import { Controller, Get, Put, Post, Patch, Delete, Param, Body, BadRequestException, ConflictException, Inject, NotFoundException } from "@nestjs/common";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { NOTIFICATION_KINDS, TICKET_PRIORITIES, type TicketSlaMap } from "@church/shared";
-import { CurrentUser, type AuthenticatedUser } from "./current-user.decorator";
+import { CurrentUser, SessionId, type AuthenticatedUser } from "./current-user.decorator";
+import { SessionsService } from "./sessions.service";
 import { AuthService } from "./auth.service";
 import { SettingsService } from "../settings/settings.service";
 import { DB, type Db } from "../db/db.module";
@@ -43,6 +44,7 @@ const updateProfileBody = z.object({
 export class MeController {
   constructor(
     private readonly auth: AuthService,
+    private readonly sessions: SessionsService,
     private readonly settings: SettingsService,
     @Inject(DB) private readonly db: Db,
   ) {}
@@ -187,6 +189,48 @@ export class MeController {
     // Sign every browser out, this one included (the web sends the person to the sign-in page): whoever else
     // held a session on this account loses it.
     await this.auth.revokeSessions(user.id);
+    return { ok: true };
+  }
+
+  /** The browsers this account is signed in on, newest use first; `current` marks the one asking. */
+  @Get("sessions")
+  @SessionOnly()
+  async listSessions(@CurrentUser() user: AuthenticatedUser, @SessionId() sid: string | null) {
+    return { sessions: await this.sessions.list(user.id, sid) };
+  }
+
+  /** Sign every other browser out, keeping this one. */
+  @Post("sessions/revoke-others")
+  @SessionOnly()
+  @Audited({ action: "user.sessions.revokeOthers", resourceType: "user" })
+  async revokeOtherSessions(@CurrentUser() user: AuthenticatedUser, @SessionId() sid: string | null) {
+    return { ok: true, ended: await this.sessions.revokeOthers(user.id, sid) };
+  }
+
+  /** Sign out everywhere, this browser included, and every older cookie that has no listed session. */
+  @Post("sessions/revoke-all")
+  @SessionOnly()
+  @Audited({ action: "user.sessions.revokeAll", resourceType: "user" })
+  async revokeAllSessions(@CurrentUser() user: AuthenticatedUser) {
+    await this.auth.revokeSessions(user.id);
+    return { ok: true };
+  }
+
+  /** End one session of this account (the id comes from the list, or "current"). Ending the current one signs this browser out. */
+  @Delete("sessions/:id")
+  @SessionOnly()
+  @Audited({ action: "user.session.revoke", resourceType: "user_session", resourceIdFromParams: (p) => p.id ?? null })
+  async revokeSession(@CurrentUser() user: AuthenticatedUser, @SessionId() sid: string | null, @Param("id") id: string) {
+    // "current" is this browser's own session (the sign-out button uses it, as the page does not know its id).
+    if (id === "current") {
+      if (!sid) throw new NotFoundException("This browser has no listed session");
+      await this.sessions.revokeCurrent(user.id, sid);
+      return { ok: true };
+    }
+    const target = /^[0-9a-f-]{36}$/i.test(id) ? id.toLowerCase() : null;
+    if (!target) throw new NotFoundException("No such session");
+    const ended = await this.sessions.revoke(user.id, target);
+    if (!ended) throw new NotFoundException("No such session");
     return { ok: true };
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sessionIsCurrent, sessionVersionOf } from "../src/auth/session-version";
+import { sessionIdOf, sessionIsCurrent, sessionVersionOf } from "../src/auth/session-version";
 import { handshakeOriginAllowed } from "../src/realtime/realtime.gateway";
 
 describe("session version", () => {
@@ -15,6 +15,27 @@ describe("session version", () => {
   });
   it("ignores a malformed claim rather than trusting it", () => {
     for (const sv of ["3", -1, 1.5, NaN, null, {}]) expect(sessionVersionOf({ sv })).toBe(0);
+  });
+});
+
+describe("one browser session", () => {
+  const A = "0b0e2c1e-8c3a-4f0e-9d57-3f1b6f6f4a11";
+  const B = "7d9a1f3c-2e44-4b8e-a0aa-5c1d2e3f4a55";
+  it("reads a well-formed session id and nothing else", () => {
+    expect(sessionIdOf({ sid: A })).toBe(A);
+    expect(sessionIdOf({ sid: A.toUpperCase() })).toBe(A);
+    for (const sid of ["", "abc", `${A}x`, 5, null, {}, "'; drop table user_sessions;--"]) expect(sessionIdOf({ sid })).toBeNull();
+    expect(sessionIdOf(null)).toBeNull();
+  });
+  it("refuses a cookie whose session was ended, and only that one", () => {
+    const user = { sessionVersion: 0, revokedSessions: [A] };
+    expect(sessionIsCurrent({ sid: A }, user)).toBe(false);
+    expect(sessionIsCurrent({ sid: A.toUpperCase() }, user)).toBe(false);
+    expect(sessionIsCurrent({ sid: B }, user)).toBe(true);
+  });
+  it("lets a cookie without an id through (it ends with the version instead)", () => {
+    expect(sessionIsCurrent({}, { sessionVersion: 0, revokedSessions: [A] })).toBe(true);
+    expect(sessionIsCurrent({ sv: 0, sid: B }, { sessionVersion: 1, revokedSessions: [] })).toBe(false);
   });
 });
 

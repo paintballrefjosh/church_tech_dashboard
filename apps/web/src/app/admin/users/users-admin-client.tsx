@@ -5,6 +5,7 @@ import {
   ChevronDown,
   KeyRound,
   Mail,
+  MonitorSmartphone,
   Pencil,
   Plus,
   RotateCcw,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { UserTokensSection } from "./user-tokens-section";
+import { SessionsPanel } from "@/components/sessions-panel";
 
 interface UserRow {
   id: string;
@@ -940,6 +942,16 @@ function ManageDrawer({
       ) : totpMsg ? (
         <p className={`mb-4 text-xs ${totpMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{totpMsg.text}</p>
       ) : null}
+
+      <section className="mb-4 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+        <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+          <MonitorSmartphone className="h-3 w-3" aria-hidden /> Signed-in browsers
+        </h3>
+        <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+          Sign this person out everywhere if a device is lost or a shared computer was left open. Their account is unchanged.
+        </p>
+        <SessionsPanel adminUserId={user.id} />
+      </section>
 
       <UserTokensSection userId={user.id} userEmail={user.email} userName={user.name} />
 

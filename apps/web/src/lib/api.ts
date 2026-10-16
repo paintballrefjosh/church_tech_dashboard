@@ -28,6 +28,9 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   const xffRaw = hdrs.get("x-forwarded-for") ?? hdrs.get("x-real-ip") ?? "";
   const clientIp = xffRaw.split(",")[0]?.trim() ?? "";
 
+  // The browser's own User-Agent, so the audit log and the session list say what signed in (Node's fetch would say "node").
+  const userAgent = hdrs.get("user-agent") ?? "";
+
   const hasBody = init?.body !== undefined && init?.body !== null && init?.body !== "";
 
   return fetch(`${internal}${path}`, {
@@ -36,6 +39,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       ...(hasBody ? { "content-type": "application/json" } : {}),
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
       ...(clientIp ? { "x-forwarded-for": clientIp } : {}),
+      ...(userAgent ? { "user-agent": userAgent } : {}),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",

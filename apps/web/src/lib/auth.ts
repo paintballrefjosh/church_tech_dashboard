@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { googleSignInDecision, microsoftSignInDecision } from "@church/shared";
 import { db, schema } from "./db";
@@ -338,6 +338,8 @@ async function buildAuthConfig(): Promise<NextAuthConfig> {
             .where(eq(schema.users.id, user.id))
             .limit(1);
           (token as { sv?: number }).sv = row?.sv ?? 0;
+          // This browser's session id: the API lists it under "your sessions" and can end it alone (user_sessions).
+          (token as { sid?: string }).sid = randomUUID();
           const mcp = (user as { mustChangePassword?: boolean }).mustChangePassword;
           if (typeof mcp === "boolean") {
             (token as { mustChangePassword?: boolean }).mustChangePassword = mcp;

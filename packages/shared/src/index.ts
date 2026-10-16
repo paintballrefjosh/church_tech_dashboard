@@ -27,3 +27,5 @@ export * from "./schemas/cluster";
 export * from "./builds";
 export * from "./oauth-policy";
 export * from "./dashboard";
+export * from "./user-agent";
+export * from "./security-posture";

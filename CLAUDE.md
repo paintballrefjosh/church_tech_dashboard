@@ -372,6 +372,20 @@ audit snapshot.
   the upgrade signed nobody out). It is bumped by: password change, password reset by link, admin password reset,
   admin 2FA removal. Everything that ends a session also needs the caller to sign in again: tests and scripts that
   change the password must sign in afterwards (smoke and `tests/cluster/*` do).
+- **One browser can be signed out alone** (`user_sessions`, migration 0062; `auth/sessions.service.ts`). The web puts a random
+  `sid` in the cookie's JWT at sign-in (`jwt` callback); the API creates the row the first time `SessionGuard` sees it
+  (`SessionsService.touch`: at most one write per session per 5 minutes per node, never on the request path, address and
+  browser from that request) and ending a session sets `revoked_at`. The revoked ids ride along with the cached user
+  (`AuthenticatedUser.revokedSessions`, loaded by `loadUserById`; `invalidateUser` drops it on every node), so judging a
+  cookie costs no query: `sessionIsCurrent` checks `sv` and `sid`, in `SessionGuard` and the realtime gateway. Routes
+  (`@SessionOnly`, in `me.controller.ts`): `GET /me/sessions`, `DELETE /me/sessions/:id` (`current` = this browser; it
+  upserts, so signing out right after signing in still ends the session), `POST /me/sessions/revoke-others`,
+  `POST /me/sessions/revoke-all` (bumps `session_version`: also ends cookies that have no `sid`). Admin:
+  `GET /users/:id/sessions`, `POST /users/:id/sessions/revoke`. The web's sign-out button calls `DELETE .../current` first.
+  An ended row is kept 90 days and an idle one 30 (`sessions-prune` job), so a stray cookie never revives a session;
+  never delete a revoked row sooner. Cookies from before the table have no `sid`: not listed, ended by "sign out
+  everywhere". `apiFetch` forwards the browser's User-Agent (the audit log's `user_agent` used to say "node").
+  `describeUserAgent` (`packages/shared/src/user-agent.ts`) turns it into "Firefox on Windows".
 - **`POST /me/change-password` needs `currentPassword`**, except for a forced change (`mustChangePassword`) and for an
   account with no local password yet. The web profile form signs the person out after it.
 - **Failed sign-ins are counted per account** (`RateLimitService.failures/recordFailure/clearFailures`, same
@@ -386,6 +400,16 @@ audit snapshot.
 - **The realtime socket** refuses a handshake whose `Origin` is not this site (`handshakeOriginAllowed`: Host or
   X-Forwarded-Host, or the `APP_URL` list) and every 30 s re-reads each connected user (disconnect when gone, disabled
   or signed out; leave rooms the user lost access to).
+
+### Security overview (admin)
+
+`/admin/security` (`site:admin`, `@SessionOnly`, `GET /admin/security-posture`) lists how the site is set up as checks
+(`critical` / `warn` / `info` / `ok`): the install password still in place, administrators without two-factor, Google and
+Microsoft sign-in scope, pending approvals, API tokens that never expire or sit idle, Cisco switches with no pinned host
+key, maintenance mode, Site URL, SMTP, backup age, audit retention. `SecurityPostureService` only gathers counts and
+settings (never a secret); the rules are the pure `evaluatePosture` in `packages/shared/src/security-posture.ts`
+(unit-tested), the page only draws them, and every row says its status in words and an icon. **A new security-relevant
+setting or policy gets a check there** (a fact in `PostureFacts`, a rule, a test); it reads, it never fixes anything.
 
 ### TOTP / 2FA is optional, off by default
 

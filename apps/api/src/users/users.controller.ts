@@ -6,6 +6,7 @@ import { Public } from "../auth/public.decorator";
 import { assertInternalCaller } from "../auth/internal-token";
 import { Audited } from "../audit/audit.decorator";
 import { UsersService } from "./users.service";
+import { SessionsService } from "../auth/sessions.service";
 
 const createBody = createLocalUserSchema.extend({
   groupNames: z.array(z.string().min(1).max(120)).max(20).optional(),
@@ -31,7 +32,10 @@ const adminResetPasswordBody = z.object({
 
 @Controller("users")
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   @Get()
   @RequirePermissions(PERMISSIONS.USERS_READ_ANY)
@@ -172,6 +176,22 @@ export class UsersController {
   @Audited({ action: "user.adminResetTotp", resourceType: "user", resourceIdFromParams: (p) => p.id ?? null })
   adminResetTotp(@Param("id") id: string) {
     return this.users.adminResetTotp(id);
+  }
+
+  /** Browsers this person is signed in on (admin view of the same list they see on their Security page). */
+  @Get(":id/sessions")
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
+  async listSessions(@Param("id") id: string) {
+    await this.users.getById(id);
+    return { sessions: await this.sessions.list(id, null) };
+  }
+
+  /** Sign someone out everywhere (a lost laptop, a shared computer left open). The account itself is untouched. */
+  @Post(":id/sessions/revoke")
+  @RequirePermissions(PERMISSIONS.USER_ADMIN)
+  @Audited({ action: "user.adminRevokeSessions", resourceType: "user", resourceIdFromParams: (p) => p.id ?? null })
+  adminRevokeSessions(@Param("id") id: string) {
+    return this.users.adminRevokeSessions(id);
   }
 
   // ---- OAuth provisioning hook ----

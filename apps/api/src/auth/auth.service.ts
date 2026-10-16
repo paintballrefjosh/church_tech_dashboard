@@ -12,6 +12,7 @@ import {
   groups,
   groupMemberships,
   groupModuleAccess,
+  userSessions,
 } from "../db/schema";
 import type { AuthenticatedUser } from "./current-user.decorator";
 import { scopeUserToToken } from "./api-token-scope";
@@ -135,6 +136,12 @@ export class AuthService implements OnModuleInit {
       .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
       .where(eq(groupMemberships.userId, userId));
     const groupIds = memberships.map((g) => g.groupId);
+    // Browser sessions this person ended one by one; they ride along with the cached user so judging a cookie is free.
+    const revoked = await this.db
+      .select({ id: userSessions.id })
+      .from(userSessions)
+      .where(and(eq(userSessions.userId, userId), sql`${userSessions.revokedAt} IS NOT NULL`));
+    const revokedSessions = revoked.map((r) => r.id.toLowerCase());
     const groupNames = memberships.map((g) => g.groupName);
 
     // Short-circuit: the admin group always grants admin tier on every
@@ -180,6 +187,7 @@ export class AuthService implements OnModuleInit {
       totpEnabled: user.totpEnabled,
       mustChangePassword: user.mustChangePassword,
       sessionVersion: user.sessionVersion,
+      revokedSessions,
       approvalStatus: user.approvalStatus === "pending" ? "pending" : "approved",
       groups: groupNames,
       groupIds,
