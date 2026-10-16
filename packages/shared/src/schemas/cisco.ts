@@ -134,9 +134,61 @@ export interface CiscoVlanRow {
 
 // ---- ports (desired config editing) ----
 
+/**
+ * Speed as the switch writes it in `speed <n>`: Mbps as a bare number, or "auto". Old rows and typed input may say
+ * "1G" / "100M" / "1000 Mbps"; every comparison, save and push goes through this so those all mean the same thing.
+ * Anything it does not recognise is kept (lower-cased) so a typo shows up as drift instead of vanishing.
+ */
+export function normaliseSpeed(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (s === "" || s === "auto" || s.startsWith("auto")) return "auto";
+  const g = /^(\d+(?:\.\d+)?)g(?:bps|b)?$/.exec(s);
+  if (g) return String(Math.round(Number(g[1]) * 1000));
+  const m = /^(\d+)(?:m(?:bps|b)?)?$/.exec(s);
+  if (m) return m[1]!;
+  return s;
+}
+
+/** `duplex auto|full|half`; blank means auto. */
+export function normaliseDuplex(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim().toLowerCase();
+  return s === "" ? "auto" : s;
+}
+
+/** Speeds offered in the port editor (value is what the switch is given). */
+export const CISCO_SPEED_CHOICES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "auto", label: "Auto" },
+  { value: "10", label: "10 Mbps" },
+  { value: "100", label: "100 Mbps" },
+  { value: "1000", label: "1 Gbps" },
+  { value: "2500", label: "2.5 Gbps" },
+  { value: "5000", label: "5 Gbps" },
+  { value: "10000", label: "10 Gbps" },
+  { value: "25000", label: "25 Gbps" },
+  { value: "40000", label: "40 Gbps" },
+  { value: "100000", label: "100 Gbps" },
+];
+
+export const CISCO_DUPLEX_CHOICES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "auto", label: "Auto" },
+  { value: "full", label: "Full" },
+  { value: "half", label: "Half" },
+];
+
+/** "1 Gbps" for a stored speed; an unknown value is shown as it is. */
+export function speedLabel(raw: string | null | undefined): string {
+  const v = normaliseSpeed(raw);
+  return CISCO_SPEED_CHOICES.find((c) => c.value === v)?.label ?? v;
+}
+
 export const ciscoPortInputSchema = z.object({
   portId: z.string().min(1).max(32),
-  description: z.string().max(128).optional(),
+  // A description is sent to the switch as one CLI line, so no line breaks or control characters.
+  description: z
+    .string()
+    .max(128)
+    .regex(/^[^\u0000-\u001f\u007f]*$/, "No line breaks or control characters")
+    .optional(),
   adminEnabled: z.boolean().optional(),
   speed: z.string().max(16).optional(),
   duplex: z.string().max(16).optional(),

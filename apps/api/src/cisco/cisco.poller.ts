@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleInit, Inject } from "@nestjs/common";
 import { and, eq, inArray, isNull, desc, sql } from "drizzle-orm";
+import { normaliseDuplex, normaliseSpeed } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import {
   ciscoSwitches,
@@ -42,9 +43,14 @@ const BACKUP_RETENTION = 30;
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
 
 /** Desired-vs-observed field set per port, gated by mode (mirrors the source). */
-function driftFieldsFor(desired: typeof ciscoPorts.$inferSelect, obs: CfgPort): Array<[string, string, string]> {
+export function driftFieldsFor(desired: typeof ciscoPorts.$inferSelect, obs: CfgPort): Array<[string, string, string]> {
+  // Speed, duplex and description are on every physical port, switchport or not (routed ports and uplinks too).
+  // Speed and duplex are compared in the switch's own form ("1000", "auto"), so "1G" and "1000" are the same.
   const pairs: Array<[string, string, string]> = [
     ["admin_enabled", desired.adminEnabled ? "1" : "0", obs.adminEnabled ? "1" : "0"],
+    ["description", desired.description.trim(), obs.description.trim()],
+    ["speed", normaliseSpeed(desired.speed), normaliseSpeed(obs.speed)],
+    ["duplex", normaliseDuplex(desired.duplex), normaliseDuplex(obs.duplex)],
   ];
   if (desired.hasSwitchport && obs.hasSwitchport) {
     pairs.push(["mode", desired.mode, obs.mode]);
@@ -60,6 +66,11 @@ function driftFieldsFor(desired: typeof ciscoPorts.$inferSelect, obs: CfgPort): 
 }
 
 const norm = (v: string | null | undefined) => String(v ?? "").toLowerCase().trim();
+
+/** Do the desired and observed values of a drift field agree? A description is exact (case matters on a label). */
+export function sameValue(field: string, expected: string, observed: string): boolean {
+  return field === "description" ? expected.trim() === observed.trim() : norm(expected) === norm(observed);
+}
 
 /** Rough seconds from a Cisco uptime string ("12 weeks, 3 days, 4 hours"). 0 if unparseable. */
 function uptimeToSec(s: string | null | undefined): number {
@@ -388,8 +399,8 @@ export class CiscoPoller implements OnModuleInit {
         portId: p.portId,
         description: p.description,
         adminEnabled: p.adminEnabled,
-        speed: p.speed,
-        duplex: p.duplex,
+        speed: normaliseSpeed(p.speed),
+        duplex: normaliseDuplex(p.duplex),
         mode: p.mode,
         hasSwitchport: p.hasSwitchport,
         accessVlan: p.accessVlan,
@@ -486,7 +497,7 @@ export class CiscoPoller implements OnModuleInit {
       for (const [field, expected, observed] of driftFieldsFor(d, obs)) {
         const key = `${d.portId}::${field}`;
         const existing = openByKey.get(key);
-        const mismatch = norm(expected) !== norm(observed);
+        const mismatch = !sameValue(field, expected, observed);
         if (mismatch && !existing) {
           toInsert.push({ switchId, portId: d.portId, field, expected, observed });
         } else if (!mismatch && existing) {
@@ -642,16 +653,6 @@ export class CiscoPoller implements OnModuleInit {
 
   // ---- drift push (write desired to the device over SSH) ----
 
-  private readonly SPEED_TO_IOS: Record<string, string> = {
-    "10M": "10",
-    "100M": "100",
-    "1G": "1000",
-    "10G": "10000",
-    "25G": "25000",
-    "40G": "40000",
-    "100G": "100000",
-  };
-
   async pushToSwitch(
     id: string,
     changes: Array<{ portId: string; field: string; value: string | null }>,
@@ -692,10 +693,10 @@ export class CiscoPoller implements OnModuleInit {
             if (f.value) cmds.push(`switchport mode ${f.value}`);
             break;
           case "speed":
-            if (f.value) cmds.push(`speed ${this.SPEED_TO_IOS[f.value] ?? f.value}`);
+            cmds.push(`speed ${normaliseSpeed(f.value)}`);
             break;
           case "duplex":
-            if (f.value) cmds.push(`duplex ${f.value}`);
+            cmds.push(`duplex ${normaliseDuplex(f.value)}`);
             break;
           default:
             break;
@@ -704,6 +705,8 @@ export class CiscoPoller implements OnModuleInit {
       cmds.push("exit");
     }
     cmds.push("end", "write memory");
+    // Every entry is one CLI line; a value with a line break would run as a second command on the switch.
+    if (cmds.some((c) => /[\u0000-\u001f\u007f]/.test(c))) throw new Error("refusing to push a value with control characters");
     await sshShell(this.pinnedConn(sw), cmds);
   }
 }

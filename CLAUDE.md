@@ -129,7 +129,10 @@ which are raw-sample-only so they populate at the ≤2h range), **Network (UniFi
 (`/monitoring/network`),
 **Network (Cisco)** (`/monitoring/network-cisco` — the `cisco` module: an SSH
 poller for Cisco IOS/NX-OS switches with config backups, drift, MAC/ARP/VLAN
-caches; ported from the standalone `cisco-switch` app. Reads gate on
+caches; ported from the standalone `cisco-switch` app. Port drift (`driftFieldsFor` in `cisco.poller.ts`) compares admin
+state, mode, VLANs, **description, speed and duplex** with the running config. Speed is held as the switch writes it
+(`1000`, `auto`) and every path goes through `normaliseSpeed` (shared), so `1G` and `1000` agree; a description is compared
+exactly and must be one CLI line (the push refuses control characters). Reads gate on
 `monitors:read:any`, writes on `monitors:write:any`), and **IPAM**
 (its own page, `/ipam` in the IT menu, not a Monitoring tab since 2026-10-04;
 `/monitoring/ipam*` redirects there via `next.config.mjs` — the `ipam` module: a

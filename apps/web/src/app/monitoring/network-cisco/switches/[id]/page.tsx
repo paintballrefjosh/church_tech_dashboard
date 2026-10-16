@@ -4,9 +4,23 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud } from "lucide-react";
-import type { CiscoSwitch, CiscoPortRow } from "@church/shared";
+import {
+  CISCO_DUPLEX_CHOICES,
+  CISCO_SPEED_CHOICES,
+  normaliseDuplex,
+  normaliseSpeed,
+  speedLabel,
+  type CiscoSwitch,
+  type CiscoPortRow,
+} from "@church/shared";
 import { useCanWrite, StatusPill, computeStatus, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
+
+/** The standard speeds, plus the port's own value when it is something else (a typo stays visible, not hidden). */
+function speedOptions(current: string): Array<{ value: string; label: string }> {
+  const v = normaliseSpeed(current);
+  return CISCO_SPEED_CHOICES.some((c) => c.value === v) ? [...CISCO_SPEED_CHOICES] : [...CISCO_SPEED_CHOICES, { value: v, label: v }];
+}
 
 interface PortForm {
   id: string | null;
@@ -182,7 +196,7 @@ export default function CiscoSwitchDetailPage() {
       ),
       sortValue: (p) => (p.mode === "trunk" ? p.trunkNativeVlan : p.accessVlan),
     },
-    { key: "speed", label: "Speed", render: (p) => <span className="text-xs">{p.speed}</span>, sortValue: (p) => p.speed },
+    { key: "speed", label: "Speed", render: (p) => <span className="text-xs">{speedLabel(p.speed)}</span>, sortValue: (p) => p.speed },
     {
       key: "live",
       label: "Live",
@@ -329,7 +343,7 @@ export default function CiscoSwitchDetailPage() {
                 <input required disabled={Boolean(form.id)} value={form.portId} onChange={(e) => setForm({ ...form, portId: e.target.value })} placeholder="Gi1/0/1" className={`w-full font-mono text-xs disabled:opacity-60 ${inputCls}`} />
               </Field>
               <Field label="Description">
-                <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={`w-full ${inputCls}`} />
+                <input value={form.description} maxLength={128} onChange={(e) => setForm({ ...form, description: e.target.value })} className={`w-full ${inputCls}`} />
               </Field>
               <Field label="Mode">
                 <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value as "access" | "trunk" })} className={`w-full ${inputCls}`}>
@@ -352,10 +366,18 @@ export default function CiscoSwitchDetailPage() {
                 </>
               )}
               <Field label="Speed">
-                <input value={form.speed} onChange={(e) => setForm({ ...form, speed: e.target.value })} className={`w-full ${inputCls}`} />
+                <select value={normaliseSpeed(form.speed)} onChange={(e) => setForm({ ...form, speed: e.target.value })} className={`w-full ${inputCls}`}>
+                  {speedOptions(form.speed).map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
               </Field>
               <Field label="Duplex">
-                <input value={form.duplex} onChange={(e) => setForm({ ...form, duplex: e.target.value })} className={`w-full ${inputCls}`} />
+                <select value={normaliseDuplex(form.duplex)} onChange={(e) => setForm({ ...form, duplex: e.target.value })} className={`w-full ${inputCls}`}>
+                  {CISCO_DUPLEX_CHOICES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
               </Field>
             </div>
             <label className="inline-flex items-center gap-2">

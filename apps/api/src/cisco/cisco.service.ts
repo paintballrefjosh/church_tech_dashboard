@@ -32,6 +32,7 @@ import type {
   CiscoTopologyEdge,
   CiscoAlertPrefs,
 } from "@church/shared";
+import { normaliseDuplex, normaliseSpeed } from "@church/shared";
 import { diffConfigs, type DiffResult } from "./diff";
 
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
@@ -616,7 +617,9 @@ export class CiscoService {
     if (dup) throw new ConflictException("That port already exists on this switch");
     const [row] = await this.db
       .insert(ciscoPorts)
-      .values({ switchId, portId: input.portId, ...portInsert(input) })
+      // The column defaults ("1G") are not what a switch does when nothing is configured; a port added without a speed
+      // or duplex is "auto", which is what the running config shows and so does not read as drift.
+      .values({ switchId, portId: input.portId, speed: "auto", duplex: "auto", ...portInsert(input) })
       .returning({ id: ciscoPorts.id, portId: ciscoPorts.portId });
     return row!;
   }
@@ -899,8 +902,8 @@ function portInsert(input: CiscoPortInput | UpdateCiscoPortInput): Partial<typeo
   if (input.portId !== undefined) p.portId = input.portId;
   if (input.description !== undefined) p.description = input.description;
   if (input.adminEnabled !== undefined) p.adminEnabled = input.adminEnabled;
-  if (input.speed !== undefined) p.speed = input.speed;
-  if (input.duplex !== undefined) p.duplex = input.duplex;
+  if (input.speed !== undefined) p.speed = normaliseSpeed(input.speed);
+  if (input.duplex !== undefined) p.duplex = normaliseDuplex(input.duplex);
   if (input.mode !== undefined) p.mode = input.mode;
   if (input.hasSwitchport !== undefined) p.hasSwitchport = input.hasSwitchport;
   if (input.accessVlan !== undefined) p.accessVlan = input.accessVlan;
@@ -918,9 +921,9 @@ function portFieldPatch(field: string, observed: string | null): Partial<typeof 
     case "trunk_native_vlan":
       return { trunkNativeVlan: Number(observed) || 1 };
     case "speed":
-      return { speed: observed ?? "auto" };
+      return { speed: normaliseSpeed(observed) };
     case "duplex":
-      return { duplex: observed ?? "auto" };
+      return { duplex: normaliseDuplex(observed) };
     case "mode":
       return { mode: observed ?? "access" };
     case "trunk_allowed_vlans":
