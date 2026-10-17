@@ -2182,6 +2182,10 @@ async function main() {
   const { alertTests } = await import("./alerts.mjs");
   await alertTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- helpdesk: waiting on the requester, saved replies, mailbox settings (tests/smoke/helpdesk.mjs) ----
+  const { helpdeskTests } = await import("./helpdesk.mjs");
+  await helpdeskTests({ test, assert, fetchWithCookies, jar });
+
   // ---- backups (tests/smoke/backups.mjs) ----
   const { backupTests } = await import("./backups.mjs");
   await backupTests({ test, assert, fetchWithCookies, jar });

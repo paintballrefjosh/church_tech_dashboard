@@ -39,6 +39,7 @@ const ADMIN_WRITES = "admin writes are out of scope for agents for now (read-onl
 export const ROUTE_RULES: RouteRule[] = [
   // ---- Never offered ----------------------------------------------------------------------------
   { pattern: "* /admin/backups/**", status: "excluded", reason: `backups and restores: ${SESSION_ONLY}` },
+  { pattern: "* /tickets/inbound/**", status: "excluded", reason: `the helpdesk mailbox, which holds a stored login: ${SESSION_ONLY}` },
   { pattern: "* /admin/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },
   { pattern: "* /admin/users/*/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },
   { pattern: "* /me/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },

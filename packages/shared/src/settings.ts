@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
 import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
+import { INBOUND_AUTH_MODES, INBOUND_KEYS } from "./inbound-mail";
 import {
   DEFAULT_ATTACHMENT_TYPES,
   MAX_CUSTOM_ATTACHMENT_EXTENSIONS,
@@ -45,6 +46,7 @@ export interface KnownSetting<T = unknown> {
     | "planning_center"
     | "monitoring"
     | "backup"
+    | "helpdesk"
     | "experimental";
 }
 
@@ -304,6 +306,106 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description: "Resolution target for low-priority tickets. 0 disables.",
     defaultValue: 0,
     category: "site",
+  },
+  {
+    key: "tickets.sla.warn_percent",
+    type: "number",
+    label: "SLA - warn at (percent of the target)",
+    description:
+      "Tell the assignee (or the support team, if nobody has the ticket) when a ticket has used this much of a response or resolution target. 0 turns warnings off; breaches are always announced. Time spent waiting on the requester does not count.",
+    defaultValue: 80,
+    category: "site",
+  },
+  // Helpdesk email: a mailbox the dashboard reads over IMAP to turn mail into tickets and ticket replies.
+  {
+    key: INBOUND_KEYS.enabled,
+    type: "boolean",
+    label: "Make tickets from email",
+    description: "Read the mailbox below every minute. A new message opens a ticket for the person who sent it; a reply to a ticket mail adds a comment. Only accounts on this site are accepted.",
+    defaultValue: false,
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.address,
+    type: "string",
+    label: "Help address",
+    description: "The address people write to (for example help@church.org). Shown on the ticket pages, and used as Reply-To on ticket emails so a reply comes back here.",
+    defaultValue: "",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.host,
+    type: "string",
+    label: "IMAP server",
+    description: "Host name of the mailbox's IMAP server, for example imap.gmail.com.",
+    defaultValue: "",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.port,
+    type: "number",
+    label: "IMAP port",
+    description: "993 for TLS (the usual), 143 for STARTTLS.",
+    defaultValue: 993,
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.secure,
+    type: "boolean",
+    label: "Use TLS from the start",
+    description: "On for port 993. Off for port 143, which upgrades with STARTTLS.",
+    defaultValue: true,
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.rejectUnauthorized,
+    type: "boolean",
+    label: "Verify the server's certificate",
+    description: "Turn off only for a server on your own network with a self-signed certificate.",
+    defaultValue: true,
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.username,
+    type: "string",
+    label: "Mailbox login",
+    description: "Often the full address. For Gmail or Microsoft 365 use an app password, not the account's own.",
+    defaultValue: "",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.password,
+    type: "secret",
+    label: "Mailbox password",
+    description: "Stored encrypted. Paired with the login.",
+    defaultValue: "",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.mailbox,
+    type: "string",
+    label: "Folder",
+    description: "The folder to read. Mail is only read: nothing is marked, moved or deleted.",
+    defaultValue: "INBOX",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.auth,
+    type: "string",
+    label: "How sure to be of the sender",
+    description:
+      "Anyone can write any From address. strict: only mail your mail server confirmed with DMARC. aligned: also accept a DKIM or SPF pass for the sender's own domain. off: believe the From line (only for a mailbox nobody outside can write to).",
+    defaultValue: "strict",
+    category: "helpdesk",
+  },
+  {
+    key: INBOUND_KEYS.authServer,
+    type: "string",
+    label: "Your mail server's name in its checks",
+    description:
+      "The first word of the Authentication-Results header your mailbox provider adds (open any received message, view its source: mx.google.com for Gmail). Only checks written by that server are believed. Leave blank to believe the topmost header, which a provider that adds none would leave to the sender.",
+    defaultValue: "",
+    category: "helpdesk",
   },
   // Google Workspace
   {
@@ -966,6 +1068,7 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   microsoft: null,
   smtp: null,
   backup: null,
+  helpdesk: null,
   experimental: null,
   printers: PERMISSIONS.PRINTERS_ADMIN,
   propresenter: PERMISSIONS.PROPRESENTER_ADMIN,
@@ -1030,6 +1133,13 @@ export const TOGGLE_PREREQUISITES: ReadonlyArray<TogglePrerequisite> = [
     categorySlug: "monitoring",
   },
   {
+    toggleKey: INBOUND_KEYS.enabled,
+    requires: [INBOUND_KEYS.host, INBOUND_KEYS.username, INBOUND_KEYS.password, INBOUND_KEYS.address],
+    providerLabel: "Helpdesk email",
+    enablesLabel: "tickets from email",
+    categorySlug: "helpdesk",
+  },
+  {
     toggleKey: OFFSITE_KEYS.enabled,
     requires: [OFFSITE_KEYS.endpoint, OFFSITE_KEYS.bucket, OFFSITE_KEYS.accessKey, OFFSITE_KEYS.secretKey],
     providerLabel: "Offsite backups",
@@ -1076,6 +1186,20 @@ export function validateSettingValue(key: string, value: unknown): string | null
       }
       return null;
     }
+    case INBOUND_KEYS.host:
+      return typeof value === "string" && /^[A-Za-z0-9.-]{0,253}$/.test(value.trim()) ? null : "Enter just the host name, without a scheme, port or path.";
+    case INBOUND_KEYS.port:
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535 ? null : "Enter a port from 1 to 65535.";
+    case INBOUND_KEYS.mailbox:
+      return typeof value === "string" && value.trim() !== "" && value.length <= 100 && !/[\u0000-\u001f]/.test(value) ? null : "Enter a folder name, for example INBOX.";
+    case INBOUND_KEYS.address:
+      return typeof value === "string" && (value === "" || /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(value)) ? null : "Enter an email address, for example help@church.org.";
+    case INBOUND_KEYS.authServer:
+      return typeof value === "string" && /^[A-Za-z0-9.-]{0,253}$/.test(value.trim()) ? null : "Enter just the server name, for example mx.google.com.";
+    case INBOUND_KEYS.auth:
+      return typeof value === "string" && (INBOUND_AUTH_MODES as readonly string[]).includes(value) ? null : `Choose one of: ${INBOUND_AUTH_MODES.join(", ")}.`;
+    case "tickets.sla.warn_percent":
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 95 ? null : "Enter a whole number from 0 to 95.";
     case ALERT_KEYS.flapIncidents:
       return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 50 ? null : "Enter a whole number from 0 to 50.";
     case ALERT_KEYS.flapWindowMin:

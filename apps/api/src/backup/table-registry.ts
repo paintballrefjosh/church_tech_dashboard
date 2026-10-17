@@ -81,7 +81,9 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   planning_center_links: { policy: "data", group: SETTINGS, title: "Planning Center links", label: ["pc_email"] },
 
   // ---- helpdesk ----
-  tickets: { policy: "data", group: HELPDESK, title: "Tickets", label: ["number", "title"], sequences: [{ column: "number", sequence: "tickets_number_seq" }] },
+  tickets: { policy: "data", group: HELPDESK, title: "Tickets", label: ["number", "title"], volatile: ["response_warned_at", "response_breached_at", "resolution_warned_at", "resolution_breached_at"], sequences: [{ column: "number", sequence: "tickets_number_seq" }] },
+  ticket_canned_replies: { policy: "data", group: HELPDESK, title: "Canned replies", label: ["title"] },
+  ticket_inbound_log: runtime("Helpdesk mailbox log", "A record of mail already handled; a restore must not make old mail look new or handled."),
   ticket_comments: { policy: "data", group: HELPDESK, title: "Ticket comments", label: ["body"] },
   ticket_categories: { policy: "data", group: HELPDESK, title: "Ticket categories", label: ["name"] },
   ticket_category_assignments: { policy: "data", group: HELPDESK, title: "Ticket category assignments" },

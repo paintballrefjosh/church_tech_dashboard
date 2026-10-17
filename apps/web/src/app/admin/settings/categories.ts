@@ -16,6 +16,7 @@ import {
   Server,
   FlaskConical,
   DatabaseBackup,
+  Inbox,
   Settings as SettingsIcon,
 } from "lucide-react";
 
@@ -116,6 +117,14 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Backups",
     description: "Offsite copies: a second bucket that scheduled backups are copied to.",
     Icon: DatabaseBackup,
+    section: "core",
+    permission: "site:read",
+  },
+  {
+    slug: "helpdesk",
+    label: "Helpdesk email",
+    description: "A mailbox that turns email into tickets and ticket replies.",
+    Icon: Inbox,
     section: "core",
     permission: "site:read",
   },

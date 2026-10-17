@@ -10,7 +10,7 @@ import type {
   TicketStatus,
 } from "@church/shared";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@church/shared";
-import { PriorityBadge, SlaBadge, StatusBadge } from "./ticket-badges";
+import { PriorityBadge, SlaBadge, StatusBadge, STATUS_LABEL } from "./ticket-badges";
 
 /**
  * Client island for the tickets list. Renders the same row layout as the
@@ -158,7 +158,7 @@ export function TicketsListClient({
             <option value="">Set status…</option>
             {TICKET_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {STATUS_LABEL[s]}
               </option>
             ))}
           </select>

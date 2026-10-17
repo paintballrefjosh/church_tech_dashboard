@@ -1,9 +1,10 @@
 import type { Ticket, TicketPriority, TicketSlaMap, TicketStatus } from "@church/shared";
 import { ticketSlaStatus } from "@church/shared";
 
-const STATUS_LABEL: Record<TicketStatus, string> = {
+export const STATUS_LABEL: Record<TicketStatus, string> = {
   open: "Open",
   in_progress: "In progress",
+  waiting: "Waiting on requester",
   resolved: "Resolved",
   closed: "Closed",
 };
@@ -11,6 +12,7 @@ const STATUS_LABEL: Record<TicketStatus, string> = {
 const STATUS_CLASS: Record<TicketStatus, string> = {
   open: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200",
   in_progress: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
+  waiting: "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200",
   resolved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
   closed: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
@@ -55,7 +57,8 @@ export function SlaBadge({
   ticket,
   slaTargets,
 }: {
-  ticket: Pick<Ticket, "priority" | "createdAt" | "firstResponseAt" | "status" | "resolvedAt">;
+  ticket: Pick<Ticket, "priority" | "createdAt" | "firstResponseAt" | "status" | "resolvedAt"> &
+    Partial<Pick<Ticket, "waitingSince" | "waitedMs">>;
   slaTargets: TicketSlaMap;
 }) {
   const { responseBreached, resolutionBreached } = ticketSlaStatus(ticket, slaTargets);

@@ -301,6 +301,34 @@ leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (Coc
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
 restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
 
+**Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
+and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and
+`waited_ms` for finished waits: **SLA elapsed time is always `ticketSlaElapsedMs`** (creation to now minus the waits), never a bare
+`now - createdAt`; `waitingTransition` does the bookkeeping on every status change (`TicketsService.update` and the reply path) and
+`statusAfterRequesterReply` puts the ticket back to work when the creator posts a public comment (including by email). Staff-facing
+counts (home section) leave waiting tickets out; the requester still sees theirs. (2) *SLA notices* (`tickets/ticket-sla.ts`, cluster job
+`ticket-sla`, 60 s): `slaAlertsDue` picks warn (at `tickets.sla.warn_percent`) and breach per clock; each is CLAIMED by one conditional UPDATE
+on `tickets.response_warned_at/response_breached_at/resolution_warned_at/resolution_breached_at` before sending (volatile in the backup
+registry); a notice more than `SLA_ALERT_STALE_MS` late is flagged silently (first run after upgrade must not announce history);
+a priority change clears the flags, reopening a finished ticket clears the resolution ones; recipients are the assignee, else everyone in a
+group with moderator/admin on Tickets plus the admin group. (3) *Saved replies* (`ticket_canned_replies`, `tickets/canned-replies`, list needs
+`tickets:read:any`, writes `tickets:admin`): placeholders are filled by the web with `renderCannedReply`, an unfillable one stays visible.
+(4) *Tickets from email* (`tickets/ticket-inbound.ts`, job `ticket-inbound` 60 s, `mutex:ticket-inbound`, settings category `helpdesk`,
+`tickets.inbound.*`, site-admin only, routes `tickets/inbound/{status,test,check}` are `@SessionOnly` and MCP-excluded): read-only IMAP
+(`imapflow`, `mailparser`: the only inbound-mail code; versions pinned and older than two weeks when added) that tracks `{uidValidity,
+lastUid}` in `job_state` (first look = last 24 h only) and records every message by Message-ID in `ticket_inbound_log` (unique; the real
+dedupe; `skip` in the backup registry; 90-day prune). **Never trust a From line**: a sender must be an active, approved account with
+`tickets:write:own` AND pass `senderAuthenticated` (`strict` DMARC pass by default, `aligned`, or `off`), judged only on an
+Authentication-Results header written by `tickets.inbound.auth_server` when that is set (`pickAuthResultsHeader`). **The mailbox never
+sends anything back** (no bounces, no auto-replies: no loops, no backscatter), skips auto-generated mail, the site's own address and a
+sender over 30 messages/hour. A subject with `[#n]` comments on that ticket if the sender can read it (quoted text cut by
+`stripQuotedReply`), otherwise a new ticket is opened (a forwarded message is the request, so new tickets keep quoted text). Ticket emails
+get `[#n]` in the subject and `Reply-To` = the help address only through `CreateNotificationInput.ticketNumber`, and only for notices the
+requester may see (never an internal note: a reply would publish it). `TicketEvents` is the one place that fans out ticket realtime and
+notifications, shared by the routes and the mailbox. Tests: `helpdesk-rules.test.ts`, `inbound-mail.test.ts`, `ticket-helpdesk.integration.test.ts`,
+`ticket-inbound.integration.test.ts` (DB tests on CockroachDB and YugabyteDB; with `TEST_IMAP=host:imapPort:smtpPort` it also runs against a
+throwaway GreenMail), `notification-reply-to.integration.test.ts`, smoke `tests/smoke/helpdesk.mjs`, e2e `helpdesk.spec.ts`.
+
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to
 suppress it from the Network (UniFi) tab problem badge. Acks live in

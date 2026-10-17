@@ -45,17 +45,20 @@ export class HomeTicketsSection implements SectionBuilder<TicketDigest> {
     // TicketsService.assignedUserId can be set only with tickets:admin; see TicketsService.canAssign.
     const canAssign = user.permissions.includes(PERMISSIONS.TICKETS_ADMIN);
 
-    const [open, sla] = await Promise.all([
+    const [scanned, sla] = await Promise.all([
       this.tickets.list(user, {
         scope: readAny ? "all" : "own",
-        status: ["open", "in_progress"],
+        status: ["open", "in_progress", "waiting"],
         limit: OPEN_TICKET_SCAN,
       }),
       this.slaMap(),
     ]);
 
-    const mineRows = open
-      .filter((t) => t.assignedUserId === user.id || (!readAny && t.createdByUserId === user.id))
+    // A ticket waiting on its requester needs nothing from staff, so it leaves their counts and queue; the person it
+    // waits on still sees it (that is the one that needs their answer).
+    const open = scanned.filter((t) => t.status !== "waiting");
+    const mineRows = scanned
+      .filter((t) => (t.assignedUserId === user.id && t.status !== "waiting") || (!readAny && t.createdByUserId === user.id))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, MINE_LIMIT);
 
@@ -73,6 +76,8 @@ export class HomeTicketsSection implements SectionBuilder<TicketDigest> {
           firstResponseAt: t.firstResponseAt ? t.firstResponseAt.toISOString() : null,
           status,
           resolvedAt: t.resolvedAt ? t.resolvedAt.toISOString() : null,
+          waitingSince: t.waitingSince ? t.waitingSince.toISOString() : null,
+          waitedMs: t.waitedMs,
         },
         sla,
         ctx.now,

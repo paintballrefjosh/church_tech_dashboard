@@ -121,6 +121,11 @@ export class SecurityPostureService {
         lastCopyAt: offsiteRows[0]?.at != null ? Number(offsiteRows[0].at) : null,
         failing: n(offsiteRows[0]?.failing),
       },
+      helpdeskEmail: {
+        enabled: await flag("tickets.inbound.enabled"),
+        auth: (await text("tickets.inbound.auth")) || "strict",
+        authServerSet: (await text("tickets.inbound.auth_server")) !== "",
+      },
       auditRetentionDays: typeof retention === "number" && retention >= 0 ? Math.floor(retention) : 365,
     };
   }

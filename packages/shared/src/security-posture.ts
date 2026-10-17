@@ -38,6 +38,8 @@ export interface PostureFacts {
   backups: { lastReadyAt: number | null; scheduleEnabled: boolean };
   /** Copies in a second bucket: switched on, newest verified copy (epoch ms), backups whose last copy attempt failed. */
   offsite: { enabled: boolean; lastCopyAt: number | null; failing: number };
+  /** The helpdesk mailbox: switched on, how sure it is of a sender (`strict` | `aligned` | `off`), and whether the mail server's name is set. */
+  helpdeskEmail: { enabled: boolean; auth: string; authServerSet: boolean };
   auditRetentionDays: number;
 }
 
@@ -294,6 +296,28 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
       });
     } else {
       add({ id: "offsite", title: `Last offsite copy ${ageText(f.now - f.offsite.lastCopyAt)}`, severity: f.offsite.failing > 0 ? "warn" : "ok", detail: f.offsite.failing > 0 ? "Some copies are failing. See the Offsite tab." : "Backups are also kept in another bucket." , fix: f.offsite.failing > 0 ? offsiteFix : undefined });
+    }
+  }
+  if (f.helpdeskEmail.enabled) {
+    const fix = { label: "Helpdesk email settings", href: "/admin/settings/helpdesk" };
+    if (f.helpdeskEmail.auth === "off") {
+      add({
+        id: "helpdesk-email",
+        title: "Email to the helpdesk is not checked for who sent it",
+        severity: "warn",
+        detail: "Anyone who can send mail to the help address can open tickets and comment as any person with an account, by writing their address in the From line.",
+        fix,
+      });
+    } else if (!f.helpdeskEmail.authServerSet) {
+      add({
+        id: "helpdesk-email",
+        title: "Helpdesk email believes the topmost sender check",
+        severity: "info",
+        detail: "Name your mail server in the helpdesk email settings, so only a check it wrote counts. A provider that adds none would otherwise leave a sender's forged one to be believed.",
+        fix,
+      });
+    } else {
+      add({ id: "helpdesk-email", title: "Helpdesk email only trusts senders your mail server confirmed", severity: "ok", detail: "Tickets are opened only for accounts whose sender checks passed." });
     }
   }
   if (f.auditRetentionDays === 0) {

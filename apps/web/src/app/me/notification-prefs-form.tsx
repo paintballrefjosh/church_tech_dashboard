@@ -20,6 +20,14 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Ticket comments",
     hint: "New comment on a ticket you own or are assigned to.",
   },
+  "ticket.sla_warning": {
+    title: "Ticket nearing its SLA",
+    hint: "A ticket assigned to you (or, for staff, one nobody has) has used most of its response or resolution time.",
+  },
+  "ticket.sla_breached": {
+    title: "Ticket missed its SLA",
+    hint: "A ticket assigned to you (or, for staff, one nobody has) went past its response or resolution target.",
+  },
   "wiki.updated": {
     title: "Wiki page updates",
     hint: "A page you own or have access to is edited.",

@@ -25,6 +25,8 @@ export interface MailMessage {
   /** Optional HTML body. When set, the message is sent as a multipart with
    *  text/html alongside the plain-text fallback. */
   html?: string;
+  /** Where a reply should go, when that is not the From address (the helpdesk mailbox). */
+  replyTo?: string;
 }
 
 /**
@@ -99,6 +101,7 @@ export class MailerService {
       subject: msg.subject,
       text: msg.text,
       ...(msg.html ? { html: msg.html } : {}),
+      ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
     });
     this.logger.debug(`mailer: sent ${msg.subject} -> ${msg.to}`);
   }

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-export const TICKET_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+/**
+ * `waiting` = waiting on the requester: staff asked a question and nothing can move until the answer comes. The SLA
+ * clocks are paused while a ticket waits (see `ticketSlaStatus`), and the requester's reply puts it back to work.
+ */
+export const TICKET_STATUSES = ["open", "in_progress", "waiting", "resolved", "closed"] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
@@ -20,6 +24,9 @@ export const ticketSchema = z.object({
   firstResponseAt: z.string().datetime().nullable(),
   resolvedAt: z.string().datetime().nullable(),
   closedAt: z.string().datetime().nullable(),
+  /** Set while the status is `waiting`; the time spent waiting before that is in `waitedMs`. */
+  waitingSince: z.string().datetime().nullable().optional(),
+  waitedMs: z.number().int().nonnegative().optional(),
 });
 export type Ticket = z.infer<typeof ticketSchema>;
 
@@ -41,25 +48,33 @@ export type TicketSlaMap = Record<TicketPriority, TicketSlaTargets>;
  * Either clock with target=0 is considered "n/a" (returns false).
  */
 export function ticketSlaStatus(
-  ticket: Pick<
-    Ticket,
-    "priority" | "createdAt" | "firstResponseAt" | "status" | "resolvedAt"
-  >,
+  ticket: Pick<Ticket, "priority" | "createdAt" | "firstResponseAt" | "status" | "resolvedAt"> &
+    Partial<Pick<Ticket, "waitingSince" | "waitedMs">>,
   map: TicketSlaMap,
   now: Date = new Date(),
 ): { responseBreached: boolean; resolutionBreached: boolean } {
   const target = map[ticket.priority];
-  const created = new Date(ticket.createdAt);
-  const responseBreached =
-    target.responseMin > 0 &&
-    !ticket.firstResponseAt &&
-    now.getTime() - created.getTime() > target.responseMin * 60_000;
+  const elapsed = ticketSlaElapsedMs(ticket, now);
+  const responseBreached = target.responseMin > 0 && !ticket.firstResponseAt && elapsed > target.responseMin * 60_000;
   const resolutionBreached =
     target.resolutionMin > 0 &&
     ticket.status !== "resolved" &&
     ticket.status !== "closed" &&
-    now.getTime() - created.getTime() > target.resolutionMin * 60_000;
+    elapsed > target.resolutionMin * 60_000;
   return { responseBreached, resolutionBreached };
+}
+
+/**
+ * Time on the SLA clocks: since creation, minus the time the ticket spent waiting on the requester (finished waits in
+ * `waitedMs`, a wait still going on from `waitingSince`).
+ */
+export function ticketSlaElapsedMs(
+  ticket: Pick<Ticket, "createdAt"> & Partial<Pick<Ticket, "waitingSince" | "waitedMs">>,
+  now: Date,
+): number {
+  const total = now.getTime() - new Date(ticket.createdAt).getTime();
+  const waitedNow = ticket.waitingSince ? Math.max(0, now.getTime() - new Date(ticket.waitingSince).getTime()) : 0;
+  return Math.max(0, total - (ticket.waitedMs ?? 0) - waitedNow);
 }
 
 export const createTicketSchema = z.object({
@@ -128,3 +143,27 @@ export const bulkTicketActionSchema = z.object({
   ]),
 });
 export type BulkTicketAction = z.infer<typeof bulkTicketActionSchema>;
+
+// ---- canned replies ----
+
+export const CANNED_REPLY_TITLE_MAX = 80;
+export const CANNED_REPLY_BODY_MAX = 5000;
+
+export const cannedReplySchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(CANNED_REPLY_TITLE_MAX),
+  body: z.string().min(1).max(CANNED_REPLY_BODY_MAX),
+  createdByUserId: z.string().uuid().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type CannedReply = z.infer<typeof cannedReplySchema>;
+
+export const createCannedReplySchema = z.object({
+  title: z.string().trim().min(1).max(CANNED_REPLY_TITLE_MAX),
+  body: z.string().trim().min(1).max(CANNED_REPLY_BODY_MAX),
+});
+export type CreateCannedReplyInput = z.infer<typeof createCannedReplySchema>;
+
+export const updateCannedReplySchema = createCannedReplySchema.partial();
+export type UpdateCannedReplyInput = z.infer<typeof updateCannedReplySchema>;

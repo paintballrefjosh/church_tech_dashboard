@@ -18,7 +18,7 @@ import type {
 
 export const dynamic = "force-dynamic";
 
-const STATUSES: TicketStatus[] = ["open", "in_progress", "resolved", "closed"];
+const STATUSES: TicketStatus[] = ["open", "in_progress", "waiting", "resolved", "closed"];
 const PRIORITIES: TicketPriority[] = ["low", "normal", "high", "urgent"];
 
 export default async function TicketsListPage({
@@ -84,6 +84,14 @@ export default async function TicketsListPage({
         <header className="mb-4 flex flex-wrap items-center gap-3">
           <PageTitle icon={LifeBuoy}>Tickets</PageTitle>
           <div className="ml-auto flex items-center gap-2">
+            {canSeeAll ? (
+              <Link
+                href="/tickets/canned-replies"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+              >
+                Saved replies
+              </Link>
+            ) : null}
             <Link
               href="/tickets/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"

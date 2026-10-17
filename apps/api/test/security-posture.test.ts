@@ -22,6 +22,7 @@ function facts(over: Partial<PostureFacts> = {}): PostureFacts {
     maintenanceUntil: null,
     backups: { lastReadyAt: NOW - DAY, scheduleEnabled: true },
     offsite: { enabled: true, lastCopyAt: NOW - DAY, failing: 0 },
+    helpdeskEmail: { enabled: false, auth: "strict", authServerSet: false },
     auditRetentionDays: 365,
     ...over,
   };
@@ -101,6 +102,15 @@ describe("security posture", () => {
     expect(stale).toMatchObject({ severity: "warn", title: "The last backup is 20 days ago" });
     expect(stale.detail).toContain("not producing");
     expect(byId(evaluatePosture(facts({ backups: { lastReadyAt: NOW - 3 * 3_600_000, scheduleEnabled: true } })), "backups")?.title).toBe("Last backup today");
+  });
+
+  it("helpdesk email: silent while off, warns when it believes the From line, notes an unnamed server, ok when pinned", () => {
+    const check = (h: Partial<PostureFacts["helpdeskEmail"]>) =>
+      byId(evaluatePosture(facts({ helpdeskEmail: { enabled: true, auth: "strict", authServerSet: true, ...h } })), "helpdesk-email");
+    expect(byId(evaluatePosture(facts()), "helpdesk-email")).toBeUndefined();
+    expect(check({ auth: "off" })).toMatchObject({ severity: "warn" });
+    expect(check({ auth: "aligned", authServerSet: false })).toMatchObject({ severity: "info" });
+    expect(check({ authServerSet: true })).toMatchObject({ severity: "ok" });
   });
 
   it("offsite copies: off, none yet, failing, stale, fresh", () => {

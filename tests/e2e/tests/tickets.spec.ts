@@ -86,9 +86,9 @@ test.describe("Phase 1.3 — Tickets", () => {
     await expect(page.getByLabel("Title")).toHaveValue("[e2e] printer in foyer is jammed");
 
     // Change status to in_progress via the sidebar dropdown
-    await page.getByRole("combobox").first().selectOption("in_progress");
+    await page.getByLabel("Status").selectOption("in_progress");
     // Wait for the patch to round-trip
-    await expect(page.getByRole("combobox").first()).toHaveValue("in_progress");
+    await expect(page.getByLabel("Status")).toHaveValue("in_progress");
 
     // Add a public comment
     await page.getByPlaceholder("Add a comment…").fill("Will check it after service.");

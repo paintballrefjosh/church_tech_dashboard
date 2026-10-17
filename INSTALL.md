@@ -1133,6 +1133,56 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   **notice** you can write under the same settings ("Wi-Fi work on Saturday"). It never shows addresses, error text
   or thresholds. It needs a signed-in account: there is deliberately no public version.
 
+## The helpdesk: waiting, SLA warnings, saved replies and tickets from email
+
+- **Waiting on requester.** A fifth ticket status, set by staff when they have asked a question and nothing can move
+  until the answer comes (it can be set from the status box, in bulk, or by ticking **Then wait for the requester**
+  when sending a comment on someone else's ticket). While a ticket waits its SLA clocks are paused: the waiting time is
+  not counted towards either target. The requester sees a banner asking for their reply, and **their reply (on the page
+  or by email) puts the ticket back to work**: in progress if someone has it, open if not. A staff comment or an
+  internal note does not.
+- **SLA warnings.** The response and resolution targets under **Admin > Site settings** (per priority; 0 turns a clock
+  off) now notify as well as show a red "Late" pill. **SLA: warn at (percent)** (default 80, 0 turns warnings off)
+  tells the assignee, or the support team when nobody has the ticket (everyone in a group with moderator or admin access
+  to Tickets, and the admin group), when a ticket has used that much of a target, and again, once, when it passes it.
+  A ticket that is waiting, resolved or closed has no running clock. Changing a ticket's priority starts the notices
+  over for the new targets; reopening a finished ticket does so for the resolution target. A notice more than two hours
+  late (the first run after an upgrade, or after the API was down) is recorded but not sent, so an upgrade does not
+  announce every old ticket at once. Staff can mute these per kind under their profile (**Ticket nearing its SLA**,
+  **Ticket missed its SLA**).
+- **Saved replies.** **Tickets > Saved replies** keeps answers staff give again and again. Anyone who can see all
+  tickets can use them: in a ticket's comment box, **Insert a saved reply** puts the text in the box to read and edit
+  before sending. `{{requester}}` (first name), `{{agent}}` (you), `{{ticket_number}}` and `{{ticket_title}}` are
+  filled in; one that cannot be (for example the requester's name, which needs ticket admin access to look up) is left
+  as written so you see it. Adding, editing and deleting takes ticket admin access.
+- **Tickets from email.** **Admin > Site settings > Helpdesk email**. The site reads one mailbox over IMAP every minute.
+  A new message opens a ticket for the person who sent it; a message whose subject has a ticket's `[#123]` adds a
+  comment to that ticket (the quoted original and signature are cut). The site's own ticket emails carry that token and
+  use the help address as Reply-To, so **replying to a notification email comments on the ticket** (internal notes are
+  not sent that way, a reply to one could otherwise publish it). Attachments are stored under the usual type rules, and
+  the ticket says which could not be.
+  - *Setting up.* Create a mailbox (Gmail, Microsoft 365 and most providers need an **app password**, not the account's
+    own), enter the help address, IMAP server, port (993 with TLS from the start; 143 with STARTTLS), login, password
+    and folder, press **Test the connection**, then switch **Make tickets from email** on. **Check now** reads
+    immediately; the page lists what happened to the last messages and why any were skipped.
+  - *Only people with an account here are served*, and only when the mail server confirmed who they are. Anyone can write
+    anyone's address in the From line, so without that check a stranger could open tickets and comment as your pastor.
+    **How sure to be of the sender** is `strict` (default: your mail server recorded a DMARC pass), `aligned` (a DKIM or
+    SPF pass for the sender's own domain is enough) or `off` (believe the From line: only for a mailbox nobody outside can
+    write to; the page warns). Fill in **Your mail server's name in its checks** (for example `mx.google.com`; look at
+    the *Authentication-Results* line in a received message's source): only a check written by that server is then
+    believed, which matters because a provider that adds no check of its own would otherwise leave the sender's forged one
+    on top.
+  - *Never a reply, never a loop.* The site sends nothing back to the sender (no bounces, no auto-replies), skips
+    automatic mail (out-of-office, newsletters, anything marked Auto-Submitted or bulk) and its own mail, and stops a sender
+    who writes more than 30 messages in an hour. Skipped mail is only recorded (90 days, then removed).
+  - *The mailbox is only read.* Nothing is marked, moved or deleted, so people can use it normally. The site remembers the
+    last message it handled; the first time it looks, only mail from the last 24 hours is taken, not the history. Each
+    message is recorded by its Message-ID, so one is never handled twice (restoring a backup does not reset that).
+  - A reply to a **closed** ticket is added as a comment and notifies the assignee, but does not reopen it.
+  - Tickets from email are not created while the mailbox login is wrong or the server is down: the page shows the
+    error, and mail is picked up when it works again (nothing is lost, it stays in the mailbox).
+
 ## The home page and its looks
 
 The home page can be shown in six looks: **Tiles** (the original customisable grid), **Start page**, **Nave**,
@@ -1248,7 +1298,7 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `search_everything` | Search wiki, notes, tickets and (when permitted) monitoring data by words |
 | `me_get_profile` | Who the token acts as, its permissions and its limits |
 | `wiki_get_revision`, `wiki_revert_page`, `wiki_set_page_access`, `wiki_update_folder` | Old versions, revert, who can see or edit a page, rename or move a folder |
-| `tickets_*`, `ticket_categories_*` | List, read, create, update, bulk-update and comment on tickets; categories |
+| `tickets_*`, `ticket_categories_*` | List, read, create, update, bulk-update and comment on tickets; categories; saved replies (list, create, edit) |
 | `notes_*`, `tags_*`, `saved_views_*` | The owner's notes (archive, not delete), tags on tickets/notes/pages, saved list filters |
 | `activity_list`, `notifications_*`, `me_*_notification_prefs` | Activity feed, the owner's notifications and how they receive them |
 | `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |

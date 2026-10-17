@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson, apiFetch } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { TicketDetail } from "./ticket-detail";
-import type { Ticket, TicketComment } from "@church/shared";
+import type { CannedReply, Ticket, TicketComment } from "@church/shared";
 import { type TagLike } from "@/components/tag-badge";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export default async function TicketDetailPage({
   // Fetch comments, assignable users, tags, and categories in parallel up front
   // so the detail component renders complete instead of firing client-side
   // requests for tags/categories after mount.
-  const [comments, users, tags, categories] = await Promise.all([
+  const [comments, users, tags, categories, cannedReplies] = await Promise.all([
     apiJson<TicketComment[]>(`/api/v1/tickets/${encodeURIComponent(id)}/comments`).catch(
       () => [] as TicketComment[],
     ),
@@ -70,7 +70,13 @@ export default async function TicketDetailPage({
     apiJson<TagLike[]>(`/api/v1/ticket-categories/for/${encodeURIComponent(id)}`).catch(
       () => [] as TagLike[],
     ),
+    perms.has("tickets:read:any")
+      ? apiJson<CannedReply[]>("/api/v1/tickets/canned-replies").catch(() => [] as CannedReply[])
+      : Promise.resolve([] as CannedReply[]),
   ]);
+
+  // The people list is only readable with ticket admin; without it the requester is simply not named.
+  const requester = users.find((u) => u.id === ticket.createdByUserId) ?? null;
 
   return (
     <>
@@ -88,12 +94,15 @@ export default async function TicketDetailPage({
           initialCategories={categories}
           me={{ id: me.id, email: me.email, name: me.name }}
           assignableUsers={users}
+          cannedReplies={cannedReplies}
+          requester={requester}
           can={{
             writeAny: perms.has("tickets:admin"),
             writeOwn: perms.has("tickets:write:own"),
             assign: perms.has("tickets:admin"),
             deleteAny: perms.has("tickets:admin"),
             writeInternalComment: perms.has("tickets:admin"),
+            useCannedReplies: perms.has("tickets:read:any"),
           }}
         />
       </main>

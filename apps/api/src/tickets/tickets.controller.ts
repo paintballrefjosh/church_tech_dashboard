@@ -27,7 +27,7 @@ import { TicketsService } from "./tickets.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService, type StoredAttachment } from "../attachments/attachments.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { MentionsService } from "../mentions/mentions.service";
+import { TicketEvents } from "./ticket-events";
 
 @Controller("tickets")
 export class TicketsController {
@@ -36,7 +36,7 @@ export class TicketsController {
     private readonly realtime: RealtimeGateway,
     private readonly attachments: AttachmentsService,
     private readonly notifications: NotificationsService,
-    private readonly mentions: MentionsService,
+    private readonly events: TicketEvents,
   ) {}
 
   @Get()
@@ -61,7 +61,7 @@ export class TicketsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const ticket = await this.tickets.create(user, parsed.data);
     // Broadcast to creator (+ assignee, if you assign on create later).
-    this.realtime.toUser(user.id, "ticket:created", ticket);
+    this.events.created(ticket);
     return ticket;
   }
 
@@ -99,6 +99,7 @@ export class TicketsController {
         body: ticket.title,
         link: `/tickets/${ticket.id}`,
         excludeActorId: user.id,
+        ticketNumber: ticket.number,
       });
     }
 
@@ -114,6 +115,7 @@ export class TicketsController {
           body: ticket.title,
           link: `/tickets/${ticket.id}`,
           excludeActorId: user.id,
+          ticketNumber: ticket.number,
         })),
       );
     }
@@ -194,41 +196,10 @@ export class TicketsController {
   ) {
     const parsed = createCommentSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const before = await this.tickets.getById(user, id);
     const comment = await this.tickets.addComment(user, id, parsed.data);
-    this.realtime.toRoom(`ticket:${id}`, "ticket:comment", comment);
-
-    // Notify the ticket's creator + assignee (excluding the comment author).
-    // Internal comments only notify users who would otherwise see them; for
-    // now that's anyone with tickets:read:any. We approximate by skipping
-    // creator notification on internal comments (creator may be a 'user' role
-    // who can't read internals) but always notifying the assignee (assignment
-    // implies staff status).
     const ticket = await this.tickets.getById(user, id);
-    const recipients = new Set<string>();
-    if (!comment.isInternal) recipients.add(ticket.createdByUserId);
-    if (ticket.assignedUserId) recipients.add(ticket.assignedUserId);
-    void this.notifications.createMany(
-      [...recipients].map((rid) => ({
-        recipientUserId: rid,
-        kind: "ticket.comment",
-        title: `New comment on ticket #${ticket.number}`,
-        body: comment.body.slice(0, 280),
-        link: `/tickets/${ticket.id}`,
-        excludeActorId: user.id,
-      })),
-    );
-
-    // Fan out @mention notifications for anyone tagged in the comment body
-    // (separate kind so users can mute mentions independently of the
-    // ticket-comment thread firehose).
-    void this.mentions.notify({
-      body: comment.body,
-      excludeUserId: user.id,
-      title: `Mentioned in ticket #${ticket.number}`,
-      summary: comment.body,
-      link: `/tickets/${ticket.id}`,
-    });
-
+    this.events.commented(user, ticket, comment, before.status);
     return comment;
   }
 

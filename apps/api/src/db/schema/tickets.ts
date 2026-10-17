@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, boolean, index, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, boolean, index, bigint, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /**
@@ -35,6 +35,16 @@ export const tickets = pgTable(
     firstResponseAt: timestamp("first_response_at"),
     resolvedAt: timestamp("resolved_at"),
     closedAt: timestamp("closed_at"),
+    // Waiting on the requester: `waiting_since` while the status is `waiting`, finished waits add up in `waited_ms`.
+    // The SLA clocks do not run for either (ticketSlaElapsedMs in @church/shared).
+    waitingSince: timestamp("waiting_since"),
+    waitedMs: bigint("waited_ms", { mode: "number" }).notNull().default(0),
+    // SLA notices already sent, so each is sent once (the ticket-sla job claims one with a conditional UPDATE).
+    // Cleared when the priority changes or a finished ticket is reopened.
+    responseWarnedAt: timestamp("response_warned_at"),
+    responseBreachedAt: timestamp("response_breached_at"),
+    resolutionWarnedAt: timestamp("resolution_warned_at"),
+    resolutionBreachedAt: timestamp("resolution_breached_at"),
   },
   (t) => ({
     createdByIdx: index("tickets_created_by_idx").on(t.createdByUserId),
@@ -70,5 +80,40 @@ export const ticketComments = pgTable(
   },
   (t) => ({
     ticketIdx: index("ticket_comments_ticket_idx").on(t.ticketId, t.createdAt),
+  }),
+);
+
+/** Saved answers staff paste into a comment. {{placeholders}} are filled in by the web (renderCannedReply). */
+export const ticketCannedReplies = pgTable("ticket_canned_replies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * Every message the helpdesk mailbox has seen, and what became of it: the record that stops a message being handled twice
+ * (`message_id` is unique), the admin's list of what was skipped and why, and the retry counter for a message that failed.
+ * Runtime state, not content: it is not part of a backup. Pruned by age.
+ */
+export const ticketInboundLog = pgTable(
+  "ticket_inbound_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: text("message_id").notNull(),
+    handledAt: timestamp("handled_at").notNull().defaultNow(),
+    fromAddress: text("from_address").notNull().default(""),
+    subject: text("subject").notNull().default(""),
+    // ticket | comment | skipped | error
+    outcome: text("outcome").notNull(),
+    reason: text("reason"),
+    ticketId: uuid("ticket_id").references(() => tickets.id, { onDelete: "set null" }),
+    attempts: integer("attempts").notNull().default(1),
+  },
+  (t) => ({
+    messageIdx: uniqueIndex("ticket_inbound_log_message_idx").on(t.messageId),
+    handledIdx: index("ticket_inbound_log_handled_idx").on(t.handledAt),
   }),
 );

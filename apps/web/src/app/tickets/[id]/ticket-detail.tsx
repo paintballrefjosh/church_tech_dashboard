@@ -2,15 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  renderCannedReply,
+  type CannedReply,
   type Ticket,
   type TicketComment,
   type TicketPriority,
   type TicketStatus,
 } from "@church/shared";
-import { StatusBadge, PriorityBadge } from "../ticket-badges";
+import { StatusBadge, PriorityBadge, STATUS_LABEL } from "../ticket-badges";
 import { AttachmentList } from "@/components/attachment-list";
 import { TagPicker } from "@/components/tag-picker";
 import { TicketCategoryPicker } from "@/components/ticket-category-picker";
@@ -28,6 +31,7 @@ interface Capabilities {
   assign: boolean;
   deleteAny: boolean;
   writeInternalComment: boolean;
+  useCannedReplies: boolean;
 }
 
 export function TicketDetail({
@@ -37,6 +41,8 @@ export function TicketDetail({
   initialCategories,
   me,
   assignableUsers,
+  cannedReplies,
+  requester,
   can,
 }: {
   ticket: Ticket;
@@ -45,6 +51,8 @@ export function TicketDetail({
   initialCategories: TagLike[];
   me: UserBrief;
   assignableUsers: UserBrief[];
+  cannedReplies: CannedReply[];
+  requester: UserBrief | null;
   can: Capabilities;
 }) {
   const [ticket, setTicket] = useState(initial);
@@ -83,6 +91,8 @@ export function TicketDetail({
   }
 
   const isOwner = ticket.createdByUserId === me.id;
+  // A greeting wants a first name; fall back to the part of the address before the @.
+  const requesterName = requester ? (requester.name?.trim().split(/\s+/)[0] ?? requester.email.split("@")[0] ?? "") : "";
   const canEditCore = can.writeAny || (isOwner && can.writeOwn);
   // Owner can only close (and reopen) their own ticket. Staff can set any status.
   const allowedStatuses: TicketStatus[] = can.writeAny
@@ -133,6 +143,7 @@ export function TicketDetail({
     const data = new FormData(form);
     const body = String(data.get("body") ?? "").trim();
     const isInternal = data.get("isInternal") === "on";
+    const thenWaiting = data.get("thenWaiting") === "on" && !isInternal;
     if (!body) return;
     startTransition(async () => {
       const res = await fetch(`/api/tickets/${ticket.id}/comments`, {
@@ -149,6 +160,32 @@ export function TicketDetail({
       const c = (await res.json()) as TicketComment;
       setComments((prev) => [...prev, c]);
       form.reset();
+      // The requester answering a waiting ticket puts it back to work on the server; show that without a reload.
+      if (ticket.status === "waiting" && !thenWaiting) {
+        const fresh = await fetch(`/api/tickets/${ticket.id}`, { credentials: "same-origin", cache: "no-store" });
+        if (fresh.ok) {
+          const t = (await fresh.json()) as Ticket;
+          if (t.status !== ticket.status) {
+            setTicket(t);
+            void refreshComments();
+          }
+        }
+      }
+      if (thenWaiting) {
+        // The question is out: park the ticket until the requester answers (this also pauses its SLA clocks).
+        const upd = await fetch(`/api/tickets/${ticket.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: "waiting" }),
+          credentials: "same-origin",
+        });
+        if (upd.ok) {
+          setTicket((await upd.json()) as Ticket);
+          void refreshComments();
+        } else {
+          setError(`Comment posted, but the status could not be changed (${upd.status})`);
+        }
+      }
     });
   }
 
@@ -199,6 +236,17 @@ export function TicketDetail({
             <h1 className="text-2xl font-semibold">{ticket.title}</h1>
           )}
         </header>
+
+        {ticket.status === "waiting" ? (
+          <p
+            data-testid="waiting-banner"
+            className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
+          >
+            {isOwner
+              ? "We are waiting for your reply. Answer below and this ticket goes back to work."
+              : `Waiting on the requester${ticket.waitingSince ? ` since ${new Date(ticket.waitingSince).toLocaleString()}` : ""}. The SLA clocks are paused, and their reply puts the ticket back to work.`}
+          </p>
+        ) : null}
 
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -301,6 +349,43 @@ export function TicketDetail({
           )}
 
           <form onSubmit={addComment} className="mt-4 space-y-2">
+            {can.useCannedReplies ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="canned-pick">
+                  Insert a saved reply
+                </label>
+                <select
+                  id="canned-pick"
+                  data-testid="canned-pick"
+                  value=""
+                  disabled={cannedReplies.length === 0}
+                  onChange={(e) => {
+                    const reply = cannedReplies.find((r) => r.id === e.target.value);
+                    const box = e.currentTarget.form?.elements.namedItem("body") as HTMLTextAreaElement | null;
+                    if (!reply || !box) return;
+                    const text = renderCannedReply(reply.body, {
+                      requester: requesterName,
+                      agent: me.name ?? me.email,
+                      ticket_number: String(ticket.number),
+                      ticket_title: ticket.title,
+                    });
+                    box.value = box.value.trim() ? `${box.value.replace(/\s+$/, "")}\n\n${text}` : text;
+                    box.focus();
+                  }}
+                  className="rounded-md border border-slate-300 bg-transparent px-2 py-1 text-xs dark:border-slate-700"
+                >
+                  <option value="">{cannedReplies.length === 0 ? "No saved replies yet" : "Insert a saved reply..."}</option>
+                  {cannedReplies.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title}
+                    </option>
+                  ))}
+                </select>
+                <Link href="/tickets/canned-replies" className="text-xs text-brand-600 hover:underline">
+                  Manage saved replies
+                </Link>
+              </div>
+            ) : null}
             <textarea
               name="body"
               required
@@ -323,6 +408,12 @@ export function TicketDetail({
                   Internal (staff only)
                 </label>
               ) : null}
+              {can.writeAny && !isOwner && (ticket.status === "open" || ticket.status === "in_progress") ? (
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" name="thenWaiting" data-testid="then-waiting" />
+                  Then wait for the requester
+                </label>
+              ) : null}
             </div>
           </form>
         </section>
@@ -341,6 +432,7 @@ export function TicketDetail({
         <Field label="Status">
           {allowedStatuses.length > 0 ? (
             <select
+              aria-label="Status"
               value={ticket.status}
               onChange={(e) => patch({ status: e.target.value as TicketStatus })}
               disabled={pending}
@@ -348,7 +440,7 @@ export function TicketDetail({
             >
               {allowedStatuses.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {STATUS_LABEL[s]}
                 </option>
               ))}
             </select>
@@ -360,6 +452,7 @@ export function TicketDetail({
         <Field label="Priority">
           {can.writeAny || (isOwner && can.writeOwn) ? (
             <select
+              aria-label="Priority"
               value={ticket.priority}
               onChange={(e) => patch({ priority: e.target.value as TicketPriority })}
               disabled={pending}
@@ -406,7 +499,7 @@ export function TicketDetail({
 
         <Field label="Created by">
           <span className="text-slate-600 dark:text-slate-300">
-            {ticket.createdByUserId === me.id ? "you" : ticket.createdByUserId.slice(0, 8)}
+            {ticket.createdByUserId === me.id ? "you" : requester ? (requester.name ?? requester.email) : ticket.createdByUserId.slice(0, 8)}
           </span>
         </Field>
 

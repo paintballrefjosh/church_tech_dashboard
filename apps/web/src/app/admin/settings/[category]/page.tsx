@@ -20,6 +20,7 @@ import { findCategory } from "../categories";
 import { OAuthCallbackHint } from "./oauth-callback-hint";
 import { HomePageSettings } from "./home-page-settings";
 import { AttachmentSettings } from "./attachment-settings";
+import { HelpdeskEmailPanel, type InboundStatus } from "./helpdesk-email-panel";
 
 /** Shown by the Home page and Attachments sections on the Site page, so the generic form leaves them out. */
 const HOME_PAGE_KEYS = new Set([
@@ -105,6 +106,8 @@ export default async function AdminSettingsCategoryPage({
           .catch(() => null)
       : null;
   const defaultTheme = current["dashboard.default_theme"];
+  const inboundStatus =
+    slug === "helpdesk" ? await apiJson<InboundStatus>("/api/v1/tickets/inbound/status").catch(() => null) : null;
 
   return (
     <>
@@ -152,6 +155,8 @@ export default async function AdminSettingsCategoryPage({
             custom={resolveCustomAttachmentExtensions(current["attachments.custom_extensions"])}
           />
         ) : null}
+
+        {slug === "helpdesk" ? <HelpdeskEmailPanel initial={inboundStatus} /> : null}
 
         {scoped.length === 0 && slug === "site" ? null : scoped.length === 0 ? (
           <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">

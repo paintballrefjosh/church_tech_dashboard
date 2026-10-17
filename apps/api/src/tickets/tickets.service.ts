@@ -14,6 +14,9 @@ import {
   type UpdateTicketInput,
   type TicketListQuery,
   type CreateCommentInput,
+  type TicketStatus,
+  statusAfterRequesterReply,
+  waitingTransition,
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
@@ -184,16 +187,35 @@ export class TicketsService {
     if (input.description !== undefined) patch.description = input.description;
     if (input.priority !== undefined) patch.priority = input.priority;
     if (input.assignedUserId !== undefined) patch.assignedUserId = input.assignedUserId;
+    if (input.priority !== undefined && input.priority !== existing.priority) {
+      // New targets: the notices sent for the old ones no longer apply.
+      patch.responseWarnedAt = null;
+      patch.responseBreachedAt = null;
+      patch.resolutionWarnedAt = null;
+      patch.resolutionBreachedAt = null;
+    }
     if (input.status !== undefined && input.status !== existing.status) {
       patch.status = input.status;
       const now = new Date();
       if (input.status === "resolved" && !existing.resolvedAt) patch.resolvedAt = now;
       if (input.status === "closed" && !existing.closedAt) patch.closedAt = now;
       // Re-opening clears the closed/resolved timestamps so SLAs etc. start fresh.
-      if (input.status === "open" || input.status === "in_progress") {
+      if (input.status === "open" || input.status === "in_progress" || input.status === "waiting") {
         patch.resolvedAt = null;
         patch.closedAt = null;
+        if (existing.status === "resolved" || existing.status === "closed") {
+          patch.resolutionWarnedAt = null;
+          patch.resolutionBreachedAt = null;
+        }
       }
+      // Waiting on the requester pauses the SLA clocks; leaving it adds the wait to the total.
+      const wait = waitingTransition(
+        { status: existing.status as TicketStatus, waitingSince: existing.waitingSince, waitedMs: existing.waitedMs },
+        input.status,
+        now,
+      );
+      patch.waitingSince = wait.waitingSince;
+      patch.waitedMs = wait.waitedMs;
     }
     // Assigning a ticket counts as staff engagement → stops the SLA response
     // clock. Same for any non-owner status change. Idempotent — once set,
@@ -330,7 +352,27 @@ export class TicketsService {
       !ticket.firstResponseAt && ticket.createdByUserId !== user.id;
     const patch: Partial<typeof tickets.$inferInsert> = { updatedAt: new Date() };
     if (isFirstResponse) patch.firstResponseAt = new Date();
+    // The requester answering a ticket that waits on them puts it back to work (and restarts its SLA clocks).
+    const reopenedTo =
+      ticket.createdByUserId === user.id && !input.isInternal
+        ? statusAfterRequesterReply(ticket.status as TicketStatus, ticket.assignedUserId !== null)
+        : (ticket.status as TicketStatus);
+    if (reopenedTo !== ticket.status) {
+      const now = new Date();
+      patch.status = reopenedTo;
+      const wait = waitingTransition(
+        { status: ticket.status as TicketStatus, waitingSince: ticket.waitingSince, waitedMs: ticket.waitedMs },
+        reopenedTo,
+        now,
+      );
+      patch.waitingSince = wait.waitingSince;
+      patch.waitedMs = wait.waitedMs;
+    }
     await this.db.update(tickets).set(patch).where(eq(tickets.id, ticketId));
+    if (reopenedTo !== ticket.status) {
+      await this.logEvent(ticketId, user, `${user.name ?? user.email} replied: status changed from ${ticket.status} to ${reopenedTo}`);
+      void this.search.changed("ticket", ticketId);
+    }
     // Fire mention notifications. Internal comments only notify staff — the
     // mention itself is gated by who can see the comment; the resolver here
     // just looks at the body so we leave it as-is and let the recipient's

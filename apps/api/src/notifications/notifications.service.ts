@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, Logger } from "@nestjs/common";
 import { and, desc, eq, isNull, count, inArray } from "drizzle-orm";
-import type { NotificationKind } from "@church/shared";
+import { INBOUND_KEYS, ticketSubjectToken, type NotificationKind } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { notifications, notificationPrefs, users } from "../db/schema";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -52,6 +52,12 @@ export interface CreateNotificationInput {
   email?: boolean;
   /** Skip create entirely if recipient === actor. */
   excludeActorId?: string;
+  /**
+   * The ticket this is about, for notices the person may answer by replying to the email. When the helpdesk mailbox is on,
+   * the email's subject carries `[#n]` and its Reply-To is the help address, so the reply comes back as a comment. Leave it
+   * off for anything the requester must not see (an internal note): that reply would be a public comment.
+   */
+  ticketNumber?: number;
 }
 
 @Injectable()
@@ -131,11 +137,13 @@ export class NotificationsService {
           body: input.body,
           cta: href ? { label: "Open", href } : undefined,
         });
+        const replyAddress = input.ticketNumber !== undefined ? await this.helpAddress() : null;
         void this.mailer.sendBestEffort({
           to: recipient.email,
-          subject: input.title,
+          subject: replyAddress ? `${input.title} ${ticketSubjectToken(input.ticketNumber!)}` : input.title,
           text: rendered.text,
           html: rendered.html,
+          ...(replyAddress ? { replyTo: replyAddress } : {}),
         });
       }
     } catch (err) {
@@ -227,6 +235,7 @@ export class NotificationsService {
 
       const siteName = await this.siteNameForEmail();
       const base = await this.settings.publicBaseUrl();
+      const replyAddress = decided.some((d) => d.meta.ticketNumber !== undefined) ? await this.helpAddress() : null;
       for (const { meta, ch, recipient } of decided) {
         if (!ch.email || meta.email === false || !recipient.email) continue;
         const href = absoluteEmailLink(base, meta.link);
@@ -236,15 +245,27 @@ export class NotificationsService {
           body: meta.body,
           cta: href ? { label: "Open", href } : undefined,
         });
+        const replyable = replyAddress !== null && meta.ticketNumber !== undefined;
         void this.mailer.sendBestEffort({
           to: recipient.email,
-          subject: meta.title,
+          subject: replyable ? `${meta.title} ${ticketSubjectToken(meta.ticketNumber!)}` : meta.title,
           text: rendered.text,
           html: rendered.html,
+          ...(replyable ? { replyTo: replyAddress } : {}),
         });
       }
     } catch (err) {
       this.logger.warn(`notifications.createMany failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** The help address to put in Reply-To, or null unless the helpdesk mailbox is switched on and has one. */
+  private async helpAddress(): Promise<string | null> {
+    try {
+      const [enabled, address] = await Promise.all([this.settings.get(INBOUND_KEYS.enabled), this.settings.get(INBOUND_KEYS.address)]);
+      return enabled === true && typeof address === "string" && address.trim() !== "" ? address.trim() : null;
+    } catch {
+      return null;
     }
   }
 

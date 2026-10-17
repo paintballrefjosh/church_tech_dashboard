@@ -115,7 +115,7 @@ export function TicketsSummaryTile({ initialTickets }: { initialTickets?: Ticket
   if (error) return <p className="text-xs text-rose-600">{error}</p>;
   if (!tickets) return <p className="text-xs text-slate-400">Loading…</p>;
 
-  const counts: Record<TicketStatus, number> = { open: 0, in_progress: 0, resolved: 0, closed: 0 };
+  const counts: Record<TicketStatus, number> = { open: 0, in_progress: 0, waiting: 0, resolved: 0, closed: 0 };
   for (const t of tickets) counts[t.status as TicketStatus]++;
 
   return (
