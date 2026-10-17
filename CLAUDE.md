@@ -352,6 +352,26 @@ hand-written read tools; confirming a review and saving templates are not tools 
 `route-rules.ts`). Tests: `wiki-upkeep.integration.test.ts` (CockroachDB and YugabyteDB), smoke `wiki-upkeep.mjs`, e2e
 `wiki-upkeep.spec.ts` (a page can only become due by time, so only the integration test covers that).
 
+**Notification delivery: quiet hours, daily summary, push** (migration 0068; rules in `packages/shared/src/notification-delivery.ts`, unit-tested in
+`apps/api/test/notification-delivery.test.ts`). Channels per kind are `in_app`, `email`, `push` (push opt-in: a kind with no saved row never pushes).
+**All routing goes through `NotificationsService.create/createMany`**: in-app is always immediate and silent; **push is sent immediately except during
+quiet hours, and is then DROPPED, not queued** (`pushAllowed`); **email is held in `notification_held` when `emailReleaseAt` says it is not due yet**
+(quiet hours, or a daily summary) and sent by the `notification-release` cluster job (60 s). A held row stores what the email says, never a release
+time: due-ness is recomputed from the person's CURRENT `notification_delivery` row (quiet start/end, summary time, `urgent_through`, minutes after
+midnight on the SITE zone `site.timezone`), so changing settings applies to waiting mail. Rows are CLAIMED by deleting them before sending (two nodes
+never double-send; a crash loses at most that email, the bell has it); one held notice goes as itself, two or more as one summary (`HELD_EMAIL_MAX_ITEMS`);
+anything held over 3 days is released regardless. `URGENT_NOTIFICATION_KINDS` (down alerts) skip quiet hours and the summary unless the person turned
+`urgent_through` off. **A new kind that means "something is down now" belongs in that list.** *Push* (`notifications/push.service.ts`, `web-push` pinned):
+the VAPID key pair is DERIVED from `AUTH_SECRET` (`vapid.ts`; the derivation strings never change; rotating the secret orphans subscriptions, which are
+removed when the push service answers 404/410), so there is no key storage and every node agrees. **A subscription endpoint is user-supplied and the server
+POSTs to it, so only `isAllowedPushEndpoint` hosts (FCM, Mozilla, Apple, Windows) over https/443 are accepted: never loosen that (SSRF).** Routes `/me/push/**`
+are `@SessionOnly` and MCP-excluded; `GET|PUT /me/notification-delivery` are ordinary tools. `push_subscriptions` and `notification_held` are `skip` in the
+backup registry (device credentials / a queue), `notification_delivery` is data. The page list never returns an endpoint (only `endpointFingerprint`). The
+service worker (`apps/web/public/sw.js`) handles `push` and `notificationclick` (only same-origin URLs); `/sw.js` is a PUBLIC middleware path (behind the
+sign-in redirect a browser refuses to register it). Tests: `notification-delivery.integration.test.ts` (CockroachDB and YugabyteDB), `push.test.ts`
+(derivation, a verified VAPID signature, the endpoint allowlist), smoke `notification-delivery.mjs`, e2e `notification-delivery.spec.ts` (the browser's push
+manager is stubbed: headless Chromium has no push service and refuses subscribing in incognito; a real device round trip was never run).
+
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to
 suppress it from the Network (UniFi) tab problem badge. Acks live in

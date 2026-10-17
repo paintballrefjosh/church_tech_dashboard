@@ -2190,6 +2190,10 @@ async function main() {
   const { wikiUpkeepTests } = await import("./wiki-upkeep.mjs");
   await wikiUpkeepTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- notification delivery: quiet hours, summary, push (tests/smoke/notification-delivery.mjs) ----
+  const { notificationDeliveryTests } = await import("./notification-delivery.mjs");
+  await notificationDeliveryTests({ test, assert, fetchWithCookies, jar });
+
   // ---- backups (tests/smoke/backups.mjs) ----
   const { backupTests } = await import("./backups.mjs");
   await backupTests({ test, assert, fetchWithCookies, jar });

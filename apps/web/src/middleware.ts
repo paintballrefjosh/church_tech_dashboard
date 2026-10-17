@@ -17,6 +17,9 @@ const PUBLIC_PATH_PREFIXES = [
   "/favicon",
   "/manifest",
   "/icon",
+  // The service worker script holds nothing private. Behind a sign-in redirect a browser refuses to register it, so a
+  // visit before signing in left no worker for push to use.
+  "/sw.js",
 ];
 
 /**

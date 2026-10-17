@@ -1207,6 +1207,35 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   long unchanged stretches folded, and a title change shown. The two menus compare any two versions, including the page as
   it is now; **This version** shows the text as it was; **Restore this version** writes it back as a new revision.
 
+## Notifications: quiet hours, a daily summary and push
+
+Everyone sets these under **Profile > Notifications**. The first three work out of the box; push needs HTTPS.
+
+- **Quiet hours.** A window on the church's clock (the Site setting **Time zone**, not the person's device). During it no
+  push notice is sent, and email is held and sent together when the window ends: one email as itself, two or more as a
+  single "while you were away" list. The bell still fills quietly. A push is dropped, not saved for later: a buzz at 07:00
+  about something at 03:00 is stale, and the bell and the email summary carry it.
+- **A daily summary.** Instead of an email for each notice, one email a day at a chosen time. It never delays push.
+- **Urgent alerts get through** (on by default, per person). A service, server, DNS server or switch going down, or an
+  incident nobody has picked up, goes out at once by push and email, even in quiet hours or with the summary on. Those are
+  the kinds `monitor.incident.opened`, `monitor.incident.escalated`, `cluster.node_down` and `dns.primary_unreachable`.
+  Everything else waits. Someone who wants no exceptions turns the switch off.
+- **Push.** A person turns it on for a browser (**Turn on for this browser**), then ticks **Push** for the kinds they want
+  (nothing pushes by default). Chrome, Edge, Firefox, Safari on macOS and Android work; on an iPhone or iPad the site has
+  to be added to the Home Screen first. The page says so when a browser cannot do it, when it is not on HTTPS (push needs
+  a secure page; `localhost` counts) or when the browser has blocked notifications. **Send a test** checks it, and the
+  list shows each browser, when it last got a notice and why the last one failed.
+- **What leaves the building.** A push goes from this server to the browser vendor's push service (Google, Mozilla, Apple
+  or Microsoft), encrypted so only that browser can read it, so the server needs outbound HTTPS to them. The title and first
+  line of a notice are in it, and show on a lock screen: people who share a device should leave Push off. The site setting
+  **Push notifications** (Site) switches it off for everyone at once.
+- **Keys.** The site's push identity is derived from `AUTH_SECRET`: nothing to configure and every node of a cluster has
+  the same one. Changing `AUTH_SECRET` makes existing subscriptions useless (they are removed when a push to them is refused)
+  and people turn push on again. A restore does not bring push devices back either, for the same reason as sign-in sessions.
+- **Held email survives restarts and upgrades**; it is sent by the `notification-release` job (every minute, one node at
+  a time). Changing quiet hours or the summary time applies to mail that is already waiting. Nothing waits longer than three
+  days.
+
 ## The home page and its looks
 
 The home page can be shown in six looks: **Tiles** (the original customisable grid), **Start page**, **Nave**,
@@ -1327,7 +1356,7 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `wiki_get_revision`, `wiki_revert_page`, `wiki_set_page_access`, `wiki_update_folder` | Old versions, revert, who can see or edit a page, rename or move a folder |
 | `tickets_*`, `ticket_categories_*` | List, read, create, update, bulk-update and comment on tickets; categories; saved replies (list, create, edit) |
 | `notes_*`, `tags_*`, `saved_views_*` | The owner's notes (archive, not delete), tags on tickets/notes/pages, saved list filters |
-| `activity_list`, `notifications_*`, `me_*_notification_prefs` | Activity feed, the owner's notifications and how they receive them |
+| `activity_list`, `notifications_*`, `me_*_notification_prefs`, `me_*_notification_delivery` | Activity feed, the owner's notifications, how they receive them (in app, email, push) and their quiet hours and daily summary. Push subscriptions are not tools: they need a browser session |
 | `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |
 | `checklists_*` | Events, tasks (tick off), templates, stations, recurring services, assignments, reports |
 | `monitors_*`, `health_get_services`, `status_get` | Uptime monitors and their incidents; create or change a monitor, acknowledge an incident, maintenance mode (no delete); the status page |

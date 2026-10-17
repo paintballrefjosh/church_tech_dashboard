@@ -3,6 +3,8 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { INBOUND_KEYS } from "@church/shared";
 import { NotificationsService } from "../src/notifications/notifications.service";
+import { NotificationDeliveryService } from "../src/notifications/notification-delivery.service";
+import { PushService } from "../src/notifications/push.service";
 import * as schema from "../src/db/schema";
 
 /**
@@ -28,7 +30,14 @@ describe.skipIf(!url)("ticket emails carry the reply token", () => {
     const mailer = { sendBestEffort: async (m: { to: string; subject: string; replyTo?: string }) => void mails.push(m) };
     const realtime = { toUser: () => undefined };
     const settings = { get: async (k: string) => values[k], publicBaseUrl: async () => "https://help.example.org" };
-    svc = new NotificationsService(db as never, realtime as never, mailer as never, settings as never);
+    svc = new NotificationsService(
+      db as never,
+      realtime as never,
+      mailer as never,
+      settings as never,
+      new NotificationDeliveryService(db as never, settings as never),
+      new PushService(db as never, settings as never),
+    );
   });
   afterAll(async () => {
     await q(`DELETE FROM notifications WHERE recipient_user_id = $1`, [userId]);

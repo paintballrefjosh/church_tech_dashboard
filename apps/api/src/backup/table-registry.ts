@@ -78,6 +78,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   dashboard_prefs: { policy: "data", group: SETTINGS, title: "Dashboard look preferences" },
   saved_views: { policy: "data", group: SETTINGS, title: "Saved views", label: ["name"] },
   notification_prefs: { policy: "data", group: SETTINGS, title: "Notification preferences", label: ["kind"] },
+  notification_delivery: { policy: "data", group: SETTINGS, title: "Notification delivery (quiet hours, summary)", label: ["user_id"] },
   planning_center_links: { policy: "data", group: SETTINGS, title: "Planning Center links", label: ["pc_email"] },
 
   // ---- helpdesk ----
@@ -182,6 +183,8 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   audit_log: { policy: "skip", group: OTHER, title: "Audit log", reason: "A record of what happened; a restore must not rewrite it." },
   mail_outbox: runtime("Outgoing mail queue", "Mail waiting to be sent must not be lost or re-sent by a restore."),
   job_state: runtime("Background job state", "Per-cluster runtime state."),
+  notification_held: runtime("Held email", "Email waiting for quiet hours to end or the daily summary; a restore must not send old news."),
+  push_subscriptions: runtime("Push subscriptions", "Browser push credentials of this moment; a restore must not bring back devices that have since been removed. People turn push on again."),
   cluster_nodes: runtime("Cluster nodes", "Which nodes are running right now."),
   cluster_leases: runtime("Cluster leases", "Who holds which lease right now."),
   realtime_events: runtime("Realtime events", "Transient messages between nodes."),

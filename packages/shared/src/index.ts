@@ -35,3 +35,4 @@ export * from "./alert-rules";
 export * from "./helpdesk";
 export * from "./inbound-mail";
 export * from "./wiki-pages";
+export * from "./notification-delivery";

@@ -21,6 +21,9 @@ interface TemplateInput {
   body?: string;
   cta?: { label: string; href: string };
   footer?: string;
+  /** A list under the body: one line per notice, for a summary email. `more` counts the ones left off. */
+  items?: Array<{ title: string; body?: string; href?: string }>;
+  more?: number;
 }
 
 function escapeHtml(s: string): string {
@@ -35,6 +38,19 @@ function escapeHtml(s: string): string {
 export function renderEmail(input: TemplateInput): { html: string; text: string } {
   const brand = input.brandColor ?? "#2563eb";
   const safeBody = input.body ? escapeHtml(input.body).replace(/\n/g, "<br>") : "";
+  const list = input.items?.length
+    ? `<tr><td style="padding-top:12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${input.items
+        .map((it) => {
+          const title = it.href
+            ? `<a href="${escapeHtml(it.href)}" style="color:${brand};text-decoration:none;font-weight:600">${escapeHtml(it.title)}</a>`
+            : `<span style="font-weight:600">${escapeHtml(it.title)}</span>`;
+          const detail = it.body ? `<div style="color:#475569;font-size:13px;padding-top:2px">${escapeHtml(it.body).replace(/\n/g, "<br>")}</div>` : "";
+          return `<tr><td style="padding:10px 0;border-top:1px solid #e2e8f0;font-size:14px;line-height:1.5">${title}${detail}</td></tr>`;
+        })
+        .join("")}${
+        input.more ? `<tr><td style="padding:10px 0;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b">and ${input.more} more in your notifications.</td></tr>` : ""
+      }</table></td></tr>`
+    : "";
   const cta = input.cta
     ? `
       <tr>
@@ -60,6 +76,7 @@ export function renderEmail(input: TemplateInput): { html: string; text: string 
                   <td style="font-size:18px;font-weight:600;color:#0f172a;padding-bottom:8px">${escapeHtml(input.title)}</td>
                 </tr>
                 ${safeBody ? `<tr><td style="font-size:14px;line-height:1.55;color:#334155">${safeBody}</td></tr>` : ""}
+                ${list}
                 ${cta}
               </table>
             </td>
@@ -79,6 +96,8 @@ export function renderEmail(input: TemplateInput): { html: string; text: string 
   const text = [
     input.title,
     input.body ?? "",
+    ...(input.items ?? []).map((it) => `- ${it.title}${it.body ? `\n  ${it.body.replace(/\n/g, "\n  ")}` : ""}${it.href ? `\n  ${it.href}` : ""}`),
+    input.more ? `and ${input.more} more in your notifications.` : "",
     input.cta ? `\n${input.cta.label}: ${input.cta.href}` : "",
     input.footer ? `\n${input.footer}` : "",
   ]

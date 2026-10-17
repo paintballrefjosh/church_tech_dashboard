@@ -7,6 +7,7 @@ import {
   createNoteSchema,
   createTagSchema,
   noteListQuerySchema,
+  notificationDeliveryBaseSchema,
   notificationListQuerySchema,
   setResourceTagsSchema,
   updateNoteSchema,
@@ -236,7 +237,7 @@ export const PERSONAL_TOOLS = [
   defineTool({
     name: "me_get_notification_prefs",
     title: "My notification settings",
-    description: "Which notification kinds exist and how the owner receives each (in app, email, both or off).",
+    description: "Which notification kinds exist and how the owner receives each (in app, email, push, or off).",
     cls: "read",
     method: "GET",
     path: "/me/notification-prefs",
@@ -247,7 +248,7 @@ export const PERSONAL_TOOLS = [
     name: "me_set_notification_prefs",
     title: "Change my notification settings",
     description:
-      "Set how the owner receives notifications. channels maps a notification kind to [] (off), ['in_app'], ['email'] or both; kinds you leave out keep their setting.",
+      "Set how the owner receives notifications. channels maps a notification kind to [] (off) or any of 'in_app', 'email' and 'push' (push only reaches browsers the owner turned push on in); kinds you leave out keep their setting.",
     cls: "write",
     method: "PUT",
     path: "/me/notification-prefs",
@@ -255,8 +256,32 @@ export const PERSONAL_TOOLS = [
     idempotent: true,
     input: z.object({
       muted: z.array(z.enum(NOTIFICATION_KINDS)).max(64).optional().describe("Kinds to mute entirely (replaces the list)"),
-      channels: z.record(z.array(z.enum(["in_app", "email"])).max(2)).optional(),
+      channels: z.record(z.array(z.enum(["in_app", "email", "push"])).max(3)).optional(),
     }),
+  }),
+
+  defineTool({
+    name: "me_get_notification_delivery",
+    title: "My quiet hours and summary",
+    description:
+      "When the owner is not disturbed: quiet hours (no push, email held until they end), a once-a-day email summary, and whether urgent down alerts get through anyway. Times are minutes after midnight on the site's clock (timeZone).",
+    cls: "read",
+    method: "GET",
+    path: "/me/notification-delivery",
+    permissions: [],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "me_set_notification_delivery",
+    title: "Change my quiet hours and summary",
+    description:
+      "Replace the owner's quiet hours and daily-summary settings (send all fields; read them first with me_get_notification_delivery). Times are minutes after midnight, 0-1439, on the site's clock.",
+    cls: "write",
+    method: "PUT",
+    path: "/me/notification-delivery",
+    permissions: [],
+    idempotent: true,
+    input: z.object(notificationDeliveryBaseSchema.shape),
   }),
 
   // ---- The home page snapshot ----

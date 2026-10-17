@@ -87,3 +87,45 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/* Web Push. The server sends { title, body, url, kind } encrypted for this browser. Show it, and open `url` (a path on
+ * this site) when it is clicked: focus a window that is already open, else open one. */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_err) {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = typeof data.title === "string" && data.title ? data.title : "Church Dashboard";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof data.body === "string" ? data.body : "",
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      data: { url: typeof data.url === "string" ? data.url : "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  let target = new URL("/", self.location.origin);
+  try {
+    const wanted = new URL(event.notification.data && event.notification.data.url ? event.notification.data.url : "/", self.location.origin);
+    // Only ever this site, whatever the message said.
+    if (wanted.origin === self.location.origin) target = wanted;
+  } catch (_err) {
+    /* keep the home page */
+  }
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin && "focus" in w) {
+          return "navigate" in w ? w.navigate(target.href).then((c) => (c || w).focus()) : w.focus();
+        }
+      }
+      return self.clients.openWindow(target.href);
+    }),
+  );
+});

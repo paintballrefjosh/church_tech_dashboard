@@ -122,7 +122,7 @@ export class MeController {
         // Per-kind delivery channels: empty array = "off", ["in_app"] only,
         // ["email"] only, or both. Missing key = use defaults.
         channels: z
-          .record(z.array(z.enum(["in_app", "email"])).max(2))
+          .record(z.array(z.enum(["in_app", "email", "push"])).max(3))
           .optional(),
       })
       .safeParse(body);

@@ -232,6 +232,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "site",
   },
   {
+    key: "notifications.push_enabled",
+    type: "boolean",
+    label: "Push notifications",
+    description:
+      "Let people turn on browser push notifications (Profile > Notifications). A push goes through the browser vendor's push service (Google, Apple or Mozilla), so this server needs outbound HTTPS to it; the message is encrypted for the one browser. Switch off to stop all pushes at once.",
+    defaultValue: true,
+    category: "site",
+  },
+  {
     key: "activity.retention_days",
     type: "number",
     label: "Activity feed retention (days)",

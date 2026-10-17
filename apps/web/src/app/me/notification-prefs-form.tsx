@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Bell, Mail } from "lucide-react";
+import { Save, Bell, Mail, Smartphone } from "lucide-react";
 import type { NotificationKind } from "@church/shared";
 
 // Human-readable labels for the catalogue. Anything not listed here falls
@@ -103,6 +103,8 @@ interface Pref {
   enabled: boolean;
   /** Also deliver this category by email. */
   email: boolean;
+  /** Also push it to the browsers push is turned on in. */
+  push: boolean;
 }
 
 interface PrefsResponse {
@@ -115,10 +117,10 @@ interface PrefsResponse {
  * No row => default to in-app + email (matches the server's default).
  */
 function toPref(channels: string[] | undefined, muted: boolean): Pref {
-  if (muted) return { enabled: false, email: false };
+  if (muted) return { enabled: false, email: false, push: false };
   const ch = channels ?? ["in_app", "email"];
   const enabled = ch.length > 0;
-  return { enabled, email: enabled && ch.includes("email") };
+  return { enabled, email: enabled && ch.includes("email"), push: enabled && ch.includes("push") };
 }
 
 interface Props {
@@ -128,6 +130,9 @@ interface Props {
 export function NotificationPrefsForm({ kinds }: Props) {
   const [prefs, setPrefs] = useState<Record<string, Pref>>({});
   const [loaded, setLoaded] = useState(false);
+  // Push is offered per category only when the site allows it; it does nothing until a browser has it turned on.
+  const [pushOffered, setPushOffered] = useState(false);
+  const [pushDevices, setPushDevices] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -148,6 +153,18 @@ export function NotificationPrefsForm({ kinds }: Props) {
       } catch {
         /* fall through to defaults */
       }
+      try {
+        const r = await fetch("/api/v1/me/push", { credentials: "same-origin", cache: "no-store" });
+        if (r.ok) {
+          const p = (await r.json()) as { enabled: boolean; devices: unknown[] };
+          if (!cancelled) {
+            setPushOffered(p.enabled);
+            setPushDevices(p.devices.length);
+          }
+        }
+      } catch {
+        /* no push column */
+      }
       if (cancelled) return;
       const mutedSet = new Set(data.muted ?? []);
       const next: Record<string, Pref> = {};
@@ -160,12 +177,23 @@ export function NotificationPrefsForm({ kinds }: Props) {
     };
   }, [kinds]);
 
+  // The push panel above reports when a browser is added or removed.
+  useEffect(() => {
+    const onDevices = (e: Event) => setPushDevices(Number((e as CustomEvent<number>).detail) || 0);
+    window.addEventListener("push:devices", onDevices);
+    return () => window.removeEventListener("push:devices", onDevices);
+  }, []);
+
   function setEnabled(kind: string, value: boolean) {
     setPrefs((prev) => ({
       ...prev,
       // Turning a category off also drops email; turning it on keeps whatever
       // email choice was there.
-      [kind]: { enabled: value, email: value ? (prev[kind]?.email ?? false) : false },
+      [kind]: {
+        enabled: value,
+        email: value ? (prev[kind]?.email ?? false) : false,
+        push: value ? (prev[kind]?.push ?? false) : false,
+      },
     }));
     setOk(null);
   }
@@ -173,7 +201,15 @@ export function NotificationPrefsForm({ kinds }: Props) {
   function setEmail(kind: string, value: boolean) {
     setPrefs((prev) => ({
       ...prev,
-      [kind]: { enabled: prev[kind]?.enabled ?? true, email: value },
+      [kind]: { enabled: prev[kind]?.enabled ?? true, email: value, push: prev[kind]?.push ?? false },
+    }));
+    setOk(null);
+  }
+
+  function setPush(kind: string, value: boolean) {
+    setPrefs((prev) => ({
+      ...prev,
+      [kind]: { enabled: prev[kind]?.enabled ?? true, email: prev[kind]?.email ?? false, push: value },
     }));
     setOk(null);
   }
@@ -188,8 +224,8 @@ export function NotificationPrefsForm({ kinds }: Props) {
       // can never override these channel choices.
       const channels: Record<string, string[]> = {};
       for (const k of kinds) {
-        const p = prefs[k] ?? { enabled: true, email: true };
-        channels[k] = p.enabled ? (p.email ? ["in_app", "email"] : ["in_app"]) : [];
+        const p = prefs[k] ?? { enabled: true, email: true, push: false };
+        channels[k] = p.enabled ? ["in_app", ...(p.email ? ["email"] : []), ...(p.push ? ["push"] : [])] : [];
       }
       const r = await fetch("/api/me/notification-prefs", {
         method: "PUT",
@@ -217,11 +253,11 @@ export function NotificationPrefsForm({ kinds }: Props) {
     <div className="space-y-3">
       <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
         {kinds.map((kind) => {
-          const pref = prefs[kind] ?? { enabled: true, email: true };
+          const pref = prefs[kind] ?? { enabled: true, email: true, push: false };
           const meta = KIND_LABELS[kind] ?? { title: kind, hint: "" };
           return (
             <li key={kind} className="flex flex-wrap items-start gap-x-6 gap-y-2 px-4 py-3">
-              <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="flex min-w-0 flex-1 basis-56 items-start gap-3">
                 <Bell
                   className={`mt-0.5 h-4 w-4 shrink-0 ${pref.enabled ? "text-brand-600" : "text-slate-400"}`}
                   aria-hidden
@@ -260,6 +296,27 @@ export function NotificationPrefsForm({ kinds }: Props) {
                   <Mail className="h-3.5 w-3.5" aria-hidden />
                   <span>Email</span>
                 </label>
+                {pushOffered ? (
+                  <label
+                    className={`inline-flex items-center gap-2 text-xs ${
+                      pref.enabled && pushDevices > 0
+                        ? "cursor-pointer text-slate-600 dark:text-slate-300"
+                        : "cursor-not-allowed text-slate-400 dark:text-slate-600"
+                    }`}
+                    title={pushDevices === 0 ? "Turn push on for a browser first (above)." : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pref.push}
+                      disabled={!pref.enabled || pushDevices === 0}
+                      onChange={(e) => setPush(kind, e.target.checked)}
+                      data-testid={`pref-push-${kind}`}
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+                    />
+                    <Smartphone className="h-3.5 w-3.5" aria-hidden />
+                    <span>Push</span>
+                  </label>
+                ) : null}
               </div>
             </li>
           );

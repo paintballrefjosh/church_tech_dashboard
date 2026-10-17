@@ -11,6 +11,8 @@ import { PasswordForm } from "./password-form";
 import { DisplayForm } from "./display-form";
 import { HomeLookForm } from "./home-look-form";
 import { NotificationPrefsForm } from "./notification-prefs-form";
+import { NotificationDeliveryForm } from "./notification-delivery-form";
+import { PushPanel } from "./push-panel";
 import { PcLinkForm } from "./pc-link-form";
 
 interface Me {
@@ -116,10 +118,20 @@ export default async function ProfilePage() {
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Choose which categories you&apos;re notified about. Enabled categories
-            always show in-app (bell + realtime); tick Email to also get an email
-            for that category. Turn a category off to silence it entirely.
+            always show in-app (bell + realtime); tick Email to also get an email,
+            or Push to get a notice on your phone or desktop. Turn a category off
+            to silence it entirely.
           </p>
-          <div className="mt-4">
+          <h3 className="mt-5 text-sm font-semibold">When to notify me</h3>
+          <div className="mt-3">
+            <NotificationDeliveryForm />
+          </div>
+          <h3 className="mt-6 text-sm font-semibold">Push notifications</h3>
+          <div className="mt-3">
+            <PushPanel />
+          </div>
+          <h3 className="mt-6 text-sm font-semibold">What to notify me about</h3>
+          <div className="mt-3">
             <NotificationPrefsForm kinds={NOTIFICATION_KINDS as readonly NotificationKind[]} />
           </div>
         </section>

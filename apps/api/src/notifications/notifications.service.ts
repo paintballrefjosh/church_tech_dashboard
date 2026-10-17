@@ -1,12 +1,23 @@
 import { Injectable, Inject, NotFoundException, Logger } from "@nestjs/common";
 import { and, desc, eq, isNull, count, inArray } from "drizzle-orm";
-import { INBOUND_KEYS, ticketSubjectToken, type NotificationKind } from "@church/shared";
+import {
+  DEFAULT_NOTIFICATION_DELIVERY,
+  INBOUND_KEYS,
+  emailReleaseAt,
+  pushAllowed,
+  pushPayloadFor,
+  ticketSubjectToken,
+  type NotificationDelivery,
+  type NotificationKind,
+} from "@church/shared";
 import { DB, type Db } from "../db/db.module";
-import { notifications, notificationPrefs, users } from "../db/schema";
+import { notificationHeld, notifications, notificationPrefs, users } from "../db/schema";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { MailerService } from "../mailer/mailer.service";
 import { SettingsService } from "../settings/settings.service";
 import { renderEmail } from "../mailer/templates";
+import { NotificationDeliveryService } from "./notification-delivery.service";
+import { PushService } from "./push.service";
 
 /**
  * Default channels when a user has no `notification_prefs` row for this kind.
@@ -18,11 +29,21 @@ const DEFAULT_CHANNELS: ReadonlyArray<string> = ["in_app", "email"];
 interface ResolvedChannels {
   inApp: boolean;
   email: boolean;
+  /** Push is opt-in: a kind with no saved choice never pushes. */
+  push: boolean;
 }
 
 function resolveChannels(channels: string[] | undefined): ResolvedChannels {
   const list = channels ?? DEFAULT_CHANNELS;
-  return { inApp: list.includes("in_app"), email: list.includes("email") };
+  return { inApp: list.includes("in_app"), email: list.includes("email"), push: list.includes("push") };
+}
+
+/** What an email says, whether it goes at once or after being held. */
+export interface MailableNotice {
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  ticketNumber?: number | null;
 }
 
 /**
@@ -50,6 +71,8 @@ export interface CreateNotificationInput {
    * for high-volume in-app-only events.
    */
   email?: boolean;
+  /** Same for a browser push. Defaults to true; the person's own choice for this kind still applies. */
+  push?: boolean;
   /** Skip create entirely if recipient === actor. */
   excludeActorId?: string;
   /**
@@ -58,6 +81,12 @@ export interface CreateNotificationInput {
    * off for anything the requester must not see (an internal note): that reply would be a public comment.
    */
   ticketNumber?: number;
+}
+
+export interface EmailContext {
+  siteName: string;
+  base: string;
+  replyAddress: string | null;
 }
 
 @Injectable()
@@ -69,6 +98,8 @@ export class NotificationsService {
     private readonly realtime: RealtimeGateway,
     private readonly mailer: MailerService,
     private readonly settings: SettingsService,
+    private readonly delivery: NotificationDeliveryService,
+    private readonly push: PushService,
   ) {}
 
   /** Best-effort site name lookup for email rendering; falls back to a default. */
@@ -128,23 +159,21 @@ export class NotificationsService {
         }
       }
 
-      if (ch.email && input.email !== false && recipient.email) {
-        const siteName = await this.siteNameForEmail();
-        const href = absoluteEmailLink(await this.settings.publicBaseUrl(), input.link);
-        const rendered = renderEmail({
-          siteName,
-          title: input.title,
-          body: input.body,
-          cta: href ? { label: "Open", href } : undefined,
-        });
-        const replyAddress = input.ticketNumber !== undefined ? await this.helpAddress() : null;
-        void this.mailer.sendBestEffort({
-          to: recipient.email,
-          subject: replyAddress ? `${input.title} ${ticketSubjectToken(input.ticketNumber!)}` : input.title,
-          text: rendered.text,
-          html: rendered.html,
-          ...(replyAddress ? { replyTo: replyAddress } : {}),
-        });
+      const wantsEmail = ch.email && input.email !== false && !!recipient.email;
+      const wantsPush = ch.push && input.push !== false;
+      if (wantsEmail || wantsPush) {
+        const [delivery, tz] = await Promise.all([this.delivery.get(input.recipientUserId), this.delivery.zone()]);
+        const now = new Date();
+        if (wantsPush && pushAllowed(String(input.kind), delivery, now, tz)) {
+          void this.push.send([input.recipientUserId], pushPayloadFor(input));
+        }
+        if (wantsEmail) {
+          if (emailReleaseAt(String(input.kind), now, delivery, tz).getTime() > now.getTime()) {
+            await this.hold([input]);
+          } else {
+            await this.sendEmail(recipient.email, input, await this.emailContext(input.ticketNumber !== undefined));
+          }
+        }
       }
     } catch (err) {
       // Notifications must never break the action that triggered them.
@@ -233,30 +262,79 @@ export class NotificationsService {
         this.realtime.toUser(row.recipientUserId, "notification:new", row);
       }
 
-      const siteName = await this.siteNameForEmail();
-      const base = await this.settings.publicBaseUrl();
-      const replyAddress = decided.some((d) => d.meta.ticketNumber !== undefined) ? await this.helpAddress() : null;
-      for (const { meta, ch, recipient } of decided) {
-        if (!ch.email || meta.email === false || !recipient.email) continue;
-        const href = absoluteEmailLink(base, meta.link);
-        const rendered = renderEmail({
-          siteName,
-          title: meta.title,
-          body: meta.body,
-          cta: href ? { label: "Open", href } : undefined,
-        });
-        const replyable = replyAddress !== null && meta.ticketNumber !== undefined;
-        void this.mailer.sendBestEffort({
-          to: recipient.email,
-          subject: replyable ? `${meta.title} ${ticketSubjectToken(meta.ticketNumber!)}` : meta.title,
-          text: rendered.text,
-          html: rendered.html,
-          ...(replyable ? { replyTo: replyAddress } : {}),
-        });
+      const needsDelivery = decided.filter((d) => (d.ch.email && d.meta.email !== false && d.recipient.email) || (d.ch.push && d.meta.push !== false));
+      if (needsDelivery.length === 0) return;
+      const ids = Array.from(new Set(needsDelivery.map((d) => d.meta.recipientUserId)));
+      const [deliveryByUser, tz, withDevices] = await Promise.all([
+        this.delivery.getMany(ids),
+        this.delivery.zone(),
+        this.push.usersWithDevices(needsDelivery.filter((d) => d.ch.push && d.meta.push !== false).map((d) => d.meta.recipientUserId)),
+      ]);
+      const now = new Date();
+      const toHold: CreateNotificationInput[] = [];
+      const toSend: Array<{ to: string; meta: CreateNotificationInput }> = [];
+      for (const { meta, ch, recipient } of needsDelivery) {
+        const delivery: NotificationDelivery = deliveryByUser.get(meta.recipientUserId) ?? DEFAULT_NOTIFICATION_DELIVERY;
+        const kind = String(meta.kind);
+        if (ch.push && meta.push !== false && withDevices.has(meta.recipientUserId) && pushAllowed(kind, delivery, now, tz)) {
+          void this.push.send([meta.recipientUserId], pushPayloadFor(meta));
+        }
+        if (ch.email && meta.email !== false && recipient.email) {
+          if (emailReleaseAt(kind, now, delivery, tz).getTime() > now.getTime()) toHold.push(meta);
+          else toSend.push({ to: recipient.email, meta });
+        }
+      }
+      if (toHold.length) await this.hold(toHold);
+      if (toSend.length) {
+        const ctx = await this.emailContext(toSend.some((t) => t.meta.ticketNumber !== undefined));
+        for (const t of toSend) await this.sendEmail(t.to, t.meta, ctx);
       }
     } catch (err) {
       this.logger.warn(`notifications.createMany failed: ${(err as Error).message}`);
     }
+  }
+
+  /** Put emails aside until the person's quiet hours end or their daily summary time (`notification-release` sends them). */
+  private async hold(items: CreateNotificationInput[]): Promise<void> {
+    await this.db.insert(notificationHeld).values(
+      items.map((i) => ({
+        recipientUserId: i.recipientUserId,
+        kind: String(i.kind),
+        title: i.title,
+        body: i.body ?? "",
+        link: i.link ?? null,
+        ticketNumber: i.ticketNumber ?? null,
+      })),
+    );
+  }
+
+  /** What every email of one batch shares: the site's name, its public address, and the help address for replies. */
+  async emailContext(wantReply: boolean): Promise<EmailContext> {
+    const [siteName, base, replyAddress] = await Promise.all([
+      this.siteNameForEmail(),
+      this.settings.publicBaseUrl(),
+      wantReply ? this.helpAddress() : Promise.resolve(null),
+    ]);
+    return { siteName, base, replyAddress };
+  }
+
+  /** One notice as one email, queued for sending. A ticket notice carries `[#n]` and Reply-To when the mailbox is on. */
+  async sendEmail(to: string, n: MailableNotice, ctx: EmailContext): Promise<void> {
+    const href = absoluteEmailLink(ctx.base, n.link);
+    const rendered = renderEmail({
+      siteName: ctx.siteName,
+      title: n.title,
+      body: n.body ?? undefined,
+      cta: href ? { label: "Open", href } : undefined,
+    });
+    const replyable = ctx.replyAddress !== null && n.ticketNumber !== undefined && n.ticketNumber !== null;
+    await this.mailer.sendBestEffort({
+      to,
+      subject: replyable ? `${n.title} ${ticketSubjectToken(n.ticketNumber!)}` : n.title,
+      text: rendered.text,
+      html: rendered.html,
+      ...(replyable ? { replyTo: ctx.replyAddress! } : {}),
+    });
   }
 
   /** The help address to put in Reply-To, or null unless the helpdesk mailbox is switched on and has one. */

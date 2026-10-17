@@ -43,6 +43,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "* /admin/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },
   { pattern: "* /admin/users/*/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },
   { pattern: "* /me/api-tokens/**", status: "excluded", reason: `token management: ${SESSION_ONLY}` },
+  { pattern: "* /me/push/**", status: "excluded", reason: `browser push subscriptions send the owner's notices to a device: ${SESSION_ONLY}` },
   { pattern: "* /me/sessions/**", status: "excluded", reason: `the list of signed-in browsers and ending them: ${SESSION_ONLY}` },
   { pattern: "GET /users/:id/sessions", status: "excluded", reason: "another person's signed-in browsers (addresses and devices) stay in the admin web app" },
   { pattern: "GET /admin/security-posture", status: "excluded", reason: `a map of the site's weak spots: ${SESSION_ONLY}` },
