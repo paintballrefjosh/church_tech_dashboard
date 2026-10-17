@@ -7,13 +7,14 @@ import {
   type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { PERMISSIONS, WIKI_VISIBILITIES, wikiAclEntrySchema, wikiPageListQuerySchema } from "@church/shared";
+import { PERMISSIONS, WIKI_STARTER_TEMPLATES, WIKI_VISIBILITIES, wikiAclEntrySchema, wikiPageListQuerySchema, wikiReviewQuerySchema } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { recordAuditEntry } from "../audit/audit.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { WikiService } from "../wiki/wiki.service";
 import { WikiWritesService } from "../wiki/wiki-writes.service";
 import { WikiFoldersService } from "../wiki/wiki-folders.service";
+import { WikiTemplatesService } from "../wiki/wiki-templates.service";
 import { ApiBridge, type BridgeCaller } from "./bridge/api-bridge.service";
 import { strictInput, toInputSchema } from "./bridge/bridge-schema";
 import type { BridgeTool } from "./bridge/bridge.types";
@@ -64,6 +65,7 @@ export class McpToolsService {
     private readonly wiki: WikiService,
     private readonly writes: WikiWritesService,
     private readonly folders: WikiFoldersService,
+    private readonly templates: WikiTemplatesService,
     private readonly settings: SettingsService,
     private readonly bridge: ApiBridge,
   ) {
@@ -244,7 +246,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_get_page",
           description:
-            "Read one wiki page: title, Markdown body, location, visibility, whether you can edit it, and updatedAt (pass it to wiki_update_page).",
+            "Read one wiki page: title, Markdown body, location, visibility, whether you can edit it, updatedAt (pass it to wiki_update_page), when a person last confirmed it is still correct (lastReviewedAt) and whether it is due for another look (needsReview).",
           inputSchema: {
             type: "object",
             properties: { id: { type: "string", format: "uuid" } },
@@ -256,7 +258,7 @@ export class McpToolsService {
         permissions: [PERMISSIONS.WIKI_READ_OWN],
         args: idArgs,
         run: async (ctx, a: z.infer<typeof idArgs>) => {
-          const { page, canEdit, updatedBy } = await this.wiki.getWithAcl(ctx.user, a.id);
+          const { page, canEdit, updatedBy, review } = await this.wiki.getWithAcl(ctx.user, a.id);
           return {
             id: page.id,
             title: page.title,
@@ -267,6 +269,8 @@ export class McpToolsService {
             canEdit,
             updatedAt: page.updatedAt,
             updatedBy: updatedBy?.name ?? updatedBy?.email ?? null,
+            lastReviewedAt: review.lastReviewedAt,
+            needsReview: review.needsReview,
             url: await this.pageUrl(page.id),
           };
         },
@@ -307,6 +311,57 @@ export class McpToolsService {
             createdAt: r.createdAt,
           }));
         },
+      },
+      {
+        tool: {
+          name: "wiki_backlinks",
+          description:
+            "The wiki pages you can read that link to this page, with the sentence each link sits in. Use it before renaming, moving or rewriting a page to see what depends on it.",
+          inputSchema: {
+            type: "object",
+            properties: { id: { type: "string", format: "uuid" } },
+            required: ["id"],
+            additionalProperties: false,
+          },
+          annotations: { title: "Pages linking here", readOnlyHint: true, openWorldHint: false },
+        },
+        permissions: [PERMISSIONS.WIKI_READ_OWN],
+        args: idArgs,
+        run: async (ctx, a: z.infer<typeof idArgs>) => this.wiki.backlinks(ctx.user, a.id),
+      },
+      {
+        tool: {
+          name: "wiki_needs_review",
+          description:
+            "Wiki pages you can read that have gone a long time without an edit or a person confirming they are still correct, the most overdue first (id, title, owner, days overdue). Reading a page is not reviewing it: update the page if it is wrong, and leave confirming it to a person.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              scope: { type: "string", enum: ["all", "mine"], default: "all" },
+              limit: { type: "integer", minimum: 1, maximum: 500, default: 200 },
+            },
+            additionalProperties: false,
+          },
+          annotations: { title: "Pages due for review", readOnlyHint: true, openWorldHint: false },
+        },
+        permissions: [PERMISSIONS.WIKI_READ_OWN],
+        args: wikiReviewQuerySchema,
+        run: async (ctx, a: z.infer<typeof wikiReviewQuerySchema>) => this.wiki.reviewList(ctx.user, a),
+      },
+      {
+        tool: {
+          name: "wiki_list_templates",
+          description:
+            "The page templates people can start a new wiki page from: the built-in outlines and any the admins saved (name, description, Markdown body). {{date}} and {{author}} in a body are filled in when a person uses it; copy the structure when you create a page of the same kind.",
+          inputSchema: { type: "object", properties: {}, additionalProperties: false },
+          annotations: { title: "Page templates", readOnlyHint: true, openWorldHint: false },
+        },
+        permissions: [PERMISSIONS.WIKI_READ_OWN],
+        args: z.object({}).strict(),
+        run: async () => [
+          ...WIKI_STARTER_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, body: t.body, builtIn: true })),
+          ...(await this.templates.list()).map((t) => ({ id: t.id, name: t.name, description: t.description, body: t.body, builtIn: false })),
+        ],
       },
       {
         tool: {

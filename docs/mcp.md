@@ -49,7 +49,7 @@ Rules for adding a tool (`apps/api/src/mcp/bridge/catalogue/<area>.tools.ts`, re
 6. Text in results (ticket and wiki bodies, comments, device names) is written by other people; the server
    instructions tell the agent to treat it as data. Do not add a tool that returns a stored secret.
 
-The seven wiki tools stay hand-written in `mcp.tools.ts` (they need the optimistic-lock and audit shapes there).
+The ten wiki tools (the original seven plus `wiki_backlinks`, `wiki_needs_review` and `wiki_list_templates`, all reads) stay hand-written in `mcp.tools.ts` (they need the optimistic-lock and audit shapes there).
 
 ## Decisions made in phase 1
 

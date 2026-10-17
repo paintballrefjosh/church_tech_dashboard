@@ -2186,6 +2186,10 @@ async function main() {
   const { helpdeskTests } = await import("./helpdesk.mjs");
   await helpdeskTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- wiki upkeep: templates, linked-from, confirming a page (tests/smoke/wiki-upkeep.mjs) ----
+  const { wikiUpkeepTests } = await import("./wiki-upkeep.mjs");
+  await wikiUpkeepTests({ test, assert, fetchWithCookies, jar });
+
   // ---- backups (tests/smoke/backups.mjs) ----
   const { backupTests } = await import("./backups.mjs");
   await backupTests({ test, assert, fetchWithCookies, jar });

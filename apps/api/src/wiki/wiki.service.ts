@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ConflictException,
 } from "@nestjs/common";
-import { and, asc, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import {
   wikiPages,
@@ -19,15 +19,22 @@ import {
 } from "../db/schema";
 import {
   PERMISSIONS,
+  WIKI_REVIEW_DAYS_KEY,
+  extractWikiLinks,
+  wikiLinkContext,
+  wikiReviewDays,
+  wikiReviewState,
   type CreateWikiPageInput,
   type UpdateWikiPageInput,
   type WikiAclEntry,
   type WikiPageListQuery,
+  type WikiReviewQuery,
   type WikiTreeNode,
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { SearchService } from "../search/search.service";
+import { SettingsService } from "../settings/settings.service";
 import { ActivityService } from "../activity/activity.service";
 import { MentionsService } from "../mentions/mentions.service";
 import { WikiFoldersService } from "./wiki-folders.service";
@@ -60,7 +67,13 @@ export class WikiService {
     private readonly activity: ActivityService,
     private readonly mentions: MentionsService,
     private readonly folders: WikiFoldersService,
+    private readonly settings: SettingsService,
   ) {}
+
+  /** The site-wide review interval in days (0 = the check is off). */
+  async reviewDefaultDays(): Promise<number> {
+    return wikiReviewDays(await this.settings.get(WIKI_REVIEW_DAYS_KEY).catch(() => undefined));
+  }
 
   /** The page was created, edited or had its access changed: refresh its search document on every node. */
   private indexPage(row: typeof wikiPages.$inferSelect): void {
@@ -229,7 +242,109 @@ export class WikiService {
       .orderBy(desc(wikiRevisions.createdAt))
       .limit(1);
 
-    return { page, acl: aclRows, canEdit, canDelete, updatedBy: lastEditor ?? null };
+    const [reviewer] = page.lastReviewedBy
+      ? await this.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.id, page.lastReviewedBy)).limit(1)
+      : [];
+    const state = wikiReviewState(page, await this.reviewDefaultDays(), new Date());
+    const review = {
+      intervalDays: state.intervalDays,
+      usingDefault: state.usingDefault,
+      confirmedAt: state.confirmedAt.toISOString(),
+      dueAt: state.dueAt ? state.dueAt.toISOString() : null,
+      needsReview: state.needsReview,
+      daysOverdue: state.daysOverdue,
+      lastReviewedAt: page.lastReviewedAt ? page.lastReviewedAt.toISOString() : null,
+      reviewedBy: reviewer ?? null,
+    };
+
+    // canManage: the owner or a wiki admin (visibility, access, how often the page is reviewed); isAdmin: wiki admin (templates).
+    return { page, acl: aclRows, canEdit, canDelete, canManage: canDelete, isAdmin: this.canWriteAny(user), updatedBy: lastEditor ?? null, review };
+  }
+
+  /**
+   * Pages (that the caller may read) which link to this one. Found by looking for the page's address in other bodies and
+   * then confirming it is a real link, so nothing is stored that could fall out of step with the text, an edit shows at
+   * once on every node, and a restore needs no rebuild. A page the caller cannot read is never named.
+   */
+  async backlinks(user: AuthenticatedUser, id: string) {
+    await this.assertReadable(user, id);
+    // A reader with wiki:read:any passes the check above for an id that does not exist.
+    const [exists] = await this.db.select({ id: wikiPages.id }).from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
+    if (!exists) throw new NotFoundException("Wiki page not found");
+    const pageId = id.toLowerCase();
+    const readable = this.readablePredicate(user);
+    const rows = await this.db
+      .select({ id: wikiPages.id, title: wikiPages.title, body: wikiPages.body, updatedAt: wikiPages.updatedAt })
+      .from(wikiPages)
+      .where(and(ilike(wikiPages.body, `%/wiki/${pageId}%`), ne(wikiPages.id, id), readable));
+    return rows
+      .filter((r) => extractWikiLinks(r.body).includes(pageId))
+      .map((r) => ({ id: r.id, title: r.title, updatedAt: r.updatedAt, context: wikiLinkContext(r.body, pageId) }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /** Pages the caller may read that are due for another look, the most overdue first. */
+  async reviewList(user: AuthenticatedUser, query: WikiReviewQuery) {
+    const defaultDays = await this.reviewDefaultDays();
+    const conds: SQL[] = [];
+    const readable = this.readablePredicate(user);
+    if (readable) conds.push(readable);
+    if (query.scope === "mine") conds.push(eq(wikiPages.ownerUserId, user.id));
+    const rows = await this.db
+      .select({
+        id: wikiPages.id,
+        title: wikiPages.title,
+        ownerUserId: wikiPages.ownerUserId,
+        ownerName: users.name,
+        ownerEmail: users.email,
+        updatedAt: wikiPages.updatedAt,
+        lastReviewedAt: wikiPages.lastReviewedAt,
+        reviewIntervalDays: wikiPages.reviewIntervalDays,
+      })
+      .from(wikiPages)
+      .leftJoin(users, eq(users.id, wikiPages.ownerUserId))
+      .where(conds.length ? and(...conds) : undefined);
+    const now = new Date();
+    const due = rows
+      .map((r) => ({ row: r, state: wikiReviewState(r, defaultDays, now) }))
+      .filter((x) => x.state.needsReview)
+      .sort((a, b) => a.state.dueAt!.getTime() - b.state.dueAt!.getTime());
+    return {
+      total: due.length,
+      items: due.slice(0, query.limit).map(({ row, state }) => ({
+        id: row.id,
+        title: row.title,
+        ownerUserId: row.ownerUserId,
+        owner: row.ownerName ?? row.ownerEmail,
+        confirmedAt: state.confirmedAt.toISOString(),
+        dueAt: state.dueAt!.toISOString(),
+        daysOverdue: state.daysOverdue,
+        intervalDays: state.intervalDays,
+      })),
+    };
+  }
+
+  /**
+   * "I checked this page and it is still right." Not an edit: it makes no revision and leaves `updatedAt` (and so "updated
+   * by") alone. Whoever may edit the page may confirm it.
+   */
+  async markReviewed(user: AuthenticatedUser, id: string) {
+    await this.assertReadable(user, id);
+    if (!(await this.canWritePage(user, id))) throw new ForbiddenException("Cannot edit this page");
+    const [page] = await this.db
+      .update(wikiPages)
+      .set({ lastReviewedAt: new Date(), lastReviewedBy: user.id })
+      .where(eq(wikiPages.id, id))
+      .returning();
+    if (!page) throw new NotFoundException("Wiki page not found");
+    const state = wikiReviewState(page, await this.reviewDefaultDays(), new Date());
+    return {
+      id: page.id,
+      lastReviewedAt: page.lastReviewedAt!.toISOString(),
+      lastReviewedBy: user.id,
+      needsReview: state.needsReview,
+      dueAt: state.dueAt ? state.dueAt.toISOString() : null,
+    };
   }
 
   async create(user: AuthenticatedUser, input: CreateWikiPageInput) {
@@ -306,8 +421,15 @@ export class WikiService {
     if (wantsAclChange && existing.ownerUserId !== user.id && !this.canWriteAny(user)) {
       throw new ForbiddenException("Only the page owner can change visibility or ACL");
     }
+    // How often a page is checked is the owner's call too (an editor could otherwise silence the reminder).
+    if (input.reviewIntervalDays !== undefined && existing.ownerUserId !== user.id && !this.canWriteAny(user)) {
+      throw new ForbiddenException("Only the page owner can change how often it is reviewed");
+    }
 
-    const patch: Partial<typeof wikiPages.$inferInsert> = { updatedAt: new Date() };
+    // Changing only how often the page is reviewed is not an edit of the page.
+    const touchesPage = Object.entries(input).some(([k, v]) => v !== undefined && k !== "reviewIntervalDays");
+    const patch: Partial<typeof wikiPages.$inferInsert> = touchesPage ? { updatedAt: new Date() } : {};
+    if (input.reviewIntervalDays !== undefined) patch.reviewIntervalDays = input.reviewIntervalDays;
     if (input.title !== undefined) patch.title = input.title.trim();
     if (input.body !== undefined) patch.body = input.body;
     if (input.visibility !== undefined) patch.visibility = input.visibility;
@@ -325,6 +447,7 @@ export class WikiService {
       patch.parentFolderId = input.parentFolderId;
       if (input.parentId === undefined && input.parentFolderId) patch.parentId = null;
     }
+    if (Object.keys(patch).length === 0) patch.updatedAt = new Date();
     const [page] = await this.db
       .update(wikiPages)
       .set(patch)

@@ -32,6 +32,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Wiki page updates",
     hint: "A page you own or have access to is edited.",
   },
+  "wiki.review_due": {
+    title: "Wiki pages to review",
+    hint: "A page you own has gone a long time without an edit or a check, so it may be out of date.",
+  },
   "monitor.incident.opened": {
     title: "Monitoring incident opened",
     hint: "A monitored service goes down.",

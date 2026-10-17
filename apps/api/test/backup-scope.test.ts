@@ -34,7 +34,7 @@ describe("restore sections", () => {
   });
 
   it("name the tables of the chosen sections, and every table when all are chosen", () => {
-    expect([...tablesInSections(["wiki"])].sort()).toEqual(["wiki_folders", "wiki_page_acl", "wiki_pages", "wiki_revisions"]);
+    expect([...tablesInSections(["wiki"])].sort()).toEqual(["wiki_folders", "wiki_page_acl", "wiki_pages", "wiki_revisions", "wiki_templates"]);
     expect(tablesInSections(["nonsense"]).size).toBe(0);
     expect([...tablesInSections(sections.map((s) => s.key))].sort()).toEqual(backedUpTables().map((t) => t.name).sort());
   });

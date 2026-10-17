@@ -15,7 +15,7 @@ const ROUTES = listRoutes(controllers);
 const BY_KEY = new Map(ROUTES.map((r) => [r.key, r]));
 const TOOL_KEYS = new Set(BRIDGE_TOOLS.map((t) => `${t.method} ${t.path}`));
 
-// The seven hand-written wiki tools cover these routes (see mcp.tools.ts).
+// The ten hand-written wiki tools cover these routes (see mcp.tools.ts).
 const WIKI_NATIVE = new Set([
   "GET /wiki",
   "GET /wiki/:id",
@@ -24,6 +24,9 @@ const WIKI_NATIVE = new Set([
   "POST /wiki",
   "PATCH /wiki/:id",
   "POST /wiki/folders",
+  "GET /wiki/:id/backlinks",
+  "GET /wiki/review",
+  "GET /wiki/templates",
 ]);
 const covered = (r: RouteInfo) => TOOL_KEYS.has(r.key) || WIKI_NATIVE.has(r.key);
 
@@ -88,7 +91,7 @@ describe("MCP tool catalogue", () => {
     for (const t of BRIDGE_TOOLS) {
       expect(t.name, t.name).toMatch(/^[a-z][a-z0-9_]{2,63}$/);
       expect(t.description.length, `${t.name} description`).toBeGreaterThan(30);
-      expect(t.name).not.toMatch(/^wiki_(search|get_page|tree|list_revisions|create_page|update_page|create_folder)$/);
+      expect(t.name).not.toMatch(/^wiki_(search|get_page|tree|list_revisions|create_page|update_page|create_folder|backlinks|needs_review|list_templates)$/);
     }
   });
 

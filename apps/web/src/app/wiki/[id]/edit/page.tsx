@@ -15,6 +15,7 @@ interface PagePayload {
   acl: Array<{ groupId: string; canEdit: boolean }>;
   canEdit: boolean;
   canDelete: boolean;
+  canManage: boolean;
 }
 
 interface GroupBrief {
@@ -79,6 +80,7 @@ export default async function EditWikiPage({
           page={payload.page}
           initialAcl={payload.acl}
           groups={groups}
+          canManage={payload.canManage}
         />
       </main>
     </>

@@ -329,6 +329,29 @@ notifications, shared by the routes and the mailbox. Tests: `helpdesk-rules.test
 `ticket-inbound.integration.test.ts` (DB tests on CockroachDB and YugabyteDB; with `TEST_IMAP=host:imapPort:smtpPort` it also runs against a
 throwaway GreenMail), `notification-reply-to.integration.test.ts`, smoke `tests/smoke/helpdesk.mjs`, e2e `helpdesk.spec.ts`.
 
+**Wiki upkeep: templates, backlinks, review, history** (migration 0067; rules in `packages/shared/src/wiki-pages.ts`, unit-tested in
+`apps/api/test/wiki-pages.test.ts`). (1) *Backlinks are computed, never stored*: `WikiService.backlinks` finds bodies containing
+`/wiki/<id>` with a `LIKE`, then confirms with `extractWikiLinks` (code is ignored; `/edit`, `/revisions` are not page links) and
+filters by `readablePredicate`, so there is no link table to drift, back-fill or restore and an edit shows on every node at once.
+A page the caller cannot read is never named. Fine for a church-sized wiki; if it ever grows to thousands of large pages,
+that is the moment for a table (maintained in `create`/`update`/`revertToRevision`/import). (2) *Review*: `wiki_pages.last_reviewed_at/by`,
+`review_interval_days` (null = site setting `wiki.review.default_days`, default 180; 0 = never) and `review_notified_at`
+(volatile in the backup registry). **A page is due when `wikiReviewState` says so: the clock starts from the LATER of `updated_at` and
+`last_reviewed_at`**, so editing counts as looking and confirming (`POST /wiki/:id/review`) is not an edit: no revision, `updated_at`
+untouched, no "page updated" notices (`WikiWritesService` also skips them for an interval-only PATCH). Changing the interval needs
+owner or wiki admin (`canManage`), like visibility. The `wiki-review` cluster job (hourly) notifies owners with kind
+`wiki.review_due`, one message per owner per run; each page is CLAIMED by a conditional UPDATE on `review_notified_at`, and the flag
+only counts while newer than the page's last edit/review (`wikiReviewNotice`), so nothing needs resetting. A page already
+overdue by more than `WIKI_REVIEW_NOTICE_WINDOW_MS` is flagged silently (turning the check on must not announce history).
+(3) *Templates*: built-ins are code (`WIKI_STARTER_TEMPLATES`, ids `starter:*`), saved ones are `wiki_templates` (list needs
+`wiki:read:own`, writes `wiki:admin`, audited `wiki.template.*`); `{{date}}`/`{{author}}` are filled in the web. (4) *History*:
+the diff model is `apps/web/src/lib/wiki-diff.ts` (unit-tested in the web package: line diff, word marks inside paired changed
+lines, folded unchanged runs; both texts are given a final newline first, or the last line always differs). The page picker
+(`components/wiki-page-picker.tsx`) renders in a portal: inside the editor, `fixed` is relative to the editor box. MCP: three
+hand-written read tools; confirming a review and saving templates are not tools (a person's claim / admin curation, rules in
+`route-rules.ts`). Tests: `wiki-upkeep.integration.test.ts` (CockroachDB and YugabyteDB), smoke `wiki-upkeep.mjs`, e2e
+`wiki-upkeep.spec.ts` (a page can only become due by time, so only the integration test covers that).
+
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to
 suppress it from the Network (UniFi) tab problem badge. Acks live in

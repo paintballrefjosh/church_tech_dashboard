@@ -11,6 +11,7 @@ import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
 import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
 import { INBOUND_AUTH_MODES, INBOUND_KEYS } from "./inbound-mail";
+import { WIKI_REVIEW_DAYS_KEY, WIKI_REVIEW_DEFAULT_DAYS, WIKI_REVIEW_MAX_DAYS } from "./wiki-pages";
 import {
   DEFAULT_ATTACHMENT_TYPES,
   MAX_CUSTOM_ATTACHMENT_EXTENSIONS,
@@ -314,6 +315,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Tell the assignee (or the support team, if nobody has the ticket) when a ticket has used this much of a response or resolution target. 0 turns warnings off; breaches are always announced. Time spent waiting on the requester does not count.",
     defaultValue: 80,
+    category: "site",
+  },
+  {
+    key: WIKI_REVIEW_DAYS_KEY,
+    type: "number",
+    label: "Wiki - flag a page after (days)",
+    description:
+      "A wiki page is marked as needing a review when it has gone this many days without an edit or a \"still correct\" confirmation, and its owner is told once. A page can set its own time, or opt out. 0 turns the check off.",
+    defaultValue: WIKI_REVIEW_DEFAULT_DAYS,
     category: "site",
   },
   // Helpdesk email: a mailbox the dashboard reads over IMAP to turn mail into tickets and ticket replies.
@@ -1198,6 +1208,10 @@ export function validateSettingValue(key: string, value: unknown): string | null
       return typeof value === "string" && /^[A-Za-z0-9.-]{0,253}$/.test(value.trim()) ? null : "Enter just the server name, for example mx.google.com.";
     case INBOUND_KEYS.auth:
       return typeof value === "string" && (INBOUND_AUTH_MODES as readonly string[]).includes(value) ? null : `Choose one of: ${INBOUND_AUTH_MODES.join(", ")}.`;
+    case WIKI_REVIEW_DAYS_KEY:
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= WIKI_REVIEW_MAX_DAYS
+        ? null
+        : `Enter a whole number of days from 0 to ${WIKI_REVIEW_MAX_DAYS}.`;
     case "tickets.sla.warn_percent":
       return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 95 ? null : "Enter a whole number from 0 to 95.";
     case ALERT_KEYS.flapIncidents:

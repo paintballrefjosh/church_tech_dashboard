@@ -13,6 +13,7 @@ export const NOTIFICATION_KINDS = [
   "ticket.sla_warning",
   "ticket.sla_breached",
   "wiki.updated",
+  "wiki.review_due",
   "monitor.incident.opened",
   "monitor.incident.resolved",
   "monitor.incident.escalated",

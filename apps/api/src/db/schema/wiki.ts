@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, boolean, index, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, boolean, index, integer, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { groups } from "./groups";
 
@@ -68,6 +68,12 @@ export const wikiPages = pgTable(
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    // Upkeep (packages/shared/src/wiki-pages.ts): the last "this is still right" confirmation, who gave it, the page's own
+    // interval (null = the site setting, 0 = never) and when its owner was last told it is due. None of them is an edit.
+    lastReviewedAt: timestamp("last_reviewed_at"),
+    lastReviewedBy: uuid("last_reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewIntervalDays: integer("review_interval_days"),
+    reviewNotifiedAt: timestamp("review_notified_at"),
   },
   (t) => ({
     ownerIdx: index("wiki_pages_owner_idx").on(t.ownerUserId),
@@ -115,3 +121,14 @@ export const wikiRevisions = pgTable(
     pageIdx: index("wiki_revisions_page_idx").on(t.pageId, t.createdAt),
   }),
 );
+
+/** Starting points for new pages, kept by a wiki admin (the built-in outlines live in code). */
+export const wikiTemplates = pgTable("wiki_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  body: text("body").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

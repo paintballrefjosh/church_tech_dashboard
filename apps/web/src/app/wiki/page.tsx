@@ -5,7 +5,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LocalDateTime } from "@/components/local-date-time";
-import { BookOpen, Plus, FileLock, FileUp } from "lucide-react";
+import { BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate } from "lucide-react";
 import type { WikiPage, WikiTreeNode } from "@church/shared";
 import { WikiSearch } from "./wiki-search";
 import { WikiTagFilter } from "./tag-filter-island";
@@ -30,9 +30,10 @@ export default async function WikiListPage({
   if (q) qs.set("q", q);
   if (params.tag) qs.set("tagId", params.tag);
   const url = `/api/v1/wiki${qs.toString() ? `?${qs}` : ""}`;
-  const [pages, tree] = await Promise.all([
+  const [pages, tree, review] = await Promise.all([
     apiJson<WikiPage[]>(url).catch(() => [] as WikiPage[]),
     apiJson<WikiTreeNode[]>("/api/v1/wiki/tree").catch(() => [] as WikiTreeNode[]),
+    apiJson<{ total: number }>("/api/v1/wiki/review?limit=1").catch(() => null),
   ]);
   return (
     <>
@@ -42,6 +43,22 @@ export default async function WikiListPage({
           <PageTitle icon={BookOpen}>Wiki</PageTitle>
           <div className="ml-auto flex items-center gap-2">
             <WikiSearch defaultValue={q} />
+            <Link
+              href="/wiki/review"
+              data-testid="wiki-review-link"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+            >
+              <ClipboardCheck className="h-4 w-4" aria-hidden /> To review
+              {review && review.total > 0 ? (
+                <span className="rounded-full bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{review.total}</span>
+              ) : null}
+            </Link>
+            <Link
+              href="/wiki/templates"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+            >
+              <LayoutTemplate className="h-4 w-4" aria-hidden /> Templates
+            </Link>
             <Link
               href="/wiki/import"
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  WIKI_REVIEW_CHOICES,
   WIKI_VISIBILITIES,
   type Attachment,
   type WikiPage,
@@ -39,14 +40,18 @@ export function EditWikiForm({
   page,
   initialAcl,
   groups,
+  canManage,
 }: {
   page: WikiPage;
   initialAcl: AclState;
   groups: GroupBrief[];
+  /** The owner or a wiki admin: only they may change who can see the page and how often it is reviewed. */
+  canManage: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [visibility, setVisibility] = useState<WikiVisibility>(page.visibility);
   const [acl, setAcl] = useState<AclState>(initialAcl);
+  const [reviewInterval, setReviewInterval] = useState<number | null>(page.reviewIntervalDays ?? null);
   const [location, setLocation] = useState<WikiLocation>({
     parentId: page.parentId,
     parentFolderId: page.parentFolderId,
@@ -133,7 +138,7 @@ export function EditWikiForm({
       setError("Title is required.");
       return;
     }
-    if (visibility === "group" && acl.length === 0) {
+    if (canManage && visibility === "group" && acl.length === 0) {
       setError("Restricted pages need at least one group.");
       return;
     }
@@ -144,8 +149,8 @@ export function EditWikiForm({
         body: JSON.stringify({
           title,
           body,
-          visibility,
-          acl,
+          // An editor who is not the owner may change the text, not who can see the page or its review schedule.
+          ...(canManage ? { visibility, acl, reviewIntervalDays: reviewInterval } : {}),
           summary: summary || undefined,
           parentId: location.parentId,
           parentFolderId: location.parentFolderId,
@@ -260,6 +265,35 @@ export function EditWikiForm({
           </legend>
           <TagPicker value={tags} onChange={(next) => void saveTags(next)} />
         </fieldset>
+        {canManage ? (
+        <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
+          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Keeping it up to date
+          </legend>
+          <label className="block text-sm">
+            <span className="text-slate-700 dark:text-slate-300">Ask for a check</span>
+            <select
+              value={reviewInterval === null ? "" : String(reviewInterval)}
+              onChange={(e) => setReviewInterval(e.target.value === "" ? null : Number(e.target.value))}
+              data-testid="review-interval"
+              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+            >
+              {WIKI_REVIEW_CHOICES.map((c) => (
+                <option key={String(c.value)} value={c.value === null ? "" : String(c.value)}>
+                  {c.label}
+                </option>
+              ))}
+              {reviewInterval !== null && !WIKI_REVIEW_CHOICES.some((c) => c.value === reviewInterval) ? (
+                <option value={String(reviewInterval)}>Every {reviewInterval} days</option>
+              ) : null}
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            You are told when nobody has edited or confirmed the page for this long.
+          </p>
+        </fieldset>
+        ) : null}
+        {canManage ? (
         <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Visibility
@@ -289,6 +323,7 @@ export function EditWikiForm({
             </div>
           ) : null}
         </fieldset>
+        ) : null}
       </aside>
     </form>
   );

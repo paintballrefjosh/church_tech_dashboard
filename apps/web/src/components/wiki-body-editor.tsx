@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExt from "@tiptap/extension-link";
+import { WikiPagePicker, type PickedWikiPage } from "./wiki-page-picker";
 import ImageExt from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import TableExt from "@tiptap/extension-table";
@@ -45,6 +46,7 @@ import {
   Code,
   Code2,
   Link as LinkIcon,
+  FileText,
   ImagePlus,
   Minus,
   Table as TableIcon,
@@ -126,6 +128,7 @@ export const WikiBodyEditor = forwardRef<
   const [mode, setMode] = useState<WikiBodyEditorMode>("edit");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pickingPage, setPickingPage] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: false, // SSR-friendly: avoid hydration mismatch
@@ -426,6 +429,23 @@ export const WikiBodyEditor = forwardRef<
     }
   }
 
+  function pickPage() {
+    if (editor) setPickingPage(true);
+  }
+
+  function insertPageLink(page: PickedWikiPage) {
+    setPickingPage(false);
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent([
+        { type: "text", text: page.title, marks: [{ type: "link", attrs: { href: `/wiki/${page.id}` } }] },
+        { type: "text", text: " " },
+      ])
+      .run();
+  }
+
   // ---- Cmd/Ctrl+Enter submit + Cmd+B/I shortcuts handled by StarterKit ---
 
   useEffect(() => {
@@ -503,7 +523,7 @@ export const WikiBodyEditor = forwardRef<
       .deleteSelection()
       .run();
     setSlash(null);
-    setTimeout(() => item.run({ editor: editor!, pickFile, insertLink }), 0);
+    setTimeout(() => item.run({ editor: editor!, pickFile, insertLink, pickPage }), 0);
   }
 
   // Capture nav keys while the slash menu is open.
@@ -648,6 +668,7 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
         pickFile={pickFile}
         canUpload={Boolean(onUpload)}
         insertLink={insertLink}
+        pickPage={pickPage}
       />
 
       {(uploading || uploadError) && (
@@ -686,6 +707,8 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
         </div>
       )}
 
+      {pickingPage ? <WikiPagePicker onPick={insertPageLink} onClose={() => setPickingPage(false)} /> : null}
+
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-b-md border-t border-slate-300 bg-slate-50 px-3 py-1 text-[11px] text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
         <span>Type <code className="rounded bg-slate-200 px-1 dark:bg-slate-800">/</code> on a blank line for blocks</span>
         <span>Ctrl/Cmd+B bold · Ctrl/Cmd+I italic · Ctrl/Cmd+K link</span>
@@ -708,8 +731,9 @@ const Toolbar = forwardRef<
     pickFile: () => void;
     canUpload: boolean;
     insertLink: () => void;
+    pickPage: () => void;
   }
->(function Toolbar({ editor, mode, setMode, uploading, pickFile, canUpload, insertLink }, ref) {
+>(function Toolbar({ editor, mode, setMode, uploading, pickFile, canUpload, insertLink, pickPage }, ref) {
   const sourceMode = mode === "source";
   const c = useCallback(
     (fn: (chain: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) => () =>
@@ -812,6 +836,9 @@ const Toolbar = forwardRef<
       <ToolDivider />
       <ToolBtn title="Link (Ctrl/Cmd+K)" onClick={insertLink} disabled={sourceMode}>
         <LinkIcon className="h-4 w-4" />
+      </ToolBtn>
+      <ToolBtn title="Link to a wiki page" onClick={pickPage} disabled={sourceMode}>
+        <FileText className="h-4 w-4" />
       </ToolBtn>
       <ToolBtn
         title={canUpload ? "Upload file (image / video / audio / PDF / etc.)" : "Save the page first to attach files"}
@@ -942,6 +969,7 @@ interface SlashCtx {
   editor: Editor;
   pickFile: () => void;
   insertLink: () => void;
+  pickPage: () => void;
 }
 interface SlashItem {
   key: string;
@@ -1014,6 +1042,13 @@ const SLASH_ITEMS: SlashItem[] = [
     hint: "Prompt for URL",
     keywords: "link url",
     run: ({ insertLink }) => insertLink(),
+  },
+  {
+    key: "page",
+    label: "Wiki page",
+    hint: "Link to another page",
+    keywords: "page wiki link reference",
+    run: ({ pickPage }) => pickPage(),
   },
   {
     key: "image",

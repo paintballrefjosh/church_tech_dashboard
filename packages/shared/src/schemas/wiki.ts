@@ -13,6 +13,11 @@ export const wikiPageSchema = z.object({
   parentFolderId: z.string().uuid().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  /** When someone last confirmed the page is still right (see wiki-pages.ts), and who. */
+  lastReviewedAt: z.string().datetime().nullable().optional(),
+  lastReviewedBy: z.string().uuid().nullable().optional(),
+  /** null = the site setting, 0 = never flagged, n = flagged after n days. */
+  reviewIntervalDays: z.number().int().min(0).max(3650).nullable().optional(),
 });
 export type WikiPage = z.infer<typeof wikiPageSchema>;
 
@@ -94,6 +99,7 @@ export const updateWikiPageSchema = z
     summary: z.string().max(500).optional(),
     parentId: z.string().uuid().nullable().optional(),
     parentFolderId: z.string().uuid().nullable().optional(),
+    reviewIntervalDays: z.number().int().min(0).max(3650).nullable().optional(),
   })
   .refine((v) => !(v.parentId && v.parentFolderId), {
     message: "A page can't have both a parent page and a parent folder",
@@ -160,3 +166,10 @@ export const wikiRevisionSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type WikiRevision = z.infer<typeof wikiRevisionSchema>;
+
+/** The pages that are due for another look: `GET /wiki/review`. */
+export const wikiReviewQuerySchema = z.object({
+  scope: z.enum(["all", "mine"]).default("all"),
+  limit: z.coerce.number().int().positive().max(500).default(200),
+});
+export type WikiReviewQuery = z.infer<typeof wikiReviewQuerySchema>;

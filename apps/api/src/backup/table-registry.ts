@@ -89,7 +89,8 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   ticket_category_assignments: { policy: "data", group: HELPDESK, title: "Ticket category assignments" },
 
   // ---- wiki ----
-  wiki_pages: { policy: "data", group: WIKI, title: "Wiki pages", label: ["title"] },
+  wiki_pages: { policy: "data", group: WIKI, title: "Wiki pages", label: ["title"], volatile: ["review_notified_at"] },
+  wiki_templates: { policy: "data", group: WIKI, title: "Wiki templates", label: ["name"] },
   wiki_folders: { policy: "data", group: WIKI, title: "Wiki folders", label: ["name"] },
   wiki_page_acl: { policy: "data", group: WIKI, title: "Wiki page access" },
   wiki_revisions: { policy: "data", group: WIKI, title: "Wiki page history", label: ["title", "summary"] },

@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  ParseUUIDPipe,
   Body,
   Query,
   Req,
@@ -18,6 +19,7 @@ import {
   createWikiPageSchema,
   updateWikiPageSchema,
   wikiPageListQuerySchema,
+  wikiReviewQuerySchema,
   importWikiQuerySchema,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
@@ -57,6 +59,33 @@ export class WikiController {
   @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
   tree(@CurrentUser() user: AuthenticatedUser) {
     return this.wiki.tree(user);
+  }
+
+  /** Pages that are due for another look (the Needs review screen). */
+  @Get("review")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  review(@CurrentUser() user: AuthenticatedUser, @Query() query: unknown) {
+    const parsed = wikiReviewQuerySchema.safeParse(query ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.wiki.reviewList(user, parsed.data);
+  }
+
+  @Get(":id/backlinks")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  backlinks(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
+    return this.wiki.backlinks(user, id);
+  }
+
+  /** "I checked this page and it is still right." Not an edit: no revision, no change to who last updated it. */
+  @Post(":id/review")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  @Audited({
+    action: "wiki.review",
+    resourceType: "wiki_page",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  markReviewed(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
+    return this.wiki.markReviewed(user, id);
   }
 
   @Get(":id/revisions")

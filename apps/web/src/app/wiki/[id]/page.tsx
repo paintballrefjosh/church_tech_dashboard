@@ -8,6 +8,7 @@ import { AttachmentList } from "@/components/attachment-list";
 import { LocalDateTime } from "@/components/local-date-time";
 import { WikiPageToolbar } from "./wiki-page-toolbar";
 import { WikiEditHotkey } from "./wiki-edit-hotkey";
+import { WikiReviewBar, type ReviewInfo } from "./wiki-review-bar";
 import { WikiTreeSidebar } from "../wiki-tree-sidebar";
 import { WikiSidebarPane } from "../wiki-sidebar-pane";
 import { ancestorChain } from "../wiki-tree-utils";
@@ -20,7 +21,16 @@ interface PagePayload {
   acl: Array<{ groupId: string; canEdit: boolean }>;
   canEdit: boolean;
   canDelete: boolean;
+  canManage: boolean;
+  isAdmin: boolean;
   updatedBy: { id: string; name: string | null; email: string } | null;
+  review: ReviewInfo;
+}
+
+interface Backlink {
+  id: string;
+  title: string;
+  context: string;
 }
 
 interface GroupBrief {
@@ -52,11 +62,12 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
   }
   const payload = (await res.json()) as PagePayload;
 
-  const [groups, tree] = await Promise.all([
+  const [groups, tree, backlinks] = await Promise.all([
     payload.acl.length
       ? apiJson<GroupBrief[]>("/api/v1/groups").catch(() => [] as GroupBrief[])
       : Promise.resolve([] as GroupBrief[]),
     apiJson<WikiTreeNode[]>("/api/v1/wiki/tree").catch(() => [] as WikiTreeNode[]),
+    apiJson<Backlink[]>(`/api/v1/wiki/${encodeURIComponent(id)}/backlinks`).catch(() => [] as Backlink[]),
   ]);
   const groupMap = new Map(groups.map((g) => [g.id, g]));
   const breadcrumbs = ancestorChain(tree, payload.page.id);
@@ -106,6 +117,7 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                   pageId={payload.page.id}
                   canEdit={payload.canEdit}
                   canDelete={payload.canDelete}
+                  isAdmin={payload.isAdmin}
                   visibility={payload.page.visibility}
                   acl={acl}
                 />
@@ -120,11 +132,31 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                 </p>
               </header>
 
+              <WikiReviewBar pageId={payload.page.id} canEdit={payload.canEdit} review={payload.review} />
+
               {payload.page.body.trim() ? (
                 <Markdown>{payload.page.body}</Markdown>
               ) : (
                 <p className="italic text-slate-400">(empty page)</p>
               )}
+
+              {backlinks.length > 0 ? (
+                <section className="mt-8 border-t border-slate-300 pt-4 dark:border-slate-800" data-testid="backlinks">
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Linked from
+                  </h2>
+                  <ul className="space-y-2 text-sm">
+                    {backlinks.map((b) => (
+                      <li key={b.id}>
+                        <Link href={`/wiki/${b.id}`} className="font-medium text-brand-600 hover:underline">
+                          {b.title}
+                        </Link>
+                        {b.context ? <span className="block text-xs text-slate-500 dark:text-slate-400">{b.context}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
               <section className="mt-8 border-t border-slate-300 pt-4 dark:border-slate-800">
                 <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

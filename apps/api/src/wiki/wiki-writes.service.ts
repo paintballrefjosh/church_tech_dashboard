@@ -33,6 +33,9 @@ export class WikiWritesService {
   ) {
     const page = await this.wiki.update(user, id, input, opts);
     this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
+    // Choosing how often a page is reviewed is not a change anyone needs telling about.
+    const keys = Object.keys(input);
+    if (keys.length > 0 && keys.every((k) => k === "reviewIntervalDays")) return page;
 
     // Notify the owner + everyone with ACL access (excluding the actor). We
     // skip email here — wiki edits can be high-volume and notifications

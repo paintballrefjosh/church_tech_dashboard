@@ -13,6 +13,7 @@ import { McpToolsService, snippet, describeError } from "../src/mcp/mcp.tools";
 import type { WikiService } from "../src/wiki/wiki.service";
 import type { WikiWritesService } from "../src/wiki/wiki-writes.service";
 import type { WikiFoldersService } from "../src/wiki/wiki-folders.service";
+import type { WikiTemplatesService } from "../src/wiki/wiki-templates.service";
 import type { SettingsService } from "../src/settings/settings.service";
 import type { ApiBridge } from "../src/mcp/bridge/api-bridge.service";
 import type { BridgeTool } from "../src/mcp/bridge/bridge.types";
@@ -56,7 +57,7 @@ function build() {
   };
   const wiki = {
     list: async (_u: unknown, q: unknown) => (rec("list", q), [page]),
-    getWithAcl: async () => ({ page, acl: [], canEdit: true, canDelete: false, updatedBy: { name: "Josh", email: "j@x" } }),
+    getWithAcl: async () => ({ page, acl: [], canEdit: true, canDelete: false, updatedBy: { name: "Josh", email: "j@x" }, review: { lastReviewedAt: null, needsReview: false } }),
     tree: async () => [{ kind: "folder", id: FOLDER_ID, name: "Systems", parentFolderId: null }],
     revisions: async () => [
       { id: "r1", pageId: PAGE_ID, title: "DNS", body: "long", editorUserId: "u1", editorName: null, editorEmail: "j@x", summary: "init", createdAt: UPDATED },
@@ -75,6 +76,7 @@ function build() {
   const folders = {
     create: async (input: unknown) => (rec("createFolder", input), { id: FOLDER_ID, name: "Systems", parentFolderId: null }),
   };
+  const templates = { list: async () => [] };
   const settings = { publicBaseUrl: async () => "https://dash.example.org" };
   // Records the route calls the bridge tools would make.
   const bridge = {
@@ -84,6 +86,7 @@ function build() {
     wiki as unknown as WikiService,
     writes as unknown as WikiWritesService,
     folders as unknown as WikiFoldersService,
+    templates as unknown as WikiTemplatesService,
     settings as unknown as SettingsService,
     bridge as unknown as ApiBridge,
   );
@@ -94,13 +97,16 @@ const READ_WRITE = [PERMISSIONS.WIKI_READ_OWN, PERMISSIONS.WIKI_CREATE];
 const text = (r: { content: Array<{ type: string; text?: string }> }) => r.content[0]?.text ?? "";
 
 describe("McpToolsService.call", () => {
-  it("exposes the seven wiki tools first, then the catalogue", () => {
+  it("exposes the ten wiki tools first, then the catalogue", () => {
     const names = build().svc.toolNames();
-    expect(names.slice(0, 7)).toEqual([
+    expect(names.slice(0, 10)).toEqual([
       "wiki_search",
       "wiki_get_page",
       "wiki_tree",
       "wiki_list_revisions",
+      "wiki_backlinks",
+      "wiki_needs_review",
+      "wiki_list_templates",
       "wiki_create_page",
       "wiki_update_page",
       "wiki_create_folder",

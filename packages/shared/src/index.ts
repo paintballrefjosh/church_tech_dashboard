@@ -34,3 +34,4 @@ export * from "./backup-offsite";
 export * from "./alert-rules";
 export * from "./helpdesk";
 export * from "./inbound-mail";
+export * from "./wiki-pages";

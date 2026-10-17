@@ -1183,6 +1183,30 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   - Tickets from email are not created while the mailbox login is wrong or the server is down: the page shows the
     error, and mail is picked up when it works again (nothing is lost, it stays in the mailbox).
 
+## The wiki: templates, "linked from", pages that go out of date, and history
+
+- **Templates.** **New page > Start from** offers five built-in outlines (How-to guide, Runbook, System or service,
+  Meeting notes, Incident write-up) and any template your wiki admins saved. `{{date}}` and `{{author}}` are filled in;
+  the page is yours to change. **Wiki > Templates** (wiki admin) keeps the saved ones, and **Save as template** on a page
+  copies that page's text into one (everyone who writes in the wiki can then start from it, so do not use a restricted
+  page for it). Deleting a template does not touch pages made from it.
+- **Linking pages.** In the editor, the page icon in the toolbar (or `/` then "Wiki page") searches the pages you can read
+  and inserts an ordinary link. A pasted address that ends in `/wiki/<page id>` counts as a link too.
+- **Linked from.** Under a page, the pages you can read that link to it, with the sentence each link sits in. It is
+  worked out when you open the page, so there is nothing to rebuild after an import or a restore, and a page you may not
+  read is never named. Links inside code blocks and a link to a page's Edit or History screen are not counted.
+- **Pages that go out of date.** **Admin > Site settings > Wiki - flag a page after (days)** (default 180, 0 turns the
+  check off). A page nobody has edited or confirmed for that long shows a banner, with **This page is still correct** for
+  anyone who may edit it (this is not an edit: no revision, "updated by" is untouched). The owner or a wiki admin can give
+  one page its own time, or "Never" (**Edit > Keeping it up to date**). **Wiki > To review** lists every due page, longest
+  first, with **Mine**. Owners are told once per page, in one message however many of theirs came due (mutable under their
+  profile: **Wiki pages to review**). A page that was already overdue when the check was switched on (or the site was
+  upgraded) shows as due but nobody is messaged about it. Editing a page counts as looking at it, so a page someone is
+  working on is never flagged.
+- **History.** **History** on a page shows what each edit changed against the one before, with the changed words marked,
+  long unchanged stretches folded, and a title change shown. The two menus compare any two versions, including the page as
+  it is now; **This version** shows the text as it was; **Restore this version** writes it back as a new revision.
+
 ## The home page and its looks
 
 The home page can be shown in six looks: **Tiles** (the original customisable grid), **Start page**, **Nave**,
@@ -1292,6 +1316,9 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `wiki_get_page` | Read one page (Markdown body, location, `updatedAt`) |
 | `wiki_tree` | The folder and page hierarchy |
 | `wiki_list_revisions` | A page's edit history |
+| `wiki_backlinks` | The pages that link to a page, with the sentence |
+| `wiki_needs_review` | Pages nobody has edited or confirmed for a long time (reading is not reviewing: confirming stays with people) |
+| `wiki_list_templates` | The page templates: built in and saved |
 | `wiki_create_page` | Create a page, optionally in a folder or under a page |
 | `wiki_update_page` | Change a page's title, body or location |
 | `wiki_create_folder` | Create a folder |
