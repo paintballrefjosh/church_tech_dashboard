@@ -16,6 +16,7 @@ import {
   findAttachmentType,
   normaliseCustomExtension,
 } from "./schemas/attachment";
+import { OFFSITE_KEYS, OFFSITE_MAX_KEEP, normaliseOffsitePrefix } from "./backup-offsite";
 
 export type SettingType = "string" | "boolean" | "number" | "secret" | "json";
 
@@ -35,6 +36,7 @@ export interface KnownSetting<T = unknown> {
     | "propresenter"
     | "planning_center"
     | "monitoring"
+    | "backup"
     | "experimental";
 }
 
@@ -430,6 +432,82 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
       "Reject mail relays presenting an untrusted/self-signed cert. Turn off only for internal relays where you trust the network path — leaves the connection open to MITM otherwise.",
     defaultValue: true,
     category: "smtp",
+  },
+  // Offsite backup copies (admin > Backups > Offsite)
+  {
+    key: OFFSITE_KEYS.enabled,
+    type: "boolean",
+    label: "Copy backups offsite",
+    description:
+      "Copy each scheduled backup to the second bucket below, so losing this machine does not lose the backups. Needs the endpoint, bucket and both keys first. The copy is the same file you can download from the Backups page: it holds everything in the database, so use a private bucket.",
+    defaultValue: false,
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.endpoint,
+    type: "string",
+    label: "Endpoint",
+    description:
+      "host[:port] or a URL of an S3-compatible service, for example s3.eu-west-2.amazonaws.com or https://s3.us-west-004.backblazeb2.com. Not this site's own object store.",
+    defaultValue: "",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.bucket,
+    type: "string",
+    label: "Bucket",
+    description: "An existing bucket. It must not be the one this site stores its files in.",
+    defaultValue: "",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.region,
+    type: "string",
+    label: "Region",
+    description: "The bucket's region. Many services accept the default.",
+    defaultValue: "us-east-1",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.prefix,
+    type: "string",
+    label: "Folder",
+    description: "A folder inside the bucket for these copies, for example church-dashboard/. Blank uses the top of the bucket.",
+    defaultValue: "church-dashboard/",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.accessKey,
+    type: "string",
+    label: "Access key",
+    description:
+      "Use a key that can write and list this bucket. Add delete too if copies older than 'Copies to keep' should be removed; without it they stay and a warning is shown.",
+    defaultValue: "",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.secretKey,
+    type: "secret",
+    label: "Secret key",
+    description: "Paired with the access key. Stored encrypted.",
+    defaultValue: "",
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.pathStyle,
+    type: "boolean",
+    label: "Path-style addressing",
+    description: "Leave on for MinIO, Garage and most self-hosted stores. Turn off for AWS S3 if its bucket address requires it.",
+    defaultValue: true,
+    category: "backup",
+  },
+  {
+    key: OFFSITE_KEYS.keep,
+    type: "number",
+    label: "Copies to keep",
+    description: "How many of the newest copies stay in the bucket; older ones are deleted there. 0 keeps every copy.",
+    defaultValue: 14,
+    category: "backup",
   },
   // UniFi (Phase 2.2). Read-only views over the Network Application's REST API.
   {
@@ -829,6 +907,7 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   google: null,
   microsoft: null,
   smtp: null,
+  backup: null,
   experimental: null,
   printers: PERMISSIONS.PRINTERS_ADMIN,
   propresenter: PERMISSIONS.PROPRESENTER_ADMIN,
@@ -867,6 +946,8 @@ export interface TogglePrerequisite {
   requires: string[];
   /** Provider name for error/hint copy. */
   providerLabel: string;
+  /** What is being switched on, for the error ("Google sign-in"); defaults to `<providerLabel> sign-in`. */
+  enablesLabel?: string;
   /** Settings category slug (`/admin/settings/<slug>`) where `requires` are edited. */
   categorySlug: string;
 }
@@ -889,6 +970,13 @@ export const TOGGLE_PREREQUISITES: ReadonlyArray<TogglePrerequisite> = [
     requires: ["dns.primary_url", "dns.api_token", "dns.sync_zone"],
     providerLabel: "DNS sync",
     categorySlug: "monitoring",
+  },
+  {
+    toggleKey: OFFSITE_KEYS.enabled,
+    requires: [OFFSITE_KEYS.endpoint, OFFSITE_KEYS.bucket, OFFSITE_KEYS.accessKey, OFFSITE_KEYS.secretKey],
+    providerLabel: "Offsite backups",
+    enablesLabel: "offsite backups",
+    categorySlug: "backup",
   },
 ];
 
@@ -930,6 +1018,18 @@ export function validateSettingValue(key: string, value: unknown): string | null
       }
       return null;
     }
+    case OFFSITE_KEYS.prefix: {
+      if (typeof value !== "string") return "Enter a folder name, or leave it blank.";
+      const r = normaliseOffsitePrefix(value);
+      return r.ok ? null : r.error;
+    }
+    case OFFSITE_KEYS.endpoint:
+      if (typeof value !== "string") return "Enter the service's host name or URL.";
+      return /[\s]/.test(value) ? "The endpoint cannot contain spaces." : null;
+    case OFFSITE_KEYS.keep:
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= OFFSITE_MAX_KEEP
+        ? null
+        : `Enter a whole number from 0 to ${OFFSITE_MAX_KEEP}.`;
     case "dashboard.default_theme":
       return isLook(value) ? null : `Choose one of: ${LOOK_IDS.join(", ")}.`;
     case "dashboard.enabled_themes":

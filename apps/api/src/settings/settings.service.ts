@@ -150,7 +150,7 @@ export class SettingsService implements OnModuleInit {
     }
     if (missing.length > 0) {
       throw new BadRequestException(
-        `Set the ${missing.join(" and ")} on the ${prereq.providerLabel} settings page before enabling ${prereq.providerLabel} sign-in.`,
+        `Set the ${missing.join(" and ")} on the ${prereq.providerLabel} settings page before enabling ${prereq.enablesLabel ?? `${prereq.providerLabel} sign-in`}.`,
       );
     }
   }

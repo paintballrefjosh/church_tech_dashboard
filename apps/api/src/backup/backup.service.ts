@@ -72,7 +72,7 @@ export function secretFingerprint(): string {
 }
 
 /** Writes an operation's progress to its row, at most about once a second, with a heartbeat while it is quiet. */
-class Tracker {
+export class Tracker {
   private last = 0;
   private timer: NodeJS.Timeout | null = null;
   private current: { phase: string; progress: BackupProgress | null } = { phase: "", progress: null };
@@ -212,6 +212,9 @@ export class BackupService implements OnModuleInit {
       appVersion: r.appVersion,
       createdBy: creator ? { id: creator.id, email: creator.email, displayName: creator.name } : null,
       error: r.error,
+      // A copy retention has since removed from the bucket (key cleared) is no longer a copy.
+      offsiteAt: r.offsiteAt && r.offsiteKey ? r.offsiteAt.toISOString() : null,
+      offsiteError: r.offsiteError,
     };
   }
 
@@ -302,6 +305,31 @@ export class BackupService implements OnModuleInit {
     return new Tracker(this.db, row!.id);
   }
 
+  /**
+   * Begin a tracked operation holding the operation lease, for work another service does in the background
+   * (the offsite copy). Null when another operation holds the lease. The caller reports through the tracker and
+   * always releases the mutex.
+   */
+  async beginOperation(kind: BackupOperationKind, backupId: string | null, userId: string | null, phase: string): Promise<{ tracker: Tracker; mutex: Mutex } | null> {
+    const mutex = await this.leases.acquireMutex(OPERATION_LEASE, OPERATION_LEASE_TTL_SEC);
+    if (!mutex) return null;
+    try {
+      if (await this.gate.isRestoring()) {
+        await mutex.release();
+        return null;
+      }
+      return { tracker: await this.startOperation(kind, backupId, userId, phase), mutex };
+    } catch (err) {
+      await mutex.release();
+      throw err;
+    }
+  }
+
+  /** Point a running operation at the backup it is working on now. */
+  async setOperationBackup(operationId: string, backupId: string): Promise<void> {
+    await this.db.update(backupOperations).set({ backupId }).where(eq(backupOperations.id, operationId));
+  }
+
   private async takeOperationLease(): Promise<Mutex> {
     const mutex = await this.leases.acquireMutex(OPERATION_LEASE, OPERATION_LEASE_TTL_SEC);
     if (!mutex) throw new ConflictException("Another backup, import, comparison or restore is running. Wait for it to finish.");
@@ -313,7 +341,7 @@ export class BackupService implements OnModuleInit {
   }
 
   /** Run something after the HTTP response, logging what escapes (every path reports through its Tracker). */
-  private background(label: string, work: () => Promise<void>): void {
+  background(label: string, work: () => Promise<void>): void {
     void work().catch((err: unknown) => this.logger.error(`${label} failed unexpectedly: ${message(err)}`));
   }
 
@@ -838,6 +866,7 @@ export class BackupService implements OnModuleInit {
       timezone: r.timezone,
       keep: r.keepCount,
       includeFiles: r.includeFiles,
+      offsite: r.offsite,
       lastRunAt: r.lastRunAt ? r.lastRunAt.toISOString() : null,
       lastStatus: (r.lastStatus as BackupSchedule["lastStatus"]) ?? null,
       lastError: r.lastError,
@@ -869,6 +898,7 @@ export class BackupService implements OnModuleInit {
       timezone: input.timezone,
       keepCount: input.keep,
       includeFiles: input.includeFiles,
+      offsite: input.offsite,
     };
     const [r] = await this.db
       .insert(backupSchedules)
@@ -890,6 +920,7 @@ export class BackupService implements OnModuleInit {
       timezone: input.timezone ?? cur.timezone,
       keepCount: input.keep ?? cur.keepCount,
       includeFiles: input.includeFiles ?? cur.includeFiles,
+      offsite: input.offsite ?? cur.offsite,
     };
     const [r] = await this.db
       .update(backupSchedules)
@@ -967,6 +998,11 @@ export class BackupService implements OnModuleInit {
   }
 
   private async notifyFailure(scheduleName: string, error: string): Promise<void> {
+    await this.notifyAdmins(`Scheduled backup failed: ${scheduleName}`, error, "/admin/backups?tab=schedules");
+  }
+
+  /** Tell every administrator about a backup problem (best effort: a failure here is only logged). */
+  async notifyAdmins(title: string, body: string, link: string): Promise<void> {
     try {
       const [adminGroup] = await this.db.select({ id: groups.id }).from(groups).where(eq(groups.name, DEFAULT_GROUPS.ADMIN)).limit(1);
       if (!adminGroup) return;
@@ -975,9 +1011,9 @@ export class BackupService implements OnModuleInit {
         admins.map((a) => ({
           recipientUserId: a.userId,
           kind: "backup.failed",
-          title: `Scheduled backup failed: ${scheduleName}`,
-          body: error.slice(0, 500),
-          link: "/admin/backups?tab=schedules",
+          title,
+          body: body.slice(0, 500),
+          link,
         })),
       );
     } catch (err) {

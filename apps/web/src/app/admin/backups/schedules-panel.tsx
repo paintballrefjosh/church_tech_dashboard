@@ -55,6 +55,7 @@ interface FormState {
   timezone: string;
   keep: number;
   includeFiles: boolean;
+  offsite: boolean;
 }
 
 const blank = (): FormState => ({
@@ -67,6 +68,7 @@ const blank = (): FormState => ({
   timezone: browserZone(),
   keep: 7,
   includeFiles: true,
+  offsite: true,
 });
 
 const input = "mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900";
@@ -157,6 +159,10 @@ function ScheduleForm({
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <input type="checkbox" checked={v.includeFiles} onChange={(e) => set("includeFiles", e.target.checked)} />
         Include uploaded files
+      </label>
+      <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" checked={v.offsite} onChange={(e) => set("offsite", e.target.checked)} />
+        Also copy to the offsite bucket (when offsite copies are switched on)
       </label>
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <input type="checkbox" checked={v.enabled} onChange={(e) => set("enabled", e.target.checked)} />
@@ -259,6 +265,7 @@ export function SchedulesPanel({ initialSchedules, runningOperation }: { initial
     timezone: s.timezone,
     keep: s.keep,
     includeFiles: s.includeFiles,
+    offsite: s.offsite,
   });
 
   return (

@@ -21,6 +21,7 @@ function facts(over: Partial<PostureFacts> = {}): PostureFacts {
     maintenanceMode: false,
     maintenanceUntil: null,
     backups: { lastReadyAt: NOW - DAY, scheduleEnabled: true },
+    offsite: { enabled: true, lastCopyAt: NOW - DAY, failing: 0 },
     auditRetentionDays: 365,
     ...over,
   };
@@ -100,6 +101,20 @@ describe("security posture", () => {
     expect(stale).toMatchObject({ severity: "warn", title: "The last backup is 20 days ago" });
     expect(stale.detail).toContain("not producing");
     expect(byId(evaluatePosture(facts({ backups: { lastReadyAt: NOW - 3 * 3_600_000, scheduleEnabled: true } })), "backups")?.title).toBe("Last backup today");
+  });
+
+  it("offsite copies: off, none yet, failing, stale, fresh", () => {
+    const check = (o: Partial<PostureFacts["offsite"]>, lastReadyAt: number | null = NOW - DAY) =>
+      byId(evaluatePosture(facts({ backups: { lastReadyAt, scheduleEnabled: true }, offsite: { enabled: true, lastCopyAt: NOW - DAY, failing: 0, ...o } })), "offsite");
+    expect(check({ enabled: false })).toMatchObject({ severity: "info", title: "Backups are only kept on this installation" });
+    expect(check({ lastCopyAt: null })).toMatchObject({ severity: "info", title: "No backup has reached the offsite bucket yet" });
+    expect(check({ lastCopyAt: null, failing: 2 })?.severity).toBe("warn");
+    expect(check({ lastCopyAt: NOW - 20 * DAY })).toMatchObject({ severity: "warn", title: "The last offsite copy is 20 days ago" });
+    expect(check({ lastCopyAt: NOW - 20 * DAY, failing: 1 })?.detail).toContain("failing");
+    expect(check({})).toMatchObject({ severity: "ok" });
+    expect(check({ failing: 1 })?.severity).toBe("warn");
+    // Nothing to copy until a backup exists; the "no backup" check already speaks.
+    expect(check({ enabled: false }, null)).toBeUndefined();
   });
 
   it("audit retention: forever, short, long", () => {

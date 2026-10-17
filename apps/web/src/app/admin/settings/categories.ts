@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Server,
   FlaskConical,
+  DatabaseBackup,
   Settings as SettingsIcon,
 } from "lucide-react";
 
@@ -109,6 +110,14 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     Icon: Server,
     section: "module",
     permission: "monitors:write:any",
+  },
+  {
+    slug: "backup",
+    label: "Backups",
+    description: "Offsite copies: a second bucket that scheduled backups are copied to.",
+    Icon: DatabaseBackup,
+    section: "core",
+    permission: "site:read",
   },
   {
     slug: "experimental",

@@ -1,4 +1,5 @@
 import type { Readable } from "node:stream";
+import type { Client } from "minio";
 import { getS3 } from "../attachments/s3.client";
 
 /**
@@ -8,6 +9,8 @@ import { getS3 } from "../attachments/s3.client";
 export interface ObjectInfo {
   key: string;
   size: number;
+  /** Epoch milliseconds, when the store says. */
+  lastModified?: number;
 }
 
 export interface ObjectStore {
@@ -31,8 +34,11 @@ function isNotFound(err: unknown): boolean {
 }
 
 export class S3ObjectStore implements ObjectStore {
+  /** The app's own bucket by default; the offsite copy passes its own client and bucket. */
+  constructor(private readonly target: () => { client: Client; bucket: string } = getS3) {}
+
   async stat(key: string): Promise<{ size: number } | null> {
-    const { client, bucket } = getS3();
+    const { client, bucket } = this.target();
     try {
       const s = await client.statObject(bucket, key);
       return { size: s.size };
@@ -43,12 +49,12 @@ export class S3ObjectStore implements ObjectStore {
   }
 
   async get(key: string): Promise<Readable> {
-    const { client, bucket } = getS3();
+    const { client, bucket } = this.target();
     return client.getObject(bucket, key);
   }
 
   async put(key: string, body: Readable | Buffer, contentType: string, size?: number): Promise<void> {
-    const { client, bucket } = getS3();
+    const { client, bucket } = this.target();
     if (Buffer.isBuffer(body)) {
       await client.putObject(bucket, key, body, body.length, { "Content-Type": contentType });
     } else if (size !== undefined) {
@@ -65,18 +71,18 @@ export class S3ObjectStore implements ObjectStore {
    */
   async remove(keys: string[]): Promise<void> {
     if (keys.length === 0) return;
-    const { client, bucket } = getS3();
+    const { client, bucket } = this.target();
     for (let i = 0; i < keys.length; i += 8) {
       await Promise.all(keys.slice(i, i + 8).map((k) => client.removeObject(bucket, k)));
     }
   }
 
   async list(prefix: string): Promise<ObjectInfo[]> {
-    const { client, bucket } = getS3();
+    const { client, bucket } = this.target();
     const out: ObjectInfo[] = [];
     const stream = client.listObjectsV2(bucket, prefix, true);
-    for await (const item of stream as AsyncIterable<{ name?: string; size?: number }>) {
-      if (item.name) out.push({ key: item.name, size: item.size ?? 0 });
+    for await (const item of stream as AsyncIterable<{ name?: string; size?: number; lastModified?: Date }>) {
+      if (item.name) out.push({ key: item.name, size: item.size ?? 0, lastModified: item.lastModified?.getTime() });
     }
     return out;
   }

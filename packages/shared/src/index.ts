@@ -30,3 +30,4 @@ export * from "./dashboard";
 export * from "./user-agent";
 export * from "./security-posture";
 export * from "./maintenance";
+export * from "./backup-offsite";

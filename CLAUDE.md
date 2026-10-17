@@ -412,7 +412,7 @@ audit snapshot.
 `/admin/security` (`site:admin`, `@SessionOnly`, `GET /admin/security-posture`) lists how the site is set up as checks
 (`critical` / `warn` / `info` / `ok`): the install password still in place, administrators without two-factor, Google and
 Microsoft sign-in scope, pending approvals, API tokens that never expire or sit idle, Cisco switches with no pinned host
-key, maintenance mode, Site URL, SMTP, backup age, audit retention. `SecurityPostureService` only gathers counts and
+key, maintenance mode, Site URL, SMTP, backup age, offsite copies, audit retention. `SecurityPostureService` only gathers counts and
 settings (never a secret); the rules are the pure `evaluatePosture` in `packages/shared/src/security-posture.ts`
 (unit-tested), the page only draws them, and every row says its status in words and an icon. **A new security-relevant
 setting or policy gets a check there** (a fact in `PostureFacts`, a rule, a test); it reads, it never fixes anything.
@@ -1087,6 +1087,23 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
 - **One operation at a time, cluster-wide** (`mutex:backup`), with progress in `backup_operations`; a
   running row that stops updating belongs to a dead node and is failed by the scheduler job. Steps after
   the restore's commit are best effort (warnings), never a failure of a committed restore.
+- **Offsite copies** (`backup/offsite.service.ts`, `backup-offsite.ts` in shared, settings category `backup`, migration 0063):
+  the archive is copied byte for byte to a SECOND S3 bucket (`backup.offsite.*` settings; the secret key is a `secret`
+  setting; the switch has a `TOGGLE_PREREQUISITES` entry; a bucket equal to the app's own is refused). It goes through
+  the same `ObjectStore` interface (`S3ObjectStore` takes its client and bucket; `makeS3Client`), so tests use
+  `MemoryObjectStore`. Rules: (1) the `backup-offsite` cluster job (5 min) only picks up READY, `kind = scheduled`
+  backups whose schedule has `offsite` on, within the newest `keep`, whose `offsite_dest` is not the current destination
+  (a changed bucket re-copies); a manual or safety backup is copied only by the per-backup button. (2) Every copy runs as
+  an `offsite` operation under the ordinary operation lease (`BackupService.beginOperation`), so it excludes restores and
+  deletes of that backup; never copy outside it. (3) A copy is KEPT only after the size and the recorded SHA-256 match;
+  failures set `offsite_error`, retry after `OFFSITE_RETRY_MINUTES`, and notify admins once until something succeeds.
+  (4) Retention at the destination deletes only keys that `isOffsiteArchiveKey` accepts (our name pattern in our folder),
+  never other files; deletes that are refused are warnings, not failures; pruned rows keep `offsite_at` (copied once) but
+  lose `offsite_key`, so they are not queued again. (5) `fetch` brings a copy back through `importUpload` (an uploaded
+  backup, checked like any upload) and only for keys that match the pattern. The copy is NOT re-encrypted: it holds
+  everything a download holds. Tests: `backup-offsite.test.ts` (pure), `backup-offsite.integration.test.ts` (run on
+  CockroachDB and YugabyteDB), smoke "offsite" tests, the Offsite tab in `backups.spec.ts`; the real round trip was run
+  against a second Garage bucket.
 - **Object store**: use `removeObject` per key. minio's `removeObjects` is refused by Garage ("Invalid
   delete XML query"), and swallowing delete errors had leaked archives; `removeBackup` keeps the row when
   the delete fails and `sweepOrphans` cleans up archives with no row.

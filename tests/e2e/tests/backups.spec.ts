@@ -48,7 +48,7 @@ test.describe("Backups", () => {
     await page.getByRole("link", { name: "Backups" }).click();
     await expect(page).toHaveURL(/\/admin\/backups$/);
     await expect(page.getByRole("heading", { name: "Backups", level: 1 })).toBeVisible();
-    for (const tab of ["Backups", "Schedules", "Restore"]) {
+    for (const tab of ["Backups", "Schedules", "Offsite", "Restore"]) {
       await expect(page.getByRole("navigation", { name: "Backup sections" }).getByRole("link", { name: tab })).toBeVisible();
     }
   });
@@ -93,6 +93,19 @@ test.describe("Backups", () => {
 
     await card.getByRole("button", { name: "Delete" }).click();
     await expect(page.locator("li", { hasText: scheduleName })).toHaveCount(0);
+  });
+
+  test("the Offsite tab says copies are not set up and leads to the settings, where the switch is locked", async ({ page }) => {
+    await page.goto("/admin/backups?tab=offsite");
+    await expect(page.getByRole("heading", { name: "Offsite copies" })).toBeVisible();
+    await expect(page.getByTestId("offsite-state")).toContainText(/not set up yet/);
+    // Nothing to copy or test until a destination exists.
+    await expect(page.getByTestId("offsite-copy-now")).toBeDisabled();
+    await page.getByRole("link", { name: "Set up" }).click();
+    await expect(page).toHaveURL(/\/admin\/settings\/backup$/);
+    await expect(page.getByText("Copy backups offsite", { exact: true })).toBeVisible();
+    await expect(page.getByText("Secret key", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Set the .* first\./).first()).toBeVisible();
   });
 
   test("restore: choose a backup, compare, and the Restore button stays locked until it is confirmed", async ({ page }) => {

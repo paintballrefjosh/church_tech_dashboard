@@ -28,7 +28,7 @@ export class SecurityPostureService {
     const idleCut = new Date(now.getTime() - 90 * DAY_MS);
     const live = and(eq(users.isActive, true), isNull(users.deletedAt), eq(users.approvalStatus, "approved"));
 
-    const [adminRows, userRows, boot, pending, tokenRows, ciscoRows, lastBackup, schedules] = await Promise.all([
+    const [adminRows, userRows, boot, pending, tokenRows, ciscoRows, lastBackup, schedules, offsiteRows] = await Promise.all([
       this.db
         .select({ total: sql<number>`count(*)`, withoutTotp: sql<number>`count(*) FILTER (WHERE ${users.totpEnabled} = false)` })
         .from(users)
@@ -64,6 +64,13 @@ export class SecurityPostureService {
         .from(backups)
         .where(eq(backups.status, "ready")),
       this.db.select({ c: sql<number>`count(*)` }).from(backupSchedules).where(eq(backupSchedules.enabled, true)),
+      this.db
+        .select({
+          at: sql<string | number | null>`extract(epoch FROM max(${backups.offsiteAt}) FILTER (WHERE ${backups.offsiteKey} IS NOT NULL)) * 1000`,
+          // Only recent scheduled backups: an old failure nobody retries must not warn forever.
+          failing: sql<number>`count(*) FILTER (WHERE ${backups.offsiteError} IS NOT NULL AND ${backups.kind} = 'scheduled' AND ${backups.createdAt} > ${new Date(now.getTime() - 14 * DAY_MS)})`,
+        })
+        .from(backups),
     ]);
 
     const text = async (key: string): Promise<string> => {
@@ -109,6 +116,11 @@ export class SecurityPostureService {
       maintenanceMode: maintenance.active,
       maintenanceUntil: maintenance.until,
       backups: { lastReadyAt: lastReady, scheduleEnabled: n(schedules[0]?.c) > 0 },
+      offsite: {
+        enabled: await flag("backup.offsite.enabled"),
+        lastCopyAt: offsiteRows[0]?.at != null ? Number(offsiteRows[0].at) : null,
+        failing: n(offsiteRows[0]?.failing),
+      },
       auditRetentionDays: typeof retention === "number" && retention >= 0 ? Math.floor(retention) : 365,
     };
   }

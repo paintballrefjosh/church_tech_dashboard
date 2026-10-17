@@ -236,6 +236,50 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     assert(kept.res.status === 200, "the schedule's backup vanished with it");
   });
 
+  await test("backups: offsite copies - the status, and nothing happens while it is not set up", async () => {
+    const { res } = await session("/api/v1/admin/backups/offsite");
+    assert(res.status === 200, `status ${res.status}`);
+    const st = await res.json();
+    for (const k of ["enabled", "configured", "keep", "pending", "failing", "copied", "warnings"]) assert(k in st, `no ${k} in ${JSON.stringify(st)}`);
+    assert(Array.isArray(st.warnings), "warnings is not a list");
+    assert(!JSON.stringify(st).includes("secret_key"), "the status names a secret");
+    // A bad key is refused whether or not a destination exists.
+    const bad = await session("/api/v1/admin/backups/offsite/fetch", { method: "POST", ...json({ key: "not/ours.txt" }) });
+    assert(bad.res.status === 400, `fetch of a foreign key: ${bad.res.status}`);
+    const noKey = await session("/api/v1/admin/backups/offsite/fetch", { method: "POST", ...json({}) });
+    assert(noKey.res.status === 400, `fetch without a key: ${noKey.res.status}`);
+    if (st.configured) return; // an operator set one up here: do not poke at it
+    assert(st.enabled === false && typeof st.missing === "string", `unconfigured status: ${JSON.stringify(st)}`);
+    const test = await session("/api/v1/admin/backups/offsite/test", { method: "POST" });
+    assert(test.res.status === 201 || test.res.status === 200, `test status ${test.res.status}`);
+    const t = await test.res.json();
+    assert(t.ok === false && /first/.test(t.message), `test: ${JSON.stringify(t)}`);
+    const copy = await session("/api/v1/admin/backups/offsite/copy", { method: "POST" });
+    assert(copy.res.status === 400, `copy while not set up: ${copy.res.status}`);
+    const objects = await session("/api/v1/admin/backups/offsite/objects");
+    assert(objects.res.status === 400, `objects while not set up: ${objects.res.status}`);
+    // The switch cannot be turned on before the endpoint, bucket and keys are there.
+    const on = await session("/api/v1/settings/backup.offsite.enabled", { method: "PUT", ...json({ value: true }) });
+    assert(on.res.status === 400 && /before enabling offsite backups/.test(await on.res.text()), `switch on: ${on.res.status}`);
+    const keep = await session("/api/v1/settings/backup.offsite.keep", { method: "PUT", ...json({ value: -1 }) });
+    assert(keep.res.status === 400, `keep -1: ${keep.res.status}`);
+  });
+
+  await test("backups: a schedule says whether its backups are copied offsite", async () => {
+    const body = { name: "[smoke] offsite flag", frequency: "weekly", time: "05:00", timezone: "UTC", keep: 1, includeFiles: false };
+    const created = await session("/api/v1/admin/backups/schedules", { method: "POST", ...json(body) });
+    const s = await created.res.json();
+    schedules.push(s.id);
+    assert(s.offsite === true, `default offsite: ${JSON.stringify(s)}`);
+    const off = await session(`/api/v1/admin/backups/schedules/${s.id}`, { method: "PATCH", ...json({ offsite: false }) });
+    assert((await off.res.json()).offsite === false, "offsite not switched off");
+    const again = await session(`/api/v1/admin/backups/schedules/${s.id}`, { method: "PATCH", ...json({ name: "[smoke] offsite flag 2" }) });
+    assert((await again.res.json()).offsite === false, "an unrelated edit changed the offsite flag");
+    const del = await session(`/api/v1/admin/backups/schedules/${s.id}`, { method: "DELETE" });
+    assert(del.res.status === 200, `delete ${del.res.status}`);
+    schedules.pop();
+  });
+
   await test("backups: an API token cannot use them (session only), nor can a malformed id", async () => {
     const t = await session("/api/v1/me/api-tokens", { method: "POST", ...json({ name: "smoke backups", readOnly: false, expiresInDays: 1 }) });
     const tok = await t.res.json();

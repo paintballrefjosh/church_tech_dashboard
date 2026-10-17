@@ -21,6 +21,8 @@ export const backupSchedules = pgTable("backup_schedules", {
   timezone: text("timezone").notNull(),
   keepCount: integer("keep_count").notNull().default(7),
   includeFiles: boolean("include_files").notNull().default(true),
+  /** Copy this schedule's backups to the offsite bucket (when offsite copies are on). */
+  offsite: boolean("offsite").notNull().default(true),
   lastRunAt: timestamp("last_run_at", { withTimezone: true }),
   /** `ok` | `failed` */
   lastStatus: text("last_status"),
@@ -59,6 +61,13 @@ export const backups = pgTable(
     secretFingerprint: text("secret_fingerprint"),
     error: text("error"),
     nodeId: text("node_id"),
+    /** Offsite copy: when it was verified in the second bucket, under which key, and the last failure. */
+    offsiteAt: timestamp("offsite_at", { withTimezone: true }),
+    offsiteKey: text("offsite_key"),
+    offsiteError: text("offsite_error"),
+    offsiteTriedAt: timestamp("offsite_tried_at", { withTimezone: true }),
+    /** Which destination the copy is in (a short hash of endpoint, bucket and folder): a new bucket gets new copies. */
+    offsiteDest: text("offsite_dest"),
   },
   (t) => ({
     createdIdx: index("backups_created_idx").on(t.createdAt),

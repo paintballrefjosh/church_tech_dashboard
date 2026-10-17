@@ -1,4 +1,5 @@
 import { isSingleTenant } from "./oauth-policy";
+import { OFFSITE_STALE_DAYS } from "./backup-offsite";
 
 /**
  * The admin "Security" overview: facts about how the site is set up, judged by plain rules into a list of checks an
@@ -35,6 +36,8 @@ export interface PostureFacts {
   /** End of the maintenance window (epoch ms), or null when it has none. Only meaningful while `maintenanceMode`. */
   maintenanceUntil: number | null;
   backups: { lastReadyAt: number | null; scheduleEnabled: boolean };
+  /** Copies in a second bucket: switched on, newest verified copy (epoch ms), backups whose last copy attempt failed. */
+  offsite: { enabled: boolean; lastCopyAt: number | null; failing: number };
   auditRetentionDays: number;
 }
 
@@ -262,6 +265,36 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
     });
   } else {
     add({ id: "backups", title: `Last backup ${ageText(f.now - f.backups.lastReadyAt)}`, severity: "ok", detail: f.backups.scheduleEnabled ? "A schedule is on." : "Taken by hand; no schedule is turned on." });
+  }
+  if (f.backups.lastReadyAt !== null) {
+    const offsiteFix = { label: "Offsite copies", href: "/admin/backups?tab=offsite" };
+    if (!f.offsite.enabled) {
+      add({
+        id: "offsite",
+        title: "Backups are only kept on this installation",
+        severity: "info",
+        detail: "A copy in another bucket survives losing this machine or its storage.",
+        fix: offsiteFix,
+      });
+    } else if (f.offsite.lastCopyAt === null) {
+      add({
+        id: "offsite",
+        title: "No backup has reached the offsite bucket yet",
+        severity: f.offsite.failing > 0 ? "warn" : "info",
+        detail: f.offsite.failing > 0 ? "The last attempt failed. See the Offsite tab for the reason." : "Copies are made after each scheduled backup.",
+        fix: offsiteFix,
+      });
+    } else if (f.now - f.offsite.lastCopyAt > OFFSITE_STALE_DAYS * DAY) {
+      add({
+        id: "offsite",
+        title: `The last offsite copy is ${ageText(f.now - f.offsite.lastCopyAt)}`,
+        severity: "warn",
+        detail: f.offsite.failing > 0 ? "Copies are failing. See the Offsite tab for the reason." : "Backups are being made but not copied. Check that the offsite schedule option is on.",
+        fix: offsiteFix,
+      });
+    } else {
+      add({ id: "offsite", title: `Last offsite copy ${ageText(f.now - f.offsite.lastCopyAt)}`, severity: f.offsite.failing > 0 ? "warn" : "ok", detail: f.offsite.failing > 0 ? "Some copies are failing. See the Offsite tab." : "Backups are also kept in another bucket." , fix: f.offsite.failing > 0 ? offsiteFix : undefined });
+    }
   }
   if (f.auditRetentionDays === 0) {
     add({ id: "audit-retention", title: "The audit log is kept forever", severity: "info", detail: "It grows without limit. Set a retention window in the site settings.", fix: { label: "Site settings", href: "/admin/settings/site" } });

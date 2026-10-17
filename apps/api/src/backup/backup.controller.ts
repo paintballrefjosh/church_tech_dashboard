@@ -28,6 +28,7 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { BackupService } from "./backup.service";
+import { OffsiteService } from "./offsite.service";
 
 const uuid = z.string().uuid();
 
@@ -60,7 +61,10 @@ function maxUploadBytes(): number {
 @RequirePermissions(PERMISSIONS.SITE_ADMIN)
 @SessionOnly()
 export class BackupController {
-  constructor(private readonly backups: BackupService) {}
+  constructor(
+    private readonly backups: BackupService,
+    private readonly offsite: OffsiteService,
+  ) {}
 
   // ---- reads (declared before the `:id` routes so they are not taken for ids) ----
 
@@ -78,6 +82,18 @@ export class BackupController {
   @Get("storage")
   storage() {
     return this.backups.storage();
+  }
+
+  /** Offsite copies: where they go, how many are waiting, the last result. Declared before `:id`. */
+  @Get("offsite")
+  offsiteStatus() {
+    return this.offsite.status();
+  }
+
+  /** The copies sitting in the offsite bucket (also while copying is switched off, to reach them on a fresh install). */
+  @Get("offsite/objects")
+  offsiteObjects() {
+    return this.offsite.objects();
   }
 
   @Get("operations")
@@ -140,6 +156,32 @@ export class BackupController {
     return this.backups.runScheduleNow(user, parseId(id));
   }
 
+  // ---- offsite copies ----
+
+  /** Write, read and delete a small test file in the offsite bucket. Changes nothing that matters. */
+  @Post("offsite/test")
+  @Audited({ action: "backup.offsite_test", resourceType: "backup_offsite" })
+  offsiteTest() {
+    return this.offsite.test();
+  }
+
+  /** Copy every backup still waiting to the offsite bucket, now. */
+  @Post("offsite/copy")
+  @HttpCode(202)
+  @Audited({ action: "backup.offsite_copy", resourceType: "backup_offsite" })
+  offsiteCopy(@CurrentUser() user: AuthenticatedUser) {
+    return this.offsite.startCopy(user);
+  }
+
+  /** Bring a copy from the offsite bucket back into the backup list (as an uploaded backup). */
+  @Post("offsite/fetch")
+  @HttpCode(202)
+  @Audited({ action: "backup.offsite_fetch", resourceType: "backup" })
+  offsiteFetch(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
+    const { key } = parse(z.object({ key: z.string().min(1).max(600) }).strict(), body);
+    return this.offsite.fetch(user, key);
+  }
+
   // ---- backups ----
 
   @Post()
@@ -190,6 +232,14 @@ export class BackupController {
   async downloadLink(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     const link = await this.backups.createDownloadToken(user.id, parseId(id));
     return { url: `/api/v1/admin/backups/download?token=${encodeURIComponent(link.token)}`, filename: link.filename, expiresAt: link.expiresAt, token: link.token };
+  }
+
+  /** Copy this one backup to the offsite bucket now, whatever kind it is. */
+  @Post(":id/offsite")
+  @HttpCode(202)
+  @Audited({ action: "backup.offsite_copy", resourceType: "backup", resourceIdFromParams: idParam })
+  copyOffsite(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.offsite.startCopy(user, parseId(id));
   }
 
   @Post(":id/compare")

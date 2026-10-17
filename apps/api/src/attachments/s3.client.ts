@@ -12,7 +12,14 @@ let cached: { client: Client; bucket: string; config: S3Config } | null = null;
 export function getS3(): { client: Client; bucket: string; config: S3Config } {
   if (cached) return cached;
   const config = resolveS3Config();
-  const client = new Client({
+  const client = makeS3Client(config);
+  cached = { client, bucket: config.bucket, config };
+  return cached;
+}
+
+/** A client for any S3-compatible store (the offsite backup bucket uses this with its own settings). */
+export function makeS3Client(config: S3Config): Client {
+  return new Client({
     endPoint: config.endPoint,
     port: config.port,
     useSSL: config.useSSL,
@@ -22,6 +29,4 @@ export function getS3(): { client: Client; bucket: string; config: S3Config } {
     region: config.region,
     pathStyle: config.pathStyle,
   });
-  cached = { client, bucket: config.bucket, config };
-  return cached;
 }

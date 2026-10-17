@@ -944,7 +944,7 @@ How sign-in behaves, for the person running the server:
 - **The Security overview** (`/admin/security`, site administrators) is a checklist of how the site is set
   up: the install password still in place, administrators without two-factor, how wide Google and
   Microsoft sign-in are, API tokens that never expire or are unused, switches without a pinned host key,
-  maintenance mode left on with no end time, the Site URL and mail settings, the age of the last backup and how long the
+  maintenance mode left on with no end time, the Site URL and mail settings, the age of the last backup and of its offsite copy, and how long the
   audit log is kept. It only reads settings and counts, so it changes nothing and shows no secrets;
   each line links to where it is fixed.
 - **Failed sign-ins are limited per account.** On top of the 10-per-minute limit per IP
@@ -1281,7 +1281,7 @@ itself (polled switch and metric history, search documents, the DNS sync ledger)
 state (leases, queues, realtime events), sign-in sessions and one-time tokens, and the backup
 list itself.
 
-**The three tabs.**
+**The tabs.**
 
 - **Backups**: make one now (name optional), see every backup with its size and contents,
   download, rename, delete. A download is two steps (an audited request returns a link that works
@@ -1291,6 +1291,7 @@ list itself.
   Several schedules are fine (a nightly one that keeps a week and a monthly one that keeps a year).
   A failed scheduled backup notifies the administrators (the `backup.failed` notification kind).
   Only the node leading the `backup-scheduler` job makes them, so a cluster makes each once.
+- **Offsite**: copies of the backups in a second bucket (see below).
 - **Restore**: pick a backup from the list, or **upload** a `.tar.gz` (one downloaded earlier, or
   from another installation). An uploaded file is checked end to end (every row count and every
   file's SHA-256) before it is offered. **Compare** shows what a restore would do to the data
@@ -1350,13 +1351,43 @@ of it, and restoring onto an installation with a different one needs an explicit
 and means re-entering those secrets. Moving a site to another installation is therefore: set up the
 new one with the same `AUTH_SECRET`, upload the backup, restore.
 
+**Offsite copies.** Backups made by a schedule are kept in the same object store as everything else, so losing
+that store loses them too. **Admin > Settings > Backups** (also linked from the **Offsite** tab) takes the details
+of a second, separate S3-compatible bucket: Backblaze B2, Amazon S3, Wasabi, or a MinIO or Garage on another
+machine. Give it the endpoint (`host[:port]` or a URL), the bucket, the region if the service wants one, an access
+key and secret (stored encrypted), a folder inside the bucket (default `church-dashboard/`) and how many copies to
+keep (default 14; 0 keeps every copy). Then press **Test the connection** on the Offsite tab: it writes, reads back
+and deletes a small file, so a wrong key or bucket is found now and not when the first backup is due. The switch
+**Copy backups offsite** cannot be turned on until the endpoint, bucket and keys are filled in, and the bucket
+cannot be the one the site keeps its own files in.
+
+Once it is on, the node leading the `backup-offsite` job (every five minutes) copies each scheduled backup that
+has not been copied, newest first, and checks the copy afterwards (its size, and the SHA-256 recorded when the
+backup was made, so a damaged archive is never kept offsite as if it were good). A schedule has an **Also copy to
+the offsite bucket** box (on by default); a manual backup or a safety copy can be copied by hand with **Copy
+offsite** on its row. A failed copy is retried every 30 minutes; the first failure notifies the administrators
+(once, until a copy succeeds again), and the reason is shown on the backup and on the Offsite tab. Old copies
+beyond "copies to keep" are deleted from the bucket, and only files named like the site's own
+(`church-dashboard-<time>-<id>.tar.gz` in that folder); give the key delete rights for that, or older copies stay
+and a warning says so. Changing the bucket starts copying to the new one.
+
+Getting a copy back after a disaster: install the site again, set the same bucket details under Settings >
+Backups (copying does not have to be switched on), open the Offsite tab, **Show what is in the bucket** and
+**Bring back** the copy you want. It joins your backup list as an uploaded backup, checked like any upload, and
+is compared and restored as usual. Restore it on an installation with the original `AUTH_SECRET` if saved
+passwords and tokens should keep working.
+
+A copy is the same file you can download: it holds everything in the database and is **not encrypted again**.
+Use a private bucket and a key that reaches only that bucket. The Security overview notes when backups are only
+kept on the installation, and warns when copies are failing or the newest is more than eight days old.
+
 **Things to know.**
 
 - A backup holds password hashes and encrypted secrets. Treat downloaded files as private. Backups
   are available only to a signed-in browser session, never to an API token.
 - Backups are stored in the object store (the same bucket as the uploads, under `backups/`), so
-  they share its fate: losing the store loses the backups with it. Download copies you cannot
-  afford to lose, and keep the operator-level backups too (they also cover the audit log and
+  they share its fate: losing the store loses the backups with it. Turn on offsite copies (above),
+  download copies you cannot afford to lose, and keep the operator-level backups too (they also cover the audit log and
   history).
 - A restore runs as one transaction, so it either completes or changes nothing. Measured on a
   deliberately slow setup (a single-node CockroachDB whose data directory is on NFS): about 26,500 rows

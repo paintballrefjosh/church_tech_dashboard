@@ -12,7 +12,7 @@ export type BackupKind = (typeof BACKUP_KINDS)[number];
 export const BACKUP_STATUSES = ["running", "ready", "failed"] as const;
 export type BackupStatus = (typeof BACKUP_STATUSES)[number];
 
-export const BACKUP_OPERATION_KINDS = ["backup", "import", "compare", "restore"] as const;
+export const BACKUP_OPERATION_KINDS = ["backup", "import", "compare", "restore", "offsite"] as const;
 export type BackupOperationKind = (typeof BACKUP_OPERATION_KINDS)[number];
 
 export const BACKUP_OPERATION_STATUSES = ["running", "succeeded", "failed"] as const;
@@ -65,6 +65,8 @@ export const backupScheduleInputSchema = z
     /** How many of this schedule's backups to keep; older ones are deleted. */
     keep: z.number().int().min(1).max(365).default(7),
     includeFiles: z.boolean().default(true),
+    /** Copy this schedule's backups to the offsite bucket, when offsite copies are switched on. */
+    offsite: z.boolean().default(true),
   })
   .strict();
 export type BackupScheduleInput = z.infer<typeof backupScheduleInputSchema>;
@@ -83,6 +85,7 @@ export interface BackupSchedule {
   timezone: string;
   keep: number;
   includeFiles: boolean;
+  offsite: boolean;
   lastRunAt: string | null;
   lastStatus: "ok" | "failed" | null;
   lastError: string | null;
@@ -111,6 +114,9 @@ export interface BackupSummary {
   appVersion: string | null;
   createdBy: { id: string; email: string; displayName: string | null } | null;
   error: string | null;
+  /** When the copy in the offsite bucket was verified, and why the last attempt failed (if it did). */
+  offsiteAt: string | null;
+  offsiteError: string | null;
 }
 
 export interface BackupProgress {
@@ -280,4 +286,53 @@ export interface BackupStorageInfo {
   totalBytes: number;
   /** Whether new backups can be stored (the object store answers). */
   available: boolean;
+}
+
+/** Where the offsite copies go, without the keys. */
+export interface BackupOffsiteDestination {
+  endpoint: string;
+  bucket: string;
+  folder: string;
+  region: string;
+}
+
+export interface BackupOffsiteStatus {
+  /** The switch in the settings. */
+  enabled: boolean;
+  /** Endpoint, bucket and both keys are present. */
+  configured: boolean;
+  /** What is missing, in words ("the bucket"), when not configured. */
+  missing: string | null;
+  /** Why copies cannot be made although they are switched on (for example the bucket is this site's own). */
+  problem: string | null;
+  destination: BackupOffsiteDestination | null;
+  /** Copies to keep in the bucket (0 = all). */
+  keep: number;
+  /** Backups still waiting for their copy, backups whose last attempt failed, and backups with a verified copy. */
+  pending: number;
+  failing: number;
+  copied: number;
+  /** The newest verified copy, and the newest failure message. */
+  lastCopyAt: string | null;
+  lastError: string | null;
+  /** Warnings from the last run (for example copies that could not be deleted at the destination). */
+  warnings: string[];
+}
+
+export interface BackupOffsiteObject {
+  key: string;
+  name: string;
+  sizeBytes: number;
+  /** When the copy was made (from its name). */
+  createdAt: string | null;
+  /** The backup on this site that the copy came from, if it is still here. */
+  backupId: string | null;
+}
+
+export interface BackupOffsiteTest {
+  ok: boolean;
+  /** One plain sentence about the outcome. */
+  message: string;
+  /** Whether the key may delete (needed to remove copies older than "copies to keep"). */
+  canDelete: boolean;
 }

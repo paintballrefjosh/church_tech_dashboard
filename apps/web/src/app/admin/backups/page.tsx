@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DatabaseBackup } from "lucide-react";
-import type { BackupOperation, BackupSchedule, BackupStorageInfo, BackupSummary } from "@church/shared";
+import type { BackupOffsiteStatus, BackupOperation, BackupSchedule, BackupStorageInfo, BackupSummary } from "@church/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
@@ -9,12 +9,14 @@ import { PageTitle } from "@/components/page-title";
 import { BackupsPanel } from "./backups-panel";
 import { SchedulesPanel } from "./schedules-panel";
 import { RestorePanel } from "./restore-panel";
+import { OffsitePanel } from "./offsite-panel";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { key: "backups", label: "Backups" },
   { key: "schedules", label: "Schedules" },
+  { key: "offsite", label: "Offsite" },
   { key: "restore", label: "Restore" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
@@ -30,13 +32,15 @@ export default async function BackupsPage({ searchParams }: { searchParams: Prom
   let schedules: BackupSchedule[] = [];
   let storage: BackupStorageInfo | null = null;
   let operations: BackupOperation[] = [];
+  let offsite: BackupOffsiteStatus | null = null;
   let error: string | null = null;
   try {
-    [backups, schedules, storage, operations] = await Promise.all([
+    [backups, schedules, storage, operations, offsite] = await Promise.all([
       apiJson<BackupSummary[]>("/api/v1/admin/backups"),
       apiJson<BackupSchedule[]>("/api/v1/admin/backups/schedules"),
       apiJson<BackupStorageInfo>("/api/v1/admin/backups/storage").catch(() => null),
       apiJson<BackupOperation[]>("/api/v1/admin/backups/operations?limit=10"),
+      apiJson<BackupOffsiteStatus>("/api/v1/admin/backups/offsite").catch(() => null),
     ]);
   } catch (e) {
     error = (e as Error).message;
@@ -77,8 +81,9 @@ export default async function BackupsPage({ searchParams }: { searchParams: Prom
           </p>
         ) : (
           <div className="mt-5">
-            {tab === "backups" ? <BackupsPanel initialBackups={backups} storage={storage} runningOperation={running} /> : null}
+            {tab === "backups" ? <BackupsPanel initialBackups={backups} storage={storage} runningOperation={running} offsiteEnabled={Boolean(offsite?.enabled && offsite.configured && !offsite.problem)} /> : null}
             {tab === "schedules" ? <SchedulesPanel initialSchedules={schedules} runningOperation={running} /> : null}
+            {tab === "offsite" ? <OffsitePanel initialStatus={offsite} runningOperation={running} /> : null}
             {tab === "restore" ? <RestorePanel initialBackups={backups} initialSelected={sp.backup ?? null} runningOperation={running} /> : null}
           </div>
         )}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Download, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CloudUpload, Download, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import type { BackupOperation, BackupStorageInfo, BackupSummary } from "@church/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, formatCount, KIND_LABEL, post, useOperation } from "./client-api";
@@ -38,10 +38,13 @@ export function BackupsPanel({
   initialBackups,
   storage,
   runningOperation,
+  offsiteEnabled,
 }: {
   initialBackups: BackupSummary[];
   storage: BackupStorageInfo | null;
   runningOperation: BackupOperation | null;
+  /** Offsite copies are switched on and usable: show the per-backup "Copy offsite" action. */
+  offsiteEnabled: boolean;
 }) {
   const [backups, setBackups] = useState(initialBackups);
   const [name, setName] = useState("");
@@ -60,13 +63,13 @@ export function BackupsPanel({
   };
 
   const { op, lost, track } = useOperation(async (finished) => {
-    if (finished.status === "failed") setError(finished.error ?? "The backup failed.");
-    else setNotice("Backup finished.");
+    if (finished.status === "failed") setError(finished.error ?? (finished.kind === "offsite" ? "The offsite copy failed." : "The backup failed."));
+    else setNotice(finished.kind === "offsite" ? "Copied offsite." : "Backup finished.");
     await refresh();
   });
 
   useEffect(() => {
-    if (runningOperation && (runningOperation.kind === "backup" || runningOperation.kind === "import")) track(runningOperation.id);
+    if (runningOperation && (runningOperation.kind === "backup" || runningOperation.kind === "import" || runningOperation.kind === "offsite")) track(runningOperation.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,6 +97,20 @@ export function BackupsPanel({
       const link = await post<{ url: string }>(`/${b.id}/download-link`, undefined, "Couldn't prepare the download");
       // A plain navigation: the browser saves it (the response is an attachment) without leaving the page.
       window.location.assign(link.url);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function copyOffsite(b: BackupSummary) {
+    setError(null);
+    setNotice(null);
+    setBusyId(b.id);
+    try {
+      const started = await post<{ operationId: string }>(`/${b.id}/offsite`, undefined, "Couldn't start the copy");
+      track(started.operationId);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -162,7 +179,7 @@ export function BackupsPanel({
         </form>
         {op && op.status === "running" ? (
           <div className="mt-3">
-            <OperationProgress op={op} title={op.kind === "import" ? "Checking the uploaded file" : "Making a backup"} />
+            <OperationProgress op={op} title={op.kind === "import" ? "Checking the uploaded file" : op.kind === "offsite" ? "Copying offsite" : "Making a backup"} />
           </div>
         ) : null}
         {lost ? <div className="mt-3"><ErrorNote>{lost}</ErrorNote></div> : null}
@@ -225,7 +242,16 @@ export function BackupsPanel({
                         <KindBadge kind={b.kind} />
                         <StatusBadge status={b.status} />
                         {b.scheduleName ? <span className="text-[11px] text-slate-500">from {b.scheduleName}</span> : null}
+                        {b.offsiteAt && !b.offsiteError ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            data-testid="offsite-badge"
+                          >
+                            <CloudUpload aria-hidden className="h-3 w-3" /> Offsite
+                          </span>
+                        ) : null}
                       </div>
+                      {b.offsiteError ? <p className="mt-1 max-w-md text-xs text-rose-600 dark:text-rose-400">Offsite copy failed: {b.offsiteError}</p> : null}
                       {b.error ? <p className={`mt-1 max-w-md text-xs ${b.status === "failed" ? "text-rose-600 dark:text-rose-400" : "text-amber-700 dark:text-amber-400"}`}>{b.error}</p> : null}
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
@@ -258,6 +284,16 @@ export function BackupsPanel({
                           >
                             <RotateCcw aria-hidden className="h-3.5 w-3.5" /> Restore...
                           </Link>
+                          {offsiteEnabled && !(b.offsiteAt && !b.offsiteError) ? (
+                            <button
+                              type="button"
+                              onClick={() => void copyOffsite(b)}
+                              disabled={busyId === b.id || running}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-900"
+                            >
+                              <CloudUpload aria-hidden className="h-3.5 w-3.5" /> Copy offsite
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => setRenaming({ id: b.id, name: b.name })}
