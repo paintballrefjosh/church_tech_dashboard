@@ -31,6 +31,7 @@ export const monitors = pgTable("monitors", {
   lastLatencyMs: integer("last_latency_ms"),
   consecutiveFails: integer("consecutive_fails").notNull(),
   consecutiveOks: integer("consecutive_oks").notNull(),
+  flappingSince: timestamp("flapping_since"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });

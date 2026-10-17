@@ -144,6 +144,7 @@ const NAV_COMMANDS = [
   { label: "Wiki", href: "/wiki", icon: BookOpen },
   { label: "Notes", href: "/notes", icon: StickyNote },
   { label: "Monitoring", href: "/monitoring", icon: Activity },
+  { label: "Status", href: "/status", icon: Activity },
   { label: "Network", href: "/monitoring/network", icon: Network },
   { label: "Users (admin)", href: "/admin/users", icon: Users },
   { label: "Settings (admin)", href: "/admin/settings", icon: Cog },

@@ -9,6 +9,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { infraTargets } from "./infra";
+import { users } from "./users";
 
 /**
  * A user-defined monitor. The probe worker reads the active set on a poll and
@@ -49,6 +50,13 @@ export const monitors = pgTable(
     lastLatencyMs: integer("last_latency_ms"),
     consecutiveFails: integer("consecutive_fails").notNull().default(0),
     consecutiveOks: integer("consecutive_oks").notNull().default(0),
+
+    // Set by the probe worker while the monitor keeps going down and up (alert-rules.ts `isFlapping`): its individual
+    // down/up notices are held back until it has stayed in one state for the flap window.
+    flappingSince: timestamp("flapping_since"),
+    // Listed on the status page every signed-in person can read, under `statusName` when there is one.
+    showOnStatus: boolean("show_on_status").notNull().default(false),
+    statusName: text("status_name"),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -104,6 +112,12 @@ export const monitorIncidents = pgTable(
     startedAt: timestamp("started_at").notNull().defaultNow(),
     resolvedAt: timestamp("resolved_at"),
     reason: text("reason"), // first-failure info string captured at open
+    // Somebody has taken it: escalation stops. Ended by resolving, never cleared.
+    acknowledgedAt: timestamp("acknowledged_at"),
+    acknowledgedBy: uuid("acknowledged_by").references(() => users.id, { onDelete: "set null" }),
+    // How far the escalation job has got (0 nothing, 1 reminder, 2 second group) and when it last sent.
+    escalationLevel: integer("escalation_level").notNull().default(0),
+    escalatedAt: timestamp("escalated_at"),
   },
   (t) => ({
     openIdx: index("monitor_incidents_open_idx").on(t.monitorId, t.resolvedAt),

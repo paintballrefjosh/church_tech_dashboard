@@ -97,6 +97,18 @@ export class MonitorsController {
     return this.monitors.openIncidents();
   }
 
+  @Post("incidents/:incidentId/ack")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({
+    action: "monitor.incident.acknowledge",
+    resourceType: "monitor_incident",
+    resourceIdFromParams: (p) => p.incidentId ?? null,
+  })
+  acknowledge(@Param("incidentId") incidentId: string, @CurrentUser() user: AuthenticatedUser | null) {
+    if (!/^[0-9a-f-]{36}$/i.test(incidentId)) throw new BadRequestException("Not an incident id");
+    return this.monitors.acknowledgeIncident(incidentId, user?.id ?? null);
+  }
+
   @Get(":id")
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
   byId(@Param("id") id: string) {

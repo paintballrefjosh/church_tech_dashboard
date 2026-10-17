@@ -80,6 +80,12 @@ export const monitorSchema = z.object({
   lastLatencyMs: z.number().int().nullable(),
   consecutiveFails: z.number().int(),
   consecutiveOks: z.number().int(),
+  /** Set while the monitor keeps going down and up (see alert-rules.ts): its individual notices are held back. */
+  flappingSince: z.string().datetime().nullable().optional(),
+  /** Listed on the status page that every signed-in person can read. */
+  showOnStatus: z.boolean().optional(),
+  /** Plain name for that page ("Internet" rather than "Firewall WAN ping"); empty = use the monitor's name. */
+  statusName: z.string().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -94,6 +100,8 @@ export const createMonitorSchema = z.object({
   recoverThreshold: z.number().int().min(1).max(20).default(2),
   options: z.record(z.unknown()).default({}),
   enabled: z.boolean().default(true),
+  showOnStatus: z.boolean().default(false),
+  statusName: z.string().trim().max(120).nullable().optional(),
 });
 export type CreateMonitorInput = z.infer<typeof createMonitorSchema>;
 
@@ -145,5 +153,10 @@ export const monitorIncidentSchema = z.object({
   startedAt: z.string().datetime(),
   resolvedAt: z.string().datetime().nullable(),
   reason: z.string().nullable(),
+  /** Somebody has taken it: no more reminders or escalation. */
+  acknowledgedAt: z.string().datetime().nullable().optional(),
+  acknowledgedBy: z.string().uuid().nullable().optional(),
+  /** 0 = nothing sent beyond the first notice, 1 = reminder sent, 2 = second group told. */
+  escalationLevel: z.number().int().optional(),
 });
 export type MonitorIncident = z.infer<typeof monitorIncidentSchema>;

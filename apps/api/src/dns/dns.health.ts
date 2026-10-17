@@ -197,6 +197,7 @@ export class DnsHealthService implements OnModuleInit {
         recoverThreshold: 2,
         options: { recordType: "TXT", expectedValue: CANARY_TEXT, resolver: node.ip, timeoutMs: 5_000 },
         enabled: true,
+        showOnStatus: false,
       });
       result.created.push({ monitorId: row.id, name, resolver: node.ip });
     }

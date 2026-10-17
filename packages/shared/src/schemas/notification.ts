@@ -13,6 +13,8 @@ export const NOTIFICATION_KINDS = [
   "wiki.updated",
   "monitor.incident.opened",
   "monitor.incident.resolved",
+  "monitor.incident.escalated",
+  "monitor.flapping",
   "mention",
   "checklist.assigned",
   "user.approval_pending",

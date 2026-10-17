@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
 import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
@@ -32,6 +32,8 @@ export class MonitorsService {
         recoverThreshold: input.recoverThreshold,
         options: input.options,
         enabled: input.enabled,
+        showOnStatus: input.showOnStatus,
+        statusName: input.statusName?.trim() || null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -49,6 +51,8 @@ export class MonitorsService {
     if (input.recoverThreshold !== undefined) patch.recoverThreshold = input.recoverThreshold;
     if (input.options !== undefined) patch.options = input.options;
     if (input.enabled !== undefined) patch.enabled = input.enabled;
+    if (input.showOnStatus !== undefined) patch.showOnStatus = input.showOnStatus;
+    if (input.statusName !== undefined) patch.statusName = input.statusName?.trim() || null;
     const [row] = await this.db
       .update(monitors)
       .set(patch)
@@ -161,6 +165,23 @@ export class MonitorsService {
       enabledMonitors: num(enabled[0]?.n),
       nodes,
     };
+  }
+
+  /**
+   * Take an open incident: reminders and escalation stop. Taking it twice is harmless (the first person stays on record);
+   * a resolved one cannot be taken (409), so a late click does not claim credit for something that fixed itself.
+   */
+  async acknowledgeIncident(id: string, userId: string | null) {
+    const [taken] = await this.db
+      .update(monitorIncidents)
+      .set({ acknowledgedAt: new Date(), acknowledgedBy: userId })
+      .where(and(eq(monitorIncidents.id, id), isNull(monitorIncidents.resolvedAt), isNull(monitorIncidents.acknowledgedAt)))
+      .returning();
+    if (taken) return taken;
+    const [row] = await this.db.select().from(monitorIncidents).where(eq(monitorIncidents.id, id)).limit(1);
+    if (!row) throw new NotFoundException("Incident not found");
+    if (row.resolvedAt) throw new ConflictException("That incident has already ended.");
+    return row;
   }
 
   /** Open incidents across all monitors — used for the dashboard tile. */

@@ -32,6 +32,14 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Monitoring incident resolved",
     hint: "A previously-down service recovers.",
   },
+  "monitor.incident.escalated": {
+    title: "Unacknowledged incident",
+    hint: "An incident has stayed open and nobody has acknowledged it (a reminder, or because you are in the escalation group).",
+  },
+  "monitor.flapping": {
+    title: "Unstable service",
+    hint: "A service keeps going down and up, and when it has settled.",
+  },
   mention: {
     title: "Mentions",
     hint: "Someone @mentions you in a comment or note.",

@@ -17,6 +17,7 @@ import { MetricChart, MultiSeriesChart } from "../charts";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useCanWrite } from "../../network-cisco/cisco-ui";
 import { MONITORING_HEALTH_REFRESH } from "../../section-tabs";
+import { AcknowledgeButton } from "../../acknowledge-button";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -570,8 +571,15 @@ export function InfraDetailClient({
                   <div className="text-slate-500 dark:text-slate-400">
                     started {new Date(i.startedAt).toLocaleString()}
                     {i.resolvedAt ? ` · resolved ${new Date(i.resolvedAt).toLocaleString()}` : ""}
+                    {i.acknowledgedAt ? ` · acknowledged ${new Date(i.acknowledgedAt).toLocaleString()}` : ""}
                   </div>
                 </div>
+                {!i.resolvedAt && !i.acknowledgedAt ? (
+                  <AcknowledgeButton
+                    incidentId={i.id}
+                    onAcknowledged={(at) => setIncidents((list) => list.map((x) => (x.id === i.id ? { ...x, acknowledgedAt: at } : x)))}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>

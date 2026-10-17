@@ -277,6 +277,30 @@ back on") right-aligned on the Monitoring tab row (`maintenance-control.tsx`, re
 inside `MonitoringTabs`), which shows when alerts resume and lets the time be changed, via `GET`/`POST
 /api/v1/monitors/maintenance`, or from `/admin/settings/monitoring`.
 
+**Flapping, acknowledging, escalation and the status page** (migration 0064; pure rules in `packages/shared/src/alert-rules.ts`,
+unit-tested; the probe worker cannot import the API, so the rules live in shared). (1) *Flapping* is the worker's
+(`services/monitor/src/main.ts`): when an incident opens and `monitoring.flap_incidents` have opened within
+`monitoring.flap_window_min`, `monitors.flapping_since` is set, ONE `monitor.flapping` notice goes out, and the down/up
+notices (and activity rows) for that monitor are held back; incidents are still recorded in full. It ends when the monitor has
+stayed in one state for the whole window (judged on every check, after that check's own writes: `flapSettled`), then a
+"stable again" notice, or a normal "is down" one if it is down. Never read `flapping_since` as "down". (2) *Acknowledging*:
+`POST /monitors/incidents/:incidentId/ack` (`monitors:write:any`, audited, idempotent, 409 once resolved) sets
+`monitor_incidents.acknowledged_at/by`; incidents are shared by monitors and infra targets, so one route serves both.
+(3) *Escalation* (`monitors/alert-escalation.ts`, cluster job `alert-escalation`, 60 s): for open, unacknowledged incidents
+started within 72 h, `escalationDue` picks the step (1 = remind the usual recipients after `monitoring.escalate_reminder_min`,
+2 = also tell the group named in `monitoring.escalation_group` after `monitoring.escalate_group_min`; the highest due step wins
+and a step is never repeated). A step is CLAIMED with one conditional UPDATE on `escalation_level` BEFORE sending (two nodes
+never double-send; a crash loses at most that one notice). Nothing is sent in maintenance mode; a missing or empty group
+degrades to reminders with one log line; saving a group name that does not exist is refused (`SettingsService.assertReferences`).
+The second group's notice links to `/status` because they may have no Monitoring access. `escalation_level`/`escalated_at` and
+`flapping_since` are `volatile` in the backup registry (a restore must not replay or inherit them). (4) *The status page*
+(`GET /status`, any signed-in user, no permission string by design; `StatusService`) lists monitors with `show_on_status` (and
+enabled) under `status_name`, and carries NAME, STATE, SINCE, ACKNOWLEDGED, the maintenance window and the admin's
+`monitoring.status_notice` only: **never add a target, address, error text or threshold to it**, a unit test asserts none
+leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (CockroachDB and YugabyteDB), smoke
+`tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
+restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
+
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to
 suppress it from the Network (UniFi) tab problem badge. Acks live in

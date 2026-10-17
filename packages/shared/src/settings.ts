@@ -17,6 +17,14 @@ import {
   normaliseCustomExtension,
 } from "./schemas/attachment";
 import { OFFSITE_KEYS, OFFSITE_MAX_KEEP, normaliseOffsitePrefix } from "./backup-offsite";
+import {
+  ALERT_KEYS,
+  ESCALATION_MAX_MIN,
+  FLAP_DEFAULT_INCIDENTS,
+  FLAP_DEFAULT_WINDOW_MIN,
+  FLAP_MAX_WINDOW_MIN,
+  STATUS_NOTICE_MAX,
+} from "./alert-rules";
 
 export type SettingType = "string" | "boolean" | "number" | "secret" | "json";
 
@@ -758,6 +766,56 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "monitoring",
   },
   {
+    key: ALERT_KEYS.flapIncidents,
+    type: "number",
+    label: "Flapping: incidents that count as flapping",
+    description:
+      "A service that goes down this many times within the window below is called flapping: you get one notice that it is unstable, the individual down and up notices stop, and one more when it has settled (stayed in one state for the whole window). 0 turns this off.",
+    defaultValue: FLAP_DEFAULT_INCIDENTS,
+    category: "monitoring",
+  },
+  {
+    key: ALERT_KEYS.flapWindowMin,
+    type: "number",
+    label: "Flapping: window (minutes)",
+    description: "How far back to count incidents, and how long a service must stay in one state before it counts as settled.",
+    defaultValue: FLAP_DEFAULT_WINDOW_MIN,
+    category: "monitoring",
+  },
+  {
+    key: ALERT_KEYS.reminderAfterMin,
+    type: "number",
+    label: "Escalation: remind after (minutes)",
+    description:
+      "An incident nobody has acknowledged is announced again to the usual alert recipients after this many minutes (once). Acknowledge it from its page to stop the escalation. 0 turns reminders off.",
+    defaultValue: 0,
+    category: "monitoring",
+  },
+  {
+    key: ALERT_KEYS.groupAfterMin,
+    type: "number",
+    label: "Escalation: tell the second group after (minutes)",
+    description: "An incident still unacknowledged after this many minutes is also sent to the group named below (once). 0 turns this off.",
+    defaultValue: 0,
+    category: "monitoring",
+  },
+  {
+    key: ALERT_KEYS.escalationGroup,
+    type: "string",
+    label: "Escalation: second group",
+    description: "The exact name of a group (Admin > Groups) whose members are told when an incident has gone unacknowledged. They need no access to Monitoring: their notice links to the status page.",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
+    key: ALERT_KEYS.statusNotice,
+    type: "string",
+    label: "Status page: notice",
+    description: "One line shown at the top of the status page for everybody who signs in, for example 'Wi-Fi work in the sanctuary on Saturday morning'. Blank shows nothing.",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
     key: "monitoring.tick_seconds",
     type: "number",
     label: "Collector tick interval (seconds)",
@@ -1018,6 +1076,23 @@ export function validateSettingValue(key: string, value: unknown): string | null
       }
       return null;
     }
+    case ALERT_KEYS.flapIncidents:
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 50 ? null : "Enter a whole number from 0 to 50.";
+    case ALERT_KEYS.flapWindowMin:
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= FLAP_MAX_WINDOW_MIN
+        ? null
+        : `Enter a whole number of minutes from 1 to ${FLAP_MAX_WINDOW_MIN}.`;
+    case ALERT_KEYS.reminderAfterMin:
+    case ALERT_KEYS.groupAfterMin:
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= ESCALATION_MAX_MIN
+        ? null
+        : `Enter a whole number of minutes from 0 to ${ESCALATION_MAX_MIN}.`;
+    case ALERT_KEYS.escalationGroup:
+      return typeof value === "string" && value.length <= 100 ? null : "Enter a group name.";
+    case ALERT_KEYS.statusNotice:
+      return typeof value === "string" && value.length <= STATUS_NOTICE_MAX && !/[\u0000-\u0008\u000b-\u001f]/.test(value)
+        ? null
+        : `Enter one line of text, ${STATUS_NOTICE_MAX} characters at most.`;
     case OFFSITE_KEYS.prefix: {
       if (typeof value !== "string") return "Enter a folder name, or leave it blank.";
       const r = normaliseOffsitePrefix(value);

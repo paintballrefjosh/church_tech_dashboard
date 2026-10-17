@@ -6,6 +6,7 @@ import { Trash2, Power, AlertTriangle, CircleCheck, CircleHelp } from "lucide-re
 import type { Monitor, MonitorCheck, MonitorIncident } from "@church/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "../use-monitor-workers";
+import { AcknowledgeButton } from "../acknowledge-button";
 
 export function MonitorDetailClient({
   initialMonitor,
@@ -146,8 +147,15 @@ export function MonitorDetailClient({
                     {i.resolvedAt
                       ? ` · resolved ${new Date(i.resolvedAt).toLocaleString()}`
                       : ""}
+                    {i.acknowledgedAt ? ` · acknowledged ${new Date(i.acknowledgedAt).toLocaleString()}` : ""}
                   </div>
                 </div>
+                {!i.resolvedAt && !i.acknowledgedAt ? (
+                  <AcknowledgeButton
+                    incidentId={i.id}
+                    onAcknowledged={(at) => setIncidents((list) => list.map((x) => (x.id === i.id ? { ...x, acknowledgedAt: at } : x)))}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>

@@ -1105,6 +1105,34 @@ carries on. Nodes that only hold the database and object store (`NODE_ROLE=data`
 `--drain-wait`, `--prune`, `--settle <sec>` (pause between nodes, default 10) and `--to <ref>` work as described
 above.
 
+## Alerts, escalation and the status page
+
+These three work on top of the Monitoring tab's uptime monitors and the infrastructure alerts. Their settings are under
+**Admin > Site settings > Monitoring**.
+
+- **Flapping.** A service that keeps going down and up used to send a notice every time. When a monitor goes down
+  3 times within 30 minutes (both numbers are settings; 0 for the first turns this off) the people who get alerts are
+  told once that it is **unstable**, its individual down and up notices stop (the incidents and the activity feed
+  still record each one), and when it has then stayed in one state for the whole window they are told whether it
+  **settled** up, or, if it is still failing, that it **is down**.
+- **Acknowledging.** An open incident (a service monitor or an infrastructure alert) has an **Acknowledge** button on
+  the monitor's or host's page. It means "I am on it": reminders stop and the status page says someone is looking
+  into it. It does not close anything; the incident ends when the problem does. The same action is available to an
+  API token with write access (`monitors_acknowledge_incident` in the MCP list).
+- **Escalation.** Off until you set minutes. **Remind after** tells the usual alert recipients again when an
+  incident is still unacknowledged after that long (once). **Tell the second group after** also notifies the members
+  of the group named under **Escalation: second group** (the exact name from Admin > Groups; saving a name that does
+  not exist is refused). That group needs no access to Monitoring: their notice opens the status page. Each step is
+  sent once per incident, nothing is sent while maintenance mode is on (a still-open incident is then escalated when
+  it ends), an incident older than three days is left alone, and if the named group is later deleted or emptied only
+  the reminder is sent (the API log says so). People can mute these notices per kind under their profile like any other.
+- **The status page** (`/status`, in the user menu; add `?kiosk=1` for a wall screen) is for everyone who signs in, with
+  no Monitoring access needed. It lists the service monitors you tick **Show on the status page** on (with an
+  optional plain name such as "Internet" instead of the monitor's own), whether each is working, down or unstable,
+  since when, whether someone is looking into it, whether alerts are paused for planned work, and a one-line
+  **notice** you can write under the same settings ("Wi-Fi work on Saturday"). It never shows addresses, error text
+  or thresholds. It needs a signed-in account: there is deliberately no public version.
+
 ## The home page and its looks
 
 The home page can be shown in six looks: **Tiles** (the original customisable grid), **Start page**, **Nave**,
@@ -1225,7 +1253,7 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `activity_list`, `notifications_*`, `me_*_notification_prefs` | Activity feed, the owner's notifications and how they receive them |
 | `dashboard_get_home` | The home page as data: what needs attention, service health, own tickets and tasks |
 | `checklists_*` | Events, tasks (tick off), templates, stations, recurring services, assignments, reports |
-| `monitors_*`, `health_get_services` | Uptime monitors and their incidents; create or change a monitor, maintenance mode (no delete) |
+| `monitors_*`, `health_get_services`, `status_get` | Uptime monitors and their incidents; create or change a monitor, acknowledge an incident, maintenance mode (no delete); the status page |
 | `infra_*`, `unifi_*`, `printers_*`, `ups_*` | Hosts, UniFi devices and clients (acknowledge an offline device), printers, UPS units: reading. Logins and SNMP communities are never shown |
 | `ipam_*`, `dns_*`, `cisco_*` | Subnets and hosts, DNS zones, records and the IPAM sync preview, Cisco switches, ports, config backups, drift, MAC/ARP lookup, VLANs and each switch's VLAN list: reading (`dns_create_health_monitors` only adds monitors; `cisco_accept_drift` and `cisco_resolve_drift` only change the dashboard's records) |
 | `tickets_`, `notes_`, `wiki_` + `list_attachments` / `get_attachment` / `add_attachment` | Files on tickets, notes and wiki pages: list them, read one (an image comes back as an image, a text file as text; other types are described only) and add one (`text`, or `contentBase64` up to 1 MiB; the same allowed file types as the web app). No tool removes a file |

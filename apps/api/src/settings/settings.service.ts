@@ -1,9 +1,9 @@
 import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
-import { findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
+import { ALERT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
-import { settings } from "../db/schema";
+import { groups, settings } from "../db/schema";
 import { encryptSecret, decryptSecret, isEncrypted } from "./crypto";
 
 function isSecretKey(key: string): boolean {
@@ -113,6 +113,7 @@ export class SettingsService implements OnModuleInit {
     await this.assertTogglePrereqs(key, value);
     const invalid = validateSettingValue(key, value);
     if (invalid) throw new BadRequestException(invalid);
+    await this.assertReferences(key, value);
     // Secret-typed keys are encrypted at rest with an AUTH_SECRET-derived key.
     // Non-secrets are stored as-is. The cache holds plaintext on both sides
     // so downstream consumers don't see the cipher.
@@ -129,6 +130,13 @@ export class SettingsService implements OnModuleInit {
       });
     this.cache.delete(key);
     this.bus.publish({ room: CACHE_ROOM, event: "setting", payload: { key } });
+  }
+
+  /** A setting that names something else must name something that exists, or it would silently do nothing. */
+  private async assertReferences(key: string, value: unknown): Promise<void> {
+    if (key !== ALERT_KEYS.escalationGroup || typeof value !== "string" || value.trim() === "") return;
+    const [row] = await this.db.select({ id: groups.id }).from(groups).where(eq(groups.name, value.trim())).limit(1);
+    if (!row) throw new BadRequestException(`No group is called "${value.trim()}". Use the exact name shown under Admin > Groups.`);
   }
 
   /**

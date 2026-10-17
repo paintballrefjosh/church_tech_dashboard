@@ -21,6 +21,8 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [failThreshold, setFailThreshold] = useState(initial?.failThreshold ?? 2);
   const [recoverThreshold, setRecoverThreshold] = useState(initial?.recoverThreshold ?? 2);
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
+  const [showOnStatus, setShowOnStatus] = useState(initial?.showOnStatus ?? false);
+  const [statusName, setStatusName] = useState(initial?.statusName ?? "");
   // Per-kind options (only the ones relevant to the selected kind are submitted).
   const [httpMethod, setHttpMethod] = useState(optStr(o, "method", "GET"));
   const [httpExpectedStatus, setHttpExpectedStatus] = useState(optNum(o, "expectedStatus", 200));
@@ -64,6 +66,8 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         failThreshold,
         recoverThreshold,
         enabled,
+        showOnStatus,
+        statusName: statusName.trim() || null,
         options: buildOptions(),
       });
       const url = initial ? `/api/monitors/${initial.id}` : "/api/monitors";
@@ -278,6 +282,32 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         />
         <span>Enabled</span>
       </label>
+
+      <fieldset className="space-y-2 rounded-md border border-slate-300 p-3 dark:border-slate-700">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Status page</legend>
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={showOnStatus}
+            onChange={(e) => setShowOnStatus(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
+          />
+          <span>Show on the status page (everyone who signs in can see it)</span>
+        </label>
+        {showOnStatus ? (
+          <label className="block">
+            <span className="text-sm">Name on the status page</span>
+            <input
+              value={statusName}
+              onChange={(e) => setStatusName(e.target.value)}
+              maxLength={120}
+              placeholder={name || "For example: Internet"}
+              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
+            />
+            <span className="mt-1 block text-xs text-slate-500">Plain words for staff and volunteers. Leave blank to use the monitor's name. The address being checked is never shown.</span>
+          </label>
+        ) : null}
+      </fieldset>
 
       <div className="flex items-center gap-3 pt-2">
         <button

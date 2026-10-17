@@ -1,9 +1,19 @@
 /* eslint-disable no-console */
-import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { acquireLease, restoreInProgress } from "@church/shared/db";
-import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState } from "@church/shared";
+import {
+  ALERT_KEYS,
+  MAINTENANCE_MODE_KEY,
+  MAINTENANCE_UNTIL_KEY,
+  describeMinutes,
+  flapConfig,
+  flapSettled,
+  isFlapping,
+  maintenanceState,
+  type FlapConfig,
+} from "@church/shared";
 import { db, pool } from "./db";
 import { claimDueMonitors, releaseMonitorClaim } from "./claim";
 import {
@@ -97,6 +107,21 @@ async function maintenanceModeOn(): Promise<boolean> {
   return maintenanceState(value(MAINTENANCE_MODE_KEY), value(MAINTENANCE_UNTIL_KEY)).active;
 }
 
+/** The two flap settings (shared rule: alert-rules.ts). A read that fails turns the rule off for that check, never the alert. */
+async function readFlapConfig(): Promise<FlapConfig> {
+  const rows = await db.select().from(settings).where(inArray(settings.key, [ALERT_KEYS.flapIncidents, ALERT_KEYS.flapWindowMin]));
+  const value = (key: string) => rows.find((r) => r.key === key)?.value;
+  return flapConfig(value(ALERT_KEYS.flapIncidents), value(ALERT_KEYS.flapWindowMin));
+}
+
+async function activity(monitor: typeof monitors.$inferSelect, action: string, title: string, summary: string, ts: Date) {
+  // Activity feed: actor is null because the worker isn't acting on behalf of a user. The page renders "system".
+  await db
+    .insert(activityEvents)
+    .values({ actorUserId: null, actorEmail: null, action, resourceType: "monitor", resourceId: monitor.id, title, summary, link: `/monitoring/${monitor.id}`, ts })
+    .catch(() => { /* best-effort */ });
+}
+
 async function notifyAll(kind: string, title: string, body: string, link: string) {
   // Silences notifications during maintenance mode, same as the in-app infra
   // alert fan-out (see CLAUDE.md ## Maintenance mode) — incidents are still
@@ -165,6 +190,12 @@ async function applyResult(
     })
     .where(eq(monitors.id, monitor.id));
 
+  // A monitor that is "flapping" (alert-rules.ts) has its individual down and up notices held back: one notice says it is
+  // unstable, one more says it has settled. Incidents are still recorded in full.
+  let flappingNow = monitor.flappingSince !== null;
+  let announcedNow = false;
+  const link = `/monitoring/${monitor.id}`;
+
   if (crossedDown) {
     const [opened] = await db
       .insert(monitorIncidents)
@@ -175,25 +206,36 @@ async function applyResult(
       })
       .returning();
     if (opened) {
-      await notifyAll(
-        "monitor.incident.opened",
-        `${monitor.name} is down`,
-        `${monitor.kind.toUpperCase()} check failed: ${result.info}`,
-        `/monitoring/${monitor.id}`,
-      );
-      // Activity feed: actor is null because the worker isn't acting on
-      // behalf of a user. The page renders "system" for those.
-      await db.insert(activityEvents).values({
-        actorUserId: null,
-        actorEmail: null,
-        action: "monitor.incident.opened",
-        resourceType: "monitor",
-        resourceId: monitor.id,
-        title: `${monitor.name} is down`,
-        summary: `${monitor.kind.toUpperCase()} check failed: ${result.info}`,
-        link: `/monitoring/${monitor.id}`,
-        ts: now,
-      }).catch(() => { /* best-effort */ });
+      let flapNotice: { opens: number; config: FlapConfig } | null = null;
+      if (!flappingNow) {
+        try {
+          const config = await readFlapConfig();
+          if (config.incidents > 0) {
+            const since = new Date(now.getTime() - config.windowMin * 60_000);
+            const [row] = await db
+              .select({ n: sql<string | number>`count(*)` })
+              .from(monitorIncidents)
+              .where(and(eq(monitorIncidents.monitorId, monitor.id), gte(monitorIncidents.startedAt, since)));
+            const opens = Number(row?.n ?? 0);
+            if (isFlapping(opens, config)) flapNotice = { opens, config };
+          }
+        } catch (err) {
+          console.error(`[monitor] ${monitor.name} flap check failed`, (err as Error).message);
+        }
+      }
+      if (flapNotice) {
+        await db.update(monitors).set({ flappingSince: now }).where(eq(monitors.id, monitor.id));
+        flappingNow = true;
+        announcedNow = true;
+        const title = `${monitor.name} is unstable`;
+        const body = `It went down ${flapNotice.opens} times in ${describeMinutes(flapNotice.config.windowMin * 60_000)}. Down and up notices for it are paused until it has stayed the same for that long.`;
+        await notifyAll("monitor.flapping", title, body, link);
+        await activity(monitor, "monitor.flapping", title, body, now);
+      } else if (!flappingNow) {
+        const summary = `${monitor.kind.toUpperCase()} check failed: ${result.info}`;
+        await notifyAll("monitor.incident.opened", `${monitor.name} is down`, summary, link);
+        await activity(monitor, "monitor.incident.opened", `${monitor.name} is down`, summary, now);
+      }
     }
   } else if (crossedUp) {
     // Resolve the most-recent open incident for this monitor.
@@ -209,24 +251,48 @@ async function applyResult(
         .update(monitorIncidents)
         .set({ resolvedAt: now })
         .where(eq(monitorIncidents.id, open.id));
-      const downSecs = Math.round((now.getTime() - new Date(open.startedAt).getTime()) / 1000);
-      await notifyAll(
-        "monitor.incident.resolved",
-        `${monitor.name} is back up`,
-        `${monitor.kind.toUpperCase()} recovered after ${downSecs}s`,
-        `/monitoring/${monitor.id}`,
-      );
-      await db.insert(activityEvents).values({
-        actorUserId: null,
-        actorEmail: null,
-        action: "monitor.incident.resolved",
-        resourceType: "monitor",
-        resourceId: monitor.id,
-        title: `${monitor.name} is back up`,
-        summary: `${monitor.kind.toUpperCase()} recovered after ${downSecs}s`,
-        link: `/monitoring/${monitor.id}`,
-        ts: now,
-      }).catch(() => { /* best-effort */ });
+      if (!flappingNow) {
+        const downSecs = Math.round((now.getTime() - new Date(open.startedAt).getTime()) / 1000);
+        const summary = `${monitor.kind.toUpperCase()} recovered after ${downSecs}s`;
+        await notifyAll("monitor.incident.resolved", `${monitor.name} is back up`, summary, link);
+        await activity(monitor, "monitor.incident.resolved", `${monitor.name} is back up`, summary, now);
+      }
+    }
+  }
+
+  // Settled: it has stayed in one state for the whole window (judged after the writes above, so a change in this very
+  // check counts). Then the notices resume, and the person is told which state it settled in.
+  if (flappingNow && !announcedNow) {
+    try {
+      const config = await readFlapConfig();
+      const [latest] = await db
+        .select({ startedAt: monitorIncidents.startedAt, resolvedAt: monitorIncidents.resolvedAt })
+        .from(monitorIncidents)
+        .where(eq(monitorIncidents.monitorId, monitor.id))
+        .orderBy(desc(monitorIncidents.startedAt))
+        .limit(1);
+      const lastChange = latest ? (latest.resolvedAt ?? latest.startedAt) : (monitor.flappingSince ?? now);
+      if (flapSettled(lastChange, now, config)) {
+        // Clear only if still set: another node's worker may have settled it a moment ago.
+        const cleared = await db
+          .update(monitors)
+          .set({ flappingSince: null })
+          .where(and(eq(monitors.id, monitor.id), sql`${monitors.flappingSince} is not null`))
+          .returning({ id: monitors.id });
+        if (cleared.length > 0) {
+          if (nextStatus === "down") {
+            const summary = `${monitor.kind.toUpperCase()} check keeps failing: ${result.info}`;
+            await notifyAll("monitor.incident.opened", `${monitor.name} is down`, summary, link);
+            await activity(monitor, "monitor.incident.opened", `${monitor.name} is down`, summary, now);
+          } else if (nextStatus === "up") {
+            const summary = `It has stayed up for ${describeMinutes(config.windowMin * 60_000)}. Down and up notices are back on.`;
+            await notifyAll("monitor.flapping", `${monitor.name} is stable again`, summary, link);
+            await activity(monitor, "monitor.flapping", `${monitor.name} is stable again`, summary, now);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[monitor] ${monitor.name} flap settle check failed`, (err as Error).message);
     }
   }
 }

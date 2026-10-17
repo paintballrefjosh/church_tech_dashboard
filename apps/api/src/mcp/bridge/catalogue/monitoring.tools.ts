@@ -87,6 +87,29 @@ export const MONITORING_TOOLS = [
     input: z.object({ id }),
   }),
   defineTool({
+    name: "monitors_acknowledge_incident",
+    title: "Acknowledge an incident",
+    description:
+      "Say that someone is on an open incident (an uptime monitor or an infrastructure alert; ids come from monitors_list_open_incidents). Reminders and escalation to the second group stop. It does not resolve anything: the incident ends when the problem does. Acknowledging twice is harmless; an incident that already ended answers 409.",
+    cls: "write",
+    method: "POST",
+    path: "/monitors/incidents/:incidentId/ack",
+    permissions: [WRITE],
+    input: z.object({ incidentId: id }),
+    idempotent: true,
+  }),
+  defineTool({
+    name: "status_get",
+    title: "Status page",
+    description:
+      "What the staff-facing status page shows: the services an admin chose to list with a plain name and whether each is up, down or flapping, an overall verdict, any maintenance window and the admin's notice. Needs no monitoring access.",
+    cls: "read",
+    method: "GET",
+    path: "/status",
+    permissions: [],
+    input: z.object({}),
+  }),
+  defineTool({
     name: "monitors_list_workers",
     title: "Probe workers",
     description: "Which app nodes run the uptime probes, how many checks each made in the last 10 minutes and how many failed.",
