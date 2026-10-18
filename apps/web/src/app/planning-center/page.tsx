@@ -70,7 +70,7 @@ export default async function PlanningCenterPage() {
             Planning Center unreachable: {health.error ?? "unknown error"}.
           </p>
         ) : plans.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+          <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             No upcoming services in the default service type. Pick a different service type
             id in{" "}
             <Link href="/admin/settings/planning_center" className="underline">

@@ -68,7 +68,7 @@ export async function TopBar({
           href="/"
           className="order-1 flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight"
         >
-          <Cross className="h-5 w-5 shrink-0 text-brand-600" aria-hidden />
+          <Cross className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
           <span className="truncate">{identity.name}</span>
         </Link>
         {session?.user && !kiosk ? (
@@ -81,7 +81,7 @@ export async function TopBar({
             <SearchBar />
           </div>
         ) : null}
-        <nav className="order-2 ml-auto flex items-center gap-3 text-sm sm:order-3 sm:ml-0 md:order-4">
+        <nav aria-label="Account" className="order-2 ml-auto flex items-center gap-3 text-sm sm:order-3 sm:ml-0 md:order-4">
           {session?.user ? (
             <>
               {/* Mounts the global Cmd+K palette. It opens itself on the

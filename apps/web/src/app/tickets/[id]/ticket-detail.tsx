@@ -222,6 +222,9 @@ export function TicketDetail({
             <span>opened {new Date(ticket.createdAt).toLocaleString()}</span>
           </div>
           {canEditCore ? (
+            <>
+              {/* The title is edited in the box below; the page still needs a heading a screen reader can jump to. */}
+              <h1 className="sr-only">{ticket.title}</h1>
             <input
               aria-label="Title"
               defaultValue={ticket.title}
@@ -232,6 +235,7 @@ export function TicketDetail({
               }}
               className="w-full bg-transparent text-2xl font-semibold outline-none focus:border-b focus:border-brand-500"
             />
+            </>
           ) : (
             <h1 className="text-2xl font-semibold">{ticket.title}</h1>
           )}
@@ -265,7 +269,7 @@ export function TicketDetail({
             />
           ) : (
             <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
-              {ticket.description || <span className="italic text-slate-400">(empty)</span>}
+              {ticket.description || <span className="italic text-slate-500 dark:text-slate-400">(empty)</span>}
             </p>
           )}
         </section>
@@ -335,7 +339,7 @@ export function TicketDetail({
                       <button
                         type="button"
                         onClick={() => deleteComment(c.id)}
-                        className="text-rose-600 hover:text-rose-700"
+                        className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
                       >
                         delete
                       </button>
@@ -381,7 +385,7 @@ export function TicketDetail({
                     </option>
                   ))}
                 </select>
-                <Link href="/tickets/canned-replies" className="text-xs text-brand-600 hover:underline">
+                <Link href="/tickets/canned-replies" className="text-xs text-brand-600 dark:text-brand-400 hover:underline">
                   Manage saved replies
                 </Link>
               </div>
@@ -472,6 +476,7 @@ export function TicketDetail({
         <Field label="Assigned">
           {can.assign ? (
             <select
+              aria-label="Assigned"
               value={ticket.assignedUserId ?? ""}
               onChange={(e) =>
                 patch({ assignedUserId: e.target.value === "" ? null : e.target.value })
@@ -524,7 +529,7 @@ export function TicketDetail({
               type="button"
               onClick={destroyTicket}
               disabled={pending}
-              className="text-xs text-rose-600 hover:text-rose-700 disabled:opacity-60"
+              className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 disabled:opacity-60"
             >
               Delete ticket
             </button>

@@ -30,10 +30,10 @@ function stateWords(item: StatusItem): { label: string; hint: string | null } {
 
 function StateIcon({ state }: { state: StatusItem["state"] }) {
   const cls = "h-6 w-6 shrink-0";
-  if (state === "up") return <CircleCheck aria-hidden className={`${cls} text-emerald-600 dark:text-emerald-400`} />;
+  if (state === "up") return <CircleCheck aria-hidden className={`${cls} text-emerald-700 dark:text-emerald-400`} />;
   if (state === "down") return <CircleX aria-hidden className={`${cls} text-rose-600 dark:text-rose-400`} />;
-  if (state === "flapping") return <TriangleAlert aria-hidden className={`${cls} text-amber-600 dark:text-amber-400`} />;
-  return <CircleHelp aria-hidden className={`${cls} text-slate-400`} />;
+  if (state === "flapping") return <TriangleAlert aria-hidden className={`${cls} text-amber-700 dark:text-amber-400`} />;
+  return <CircleHelp aria-hidden className={`${cls} text-slate-500 dark:text-slate-400`} />;
 }
 
 export function StatusClient({ initial }: { initial: StatusPage | null }) {
@@ -98,7 +98,7 @@ export function StatusClient({ initial }: { initial: StatusPage | null }) {
       </div>
 
       {page.items.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           Nothing is listed here yet. An administrator chooses which services appear when editing a monitor.
         </p>
       ) : (
@@ -126,7 +126,7 @@ export function StatusClient({ initial }: { initial: StatusPage | null }) {
         </ul>
       )}
 
-      <p className="text-xs text-slate-500" aria-live="polite">
+      <p className="text-xs text-slate-500 dark:text-slate-400" aria-live="polite">
         {stale ? "Couldn't refresh just now. Showing what was last known. " : ""}
         Checked <LocalDateTime value={page.generatedAt} options={WHEN} />.
       </p>

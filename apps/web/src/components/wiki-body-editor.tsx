@@ -143,7 +143,7 @@ export const WikiBodyEditor = forwardRef<
       LinkExt.configure({
         openOnClick: false,
         autolink: true,
-        HTMLAttributes: { class: "text-brand-600 underline" },
+        HTMLAttributes: { class: "text-brand-600 dark:text-brand-400 underline" },
       }),
       // Custom Image node that swaps to <video> / <audio> when the src URL
       // carries `?t=video` / `?t=audio`. Keeps the schema name "image" so
@@ -674,7 +674,7 @@ function cellBgAttributes(this: { parent?: () => Record<string, unknown> }) {
       {(uploading || uploadError) && (
         <div className="border-b border-slate-300 bg-slate-50 px-3 py-1 text-xs dark:border-slate-800 dark:bg-slate-900">
           {uploading ? (
-            <span className="text-slate-500">Uploading…</span>
+            <span className="text-slate-500 dark:text-slate-400">Uploading…</span>
           ) : uploadError ? (
             <span className="text-rose-600 dark:text-rose-400">{uploadError}</span>
           ) : null}

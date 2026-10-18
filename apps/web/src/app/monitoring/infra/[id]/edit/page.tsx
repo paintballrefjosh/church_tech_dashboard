@@ -23,7 +23,7 @@ export default async function EditInfraTargetPage({ params }: { params: Promise<
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Link
           href={`/monitoring/infra/${id}`}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden /> Back
         </Link>

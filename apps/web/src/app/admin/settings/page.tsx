@@ -72,7 +72,7 @@ export default async function AdminSettingsPage() {
                           href={`/admin/settings/${c.slug}`}
                           className="flex h-full items-start gap-3 rounded-md border border-slate-300 p-4 transition hover:border-brand-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
                         >
-                          <c.Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" aria-hidden />
+                          <c.Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-base font-medium">{c.label}</span>
@@ -82,7 +82,7 @@ export default async function AdminSettingsPage() {
                             </div>
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{c.description}</p>
                           </div>
-                          <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                          <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                         </Link>
                       </li>
                     );

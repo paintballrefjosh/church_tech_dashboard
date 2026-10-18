@@ -326,24 +326,33 @@ function SettingField({
 }) {
   // id = the setting key, so other pages can deep-link to a field
   // (e.g. /admin/settings/monitoring#dns.primary_url, the DNS page's admin button).
+  // The visible name and description are tied to the control, so a screen reader announces "Site name, edit text" and
+  // not just "edit text" (there are dozens of identical-looking boxes on a page).
+  const inputId = `${setting.key}__input`;
+  const labelId = `${setting.key}__label`;
+  const descId = `${setting.key}__desc`;
   return (
     <div id={setting.key} className="grid gap-2 p-4 sm:grid-cols-[1fr_2fr]">
       <div>
         <div className="font-mono text-xs text-slate-500 dark:text-slate-400">{setting.key}</div>
-        <div className="text-sm font-medium">{setting.label}</div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{setting.description}</div>
+        <label id={labelId} htmlFor={inputId} className="block text-sm font-medium">
+          {setting.label}
+        </label>
+        <div id={descId} className="mt-1 text-xs text-slate-500 dark:text-slate-400">{setting.description}</div>
       </div>
       <div>
         {setting.type === "boolean" ? (
           <div className="space-y-1">
             <label className="inline-flex items-center gap-2 text-sm">
               <input
+                id={inputId}
                 type="checkbox"
+                aria-describedby={descId}
                 checked={Boolean(value) && !locked}
                 disabled={Boolean(locked)}
                 onChange={(e) => onChange(e.target.checked)}
               />
-              <span className={locked ? "text-slate-400 dark:text-slate-500" : undefined}>
+              <span className={locked ? "text-slate-500 dark:text-slate-400" : undefined}>
                 Enabled
               </span>
             </label>
@@ -358,6 +367,8 @@ function SettingField({
           </div>
         ) : setting.type === "number" ? (
           <input
+            id={inputId}
+            aria-describedby={descId}
             type="number"
             value={typeof value === "number" ? value : 0}
             onChange={(e) => onChange(Number(e.target.value))}
@@ -367,6 +378,8 @@ function SettingField({
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <input
+                id={inputId}
+                aria-describedby={descId}
                 type="password"
                 placeholder={
                   cleared
@@ -382,6 +395,7 @@ function SettingField({
               {hasStoredValue && !cleared ? (
                 <button
                   type="button"
+                  aria-label={`Clear ${setting.label}`}
                   onClick={onClear}
                   className="shrink-0 rounded-md border border-slate-300 px-2 py-2 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
@@ -390,6 +404,7 @@ function SettingField({
               ) : cleared ? (
                 <button
                   type="button"
+                  aria-label={`Undo clearing ${setting.label}`}
                   onClick={onUndoClear}
                   className="shrink-0 rounded-md border border-slate-300 px-2 py-2 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
@@ -405,6 +420,8 @@ function SettingField({
           </div>
         ) : setting.type === "json" ? (
           <textarea
+            id={inputId}
+            aria-describedby={descId}
             value={typeof value === "string" ? value : JSON.stringify(value ?? "", null, 2)}
             onChange={(e) => {
               try {
@@ -419,6 +436,8 @@ function SettingField({
         ) : (
           <div className="flex items-center gap-2">
             <input
+              id={inputId}
+              aria-describedby={descId}
               type="text"
               value={typeof value === "string" ? value : value == null ? "" : String(value)}
               onChange={(e) => onChange(e.target.value)}
@@ -427,6 +446,7 @@ function SettingField({
             {typeof value === "string" && value.length > 0 ? (
               <button
                 type="button"
+                aria-label={`Clear ${setting.label}`}
                 onClick={() => onChange("")}
                 className="shrink-0 rounded-md border border-slate-300 px-2 py-2 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >

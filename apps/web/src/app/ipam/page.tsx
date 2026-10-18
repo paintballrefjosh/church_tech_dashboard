@@ -175,13 +175,13 @@ export default function IpamPage() {
     await Promise.all([load(), discover()]);
   };
 
-  if (!subnets) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!subnets) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const tiles = [
     { label: "Subnets", value: summary?.subnets ?? subnets.length, tone: "text-slate-900 dark:text-slate-100" },
-    { label: "Scanning", value: summary?.scanning ?? 0, tone: "text-sky-600 dark:text-sky-400" },
+    { label: "Scanning", value: summary?.scanning ?? 0, tone: "text-sky-700 dark:text-sky-400" },
     { label: "Hosts", value: summary?.hosts ?? 0, tone: "text-slate-900 dark:text-slate-100" },
-    { label: "Up", value: summary?.up ?? 0, tone: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Up", value: summary?.up ?? 0, tone: "text-emerald-700 dark:text-emerald-400" },
   ];
 
   const newCandidates = (discovered ?? []).filter((d) => !d.existing);
@@ -203,7 +203,7 @@ export default function IpamPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.label} className={cardCls}>
-            <div className="text-xs uppercase tracking-wide text-slate-500">{t.label}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{t.label}</div>
             <div className={`mt-1 text-2xl font-semibold ${t.tone}`}>{t.value}</div>
           </div>
         ))}
@@ -214,7 +214,7 @@ export default function IpamPage() {
       {canWrite ? (
         <section className={`${cardCls} flex flex-wrap items-end gap-3`}>
           <label className="block">
-            <span className="text-xs text-slate-500">Subnet (CIDR)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Subnet (CIDR)</span>
             <input
               value={cidr}
               onChange={(e) => setCidr(e.target.value)}
@@ -224,7 +224,7 @@ export default function IpamPage() {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Label (optional)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Label (optional)</span>
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -255,7 +255,7 @@ export default function IpamPage() {
           <h2 className="mb-2 text-sm font-semibold">Discovered ranges</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500">
+              <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-1 pr-3">CIDR</th>
                   <th className="py-1 pr-3">Name</th>
@@ -292,7 +292,7 @@ export default function IpamPage() {
           </div>
         </section>
       ) : discovered && newCandidates.length === 0 ? (
-        <p className="text-xs text-slate-400">No new ranges found — everything discoverable is already managed.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">No new ranges found — everything discoverable is already managed.</p>
       ) : null}
 
       {subnets.length === 0 ? (
@@ -320,11 +320,11 @@ export default function IpamPage() {
               {subnets.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                   <td className="px-3 py-2 font-mono text-xs">
-                    <Link href={`/ipam/${s.id}`} className="text-brand-600 hover:underline">
+                    <Link href={`/ipam/${s.id}`} className="text-brand-600 dark:text-brand-400 hover:underline">
                       {s.cidr}
                     </Link>
                     {s.lastError ? (
-                      <span className="ml-1 text-amber-600" title={s.lastError}>
+                      <span className="ml-1 text-amber-700 dark:text-amber-400" title={s.lastError}>
                         !
                       </span>
                     ) : null}
@@ -335,12 +335,12 @@ export default function IpamPage() {
                   </td>
                   <td className="px-3 py-2 text-xs">{s.vlanId ?? "—"}</td>
                   <td className="px-3 py-2 text-right text-xs tabular-nums">
-                    <span className="text-emerald-600 dark:text-emerald-400" title="Active hosts">
+                    <span className="text-emerald-700 dark:text-emerald-400" title="Active hosts">
                       {s.aliveCount}
                     </span>
-                    <span className="text-slate-400" title="Usable IPs in the subnet"> / {s.usableHosts}</span>
+                    <span className="text-slate-500 dark:text-slate-400" title="Usable IPs in the subnet"> / {s.usableHosts}</span>
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{fmtTime(s.lastScanFinishedAt)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{fmtTime(s.lastScanFinishedAt)}</td>
                   <td className="px-3 py-2">
                     <button
                       onClick={() => canWrite && void toggleScan(s)}
@@ -361,21 +361,21 @@ export default function IpamPage() {
                         <button
                           onClick={() => openEdit(s)}
                           title="Edit subnet"
-                          className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => void scanNow(s)}
                           title="Scan now"
-                          className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => void removeSubnet(s)}
                           title="Remove subnet"
-                          className="rounded p-1.5 text-slate-500 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
+                          className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -388,7 +388,7 @@ export default function IpamPage() {
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-400">Auto-refreshes every 15s.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s.</p>
 
       {editForm ? (
         <Modal title={`Edit ${editForm.cidr}`} onClose={() => setEditForm(null)}>
@@ -403,7 +403,7 @@ export default function IpamPage() {
                 placeholder="Office VLAN"
                 className={`w-full ${inputCls}`}
               />
-              <span className="mt-1 block text-[11px] text-slate-400">
+              <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
                 Saving here stops this label from following the source system's name (UniFi network / Cisco VLAN) —
                 it won't be overwritten by the periodic sync.
               </span>

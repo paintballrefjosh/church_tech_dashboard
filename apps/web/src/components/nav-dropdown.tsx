@@ -87,9 +87,9 @@ export function NavDropdown({
       // Blue text/icon flags this as elevated without an outline; matches
       // the default dropdowns' minimal chrome but reads as distinct at a
       // glance.
-      base: "text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-200 dark:hover:bg-blue-900/30",
+      base: "text-blue-700 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-200 dark:hover:bg-blue-900/30",
       open: "bg-blue-50 dark:bg-blue-900/30",
-      icon: "text-blue-600 dark:text-blue-300",
+      icon: "text-blue-700 dark:text-blue-300",
     },
   };
   const t = triggerByTone[tone];
@@ -151,7 +151,7 @@ function DropdownLinkItem({
       onClick={onNavigate}
       className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
     >
-      {item.Icon ? <item.Icon className="h-4 w-4 text-slate-500" aria-hidden /> : null}
+      {item.Icon ? <item.Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> : null}
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge ? (
         <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200">
@@ -165,7 +165,7 @@ function DropdownLinkItem({
 function DropdownHeader({ label, first }: { label: string; first: boolean }) {
   return (
     <div
-      className={`px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 ${
+      className={`px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${
         first ? "" : "mt-1 border-t border-slate-100 dark:border-slate-800"
       }`}
     >
@@ -180,7 +180,7 @@ function DropdownDisabledItem({ item }: { item: NavDropdownItem }) {
       role="menuitem"
       aria-disabled="true"
       title={item.badge ?? "Coming soon"}
-      className="flex cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-sm text-slate-400 dark:text-slate-500"
+      className="flex cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-sm text-slate-500 dark:text-slate-400"
     >
       {item.Icon ? <item.Icon className="h-4 w-4" aria-hidden /> : null}
       <span className="flex-1 truncate">{item.label}</span>

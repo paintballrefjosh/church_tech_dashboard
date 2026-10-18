@@ -23,10 +23,10 @@ export function SearchResultList({
   /** Show the "enter opens the top result" hint. */
   footer?: boolean;
 }) {
-  if (busy && hits.length === 0) return <p className="p-4 text-center text-xs text-slate-500">Searching…</p>;
+  if (busy && hits.length === 0) return <p className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">Searching…</p>;
   if (hits.length === 0) {
     return (
-      <p className="p-4 text-center text-xs text-slate-500">No matches for &ldquo;{query}&rdquo;.</p>
+      <p className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">No matches for &ldquo;{query}&rdquo;.</p>
     );
   }
   return (
@@ -43,7 +43,7 @@ export function SearchResultList({
                 onClick={() => onPick?.(h)}
                 className={`flex gap-3 border-l-4 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800 ${meta.bar}`}
               >
-                <meta.Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                <meta.Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span
@@ -68,7 +68,7 @@ export function SearchResultList({
         })}
       </ul>
       {footer ? (
-        <div className="border-t border-slate-100 px-3 py-2 text-[10px] text-slate-400 dark:border-slate-800">
+        <div className="border-t border-slate-100 px-3 py-2 text-[10px] text-slate-500 dark:text-slate-400 dark:border-slate-800">
           <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">↵</kbd> open top result ·{" "}
           <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">esc</kbd> close
         </div>

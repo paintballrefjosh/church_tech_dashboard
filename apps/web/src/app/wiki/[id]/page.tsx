@@ -96,14 +96,14 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                   className="flex flex-wrap items-center gap-1 text-sm text-slate-500 dark:text-slate-400"
                   aria-label="Breadcrumb"
                 >
-                  <Link href="/wiki" className="text-brand-600 hover:underline">
+                  <Link href="/wiki" className="text-brand-600 dark:text-brand-400 hover:underline">
                     Wiki
                   </Link>
                   {breadcrumbs.map((b) => (
                     <span key={`${b.kind}:${b.id}`} className="flex items-center gap-1">
                       <span aria-hidden>/</span>
                       {b.kind === "page" ? (
-                        <Link href={`/wiki/${b.id}`} className="text-brand-600 hover:underline">
+                        <Link href={`/wiki/${b.id}`} className="text-brand-600 dark:text-brand-400 hover:underline">
                           {b.label}
                         </Link>
                       ) : (
@@ -137,7 +137,7 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
               {payload.page.body.trim() ? (
                 <Markdown>{payload.page.body}</Markdown>
               ) : (
-                <p className="italic text-slate-400">(empty page)</p>
+                <p className="italic text-slate-500 dark:text-slate-400">(empty page)</p>
               )}
 
               {backlinks.length > 0 ? (
@@ -148,7 +148,7 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                   <ul className="space-y-2 text-sm">
                     {backlinks.map((b) => (
                       <li key={b.id}>
-                        <Link href={`/wiki/${b.id}`} className="font-medium text-brand-600 hover:underline">
+                        <Link href={`/wiki/${b.id}`} className="font-medium text-brand-600 dark:text-brand-400 hover:underline">
                           {b.title}
                         </Link>
                         {b.context ? <span className="block text-xs text-slate-500 dark:text-slate-400">{b.context}</span> : null}

@@ -179,7 +179,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
       {/* Connection */}
       <fieldset className="space-y-4">
         <label className="block">
-          <span className="text-xs text-slate-500">Name</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Name</span>
           <input
             required
             value={name}
@@ -191,7 +191,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         </label>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs text-slate-500">Operating system</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Operating system</span>
             <select
               value={os}
               onChange={(e) => onOsChange(e.target.value as InfraOs)}
@@ -205,7 +205,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
             </select>
           </label>
           <label className="block sm:col-span-2">
-            <span className="text-xs text-slate-500">Host / IP</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Host / IP</span>
             <input
               required
               value={host}
@@ -218,7 +218,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs text-slate-500">Port (default {defaultPort})</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Port (default {defaultPort})</span>
             <input
               type="number"
               min={1}
@@ -230,7 +230,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Poll interval (s)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Poll interval (s)</span>
             <input
               type="number"
               min={10}
@@ -245,7 +245,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
               type="checkbox"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
             />
             <span>Enabled</span>
           </label>
@@ -254,10 +254,10 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
 
       {/* Capabilities */}
       <fieldset className="space-y-2 rounded-md border border-slate-200 p-4 dark:border-slate-800">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Monitoring
         </legend>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Toggle what to monitor on this {OS_LABELS[os]} host. Each capability enables its own
           metrics (and any threshold alerts you set below).
         </p>
@@ -280,11 +280,11 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
                   type="checkbox"
                   checked={on}
                   onChange={() => toggleCapability(c.key)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
                 />
                 <span>
                   <span className="block font-medium">{c.label}</span>
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className="block text-[11px] text-slate-600 dark:text-slate-400">
                     {c.description}
                   </span>
                 </span>
@@ -296,15 +296,15 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
 
       {/* Credentials */}
       <fieldset className="space-y-3 rounded-md border border-slate-200 p-4 dark:border-slate-800">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {isHypervisor ? "Proxmox API credential" : "SSH credential"}
         </legend>
         {initial?.hasCredential ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             A credential is stored ({initial.authType}). Leave the secret blank to keep it unchanged.
           </p>
         ) : null}
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           {isHypervisor
             ? "Hypervisor monitoring uses the Proxmox REST API with an API token."
             : os === "windows"
@@ -314,7 +314,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         <div className="grid gap-3 sm:grid-cols-2">
           {isSsh ? (
             <label className="block">
-              <span className="text-xs text-slate-500">Auth type</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Auth type</span>
               <select
                 value={sshAuthType}
                 onChange={(e) => setSshAuthType(e.target.value as InfraAuthType)}
@@ -326,7 +326,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
             </label>
           ) : null}
           <label className="block">
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {isHypervisor ? "Token ID (user@realm!tokenid)" : "SSH username"}
             </span>
             <input
@@ -338,7 +338,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
           </label>
         </div>
         <label className="block">
-          <span className="text-xs text-slate-500">{secretLabel}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">{secretLabel}</span>
           {authType === "ssh_key" ? (
             <textarea
               value={secret}
@@ -359,7 +359,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         </label>
         {authType === "ssh_key" ? (
           <label className="block">
-            <span className="text-xs text-slate-500">Key passphrase (optional)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Key passphrase (optional)</span>
             <input
               type="password"
               value={extra}
@@ -372,7 +372,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         {isHypervisor ? (
           <>
             <label className="block">
-              <span className="text-xs text-slate-500">CA certificate (optional, PEM)</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">CA certificate (optional, PEM)</span>
               <textarea
                 value={caCert}
                 onChange={(e) => setCaCert(e.target.value)}
@@ -386,7 +386,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
                 type="checkbox"
                 checked={allowSelfSigned}
                 onChange={(e) => setAllowSelfSigned(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
               />
               <span>Allow self-signed TLS</span>
             </label>
@@ -402,7 +402,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
             <Plug className="h-4 w-4" aria-hidden /> Test connection
           </button>
           {testMsg ? (
-            <span className={testMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+            <span className={testMsg.ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
               {testMsg.text}
             </span>
           ) : null}
@@ -467,21 +467,21 @@ function ThresholdEditor({
 
   return (
     <fieldset className="space-y-3 rounded-md border border-slate-200 p-4 dark:border-slate-800">
-      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         Alert thresholds
       </legend>
       {metrics.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-400 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:border-slate-700">
           Enable a metric capability above (CPU, memory, disk, load, or updates) to add threshold alerts.
         </p>
       ) : (
         <>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Raise an alert when a metric stays past a limit for a sustained time — e.g.{" "}
             <em>CPU usage is above 90% for 120s</em>.
           </p>
           {rules.length === 0 ? (
-            <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-400 dark:border-slate-700">
+            <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:border-slate-700">
               No thresholds yet. Add one to be alerted when this target is under strain.
             </p>
           ) : null}
@@ -493,7 +493,7 @@ function ThresholdEditor({
               <div key={r.id} className="space-y-1.5 rounded-md border border-slate-200 p-3 dark:border-slate-800">
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="block">
-                    <span className="text-[10px] uppercase text-slate-400">Metric</span>
+                    <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400">Metric</span>
                     <select
                       value={r.metricPath}
                       onChange={(e) => pickMetric(i, e.target.value)}
@@ -509,7 +509,7 @@ function ThresholdEditor({
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] uppercase text-slate-400">Condition</span>
+                    <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400">Condition</span>
                     <select
                       value={r.op}
                       onChange={(e) => update(i, { op: e.target.value as ThresholdRow["op"] })}
@@ -523,7 +523,7 @@ function ThresholdEditor({
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] uppercase text-slate-400">Value{unit ? ` (${unit})` : ""}</span>
+                    <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400">Value{unit ? ` (${unit})` : ""}</span>
                     <input
                       type="number"
                       value={r.value}
@@ -532,7 +532,7 @@ function ThresholdEditor({
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[10px] uppercase text-slate-400">Sustained (s)</span>
+                    <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400">Sustained (s)</span>
                     <input
                       type="number"
                       min={0}
@@ -542,7 +542,7 @@ function ThresholdEditor({
                     />
                   </label>
                   <label className="block">
-                    <span className="text-[10px] uppercase text-slate-400">Severity</span>
+                    <span className="text-[10px] uppercase text-slate-500 dark:text-slate-400">Severity</span>
                     <select
                       value={r.severity}
                       onChange={(e) => update(i, { severity: e.target.value as ThresholdRow["severity"] })}
@@ -559,12 +559,12 @@ function ThresholdEditor({
                     type="button"
                     onClick={() => remove(i)}
                     aria-label="Remove rule"
-                    className="rounded-md border border-slate-300 p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:border-slate-700 dark:hover:bg-rose-900/30"
+                    className="rounded-md border border-slate-300 p-1.5 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:border-slate-700 dark:hover:bg-rose-900/30"
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
-                {def ? <p className="text-[11px] text-slate-400">{def.description}</p> : null}
+                {def ? <p className="text-[11px] text-slate-500 dark:text-slate-400">{def.description}</p> : null}
               </div>
             );
           })}

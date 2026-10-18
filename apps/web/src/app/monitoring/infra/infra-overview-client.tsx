@@ -99,10 +99,10 @@ export function InfraOverviewClient({
 
       {targets.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
-          <ServerIcon className="mx-auto h-8 w-8 text-slate-400" aria-hidden />
+          <ServerIcon className="mx-auto h-8 w-8 text-slate-500 dark:text-slate-400" aria-hidden />
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
             No infrastructure targets yet.{" "}
-            <Link href="/monitoring/infra/new" className="text-brand-600 hover:underline">
+            <Link href="/monitoring/infra/new" className="text-brand-600 dark:text-brand-400 hover:underline">
               Add your first one
             </Link>
             .
@@ -145,11 +145,11 @@ function TargetCard({ target }: { target: InfraTarget }) {
         }`}
       >
         <div className="flex items-center gap-2">
-          <meta.Icon className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+          <meta.Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-medium">{target.name}</span>
           <StatusPill status={target.status} enabled={target.enabled} />
         </div>
-        <div className="mt-0.5 truncate font-mono text-xs text-slate-500">
+        <div className="mt-0.5 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
           {meta.label} · {target.host}
         </div>
         {caps.length ? (
@@ -245,13 +245,13 @@ function SummaryTile({
     tone === "bad"
       ? "text-rose-600 dark:text-rose-400"
       : tone === "warn"
-        ? "text-amber-600 dark:text-amber-400"
+        ? "text-amber-700 dark:text-amber-400"
         : "text-slate-900 dark:text-slate-100";
   return (
     <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
       <div className={`mt-1 text-xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
-      {sub ? <div className="text-xs text-slate-400">{sub}</div> : null}
+      {sub ? <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div> : null}
     </div>
   );
 }

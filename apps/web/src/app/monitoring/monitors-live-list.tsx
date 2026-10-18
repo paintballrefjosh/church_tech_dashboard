@@ -96,7 +96,7 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
     return (
       <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
         No monitors yet.{" "}
-        <Link href="/monitoring/new" className="text-brand-600 underline">
+        <Link href="/monitoring/new" className="text-brand-600 dark:text-brand-400 underline">
           Add one
         </Link>{" "}
         to start probing.
@@ -106,7 +106,7 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-end gap-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+      <div className="mb-2 flex items-center justify-end gap-1.5 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
         <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} aria-hidden />
         <span>live · updated {lastUpdated.toLocaleTimeString()}</span>
       </div>
@@ -139,7 +139,7 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
                   ? `${m.lastLatencyMs ?? "?"} ms · ${new Date(m.lastCheckedAt).toLocaleTimeString()}`
                   : "no checks yet"}
                 {clustered && m.lastCheckedAt && m.lastCheckedBy ? (
-                  <div className="truncate font-mono text-[11px] text-slate-400" title="Node that made the latest check">
+                  <div className="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400" title="Node that made the latest check">
                     via {m.lastCheckedBy}
                   </div>
                 ) : null}
@@ -154,13 +154,13 @@ export function MonitorsLiveList({ initial }: { initial: Monitor[] }) {
 
 function StatusDot({ status, enabled }: { status: string; enabled: boolean }) {
   if (!enabled) {
-    return <Power className="h-5 w-5 shrink-0 text-slate-400" aria-label="Disabled" />;
+    return <Power className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-label="Disabled" />;
   }
   if (status === "up") {
-    return <CircleCheck className="h-5 w-5 shrink-0 text-emerald-500" aria-label="Up" />;
+    return <CircleCheck className="h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-label="Up" />;
   }
   if (status === "down") {
-    return <AlertTriangle className="h-5 w-5 shrink-0 text-rose-500" aria-label="Down" />;
+    return <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-label="Down" />;
   }
-  return <CircleHelp className="h-5 w-5 shrink-0 text-slate-400" aria-label="Unknown" />;
+  return <CircleHelp className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-label="Unknown" />;
 }

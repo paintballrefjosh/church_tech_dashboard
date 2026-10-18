@@ -45,7 +45,7 @@ export default async function WikiRevisionsPage({ params }: { params: Promise<{ 
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Link
           href={`/wiki/${id}`}
-          className="text-xs text-slate-500 hover:underline"
+          className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
         >
           ← Back to page
         </Link>

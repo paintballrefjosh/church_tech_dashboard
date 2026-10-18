@@ -86,7 +86,7 @@ export default async function WikiListPage({
                 {q ? `No pages match "${q}".` : (
                   <>
                     No wiki pages yet.{" "}
-                    <Link href="/wiki/new" className="text-brand-600 underline">
+                    <Link href="/wiki/new" className="text-brand-600 dark:text-brand-400 underline">
                       Write the first one
                     </Link>
                     .

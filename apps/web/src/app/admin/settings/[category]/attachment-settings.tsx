@@ -166,7 +166,7 @@ export function AttachmentSettings({ allowed, custom }: { allowed: string[]; cus
                   type="button"
                   aria-label={`Remove .${x}`}
                   onClick={() => setExts((prev) => prev.filter((e) => e !== x))}
-                  className="rounded-full px-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                  className="rounded-full px-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-slate-100"
                 >
                   &times;
                 </button>
@@ -232,7 +232,7 @@ export function AttachmentSettings({ allowed, custom }: { allowed: string[]; cus
           </button>
           <span role="status" className="text-sm">
             {status ? (
-              <span className={status.ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+              <span className={status.ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
                 {status.text}
               </span>
             ) : null}

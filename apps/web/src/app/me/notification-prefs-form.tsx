@@ -259,7 +259,7 @@ export function NotificationPrefsForm({ kinds }: Props) {
             <li key={kind} className="flex flex-wrap items-start gap-x-6 gap-y-2 px-4 py-3">
               <div className="flex min-w-0 flex-1 basis-56 items-start gap-3">
                 <Bell
-                  className={`mt-0.5 h-4 w-4 shrink-0 ${pref.enabled ? "text-brand-600" : "text-slate-400"}`}
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${pref.enabled ? "text-brand-600" : "text-slate-500 dark:text-slate-400"}`}
                   aria-hidden
                 />
                 <div className="min-w-0">
@@ -275,7 +275,7 @@ export function NotificationPrefsForm({ kinds }: Props) {
                     type="checkbox"
                     checked={pref.enabled}
                     onChange={(e) => setEnabled(kind, e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
                   />
                   <span>In-app</span>
                 </label>
@@ -291,7 +291,7 @@ export function NotificationPrefsForm({ kinds }: Props) {
                     checked={pref.email}
                     disabled={!pref.enabled}
                     onChange={(e) => setEmail(kind, e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                   />
                   <Mail className="h-3.5 w-3.5" aria-hidden />
                   <span>Email</span>
@@ -311,7 +311,7 @@ export function NotificationPrefsForm({ kinds }: Props) {
                       disabled={!pref.enabled || pushDevices === 0}
                       onChange={(e) => setPush(kind, e.target.checked)}
                       data-testid={`pref-push-${kind}`}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                     />
                     <Smartphone className="h-3.5 w-3.5" aria-hidden />
                     <span>Push</span>
@@ -332,7 +332,7 @@ export function NotificationPrefsForm({ kinds }: Props) {
           <Save className="h-4 w-4" aria-hidden /> Save preferences
         </button>
         {err ? <span className="text-rose-600 dark:text-rose-400">{err}</span> : null}
-        {ok ? <span className="text-emerald-600 dark:text-emerald-400">{ok}</span> : null}
+        {ok ? <span className="text-emerald-700 dark:text-emerald-400">{ok}</span> : null}
       </div>
     </div>
   );

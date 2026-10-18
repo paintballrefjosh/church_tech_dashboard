@@ -86,7 +86,7 @@ function TileEmpty({
       <Icon className="h-8 w-8 text-slate-300 dark:text-slate-600" aria-hidden />
       <p className="text-xs text-slate-500 dark:text-slate-400">{text}</p>
       {actionHref && actionLabel ? (
-        <Link href={actionHref} className="text-xs font-medium text-brand-600 hover:underline">
+        <Link href={actionHref} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline">
           {actionLabel}
         </Link>
       ) : null}
@@ -112,8 +112,8 @@ export function TicketsSummaryTile({ initialTickets }: { initialTickets?: Ticket
       .catch(() => setError("failed"));
   }, [initialTickets]);
 
-  if (error) return <p className="text-xs text-rose-600">{error}</p>;
-  if (!tickets) return <p className="text-xs text-slate-400">Loading…</p>;
+  if (error) return <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>;
+  if (!tickets) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const counts: Record<TicketStatus, number> = { open: 0, in_progress: 0, waiting: 0, resolved: 0, closed: 0 };
   for (const t of tickets) counts[t.status as TicketStatus]++;
@@ -146,8 +146,8 @@ export function NotesRecentTile({ initialNotes }: { initialNotes?: Note[] }) {
       .catch(() => setError("failed"));
   }, [initialNotes]);
 
-  if (error) return <p className="text-xs text-rose-600">{error}</p>;
-  if (!notes) return <p className="text-xs text-slate-400">Loading…</p>;
+  if (error) return <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>;
+  if (!notes) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
 
   return (
     <CountCard
@@ -177,8 +177,8 @@ export function WikiRecentTile({ initialPages }: { initialPages?: WikiPage[] }) 
       .catch(() => setError("failed"));
   }, [initialPages]);
 
-  if (error) return <p className="text-xs text-rose-600">{error}</p>;
-  if (!pages) return <p className="text-xs text-slate-400">Loading…</p>;
+  if (error) return <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>;
+  if (!pages) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
 
   return (
     <CountCard
@@ -348,14 +348,14 @@ export function MonitoringOverviewTile() {
     };
   }, []);
 
-  if (!rows) return <p className="text-xs text-slate-400">Loading…</p>;
+  if (!rows) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
 
   return (
     <div className="flex h-full flex-col">
       <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-800">
         {rows.map((r) => (
           <li key={r.key} className="flex items-center gap-3 py-2">
-            <r.Icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+            <r.Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
             <Link href={r.href} className="min-w-0 flex-1 truncate font-medium hover:underline">
               {r.label}
             </Link>
@@ -375,10 +375,10 @@ export function MonitoringOverviewTile() {
  */
 function StatusPill({ row }: { row: OverviewRow }) {
   if (row.status !== "ok") {
-    return <span className="text-xs text-slate-400 dark:text-slate-500">{row.note}</span>;
+    return <span className="text-xs text-slate-500 dark:text-slate-400">{row.note}</span>;
   }
   if (row.total === 0) {
-    return <span className="text-xs text-slate-400 dark:text-slate-500">none</span>;
+    return <span className="text-xs text-slate-500 dark:text-slate-400">none</span>;
   }
   const problem = row.down > 0;
   const cls = problem
@@ -489,12 +489,12 @@ export function PlanningCenterNextServiceTile() {
     };
   }, []);
 
-  if (state === "loading") return <p className="text-xs text-slate-400">Loading…</p>;
+  if (state === "loading") return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
   if (state === "unconfigured") {
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Planning Center isn&apos;t configured.{" "}
-        <Link href="/admin/settings/planning_center" className="text-brand-600 underline">
+        <Link href="/admin/settings/planning_center" className="text-brand-600 dark:text-brand-400 underline">
           Configure
         </Link>{" "}
         to enable.
@@ -502,10 +502,10 @@ export function PlanningCenterNextServiceTile() {
     );
   }
   if (state === "empty") {
-    return <p className="text-xs text-slate-500">No upcoming services.</p>;
+    return <p className="text-xs text-slate-500 dark:text-slate-400">No upcoming services.</p>;
   }
   if (state === "error") {
-    return <p className="text-xs text-rose-600">Couldn&apos;t load: {errorMsg ?? "unknown"}</p>;
+    return <p className="text-xs text-rose-600 dark:text-rose-400">Couldn&apos;t load: {errorMsg ?? "unknown"}</p>;
   }
   if (!plan) return null;
 
@@ -531,7 +531,7 @@ export function PlanningCenterNextServiceTile() {
           <div className="text-xs text-slate-500 dark:text-slate-400">{plan.seriesTitle}</div>
         ) : null}
         {times.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-slate-500">
+          <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {times.slice(0, 3).map((t) => (
               <span key={t.id} className="rounded bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">
                 {t.startsAt ? new Date(t.startsAt).toLocaleString(undefined, {
@@ -547,12 +547,12 @@ export function PlanningCenterNextServiceTile() {
       </div>
 
       {positions.length === 0 ? (
-        <p className="text-xs text-slate-500">No team members assigned yet.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">No team members assigned yet.</p>
       ) : (
         <ul className="min-h-0 flex-1 space-y-1 overflow-auto text-sm">
           {positions.map((p) => (
             <li key={p} className="flex items-baseline gap-2">
-              <span className="w-28 shrink-0 truncate text-xs uppercase tracking-wide text-slate-500">
+              <span className="w-28 shrink-0 truncate text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 {p}
               </span>
               <span className="flex-1">
@@ -570,9 +570,9 @@ export function PlanningCenterNextServiceTile() {
                       {a.pcPersonName}
                     </span>
                     {a.status === "D" ? (
-                      <span className="ml-1 text-[10px] text-rose-500">(declined)</span>
+                      <span className="ml-1 text-[10px] text-rose-600 dark:text-rose-400">(declined)</span>
                     ) : a.status === "U" ? (
-                      <span className="ml-1 text-[10px] text-slate-400">(unconfirmed)</span>
+                      <span className="ml-1 text-[10px] text-slate-500 dark:text-slate-400">(unconfirmed)</span>
                     ) : null}
                   </span>
                 ))}
@@ -624,8 +624,8 @@ export function MyChecklistsTile({ limit = 5 }: { limit?: number }) {
     };
   }, []);
 
-  if (error) return <p className="text-xs text-rose-600">{error}</p>;
-  if (!tasks) return <p className="text-xs text-slate-400">Loading…</p>;
+  if (error) return <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>;
+  if (!tasks) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
   if (tasks.length === 0) {
     return (
       <TileEmpty
@@ -663,7 +663,7 @@ export function MyChecklistsTile({ limit = 5 }: { limit?: number }) {
                 {g.name}
               </Link>
               {g.scheduledAt ? (
-                <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {new Date(g.scheduledAt).toLocaleString(undefined, {
                     weekday: "short",
                     month: "short",
@@ -677,14 +677,14 @@ export function MyChecklistsTile({ limit = 5 }: { limit?: number }) {
                 <li key={t.taskId} className="truncate text-slate-600 dark:text-slate-400">
                   ◦ {t.title}
                   {t.positionName ? (
-                    <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-400">
+                    <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {t.positionName}
                     </span>
                   ) : null}
                 </li>
               ))}
               {g.rows.length > 5 ? (
-                <li className="text-[10px] text-slate-500">… and {g.rows.length - 5} more</li>
+                <li className="text-[10px] text-slate-500 dark:text-slate-400">… and {g.rows.length - 5} more</li>
               ) : null}
             </ul>
           </li>

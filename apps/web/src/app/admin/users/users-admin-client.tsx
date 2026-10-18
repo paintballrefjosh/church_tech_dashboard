@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { UserTokensSection } from "./user-tokens-section";
 import { SessionsPanel } from "@/components/sessions-panel";
+import { useModal } from "@/components/modal";
 
 interface UserRow {
   id: string;
@@ -160,7 +161,7 @@ export function UsersAdminClient({
   return (
     <div className="mt-6">
       {err ? (
-        <p role="alert" className="mb-3 text-sm text-rose-600">
+        <p role="alert" className="mb-3 text-sm text-rose-600 dark:text-rose-400">
           {err}
         </p>
       ) : null}
@@ -201,7 +202,7 @@ export function UsersAdminClient({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           {tab === "active"
             ? "No active users."
             : tab === "pending"
@@ -294,7 +295,7 @@ export function UsersAdminClient({
                   <button
                     type="button"
                     onClick={() => void toggleActive(u)}
-                    className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                   >
                     {u.isActive ? "Disable" : "Enable"}
                   </button>
@@ -412,7 +413,7 @@ function CreateDrawer({
     <DrawerShell title="New user" onClose={onClose}>
       <form onSubmit={submit} className="flex h-full flex-col">
         <label className="mb-3 block text-xs">
-          <span className="text-slate-500">Email</span>
+          <span className="text-slate-500 dark:text-slate-400">Email</span>
           <input
             type="email"
             required
@@ -423,7 +424,7 @@ function CreateDrawer({
           />
         </label>
         <label className="mb-3 block text-xs">
-          <span className="text-slate-500">Display name</span>
+          <span className="text-slate-500 dark:text-slate-400">Display name</span>
           <input
             required
             value={displayName}
@@ -433,7 +434,7 @@ function CreateDrawer({
           />
         </label>
         <div className="mb-4">
-          <span className="mb-1 block text-xs text-slate-500">How they get access</span>
+          <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">How they get access</span>
           <div className="grid grid-cols-2 gap-2">
             {(["invite", "password"] as const).map((m) => (
               <button
@@ -461,7 +462,7 @@ function CreateDrawer({
         ) : (
           <>
             <label className="mb-4 block text-xs">
-              <span className="text-slate-500">Password (≥12 chars)</span>
+              <span className="text-slate-500 dark:text-slate-400">Password (≥12 chars)</span>
               <input
                 type="password"
                 required
@@ -472,7 +473,7 @@ function CreateDrawer({
                 autoComplete="new-password"
                 className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm font-mono dark:border-slate-700 dark:bg-slate-950"
               />
-              <span className="mt-1 block text-[10px] text-slate-500">
+              <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">
                 You&apos;ll need to share this with the user yourself, or rely on the welcome
                 email below.
               </span>
@@ -487,7 +488,7 @@ function CreateDrawer({
               />
               <span>
                 <span className="font-medium">Require password change on first sign-in</span>
-                <span className="block text-[10px] text-slate-500">
+                <span className="block text-[10px] text-slate-500 dark:text-slate-400">
                   The user is bounced to /change-password before they can use anything, so your
                   initial password is never permanent.
                 </span>
@@ -503,7 +504,7 @@ function CreateDrawer({
               />
               <span>
                 <span className="font-medium">Send welcome email</span>
-                <span className="block text-[10px] text-slate-500">
+                <span className="block text-[10px] text-slate-500 dark:text-slate-400">
                   Emails the new user a &quot;get started&quot; link to sign in. Needs SMTP
                   configured under Admin &gt; Settings; otherwise it is silently skipped.
                 </span>
@@ -513,11 +514,11 @@ function CreateDrawer({
         )}
 
         <section className="mb-4">
-          <h3 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <UsersIcon className="h-3 w-3" aria-hidden /> Groups
           </h3>
           {groups.length === 0 ? (
-            <p className="text-xs text-slate-500">No groups defined.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">No groups defined.</p>
           ) : (
             <ul className="space-y-1">
               {groups.map((g) => (
@@ -542,13 +543,13 @@ function CreateDrawer({
               ))}
             </ul>
           )}
-          <p className="mt-1 text-[10px] text-slate-500">
+          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
             Leave empty to fall back to the default <code className="font-mono">user</code> group.
           </p>
         </section>
 
         {localErr ? (
-          <p role="alert" className="mb-3 text-xs text-rose-600">
+          <p role="alert" className="mb-3 text-xs text-rose-600 dark:text-rose-400">
             {localErr}
           </p>
         ) : null}
@@ -775,7 +776,7 @@ function ManageDrawer({
   return (
     <DrawerShell title="Manage user" subtitle={user.email} onClose={onClose} wide>
       <label className="mb-4 block text-xs">
-        <span className="text-slate-500">Display name</span>
+        <span className="text-slate-500 dark:text-slate-400">Display name</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -799,7 +800,7 @@ function ManageDrawer({
         </button>
         {!groupsOpen ? null : assignments ? (
           groups.length === 0 ? (
-            <p className="text-xs text-slate-500">No groups defined.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">No groups defined.</p>
           ) : (
             <ul className="space-y-1">
               {groups.map((g) => (
@@ -825,7 +826,7 @@ function ManageDrawer({
             </ul>
           )
         ) : (
-          <p className="text-xs text-slate-500">Loading…</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>
         )}
       </section>
 
@@ -843,14 +844,14 @@ function ManageDrawer({
             {welcomeBusy ? "Sending…" : "Resend welcome email"}
           </button>
         </div>
-        <p className="mt-1 text-[10px] text-slate-500">
+        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
           Re-sends the &quot;get started&quot; sign-in link to {user.email}. Needs SMTP configured
           under Admin &gt; Settings.
         </p>
         {welcomeMsg ? (
           <p
             className={`mt-2 text-xs ${
-              welcomeMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"
+              welcomeMsg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"
             }`}
           >
             {welcomeMsg.text}
@@ -874,7 +875,7 @@ function ManageDrawer({
         {!resetOpen ? null : (
         <div className="mt-2">
         <label className="block text-xs">
-          <span className="text-slate-500">New password (≥12 chars)</span>
+          <span className="text-slate-500 dark:text-slate-400">New password (≥12 chars)</span>
           <input
             type="password"
             value={resetPwd}
@@ -896,7 +897,7 @@ function ManageDrawer({
         {resetMsg ? (
           <p
             className={`mt-2 text-xs ${
-              resetMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"
+              resetMsg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"
             }`}
           >
             {resetMsg.text}
@@ -926,7 +927,7 @@ function ManageDrawer({
             they can sign in and enrol again.
           </p>
           {totpMsg ? (
-            <p className={`mt-2 text-xs ${totpMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{totpMsg.text}</p>
+            <p className={`mt-2 text-xs ${totpMsg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}>{totpMsg.text}</p>
           ) : null}
           <div className="mt-2 flex justify-end">
             <button
@@ -940,7 +941,7 @@ function ManageDrawer({
           </div>
         </section>
       ) : totpMsg ? (
-        <p className={`mb-4 text-xs ${totpMsg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{totpMsg.text}</p>
+        <p className={`mb-4 text-xs ${totpMsg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}>{totpMsg.text}</p>
       ) : null}
 
       <section className="mb-4 rounded-md border border-slate-200 p-3 dark:border-slate-800">
@@ -1013,7 +1014,7 @@ function TabButton({
       className={`mb-[-1px] border-b-2 px-3 py-2 ${
         active
           ? "border-brand-600 text-brand-700 dark:text-brand-300"
-          : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
       }`}
     >
       {children}
@@ -1035,10 +1036,13 @@ function DrawerShell({
   /** Centered, wider modal (vs the default right-side drawer). */
   wide?: boolean;
 }) {
+  const dialogRef = useModal<HTMLDivElement>(onClose);
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
+      aria-label={title}
       onClick={onClose}
       className={`fixed inset-0 z-[1000] flex bg-black/40 p-4 ${
         wide ? "items-center justify-center" : "items-start justify-end"

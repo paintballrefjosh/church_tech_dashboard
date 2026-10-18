@@ -113,7 +113,7 @@ export default async function ProfilePage() {
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <Bell className="h-5 w-5 text-brand-600" aria-hidden />
+            <Bell className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             Notifications
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -138,7 +138,7 @@ export default async function ProfilePage() {
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <CalendarDays className="h-5 w-5 text-brand-600" aria-hidden />
+            <CalendarDays className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             Planning Center
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -152,7 +152,7 @@ export default async function ProfilePage() {
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <ShieldCheck className="h-5 w-5 text-brand-600" aria-hidden />
+            <ShieldCheck className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             Security
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -170,7 +170,7 @@ export default async function ProfilePage() {
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <KeySquare className="h-5 w-5 text-brand-600" aria-hidden />
+            <KeySquare className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             API tokens
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">

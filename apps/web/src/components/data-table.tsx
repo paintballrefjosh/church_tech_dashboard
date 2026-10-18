@@ -5,7 +5,10 @@ import { ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight } fr
 
 export interface Column<T> {
   key: string;
+  /** Shown as the column heading. A column with no visible heading (a checkbox, a row of buttons) needs `srLabel`. */
   label: string;
+  /** What a screen reader says for a column whose `label` is empty. */
+  srLabel?: string;
   render: (row: T) => ReactNode;
   /** Provide to make the column sortable + included in the text filter. */
   sortValue?: (row: T) => string | number;
@@ -29,6 +32,10 @@ export interface ServerMode {
   onSearch: (q: string) => void;
   /** Server-side sort — header clicks call this instead of sorting locally. */
   onSort?: (key: string, dir: "asc" | "desc") => void;
+}
+
+function headingOf<T>(c: Column<T>): ReactNode {
+  return c.label || <span className="sr-only">{c.srLabel ?? "Actions"}</span>;
 }
 
 /** Generic sortable + filterable + paginated table. */
@@ -135,7 +142,7 @@ export function DataTable<T>({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
           <input
             value={filter}
             onChange={(e) => onFilterChange(e.target.value)}
@@ -143,7 +150,7 @@ export function DataTable<T>({
             className="w-64 rounded-md border border-slate-300 py-1.5 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950"
           />
         </div>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {total === 0 ? "0" : `${start}–${end}`} of {total}
           {server?.loading ? " · loading…" : ""}
         </span>
@@ -154,7 +161,7 @@ export function DataTable<T>({
             <select
               value={pageSize}
               onChange={(e) => setSize(Number(e.target.value))}
-              className="rounded-md border border-slate-300 px-1.5 py-1 text-xs dark:border-slate-700 dark:bg-slate-950"
+              className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950"
             >
               {pageSizeOptions.map((n) => (
                 <option key={n} value={n}>
@@ -178,7 +185,7 @@ export function DataTable<T>({
                       onClick={() => toggleSort(c.key)}
                       className="inline-flex items-center gap-1 hover:text-slate-800 dark:hover:text-slate-200"
                     >
-                      {c.label}
+                      {headingOf(c)}
                       {sortKey === c.key ? (
                         sortDir === "asc" ? (
                           <ArrowUp className="h-3 w-3" aria-hidden />
@@ -190,7 +197,7 @@ export function DataTable<T>({
                       )}
                     </button>
                   ) : (
-                    c.label
+                    headingOf(c)
                   )}
                 </th>
               ))}
@@ -199,7 +206,7 @@ export function DataTable<T>({
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500">
+                <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                   {server?.loading ? "Loading…" : emptyText}
                 </td>
               </tr>

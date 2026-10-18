@@ -111,7 +111,7 @@ export function RevisionsView({
 
   if (revisions.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+      <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:text-slate-400 dark:border-slate-700">
         No revision history yet.
       </p>
     );
@@ -137,11 +137,11 @@ export function RevisionsView({
                     sel ? "bg-brand-50 dark:bg-brand-900/20" : ""
                   }`}
                 >
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-600 dark:text-slate-400">
                     {when(r.createdAt)} &middot; {editorLabel(r)}
                   </div>
                   <div className="truncate text-sm font-medium">{r.title}</div>
-                  {r.summary ? <div className="truncate text-xs text-slate-500">{r.summary}</div> : null}
+                  {r.summary ? <div className="truncate text-xs text-slate-600 dark:text-slate-400">{r.summary}</div> : null}
                 </button>
               </li>
             );
@@ -151,7 +151,7 @@ export function RevisionsView({
 
       <section className="min-w-0 rounded-md border border-slate-300 dark:border-slate-800" aria-label="What changed">
         <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-300 px-3 py-2 text-sm dark:border-slate-800">
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
             From
             <select
               value={fromId ?? "none"}
@@ -167,7 +167,7 @@ export function RevisionsView({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
             to
             <select value={toId} onChange={(e) => setToOverride(e.target.value)} className={select} data-testid="diff-to">
               {versions.map((v) => (
@@ -177,7 +177,7 @@ export function RevisionsView({
               ))}
             </select>
           </label>
-          <span className="text-xs text-slate-500" data-testid="diff-stats">
+          <span className="text-xs text-slate-600 dark:text-slate-400" data-testid="diff-stats">
             {unchanged ? "no difference" : `${diff.added} added, ${diff.removed} removed`}
           </span>
           {canEdit && toId !== CURRENT ? (
@@ -204,7 +204,7 @@ export function RevisionsView({
               className={`rounded-t-md border-x border-t px-3 py-1.5 ${
                 tab === t
                   ? "border-slate-300 bg-white font-medium dark:border-slate-700 dark:bg-slate-950"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               {t === "changes" ? "Changes" : "This version"}
@@ -230,7 +230,7 @@ export function RevisionsView({
               </p>
             ) : null}
             {unchanged ? (
-              <p className="p-4 text-sm text-slate-500 dark:text-slate-400">These two versions are the same.</p>
+              <p className="p-4 text-sm text-slate-600 dark:text-slate-400">These two versions are the same.</p>
             ) : (
               <div className="overflow-x-auto p-1 font-mono text-xs" data-testid="diff-body">
                 {items.map((item) =>
@@ -243,7 +243,7 @@ export function RevisionsView({
                       key={`gap-${item.id}`}
                       type="button"
                       onClick={() => setExpanded((s) => new Set(s).add(item.id))}
-                      className="block w-full border-y border-dashed border-slate-300 bg-slate-50 px-2 py-1 text-left text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                      className="block w-full border-y border-dashed border-slate-300 bg-slate-50 px-2 py-1 text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                     >
                       Show {item.rows.length} unchanged lines
                     </button>
@@ -254,7 +254,7 @@ export function RevisionsView({
           </div>
         ) : (
           <div>
-            <p className="border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
+            <p className="border-b border-slate-200 px-3 py-2 text-xs text-slate-600 dark:text-slate-400 dark:border-slate-800">
               {to.title} &middot; {to.label}
             </p>
             <pre className="overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs" data-testid="version-text">
@@ -283,10 +283,10 @@ function Row({ row }: { row: DiffRow }) {
       : "bg-rose-200 line-through decoration-rose-500 dark:bg-rose-800/70";
   return (
     <div className={`flex gap-2 px-1 ${tone}`} data-diff={row.kind}>
-      <span className="w-8 shrink-0 select-none text-right text-slate-400" aria-hidden>
+      <span className="w-8 shrink-0 select-none text-right text-slate-600 dark:text-slate-400" aria-hidden>
         {row.oldNo ?? ""}
       </span>
-      <span className="w-8 shrink-0 select-none text-right text-slate-400" aria-hidden>
+      <span className="w-8 shrink-0 select-none text-right text-slate-600 dark:text-slate-400" aria-hidden>
         {row.newNo ?? ""}
       </span>
       <span className="w-3 shrink-0 select-none font-bold" aria-hidden>

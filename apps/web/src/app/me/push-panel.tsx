@@ -173,7 +173,7 @@ export function PushPanel() {
         </div>
       )}
       {msg ? (
-        <p role={msg.tone === "err" ? "alert" : "status"} className={`text-sm ${msg.tone === "err" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+        <p role={msg.tone === "err" ? "alert" : "status"} className={`text-sm ${msg.tone === "err" ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"}`}>
           {msg.text}
         </p>
       ) : null}
@@ -181,7 +181,7 @@ export function PushPanel() {
         <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 text-sm dark:divide-slate-800 dark:border-slate-800" data-testid="push-devices">
           {status.devices.map((d) => (
             <li key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2" data-testid="push-device">
-              <Smartphone className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+              <Smartphone className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">
                   {d.label}

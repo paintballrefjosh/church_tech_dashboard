@@ -108,7 +108,7 @@ export function TileShell({
               // mouse-down on this element starts a click, not a drag. We also
               // stop propagation as a belt-and-braces against any DnD library
               // that listens on the parent's mousedown directly.
-              className="tile-no-drag rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
+              className="tile-no-drag rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
               aria-label={`Remove ${title}`}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {

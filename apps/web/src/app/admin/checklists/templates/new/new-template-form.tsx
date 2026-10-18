@@ -40,7 +40,7 @@ export function NewTemplateForm() {
   return (
     <form onSubmit={submit} className="mt-6 space-y-4 text-sm">
       <label className="block">
-        <span className="text-xs text-slate-500">Name</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Name</span>
         <input
           required
           value={name}
@@ -51,7 +51,7 @@ export function NewTemplateForm() {
         />
       </label>
       <label className="block">
-        <span className="text-xs text-slate-500">Description (optional)</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Description (optional)</span>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}

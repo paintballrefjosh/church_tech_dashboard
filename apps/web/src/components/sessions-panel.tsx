@@ -25,7 +25,7 @@ function ago(iso: string, now: number = Date.now()): string {
 }
 
 function DeviceIcon({ device }: { device: UserAgentInfo["device"] }) {
-  const cls = "h-5 w-5 shrink-0 text-slate-500";
+  const cls = "h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400";
   if (device === "mobile") return <Smartphone className={cls} aria-hidden />;
   if (device === "tablet") return <Tablet className={cls} aria-hidden />;
   return <Laptop className={cls} aria-hidden />;
@@ -80,9 +80,9 @@ export function SessionsPanel({ adminUserId }: { adminUserId?: string }) {
 
   return (
     <div className="text-sm">
-      {rows === null ? <p className="text-xs text-slate-500">Loading…</p> : null}
+      {rows === null ? <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p> : null}
       {rows !== null && rows.length === 0 ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           {admin ? "No tracked browsers." : "Nothing to list yet. Sessions that began before this list existed are not shown, but \"Sign out everywhere\" ends them too."}
         </p>
       ) : null}
@@ -100,7 +100,7 @@ export function SessionsPanel({ adminUserId }: { adminUserId?: string }) {
                     </span>
                   ) : null}
                 </p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                   {r.ip ?? "address unknown"} · active {ago(r.lastSeenAt)} · signed in {ago(r.createdAt)}
                 </p>
               </div>
@@ -124,7 +124,7 @@ export function SessionsPanel({ adminUserId }: { adminUserId?: string }) {
       ) : null}
 
       {msg ? (
-        <p role="status" className={`mt-2 text-xs ${msg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>
+        <p role="status" className={`mt-2 text-xs ${msg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}>
           {msg.text}
         </p>
       ) : null}

@@ -66,10 +66,10 @@ export default async function AdminPermissionsPage() {
         <PageTitle icon={KeyRound}>Access matrix</PageTitle>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Read-only view of every group's tier per module. Edit assignments at{" "}
-          <a href="/admin/groups" className="text-brand-600 underline">/admin/groups</a>.
+          <a href="/admin/groups" className="text-brand-600 dark:text-brand-400 underline">/admin/groups</a>.
         </p>
 
-        <div className="mt-6 overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+        <div tabIndex={0} role="region" aria-label="Permissions by group" className="mt-6 overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
           <table className="min-w-full border-collapse text-xs">
             <thead className="bg-slate-50 dark:bg-slate-900/40">
               <tr>
@@ -80,7 +80,7 @@ export default async function AdminPermissionsPage() {
                   <th key={g.id} className="px-3 py-2 text-center font-medium">
                     {g.name}
                     {g.isSystem ? (
-                      <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-400">
+                      <span className="ml-1 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         system
                       </span>
                     ) : null}
@@ -96,7 +96,7 @@ export default async function AdminPermissionsPage() {
                 >
                   <td className="sticky left-0 bg-inherit px-3 py-1.5">
                     <div className="font-medium">{m.label}</div>
-                    <div className="font-mono text-[10px] text-slate-500">{m.key}</div>
+                    <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{m.key}</div>
                   </td>
                   {matrix.groups.map((g) => {
                     const tier = g.access[m.key];

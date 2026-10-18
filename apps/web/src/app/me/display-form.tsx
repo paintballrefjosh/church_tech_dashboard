@@ -164,7 +164,7 @@ function Option({
       }
     >
       <div className="font-medium">{label}</div>
-      <div className="text-xs text-slate-500 dark:text-slate-400">{hint}</div>
+      <div className="text-xs text-slate-600 dark:text-slate-400">{hint}</div>
     </button>
   );
 }

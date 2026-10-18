@@ -61,17 +61,17 @@ export default function CiscoMacPage() {
       ),
       sortValue: (r) => r.portId ?? "",
     },
-    { key: "desc", label: "Description", render: (r) => <span className="text-xs text-slate-500">{r.portDescription ?? "—"}</span> },
+    { key: "desc", label: "Description", render: (r) => <span className="text-xs text-slate-500 dark:text-slate-400">{r.portDescription ?? "—"}</span> },
     { key: "vlan", label: "VLAN", render: (r) => <span className="text-xs">{r.vlan ?? "—"}</span>, sortValue: (r) => r.vlan ?? 0 },
     { key: "type", label: "Type", render: (r) => <span className="text-xs">{r.macType ?? "—"}</span>, sortValue: (r) => r.macType ?? "" },
-    { key: "seen", label: "Last seen", render: (r) => <span className="text-xs text-slate-500">{fmtTime(r.polledAt)}</span> },
+    { key: "seen", label: "Last seen", render: (r) => <span className="text-xs text-slate-500 dark:text-slate-400">{fmtTime(r.polledAt)}</span> },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">MAC / ARP table</h2>
-        <span className="text-xs text-slate-400">All learned MAC + IP entries across the fleet.</span>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">MAC / ARP table</h2>
+        <span className="text-xs text-slate-500 dark:text-slate-400">All learned MAC + IP entries across the fleet.</span>
         <label className="ml-auto inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
           <input
             type="checkbox"
@@ -80,7 +80,7 @@ export default function CiscoMacPage() {
               setExcludeUplinks(e.target.checked);
               setPage(0);
             }}
-            className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700"
+            className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700"
           />
           Exclude uplinks
         </label>

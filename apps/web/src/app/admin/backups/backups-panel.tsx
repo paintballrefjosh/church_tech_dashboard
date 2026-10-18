@@ -191,14 +191,14 @@ export function BackupsPanel({
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold">Backups</h2>
           {storage ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {storage.count} stored, {formatBytes(storage.totalBytes)}
               {storage.available ? "" : " - storage is not answering"}
             </p>
           ) : null}
         </div>
         {backups.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+          <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             No backups yet. Make one above, or set up a schedule so it happens by itself.
           </p>
         ) : (
@@ -210,7 +210,7 @@ export function BackupsPanel({
                   <th className="px-3 py-2">Made</th>
                   <th className="px-3 py-2">Size</th>
                   <th className="px-3 py-2">Contents</th>
-                  <th className="px-3 py-2"></th>
+                  <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -233,7 +233,7 @@ export function BackupsPanel({
                             className="w-full min-w-[12rem] rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
                           />
                           <button type="submit" className="text-xs text-brand-600 hover:underline dark:text-brand-400">Save</button>
-                          <button type="button" onClick={() => setRenaming(null)} className="text-xs text-slate-500 hover:underline">Cancel</button>
+                          <button type="button" onClick={() => setRenaming(null)} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">Cancel</button>
                         </form>
                       ) : (
                         <div className="font-medium">{b.name}</div>
@@ -241,7 +241,7 @@ export function BackupsPanel({
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <KindBadge kind={b.kind} />
                         <StatusBadge status={b.status} />
-                        {b.scheduleName ? <span className="text-[11px] text-slate-500">from {b.scheduleName}</span> : null}
+                        {b.scheduleName ? <span className="text-[11px] text-slate-500 dark:text-slate-400">from {b.scheduleName}</span> : null}
                         {b.offsiteAt && !b.offsiteError ? (
                           <span
                             className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
@@ -256,7 +256,7 @@ export function BackupsPanel({
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
                       <LocalDateTime value={b.createdAt} options={WHEN} />
-                      <div className="text-slate-500">{b.createdBy ? b.createdBy.displayName ?? b.createdBy.email : b.kind === "scheduled" ? "Automatic" : ""}</div>
+                      <div className="text-slate-500 dark:text-slate-400">{b.createdBy ? b.createdBy.displayName ?? b.createdBy.email : b.kind === "scheduled" ? "Automatic" : ""}</div>
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{formatBytes(b.sizeBytes)}</td>
                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
@@ -322,7 +322,7 @@ export function BackupsPanel({
             </table>
           </div>
         )}
-        <p className="mt-3 max-w-3xl text-xs text-slate-500">
+        <p className="mt-3 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
           Backups contain password hashes and encrypted secrets. Keep downloaded files somewhere private. They can only be restored on an
           installation that uses the same AUTH_SECRET if you want saved SMTP, OAuth and device passwords to keep working.
         </p>

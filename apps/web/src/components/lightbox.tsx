@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { useModal } from "@/components/modal";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -10,24 +11,23 @@ import { X } from "lucide-react";
  * dismiss.
  */
 export function Lightbox({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  // Focus goes in and comes back, Tab stays inside, Escape closes (useModal).
+  const dialogRef = useModal<HTMLDivElement>(onClose);
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
 
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
+      aria-label="Media preview"
       onClick={onClose}
       className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/85 p-4"
     >

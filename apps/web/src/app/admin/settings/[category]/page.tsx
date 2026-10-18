@@ -113,10 +113,10 @@ export default async function AdminSettingsCategoryPage({
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-10">
-        <nav className="mb-3 text-sm">
+        <nav aria-label="Breadcrumb" className="mb-3 text-sm">
           <Link
             href="/admin/settings"
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to all settings
           </Link>
@@ -159,7 +159,7 @@ export default async function AdminSettingsCategoryPage({
         {slug === "helpdesk" ? <HelpdeskEmailPanel initial={inboundStatus} /> : null}
 
         {scoped.length === 0 && slug === "site" ? null : scoped.length === 0 ? (
-          <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+          <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             No settings registered in this category yet.
           </p>
         ) : (

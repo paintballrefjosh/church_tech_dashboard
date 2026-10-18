@@ -98,7 +98,7 @@ export function ServicesBanner() {
               : "Down — one or more services unavailable"}
         </span>
         {report?.ts ? (
-          <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400">
+          <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
             checked {new Date(report.ts).toLocaleTimeString()}
           </span>
         ) : null}
@@ -125,7 +125,7 @@ export function ServicesBanner() {
         ))}
       </ul>
       {error ? (
-        <p className="border-t border-slate-300 px-4 py-2 text-xs text-rose-600 dark:border-slate-800">
+        <p className="border-t border-slate-300 px-4 py-2 text-xs text-rose-600 dark:text-rose-400 dark:border-slate-800">
           {error}
         </p>
       ) : null}
@@ -189,7 +189,7 @@ function ServiceDetail({
         )}
 
         {service.latencyMs !== undefined ? (
-          <p className="mt-3 text-[10px] uppercase tracking-wide text-slate-400">
+          <p className="mt-3 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
             probe latency: {service.latencyMs} ms
           </p>
         ) : null}
@@ -199,7 +199,7 @@ function ServiceDetail({
 }
 
 function KindIcon({ kind }: { kind: string }) {
-  const cls = "h-4 w-4 shrink-0 text-slate-500";
+  const cls = "h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400";
   switch (kind) {
     case "caddy":
       return <Globe className={cls} aria-hidden />;
@@ -226,12 +226,12 @@ function KindIcon({ kind }: { kind: string }) {
 }
 
 function StatusDot({ status }: { status: Status }) {
-  if (status === "ok") return <CircleCheck className="h-4 w-4 text-emerald-500" aria-label="OK" />;
+  if (status === "ok") return <CircleCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-label="OK" />;
   if (status === "down")
-    return <AlertTriangle className="h-4 w-4 text-rose-500" aria-label="Down" />;
+    return <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-label="Down" />;
   if (status === "degraded")
-    return <AlertTriangle className="h-4 w-4 text-amber-500" aria-label="Degraded" />;
-  return <CircleHelp className="h-4 w-4 text-slate-400" aria-label="Unknown" />;
+    return <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-label="Degraded" />;
+  return <CircleHelp className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-label="Unknown" />;
 }
 
 function OverallDot({ status }: { status: Status }) {

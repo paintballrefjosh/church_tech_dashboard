@@ -27,7 +27,7 @@ export function SectionPicker({
   return (
     <fieldset className="mt-3" data-testid="section-picker" disabled={disabled}>
       <legend className="text-sm font-medium">What to restore</legend>
-      <p className="mt-0.5 text-xs text-slate-500">
+      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
         Everything is chosen by default. Uncheck a section to leave it exactly as it is now. Some data refers to other data (a wiki page to its author, a ticket to the person who made it): rows
         that would refer to something that no longer exists are skipped, and rows that something you left out still uses are kept. The comparison shows both.
       </p>
@@ -47,7 +47,7 @@ export function SectionPicker({
               <span>
                 <span className="font-medium">{s.title}</span>
                 <span className="block text-xs text-slate-600 dark:text-slate-400">{s.description}</span>
-                <span className="mt-0.5 block text-[11px] text-slate-500">Includes: {s.tables.join(", ")}</span>
+                <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Includes: {s.tables.join(", ")}</span>
               </span>
             </label>
           </li>

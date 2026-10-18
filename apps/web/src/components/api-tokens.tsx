@@ -70,13 +70,13 @@ export function TokenTable({
 }) {
   if (tokens.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700">
+      <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
         {emptyText}
       </p>
     );
   }
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+    <div tabIndex={0} role="region" aria-label="API tokens" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
       <table className="w-full text-left text-sm" data-testid="api-token-table">
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
           <tr>
@@ -86,23 +86,23 @@ export function TokenTable({
             <th className="px-3 py-2">Last used</th>
             <th className="px-3 py-2">Expires</th>
             <th className="px-3 py-2">Created</th>
-            <th className="px-3 py-2"></th>
+            <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
           {tokens.map((t) => (
-            <tr key={t.id} className={`align-top ${t.status === "active" ? "" : "opacity-60"}`} data-token-id={t.id}>
+            <tr key={t.id} className={`align-top ${t.status === "active" ? "" : "italic"}`} data-token-id={t.id}>
               <td className="px-3 py-2">
                 <div className="font-medium">{t.name}</div>
                 <div className="mt-0.5 flex items-center gap-2">
-                  {t.prefix ? <code className="font-mono text-[11px] text-slate-500">{t.prefix}…</code> : null}
+                  {t.prefix ? <code className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{t.prefix}…</code> : null}
                   <StatusBadge status={t.status} />
                 </div>
               </td>
               {showOwner ? (
                 <td className="px-3 py-2 text-xs">
                   {t.userName ? <div>{t.userName}</div> : null}
-                  <div className="text-slate-500">{t.userEmail}</div>
+                  <div className="text-slate-500 dark:text-slate-400">{t.userEmail}</div>
                 </td>
               ) : null}
               <td className="px-3 py-2 text-xs">{accessLabel(t)}</td>
@@ -110,10 +110,10 @@ export function TokenTable({
                 {t.lastUsedAt ? (
                   <>
                     <LocalDateTime value={t.lastUsedAt} options={DATE_TIME} />
-                    {t.lastUsedIp ? <div className="font-mono text-[11px] text-slate-500">{t.lastUsedIp}</div> : null}
+                    {t.lastUsedIp ? <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{t.lastUsedIp}</div> : null}
                   </>
                 ) : (
-                  <span className="text-slate-400">Never</span>
+                  <span className="text-slate-500 dark:text-slate-400">Never</span>
                 )}
               </td>
               <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
@@ -286,7 +286,7 @@ export function TokenCreateForm({
     <form onSubmit={(e) => void submit(e)} className="space-y-4" data-testid="api-token-form">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-xs">
-          <span className="text-slate-500">Name</span>
+          <span className="text-slate-500 dark:text-slate-400">Name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -298,7 +298,7 @@ export function TokenCreateForm({
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-xs">
-            <span className="text-slate-500">Expires</span>
+            <span className="text-slate-500 dark:text-slate-400">Expires</span>
             <select value={expiry} onChange={(e) => setExpiry(e.target.value)} className={fieldClass}>
               {options.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -309,7 +309,7 @@ export function TokenCreateForm({
           </label>
           {choice.kind === "date" ? (
             <label className="block text-xs">
-              <span className="text-slate-500">Date</span>
+              <span className="text-slate-500 dark:text-slate-400">Date</span>
               <input
                 type="date"
                 value={date}
@@ -325,27 +325,27 @@ export function TokenCreateForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset>
-          <legend className="text-xs text-slate-500">Access</legend>
+          <legend className="text-xs text-slate-500 dark:text-slate-400">Access</legend>
           <div className="mt-1 space-y-1">
             <label className={radioRow}>
               <input type="radio" name="access" checked={level === "read"} onChange={() => setLevel("read")} className="mt-1" />
               <span>
                 Read-only
-                <span className="block text-xs text-slate-500">Can look things up; every change is refused.</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">Can look things up; every change is refused.</span>
               </span>
             </label>
             <label className={radioRow}>
               <input type="radio" name="access" checked={level === "write"} onChange={() => setLevel("write")} className="mt-1" />
               <span>
                 Read and write
-                <span className="block text-xs text-slate-500">Can make changes, as the token&apos;s owner.</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">Can make changes, as the token&apos;s owner.</span>
               </span>
             </label>
             <label className={radioRow}>
               <input type="radio" name="access" checked={level === "operational"} onChange={() => setLevel("operational")} className="mt-1" />
               <span>
                 Read, write and equipment
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
                   Can also act on live equipment: shut a switch port, edit DNS, start scans, move ProPresenter slides.
                 </span>
               </span>
@@ -353,7 +353,7 @@ export function TokenCreateForm({
           </div>
         </fieldset>
         <fieldset>
-          <legend className="text-xs text-slate-500">Modules</legend>
+          <legend className="text-xs text-slate-500 dark:text-slate-400">Modules</legend>
           <div className="mt-1 space-y-1">
             <label className={radioRow}>
               <input type="radio" name="modules" checked={allModules} onChange={() => setAllModules(true)} className="mt-1" />
@@ -375,7 +375,7 @@ export function TokenCreateForm({
                 ))}
               </ul>
             ) : null}
-            {modulesHint ? <p className="text-xs text-slate-500">{modulesHint}</p> : null}
+            {modulesHint ? <p className="text-xs text-slate-500 dark:text-slate-400">{modulesHint}</p> : null}
           </div>
         </fieldset>
       </div>
@@ -395,7 +395,7 @@ export function TokenCreateForm({
           the modules the script needs, or make it read-only.
         </Warning>
       ) : null}
-      {err ? <p className="text-xs text-rose-600">{err}</p> : null}
+      {err ? <p className="text-xs text-rose-600 dark:text-rose-400">{err}</p> : null}
 
       <div className="flex justify-end gap-2">
         {onCancel ? (

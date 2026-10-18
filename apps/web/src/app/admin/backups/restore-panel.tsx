@@ -218,7 +218,7 @@ export function RestorePanel({
       {mode === "restoring" && op && op.status === "running" ? (
         <div className="space-y-2" data-testid="restore-running">
           <OperationProgress op={op} title="Restoring - changes are paused for everyone" />
-          <p className="text-xs text-slate-500">Keep this page open. If something goes wrong the data is left exactly as it was.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Keep this page open. If something goes wrong the data is left exactly as it was.</p>
         </div>
       ) : null}
       {lost ? <ErrorNote>{lost}</ErrorNote> : null}
@@ -260,7 +260,7 @@ export function RestorePanel({
           <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
             <h2 className="text-base font-semibold">1. Choose a backup</h2>
             {ready.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                 There are no backups to restore from yet. Make one in the <Link href="/admin/backups" className="text-brand-600 hover:underline dark:text-brand-400">Backups</Link> tab, or upload a file below.
               </p>
             ) : (
@@ -272,7 +272,7 @@ export function RestorePanel({
                       <span className="flex-1">
                         <span className="font-medium">{b.name}</span>{" "}
                         <KindBadge kind={b.kind} />
-                        <span className="block text-xs text-slate-500">
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">
                           <LocalDateTime value={b.createdAt} options={WHEN} /> - {formatBytes(b.sizeBytes)} - {formatCount(b.totalRows)} rows
                           {b.includeFiles ? `, ${formatCount(b.fileCount)} files` : ", no files"}
                         </span>
@@ -297,14 +297,14 @@ export function RestorePanel({
                     data-testid="backup-file-input"
                   />
                 </label>
-                <span className="text-xs text-slate-500">A .tar.gz downloaded from Backups (on this or another installation). It is checked, then listed above.</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">A .tar.gz downloaded from Backups (on this or another installation). It is checked, then listed above.</span>
               </div>
               {mode === "uploading" ? (
                 <div className="mt-2" role="status">
                   <div className="h-1.5 overflow-hidden rounded bg-brand-100 dark:bg-brand-900">
                     <div className="h-full bg-brand-600 transition-all" style={{ width: `${Math.round(uploadFraction * 100)}%` }} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">Uploading... {Math.round(uploadFraction * 100)}% (large files take a while: keep this page open)</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Uploading... {Math.round(uploadFraction * 100)}% (large files take a while: keep this page open)</p>
                 </div>
               ) : null}
               {mode === "importing" && op && op.status === "running" ? (

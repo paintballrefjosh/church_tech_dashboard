@@ -56,7 +56,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
         <form className="mt-6 flex flex-wrap items-end gap-3 text-sm">
           <label className="flex flex-col">
-            <span className="text-xs text-slate-500">Resource type</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Resource type</span>
             <input
               type="text"
               name="resource"
@@ -66,7 +66,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             />
           </label>
           <label className="flex flex-col">
-            <span className="text-xs text-slate-500">Action</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Action</span>
             <input
               type="text"
               name="action"
@@ -76,7 +76,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             />
           </label>
           <label className="flex flex-col">
-            <span className="text-xs text-slate-500">Actor user-id</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Actor user-id</span>
             <input
               type="text"
               name="actor"
@@ -86,7 +86,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             />
           </label>
           <label className="flex flex-col">
-            <span className="text-xs text-slate-500">From</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">From</span>
             <input
               type="date"
               name="from"
@@ -95,7 +95,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             />
           </label>
           <label className="flex flex-col">
-            <span className="text-xs text-slate-500">To</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">To</span>
             <input
               type="date"
               name="to"

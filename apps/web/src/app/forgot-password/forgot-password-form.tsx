@@ -31,7 +31,7 @@ export function ForgotPasswordForm() {
         <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
           If that email matches an account, a reset link is on its way. Check your inbox.
         </p>
-        <Link href="/signin" className="block text-center text-brand-600 hover:underline">
+        <Link href="/signin" className="block text-center text-brand-600 dark:text-brand-400 hover:underline">
           Back to sign-in
         </Link>
       </div>
@@ -57,7 +57,7 @@ export function ForgotPasswordForm() {
       >
         Send reset link
       </button>
-      <Link href="/signin" className="block text-center text-xs text-slate-500 hover:underline">
+      <Link href="/signin" className="block text-center text-xs text-slate-500 dark:text-slate-400 hover:underline">
         Back to sign-in
       </Link>
     </form>

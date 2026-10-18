@@ -126,7 +126,7 @@ export function UserTokensSection({
       >
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? "" : "-rotate-90"}`} aria-hidden />
         <KeySquare className="h-3 w-3" aria-hidden /> API tokens
-        <span className="ml-1 font-normal normal-case tracking-normal text-slate-500">
+        <span className="ml-1 font-normal normal-case tracking-normal text-slate-500 dark:text-slate-400">
           {tokens === null ? "" : `${active} active`}
         </span>
       </button>
@@ -144,10 +144,10 @@ export function UserTokensSection({
             />
           ) : null}
           {msg ? (
-            <p className={`text-xs ${msg.kind === "ok" ? "text-emerald-600" : "text-rose-600"}`}>{msg.text}</p>
+            <p className={`text-xs ${msg.kind === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600"}`}>{msg.text}</p>
           ) : null}
           {tokens === null ? (
-            <p className="text-xs text-slate-500">Loading…</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>
           ) : (
             <TokenTable tokens={tokens} onRevoke={(t) => void revoke(t)} busyId={busyId} emptyText="No API tokens." />
           )}
@@ -171,7 +171,7 @@ export function UserTokensSection({
               </button>
             ) : null}
           </div>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">
             For a script or an AI agent that should act as this user, e.g. a service account with no
             password. The token is shown once, here, to you.
           </p>

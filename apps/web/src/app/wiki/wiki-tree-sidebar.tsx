@@ -167,7 +167,7 @@ function TreeList({
                 <button
                   type="button"
                   onClick={() => onToggle(n.key)}
-                  className="mt-0.5 shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   aria-label={isOpen ? "Collapse" : "Expand"}
                 >
                   {n.children.length > 0 ? (
@@ -180,7 +180,7 @@ function TreeList({
                     <span className="block h-3.5 w-3.5" />
                   )}
                 </button>
-                <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+                <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                 <button
                   type="button"
                   onClick={() => onToggle(n.key)}
@@ -209,7 +209,7 @@ function TreeList({
                   <button
                     type="button"
                     onClick={() => onToggle(n.key)}
-                    className="mt-0.5 shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     aria-label={isOpen ? "Collapse" : "Expand"}
                   >
                     {isOpen ? (
@@ -276,7 +276,7 @@ function IconButton({
         e.stopPropagation();
         onClick();
       }}
-      className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
+      className="rounded p-0.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
     >
       {children}
     </button>

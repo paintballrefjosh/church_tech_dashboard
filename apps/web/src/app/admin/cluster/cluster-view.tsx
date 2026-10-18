@@ -41,7 +41,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: typeof Da
   return (
     <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
       <h2 className="flex items-center gap-2 text-base font-semibold">
-        {Icon ? <Icon aria-hidden className="h-4 w-4 text-brand-600" /> : null}
+        {Icon ? <Icon aria-hidden className="h-4 w-4 text-brand-600 dark:text-brand-400" /> : null}
         {title}
       </h2>
       <div className="mt-2 text-sm">{children}</div>
@@ -130,12 +130,12 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
       <section>
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold">App nodes</h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             This page was served by <code className="font-mono">{status.self}</code>
             {status.build ? <> (build <code className="font-mono">{status.build}</code>)</> : null}. Refreshes every {REFRESH_MS / 1000} s; data from {Math.max(0, Math.round((Date.now() - fetchedAt) / 1000))} s ago.
           </p>
         </div>
-        <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+        <div tabIndex={0} role="region" aria-label="App nodes" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
           <table className="w-full text-left text-sm" data-testid="cluster-nodes">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
@@ -146,12 +146,12 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
                 <th className="px-3 py-2">Running since</th>
                 <th className="px-3 py-2">Last check-in</th>
                 <th className="px-3 py-2">Leads</th>
-                <th className="px-3 py-2"></th>
+                <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {status.nodes.map((n) => (
-                <tr key={n.id} className={n.live ? "" : "opacity-70"} data-node-id={n.id}>
+                <tr key={n.id} className={n.live ? "" : "italic text-slate-600 dark:text-slate-400"} data-node-id={n.id}>
                   <td className="px-3 py-2 font-medium">
                     {n.id} {n.self ? <Badge tone="slate">this node</Badge> : null} {n.role === "data" ? <Badge tone="slate">witness</Badge> : null}
                   </td>
@@ -171,12 +171,12 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
                 </tr>
               ))}
               {status.nodes.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-4 text-center text-slate-500">No node has checked in yet.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">No node has checked in yet.</td></tr>
               ) : null}
             </tbody>
           </table>
         </div>
-        <p className="mt-1 text-xs text-slate-500">A node that is stopped on purpose removes itself; one that crashed stays listed as stopped until it is back, forgotten here, or an hour has passed.</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">A node that is stopped on purpose removes itself; one that crashed stays listed as stopped until it is back, forgotten here, or an hour has passed.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -185,7 +185,7 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
             {status.database.ok ? <Badge tone="green">answering</Badge> : <Badge tone="red">not answering</Badge>}
             <span className="font-medium">{status.database.label}</span>
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {status.database.latencyMs !== null ? `${status.database.latencyMs} ms for a trivial query from this node.` : null}
             {status.database.error ? ` ${status.database.error}` : null}
           </p>
@@ -195,7 +195,7 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
             {status.store.ok ? <Badge tone="green">answering</Badge> : <Badge tone="red">not answering</Badge>}
             <span className="font-medium">{status.store.kind === "garage" ? "Garage (bundled)" : "S3-compatible store"}</span>
           </p>
-          <p className="mt-1 break-all text-xs text-slate-500">
+          <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
             {status.store.endpoint} / {status.store.bucket}
             {status.store.latencyMs !== null ? ` - ${status.store.latencyMs} ms` : ""}
             {status.store.error ? ` - ${status.store.error}` : ""}
@@ -206,9 +206,9 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
       {status.store.garage ? (
         <section>
           <h2 className="mb-2 text-base font-semibold">
-            Object store nodes <span className="text-xs font-normal text-slate-500">layout version {status.store.garage.layoutVersion}</span>
+            Object store nodes <span className="text-xs font-normal text-slate-500 dark:text-slate-400">layout version {status.store.garage.layoutVersion}</span>
           </h2>
-          <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+          <div tabIndex={0} role="region" aria-label="Object store nodes" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
             <table className="w-full text-left text-sm" data-testid="garage-nodes">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                 <tr>
@@ -241,8 +241,8 @@ export function ClusterView({ initial }: { initial: ClusterStatus }) {
 
       <section>
         <h2 className="mb-2 text-base font-semibold">Background jobs</h2>
-        <p className="mb-2 text-xs text-slate-500">Each job runs on one node at a time. If its node stops, another takes it over within about 30 seconds.</p>
-        <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Each job runs on one node at a time. If its node stops, another takes it over within about 30 seconds.</p>
+        <div tabIndex={0} role="region" aria-label="Background jobs" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
           <table className="w-full text-left text-sm" data-testid="cluster-jobs">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>

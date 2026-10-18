@@ -129,7 +129,7 @@ export default function CiscoDriftPage() {
       render: (r) => <code className="rounded bg-rose-50 px-1 text-xs text-rose-800 dark:bg-rose-950/50 dark:text-rose-300">{showValue(r.field, r.observed)}</code>,
       sortValue: (r) => r.observed ?? "",
     },
-    { key: "detected", label: "Detected", render: (r) => <span className="text-xs text-slate-500">{fmtTime(r.detectedAt)}</span>, sortValue: (r) => new Date(r.detectedAt).getTime() },
+    { key: "detected", label: "Detected", render: (r) => <span className="text-xs text-slate-500 dark:text-slate-400">{fmtTime(r.detectedAt)}</span>, sortValue: (r) => new Date(r.detectedAt).getTime() },
     ...(canWrite
       ? [
           {
@@ -164,8 +164,8 @@ export default function CiscoDriftPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Drift log</h2>
-        <span className="text-xs text-slate-400">Open drift across the fleet.</span>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Drift log</h2>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Open drift across the fleet.</span>
       </div>
       {Object.entries(pending).map(([id, p]) => (
         <PendingLine key={id} text={p.text} />

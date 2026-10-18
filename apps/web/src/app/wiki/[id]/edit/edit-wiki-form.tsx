@@ -249,7 +249,7 @@ export function EditWikiForm({
         ) : null}
         <label className="block">
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Edit summary <span className="text-xs font-normal text-slate-500">(optional)</span>
+            Edit summary <span className="text-xs font-normal text-slate-500 dark:text-slate-400">(optional)</span>
           </span>
           <input
             name="summary"

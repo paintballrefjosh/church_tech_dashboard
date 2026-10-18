@@ -82,7 +82,7 @@ export function AdminLinksClient({
         ) : null}
 
         {links.length === 0 ? (
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             No links yet. Users can self-link from their <code>/me</code> page, or use{" "}
             <em>Add link</em> above to map any user.
           </p>
@@ -90,12 +90,12 @@ export function AdminLinksClient({
           <ul className="mt-3 divide-y divide-slate-200 text-sm dark:divide-slate-800">
             {links.map((l) => (
               <li key={l.userId} className="flex items-center gap-3 py-2">
-                <LinkIcon className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                <LinkIcon className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <div className="truncate">
                     <span className="font-medium">{l.userName ?? l.userEmail}</span>
                     {l.userName ? (
-                      <span className="ml-1 text-xs text-slate-500">{l.userEmail}</span>
+                      <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">{l.userEmail}</span>
                     ) : null}
                   </div>
                   <div className="truncate text-xs text-slate-500 dark:text-slate-400">
@@ -108,7 +108,7 @@ export function AdminLinksClient({
                   type="button"
                   onClick={() => void unlink(l.userId, l.userName ?? l.userEmail)}
                   aria-label="Unlink"
-                  className="text-rose-600 hover:text-rose-700"
+                  className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
                 >
                   <Unlink className="h-4 w-4" aria-hidden />
                 </button>
@@ -184,19 +184,19 @@ function AddLinkPanel({
   return (
     <div className="mt-3 rounded-md border border-slate-300 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
       <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="font-medium uppercase tracking-wide text-slate-500">Add link</span>
+        <span className="font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Add link</span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <label className="text-xs text-slate-500">Local user</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">Local user</label>
           <select
             value={pickedUser?.id ?? ""}
             onChange={(e) =>
@@ -213,7 +213,7 @@ function AddLinkPanel({
           </select>
         </div>
         <div>
-          <label className="text-xs text-slate-500">Planning Center person</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">Planning Center person</label>
           <input
             type="search"
             value={query}
@@ -236,7 +236,7 @@ function AddLinkPanel({
                     <span>
                       <span className="font-medium">{p.fullName || "(unnamed)"}</span>
                       {p.email ? (
-                        <span className="ml-1 text-slate-500">{p.email}</span>
+                        <span className="ml-1 text-slate-500 dark:text-slate-400">{p.email}</span>
                       ) : null}
                     </span>
                     {p.email &&
@@ -254,7 +254,7 @@ function AddLinkPanel({
         </div>
       </div>
       <div className="mt-3 flex items-center justify-end gap-2">
-        {err ? <span className="text-xs text-rose-600">{err}</span> : null}
+        {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
         <button
           type="button"
           onClick={() => void create()}

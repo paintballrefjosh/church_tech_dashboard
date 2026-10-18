@@ -111,7 +111,7 @@ export function MonitorDetailClient({
       </section>
 
       <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent history</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent history</h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Oldest on the left, newest on the right. Hover for timestamp + result.
         </p>
@@ -123,7 +123,7 @@ export function MonitorDetailClient({
       {clustered ? <ByNode history={oldestFirst} /> : null}
 
       <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Incidents</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Incidents</h2>
         {incidents.length === 0 ? (
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             No incidents recorded.
@@ -133,9 +133,9 @@ export function MonitorDetailClient({
             {incidents.map((i) => (
               <li key={i.id} className="flex items-center gap-3 py-2">
                 {i.resolvedAt ? (
-                  <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                  <CircleCheck className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">
@@ -165,7 +165,7 @@ export function MonitorDetailClient({
       <section className="flex items-center justify-between rounded-md border border-rose-200 p-4 text-xs dark:border-rose-900/50">
         <div>
           <div className="text-sm font-medium text-rose-700 dark:text-rose-300">Delete monitor</div>
-          <div className="text-rose-600/80 dark:text-rose-400/80">
+          <div className="text-rose-700 dark:text-rose-300">
             Removes the monitor and all of its history. Cannot be undone.
           </div>
         </div>
@@ -186,7 +186,7 @@ export function MonitorDetailClient({
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-1 text-base font-medium">{value}</div>
     </div>
   );
@@ -202,7 +202,7 @@ function StatusBadge({ status, enabled }: { status: string; enabled: boolean }) 
   }
   if (status === "up")
     return (
-      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
         <CircleCheck className="h-4 w-4" aria-hidden /> Up
       </span>
     );
@@ -233,7 +233,7 @@ function severity(c: MonitorCheck): "down" | "degraded" | "up" {
 
 function Sparkline({ history }: { history: MonitorCheck[] }) {
   if (history.length === 0) {
-    return <p className="text-xs text-slate-500">No checks recorded yet.</p>;
+    return <p className="text-xs text-slate-500 dark:text-slate-400">No checks recorded yet.</p>;
   }
   // Healthy bars stay latency-encoded so the eye spots trends. Down + degraded
   // bars render full height so a single bad check among hundreds of fast ones
@@ -339,7 +339,7 @@ function ByNode({ history }: { history: MonitorCheck[] }) {
   const diverges = worst && best && worst.pct - best.pct >= FAILURE_GAP_POINTS;
   return (
     <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">By node</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">By node</h2>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Each check is made by one node. Figures are over the checks shown above.
       </p>
@@ -354,7 +354,7 @@ function ByNode({ history }: { history: MonitorCheck[] }) {
         </p>
       ) : null}
       <table className="mt-2 w-full text-left text-xs">
-        <thead className="text-slate-500">
+        <thead className="text-slate-500 dark:text-slate-400">
           <tr>
             <th className="py-1 font-medium">Node</th>
             <th className="py-1 font-medium">Checks</th>

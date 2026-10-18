@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, User as UserIcon, RotateCw, Trash2, X, ExternalLink } from "lucide-react";
 import type { AssignableUser, ChecklistEventTask, EventAssignee, PlanDiff } from "@church/shared";
+import { DialogFrame } from "@/components/modal";
 
 /** Station key for a task — mirrors the server's posKey (null → "Other"). */
 function posKeyOf(positionName: string | null): string {
@@ -188,20 +189,23 @@ export function EventTasksClient({
     <div className="mt-6 space-y-4">
       <section className="flex items-center gap-3 rounded-md border border-slate-300 p-3 text-sm dark:border-slate-800">
         <div className="flex-1">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Progress</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Progress</div>
           <div className="mt-1 text-base font-semibold">
             {completed} / {total} tasks
           </div>
         </div>
         <div className="w-32">
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-            <div
-              className="h-full bg-emerald-500 transition-all"
-              style={{ width: `${pct}%` }}
-              aria-label={`${pct}% complete`}
-            />
+          <div
+            role="progressbar"
+            aria-label="Tasks completed"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+            className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+          >
+            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
-          <div className="mt-1 text-right text-[10px] text-slate-500">{pct}%</div>
+          <div className="mt-1 text-right text-[10px] text-slate-500 dark:text-slate-400">{pct}%</div>
         </div>
         {isAdmin && hasPcPlan ? (
           <button
@@ -243,35 +247,35 @@ export function EventTasksClient({
         return (
           <section key={pos} className="rounded-md border border-slate-300 dark:border-slate-800">
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{pos}</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{pos}</h2>
               {templateNames.length > 0 ? (
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   {templateNames.join(" · ")}
                 </span>
               ) : null}
               <Link
                 href={`/checklists/${eventId}/station/${encodeURIComponent(pos)}`}
-                className="inline-flex items-center gap-1 text-[11px] text-brand-600 hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400 hover:underline"
               >
                 <ExternalLink className="h-3 w-3" aria-hidden /> Open station
               </Link>
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
                 {mine.length === 0 ? (
-                  <span className="text-[11px] text-slate-400">No one assigned</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">No one assigned</span>
                 ) : (
                   mine.map((a) => (
                     <span
                       key={a.id}
                       className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] dark:bg-slate-800"
                     >
-                      <UserIcon className="h-3 w-3 text-slate-400" aria-hidden />
+                      <UserIcon className="h-3 w-3 text-slate-500 dark:text-slate-400" aria-hidden />
                       {a.userId === myUserId ? "You" : label(a.userId)}
                       {isAdmin ? (
                         <button
                           type="button"
                           onClick={() => void removeAssignee(a.id)}
                           aria-label={`Remove ${label(a.userId)}`}
-                          className="rounded-full text-slate-400 hover:text-rose-600"
+                          className="rounded-full text-slate-500 dark:text-slate-400 hover:text-rose-600"
                         >
                           <X className="h-3 w-3" aria-hidden />
                         </button>
@@ -312,20 +316,20 @@ export function EventTasksClient({
                         className={`mt-0.5 shrink-0 ${tickable ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
                       >
                         {t.completedAt ? (
-                          <CheckCircle2 className="h-5 w-5 text-emerald-500" aria-hidden />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-700 dark:text-emerald-400" aria-hidden />
                         ) : (
-                          <Circle className="h-5 w-5 text-slate-400" aria-hidden />
+                          <Circle className="h-5 w-5 text-slate-500 dark:text-slate-400" aria-hidden />
                         )}
                       </button>
                       <div className="min-w-0 flex-1">
-                        <div className={`text-sm font-medium ${t.completedAt ? "text-slate-400 line-through" : ""}`}>
+                        <div className={`text-sm font-medium ${t.completedAt ? "text-slate-500 dark:text-slate-400 line-through" : ""}`}>
                           {t.title}
                         </div>
                         {t.description ? (
                           <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t.description}</div>
                         ) : null}
                         {t.completedAt ? (
-                          <div className="mt-1 text-[11px] text-slate-500">
+                          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                             ✓{" "}
                             {new Date(t.completedAt).toLocaleString(undefined, {
                               month: "short",
@@ -348,8 +352,7 @@ export function EventTasksClient({
       {diff ? <SyncDialog diff={diff} busy={busy} onCancel={() => setDiff(null)} onApply={applySync} /> : null}
 
       {confirmDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <DialogFrame onClose={() => setConfirmDelete(false)} label="Delete event" overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" className="w-full max-w-sm rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900" closeOnBackdrop={false}>
             <h3 className="text-base font-semibold">Delete event</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               Delete this event, its tasks, and its roster? This cannot be undone.
@@ -371,8 +374,7 @@ export function EventTasksClient({
                 Delete
               </button>
             </div>
-          </div>
-        </div>
+          </DialogFrame>
       ) : null}
     </div>
   );
@@ -397,16 +399,15 @@ function SyncDialog({
   const conflicts = diff.positions.filter((p) => p.differs);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-xl overflow-auto rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+    <DialogFrame onClose={() => { if (!busy) onCancel(); }} label="Sync from Planning Center" overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" className="max-h-[85vh] w-full max-w-xl overflow-auto rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900" closeOnBackdrop={false}>
         <h3 className="text-base font-semibold">Sync from Planning Center</h3>
         {!diff.reachable ? (
-          <p className="mt-2 text-sm text-rose-600">{diff.error ?? "Planning Center is unreachable."}</p>
+          <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{diff.error ?? "Planning Center is unreachable."}</p>
         ) : conflicts.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">The roster already matches the plan. Nothing to change.</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">The roster already matches the plan. Nothing to change.</p>
         ) : (
           <>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               These stations differ from the plan. Pick which roster to keep for each.
             </p>
             <ul className="mt-3 space-y-3">
@@ -414,7 +415,7 @@ function SyncDialog({
                 const use = choice[p.positionName] ?? "current";
                 return (
                   <li key={p.positionName} className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {p.positionName}
                     </div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -438,7 +439,7 @@ function SyncDialog({
                             <span className="block font-medium capitalize">
                               {side === "current" ? "Keep current" : "Use plan"}
                             </span>
-                            <span className="block text-slate-500">
+                            <span className="block text-slate-500 dark:text-slate-400">
                               {names(side === "current" ? p.current : p.planned)}
                             </span>
                           </span>
@@ -472,7 +473,6 @@ function SyncDialog({
             </button>
           ) : null}
         </div>
-      </div>
-    </div>
+      </DialogFrame>
   );
 }

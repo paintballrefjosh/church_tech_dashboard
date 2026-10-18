@@ -44,10 +44,10 @@ export default async function ChecklistReportsPage() {
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <nav className="mb-3 text-sm">
+        <nav aria-label="Breadcrumb" className="mb-3 text-sm">
           <Link
             href="/admin/checklists"
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to checklists admin
           </Link>
@@ -60,11 +60,11 @@ export default async function ChecklistReportsPage() {
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <h2 className="text-sm font-medium">By event ({events.length})</h2>
           {events.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500">No events yet.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">No events yet.</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
+            <div tabIndex={0} role="region" aria-label="Checklist report by event" className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="py-1.5 pr-3">Event</th>
                     <th className="py-1.5 pr-3">When</th>
@@ -81,7 +81,7 @@ export default async function ChecklistReportsPage() {
                           {e.eventName}
                         </Link>
                       </td>
-                      <td className="py-2 pr-3 text-xs text-slate-500">
+                      <td className="py-2 pr-3 text-xs text-slate-500 dark:text-slate-400">
                         {e.scheduledAt ? (
                           <LocalDateTime value={e.scheduledAt} options={{ month: "short", day: "numeric" }} />
                         ) : (
@@ -104,11 +104,11 @@ export default async function ChecklistReportsPage() {
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <h2 className="text-sm font-medium">By volunteer ({volunteers.length})</h2>
           {volunteers.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500">No volunteer assignments yet.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">No volunteer assignments yet.</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
+            <div tabIndex={0} role="region" aria-label="Checklist report by volunteer" className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="py-1.5 pr-3">Volunteer</th>
                     <th className="py-1.5 pr-3 text-right">Assigned</th>
@@ -122,7 +122,7 @@ export default async function ChecklistReportsPage() {
                       <td className="py-2 pr-3">
                         <span className="font-medium">{v.name ?? v.email}</span>
                         {v.name ? (
-                          <span className="ml-1 text-xs text-slate-500">{v.email}</span>
+                          <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">{v.email}</span>
                         ) : null}
                       </td>
                       <td className="py-2 pr-3 text-right">{v.assigned}</td>
@@ -151,7 +151,7 @@ function ProgressBar({ pct }: { pct: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs tabular-nums text-slate-500">{pct}%</span>
+      <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{pct}%</span>
     </div>
   );
 }

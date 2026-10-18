@@ -104,7 +104,7 @@ export function TagPicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Add tag"
-        className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:hover:border-slate-300 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400 hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:hover:border-slate-300 dark:hover:text-slate-200"
       >
         <Plus className="h-3 w-3" aria-hidden /> Tag
       </button>
@@ -125,10 +125,10 @@ export function TagPicker({
             }}
             className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950"
           />
-          {err ? <p className="mt-1 text-[10px] text-rose-600">{err}</p> : null}
+          {err ? <p className="mt-1 text-[10px] text-rose-600 dark:text-rose-400">{err}</p> : null}
           <ul className="mt-1 max-h-48 overflow-y-auto">
             {visible.length === 0 && !filter ? (
-              <li className="p-2 text-center text-[10px] text-slate-500">
+              <li className="p-2 text-center text-[10px] text-slate-500 dark:text-slate-400">
                 No more tags available.
               </li>
             ) : null}

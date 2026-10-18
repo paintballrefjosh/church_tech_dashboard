@@ -147,9 +147,9 @@ export function MaintenanceControl() {
       }
     >
       {enabled ? (
-        <Bell className="h-4 w-4 text-emerald-500" aria-hidden />
+        <Bell className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden />
       ) : (
-        <BellOff className="h-4 w-4 text-amber-500" aria-hidden />
+        <BellOff className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
       )}
       <span
         className={`text-xs font-medium ${
@@ -196,7 +196,7 @@ export function MaintenanceControl() {
           aria-label="Pause alerts for"
           className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-slate-300 bg-white p-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          <p className="px-2 py-1 text-xs text-slate-500">{enabled ? "Pause alerts for" : "Keep them paused for"}</p>
+          <p className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400">{enabled ? "Pause alerts for" : "Keep them paused for"}</p>
           {DURATIONS.map((d) => (
             <button
               key={d.label}

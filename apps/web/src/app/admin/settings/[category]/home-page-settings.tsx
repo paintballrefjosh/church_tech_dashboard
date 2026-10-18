@@ -199,7 +199,7 @@ export function HomePageSettings(props: HomePageSettingsProps) {
           </button>
           <span role="status" className="text-sm">
             {status ? (
-              <span className={status.ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+              <span className={status.ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
                 {status.text}
               </span>
             ) : null}

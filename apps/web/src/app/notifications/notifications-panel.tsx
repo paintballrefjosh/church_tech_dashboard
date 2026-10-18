@@ -132,7 +132,7 @@ export function NotificationsPanel({
                 {n.body ? (
                   <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{n.body}</div>
                 ) : null}
-                <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
+                <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {new Date(n.createdAt).toLocaleString()} · {n.kind}
                 </div>
               </div>
@@ -141,7 +141,7 @@ export function NotificationsPanel({
                   <button
                     type="button"
                     onClick={() => void markRead(n.id)}
-                    className="text-brand-600 hover:underline"
+                    className="text-brand-600 dark:text-brand-400 hover:underline"
                   >
                     mark read
                   </button>
@@ -149,7 +149,7 @@ export function NotificationsPanel({
                 <button
                   type="button"
                   onClick={() => void dismiss(n.id)}
-                  className="text-rose-600 hover:underline"
+                  className="text-rose-600 dark:text-rose-400 hover:underline"
                 >
                   dismiss
                 </button>

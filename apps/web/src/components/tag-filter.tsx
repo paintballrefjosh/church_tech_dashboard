@@ -57,7 +57,7 @@ export function TagFilter({
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
         >
           <X className="h-3 w-3" aria-hidden /> Clear
         </button>

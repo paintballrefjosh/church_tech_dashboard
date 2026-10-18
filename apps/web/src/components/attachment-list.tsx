@@ -216,7 +216,7 @@ export function AttachmentList({
         </ul>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-2 text-xs text-rose-600">{error}</p>
+        <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>
       ) : null}
       {canEdit ? (
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
@@ -232,7 +232,7 @@ export function AttachmentList({
           />
           <Paperclip className="h-3.5 w-3.5" aria-hidden />
           <span>{busy ? "Uploading…" : "Attach file"}</span>
-          <span className="text-slate-400 dark:text-slate-500">(or drop here)</span>
+          <span className="text-slate-500 dark:text-slate-400">(or drop here)</span>
         </label>
       ) : null}
       {preview ? (

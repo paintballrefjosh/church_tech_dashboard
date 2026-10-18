@@ -36,11 +36,11 @@ export default function CiscoTopologyPage() {
     return { W, H, pos };
   }, [topo]);
 
-  if (!topo) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!topo) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   if (topo.nodes.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+      <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
         No topology yet. Neighbors are discovered via LLDP/CDP on each poll — add switches and let them poll.
       </p>
     );
@@ -55,18 +55,18 @@ export default function CiscoTopologyPage() {
     { key: "aPort", label: "Local port", render: (e) => <span className="font-mono text-xs">{e.aPort ?? "—"}</span>, sortValue: (e) => e.aPort ?? "" },
     { key: "b", label: "Neighbor", render: (e) => <span>{e.b}</span>, sortValue: (e) => e.b },
     { key: "bPort", label: "Neighbor port", render: (e) => <span className="font-mono text-xs">{e.bPort ?? "—"}</span>, sortValue: (e) => e.bPort ?? "" },
-    { key: "protocol", label: "Protocol", render: (e) => <span className="text-xs uppercase text-slate-500">{e.protocol ?? "—"}</span>, sortValue: (e) => e.protocol ?? "" },
+    { key: "protocol", label: "Protocol", render: (e) => <span className="text-xs uppercase text-slate-500 dark:text-slate-400">{e.protocol ?? "—"}</span>, sortValue: (e) => e.protocol ?? "" },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Topology</h2>
-        <span className="text-xs text-slate-400">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Topology</h2>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {topo.nodes.length} node{topo.nodes.length === 1 ? "" : "s"} · {topo.edges.length} link
           {topo.edges.length === 1 ? "" : "s"} (LLDP/CDP)
         </span>
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-slate-500">
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
           <Legend color="#10b981" label="Switch (up)" />
           <Legend color="#f43f5e" label="Switch (down)" />
           <Legend color="#94a3b8" label="External" />

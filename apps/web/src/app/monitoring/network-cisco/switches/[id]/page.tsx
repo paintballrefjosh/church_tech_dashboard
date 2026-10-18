@@ -190,7 +190,7 @@ export default function CiscoSwitchDetailPage() {
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] disabled:opacity-60 ${
               p.adminEnabled
                 ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
-                : "border-slate-300 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                : "border-slate-300 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             }`}
           >
             {!!pushingPorts[p.id] ? (
@@ -224,12 +224,12 @@ export default function CiscoSwitchDetailPage() {
       label: "Live",
       render: (p) => {
         const s = p.operStatus;
-        const cls = s === "up" ? "text-emerald-600 dark:text-emerald-400" : s === "err-disabled" ? "text-rose-600 dark:text-rose-400" : "text-slate-500";
+        const cls = s === "up" ? "text-emerald-700 dark:text-emerald-400" : s === "err-disabled" ? "text-rose-600 dark:text-rose-400" : "text-slate-500";
         return <span className={`text-xs ${cls}`}>{s ?? "—"}</span>;
       },
       sortValue: (p) => p.operStatus ?? "",
     },
-    { key: "neighbor", label: "Neighbor", render: (p) => <span className="text-xs text-slate-500">{p.neighborHostname ?? "—"}</span>, sortValue: (p) => p.neighborHostname ?? "" },
+    { key: "neighbor", label: "Neighbor", render: (p) => <span className="text-xs text-slate-500 dark:text-slate-400">{p.neighborHostname ?? "—"}</span>, sortValue: (p) => p.neighborHostname ?? "" },
     ...(canWrite
       ? [
           {
@@ -262,6 +262,7 @@ export default function CiscoSwitchDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmDel(p)}
+                  aria-label={`Remove the desired-config entry for ${p.portId}`}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-300 dark:hover:bg-rose-900/30"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -283,8 +284,8 @@ export default function CiscoSwitchDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <StatusPill status={computeStatus(sw)} />
           <span className="text-lg font-semibold">{sw.hostname}</span>
-          <span className="font-mono text-xs text-slate-500">{sw.ipAddress}</span>
-          {sw.model ? <span className="text-xs text-slate-500">{sw.model}</span> : null}
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{sw.ipAddress}</span>
+          {sw.model ? <span className="text-xs text-slate-500 dark:text-slate-400">{sw.model}</span> : null}
           {canWrite ? (
             <div className="ml-auto flex items-center gap-2">
               <button
@@ -387,7 +388,7 @@ export default function CiscoSwitchDetailPage() {
                   </Field>
                   {/* Not a Field: that is a <label>, and a click on blank space in it would flip the first radio inside. */}
                   <div className="sm:col-span-2">
-                    <span className="text-xs text-slate-500">Allowed VLANs</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Allowed VLANs</span>
                     <div className="mt-1">
                       <TrunkVlanField value={form.trunkAllowedVlans} vlans={vlans} onChange={(list) => setForm({ ...form, trunkAllowedVlans: list })} />
                     </div>
@@ -410,7 +411,7 @@ export default function CiscoSwitchDetailPage() {
               </Field>
             </div>
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={form.adminEnabled} onChange={(e) => setForm({ ...form, adminEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700" />
+              <input type="checkbox" checked={form.adminEnabled} onChange={(e) => setForm({ ...form, adminEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
               <span>Admin enabled (desired)</span>
             </label>
             <div className="flex items-center justify-end gap-2 pt-1">

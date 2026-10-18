@@ -147,10 +147,10 @@ export function PcLinkForm({ userEmail }: { userEmail: string }) {
     }
   }
 
-  if (loading) return <p className="text-xs text-slate-500">Loading…</p>;
+  if (loading) return <p className="text-xs text-slate-500 dark:text-slate-400">Loading…</p>;
   if (unconfigured)
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Planning Center isn&apos;t configured yet. Ask an admin to set it up in Settings.
       </p>
     );
@@ -159,13 +159,13 @@ export function PcLinkForm({ userEmail }: { userEmail: string }) {
     return (
       <div className="space-y-2 text-sm">
         <p className="inline-flex items-center gap-2">
-          <Check className="h-4 w-4 text-emerald-500" aria-hidden />
+          <Check className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden />
           Linked to{" "}
           <span className="font-medium">
             {[link.pcFirstName, link.pcLastName].filter(Boolean).join(" ") || "(PC person)"}
           </span>
           {link.pcEmail ? (
-            <span className="text-xs text-slate-500">({link.pcEmail})</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">({link.pcEmail})</span>
           ) : null}
         </p>
         <button
@@ -176,7 +176,7 @@ export function PcLinkForm({ userEmail }: { userEmail: string }) {
         >
           <Unlink className="h-3.5 w-3.5" aria-hidden /> Unlink
         </button>
-        {ok ? <p className="text-xs text-emerald-600 dark:text-emerald-400">{ok}</p> : null}
+        {ok ? <p className="text-xs text-emerald-700 dark:text-emerald-400">{ok}</p> : null}
         {err ? <p className="text-xs text-rose-600 dark:text-rose-400">{err}</p> : null}
       </div>
     );
@@ -203,9 +203,9 @@ export function PcLinkForm({ userEmail }: { userEmail: string }) {
           />
           <ul className="mt-1 max-h-64 overflow-y-auto">
             {searching && people.length === 0 ? (
-              <li className="p-2 text-center text-xs text-slate-500">Searching…</li>
+              <li className="p-2 text-center text-xs text-slate-500 dark:text-slate-400">Searching…</li>
             ) : people.length === 0 ? (
-              <li className="p-2 text-center text-xs text-slate-500">No matches.</li>
+              <li className="p-2 text-center text-xs text-slate-500 dark:text-slate-400">No matches.</li>
             ) : (
               people.map((p) => (
                 <li key={p.id}>
@@ -218,7 +218,7 @@ export function PcLinkForm({ userEmail }: { userEmail: string }) {
                     <span>
                       <span className="font-medium">{p.fullName || "(unnamed)"}</span>
                       {p.email ? (
-                        <span className="ml-1 text-xs text-slate-500">{p.email}</span>
+                        <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">{p.email}</span>
                       ) : null}
                     </span>
                     {p.email && p.email.toLowerCase() === userEmail.toLowerCase() ? (

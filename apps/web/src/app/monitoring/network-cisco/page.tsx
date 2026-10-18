@@ -149,16 +149,16 @@ export default function CiscoDashboardPage() {
     }
   }
 
-  if (!switches) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!switches) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const counts: Record<SwStatus, number> = { green: 0, yellow: 0, orange: 0, red: 0 };
   for (const s of switches) counts[computeStatus(s)]++;
 
   const tiles: Array<{ label: string; value: number; tone: string }> = [
     { label: "Total", value: switches.length, tone: "text-slate-900 dark:text-slate-100" },
-    { label: "Online", value: counts.green, tone: "text-emerald-600 dark:text-emerald-400" },
-    { label: "Port down", value: counts.yellow, tone: "text-amber-600 dark:text-amber-400" },
-    { label: "Config drift", value: counts.orange, tone: "text-orange-600 dark:text-orange-400" },
+    { label: "Online", value: counts.green, tone: "text-emerald-700 dark:text-emerald-400" },
+    { label: "Port down", value: counts.yellow, tone: "text-amber-700 dark:text-amber-400" },
+    { label: "Config drift", value: counts.orange, tone: "text-orange-700 dark:text-orange-400" },
     { label: "Unreachable", value: counts.red, tone: "text-rose-600 dark:text-rose-400" },
   ];
 
@@ -167,7 +167,7 @@ export default function CiscoDashboardPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {tiles.map((t) => (
           <div key={t.label} className={cardCls}>
-            <div className="text-xs uppercase tracking-wide text-slate-500">{t.label}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{t.label}</div>
             <div className={`mt-1 text-2xl font-semibold ${t.tone}`}>{t.value}</div>
           </div>
         ))}
@@ -180,7 +180,7 @@ export default function CiscoDashboardPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No switches yet.{" "}
             {canWrite ? (
-              <button type="button" onClick={() => setForm({ ...EMPTY })} className="text-brand-600 hover:underline">
+              <button type="button" onClick={() => setForm({ ...EMPTY })} className="text-brand-600 dark:text-brand-400 hover:underline">
                 Add one
               </button>
             ) : (
@@ -240,17 +240,17 @@ export default function CiscoDashboardPage() {
                   <td className="px-3 py-2 font-mono text-xs">{s.ipAddress}</td>
                   <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{s.model ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{s.location ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{s.uptime ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{s.uptime ?? "—"}</td>
                   <td className="px-3 py-2 text-right text-xs tabular-nums">
                     {/* Whole ports cell links to the port page; spans keep their colours. */}
                     <Link
                       href={`/monitoring/network-cisco/switches/${s.id}`}
                       className="hover:underline"
                     >
-                      <span className="text-emerald-600 dark:text-emerald-400">{s.portsUp ?? 0}</span>
-                      <span className="text-slate-400"> / {s.portCount ?? 0}</span>
+                      <span className="text-emerald-700 dark:text-emerald-400">{s.portsUp ?? 0}</span>
+                      <span className="text-slate-500 dark:text-slate-400"> / {s.portCount ?? 0}</span>
                       {(s.portsDownEnabled ?? 0) > 0 ? (
-                        <span className="ml-1 text-amber-600 dark:text-amber-400">({s.portsDownEnabled} down)</span>
+                        <span className="ml-1 text-amber-700 dark:text-amber-400">({s.portsDownEnabled} down)</span>
                       ) : null}
                     </Link>
                   </td>
@@ -295,7 +295,7 @@ export default function CiscoDashboardPage() {
                       </div>
                     </td>
                   ) : (
-                    <td className="px-3 py-2 text-xs text-slate-500">{fmtTime(s.lastPolledAt)}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{fmtTime(s.lastPolledAt)}</td>
                   )}
                 </tr>
               ))}
@@ -303,7 +303,7 @@ export default function CiscoDashboardPage() {
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-400">Auto-refreshes every 15s.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s.</p>
 
       {form ? (
         <Modal title={form.id ? "Edit switch" : "Add switch"} onClose={() => setForm(null)}>
@@ -334,13 +334,13 @@ export default function CiscoDashboardPage() {
               </Field>
             </div>
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={form.checkPortState} onChange={(e) => setForm({ ...form, checkPortState: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700" />
+              <input type="checkbox" checked={form.checkPortState} onChange={(e) => setForm({ ...form, checkPortState: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
               <span>Port state monitoring</span>
             </label>
 
             <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Alerts</legend>
-              <p className="text-xs text-slate-500">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Alerts</legend>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Notify monitoring admins (in-app + email) when this switch changes state.
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -356,7 +356,7 @@ export default function CiscoDashboardPage() {
                         checked={form.alertPrefs[c.key]}
                         disabled={disabled}
                         onChange={(e) => setForm({ ...form, alertPrefs: { ...form.alertPrefs, [c.key]: e.target.checked } })}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 disabled:cursor-not-allowed dark:border-slate-700"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 disabled:cursor-not-allowed dark:border-slate-700"
                       />
                       <span>
                         <span className="block text-sm">{c.label}</span>

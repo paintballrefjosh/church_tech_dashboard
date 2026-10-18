@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { CSSProperties, ReactNode } from "react";
 import { headers } from "next/headers";
 import "./globals.css";
+import { SkipLink } from "@/components/skip-link";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Footer } from "@/components/footer";
 import { ServiceWorkerRegistrar } from "@/components/sw-registrar";
@@ -95,6 +96,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           its content size (auto margins resolve to 0). Plain block ✔. */}
       <body className="flex min-h-screen flex-col">
         <ThemeProvider nonce={nonce}>
+          <SkipLink />
           <div className="flex-1">{children}</div>
           <Footer />
           <ServiceWorkerRegistrar />

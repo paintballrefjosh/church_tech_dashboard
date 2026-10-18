@@ -48,7 +48,7 @@ export default async function AdminChecklistsHomePage() {
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-medium">
-              <FileText className="h-4 w-4 text-slate-500" aria-hidden /> Templates ({templates.length})
+              <FileText className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Templates ({templates.length})
             </h2>
             <Link
               href="/admin/checklists/templates/new"
@@ -58,7 +58,7 @@ export default async function AdminChecklistsHomePage() {
             </Link>
           </div>
           {templates.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               Templates are reusable task lists. Create one (e.g. &ldquo;Sunday Sound Setup&rdquo;)
               then instantiate it as an event for each Sunday.
             </p>
@@ -72,7 +72,7 @@ export default async function AdminChecklistsHomePage() {
                   >
                     <span className="font-medium">{t.name}</span>
                     {t.description ? (
-                      <span className="truncate text-xs text-slate-500">— {t.description}</span>
+                      <span className="truncate text-xs text-slate-500 dark:text-slate-400">— {t.description}</span>
                     ) : null}
                     <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                       {t.taskCount} {t.taskCount === 1 ? "item" : "items"}
@@ -87,7 +87,7 @@ export default async function AdminChecklistsHomePage() {
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-medium">
-              <CalendarClock className="h-4 w-4 text-slate-500" aria-hidden /> Services ({services.length})
+              <CalendarClock className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Services ({services.length})
             </h2>
             <Link
               href="/admin/checklists/services"
@@ -96,7 +96,7 @@ export default async function AdminChecklistsHomePage() {
               Manage services
             </Link>
           </div>
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             A service is a recurring schedule (e.g. every Sunday) that auto-generates events with
             their stations and default people set up front. Put shared station-tablet accounts in a
             group with the Checklists <span className="font-medium">moderator</span> tier so they can
@@ -107,7 +107,7 @@ export default async function AdminChecklistsHomePage() {
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-medium">
-              <Calendar className="h-4 w-4 text-slate-500" aria-hidden /> Events ({events.length})
+              <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Events ({events.length})
             </h2>
             <Link
               href="/admin/checklists/events/new"
@@ -117,7 +117,7 @@ export default async function AdminChecklistsHomePage() {
             </Link>
           </div>
           {events.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               An event is one instance of a template tied to a specific date. Volunteers tick boxes
               on event-tasks, not template-tasks.
             </p>
@@ -133,7 +133,7 @@ export default async function AdminChecklistsHomePage() {
                       {e.name}
                     </Link>
                     {e.scheduledAt ? (
-                      <span className="ml-2 text-xs text-slate-500">
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                         <LocalDateTime
                           value={e.scheduledAt}
                           options={{

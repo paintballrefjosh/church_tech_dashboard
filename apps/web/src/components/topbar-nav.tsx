@@ -144,7 +144,7 @@ export function TopBarNav({ access }: { access: Record<string, "user" | "moderat
   const adminItems = buildAdminItems(access);
 
   return (
-    <nav className="flex flex-wrap items-center gap-1 text-sm">
+    <nav aria-label="Main" className="flex flex-wrap items-center gap-1 text-sm">
       {itItems.length > 0 ? (
         <NavDropdown label="IT" Icon={Wrench} items={itItems} />
       ) : null}

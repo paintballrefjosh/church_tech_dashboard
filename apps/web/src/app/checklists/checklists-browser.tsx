@@ -201,7 +201,7 @@ function ListView({ items, range }: { items: { e: ChecklistEvent; at: Date }[]; 
   const rows = range === "past" ? [...items].reverse() : items;
   if (rows.length === 0) {
     return (
-      <p className="mt-4 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+      <p className="mt-4 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
         {range === "past" ? "No past events." : "Nothing scheduled."}
       </p>
     );
@@ -214,7 +214,7 @@ function ListView({ items, range }: { items: { e: ChecklistEvent; at: Date }[]; 
             href={`/checklists/${e.id}`}
             className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-900"
           >
-            <CalendarClock className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+            <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{e.name}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">{at.toLocaleString(undefined, fullFmt)}</div>

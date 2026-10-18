@@ -45,7 +45,7 @@ export default async function AdminPlanningCenterPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Map local users to Planning Center people. Used by the dashboard tile + service
           detail to highlight assignments that belong to a known local user. Users can self-link
-          on their <Link href="/me" className="text-brand-600 underline">profile</Link>.
+          on their <Link href="/me" className="text-brand-600 dark:text-brand-400 underline">profile</Link>.
         </p>
 
         {!health.configured ? (

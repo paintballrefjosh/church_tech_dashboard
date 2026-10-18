@@ -80,14 +80,14 @@ export function TrunkVlanField({
                   type="checkbox"
                   checked={set.has(v.vlanId)}
                   onChange={(e) => compose(e.target.checked ? [...ticked, v.vlanId] : ticked.filter((x) => x !== v.vlanId), otherText)}
-                  className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700"
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700"
                 />
                 {label(v)}
               </label>
             ))}
           </div>
           <label className="block text-xs">
-            <span className="text-slate-500">Other VLANs (ids not in the list, like 500,600-610)</span>
+            <span className="text-slate-500 dark:text-slate-400">Other VLANs (ids not in the list, like 500,600-610)</span>
             <input
               value={otherText}
               onChange={(e) => {
@@ -97,7 +97,7 @@ export function TrunkVlanField({
               className={`mt-1 w-full font-mono text-xs ${inputCls}`}
             />
           </label>
-          <p className="font-mono text-[11px] text-slate-500">Sends: {normaliseVlanList(value)}</p>
+          <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">Sends: {normaliseVlanList(value)}</p>
         </>
       )}
     </div>

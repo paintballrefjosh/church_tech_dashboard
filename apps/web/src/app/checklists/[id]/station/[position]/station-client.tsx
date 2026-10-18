@@ -87,12 +87,12 @@ export function StationClient({
               } ${canComplete ? "" : "cursor-default opacity-70"}`}
             >
               {t.completedAt ? (
-                <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-500" aria-hidden />
+                <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
               ) : (
                 <Circle className="mt-0.5 h-8 w-8 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden />
               )}
               <span className="min-w-0 flex-1">
-                <span className={`block text-lg font-medium ${t.completedAt ? "text-slate-400 line-through" : ""}`}>
+                <span className={`block text-lg font-medium ${t.completedAt ? "text-slate-500 dark:text-slate-400 line-through" : ""}`}>
                   {t.title}
                 </span>
                 {t.description ? (

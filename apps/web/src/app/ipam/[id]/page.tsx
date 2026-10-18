@@ -96,7 +96,7 @@ export default function IpamSubnetPage() {
     }, 4000);
   };
 
-  if (!subnet) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!subnet) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const up = hosts?.filter((h) => h.isUp).length ?? 0;
 
@@ -104,11 +104,11 @@ export default function IpamSubnetPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/ipam" className="mb-1 inline-flex items-center gap-1 text-xs text-slate-500 hover:underline">
+          <Link href="/ipam" className="mb-1 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:underline">
             <ArrowLeft className="h-3.5 w-3.5" /> All subnets
           </Link>
           <h2 className="font-mono text-lg font-semibold">{subnet.cidr}</h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {subnet.label ? `${subnet.label} · ` : ""}
             {subnet.gateway ? `gw ${subnet.gateway} · ` : ""}
             {subnet.vlanId ? `VLAN ${subnet.vlanId} · ` : ""}
@@ -123,7 +123,7 @@ export default function IpamSubnetPage() {
             Publish to DNS
           </label>
         ) : subnet.dnsSync ? (
-          <span className="text-xs text-slate-500">Published to DNS</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Published to DNS</span>
         ) : null}
         {canWrite ? (
           <button
@@ -150,12 +150,12 @@ export default function IpamSubnetPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Hosts seen", value: subnet.hostCount, tone: "text-slate-900 dark:text-slate-100" },
-          { label: "Up now", value: up, tone: "text-emerald-600 dark:text-emerald-400" },
-          { label: "Scanning", value: subnet.scanEnabled ? "On" : "Off", tone: "text-sky-600 dark:text-sky-400" },
+          { label: "Up now", value: up, tone: "text-emerald-700 dark:text-emerald-400" },
+          { label: "Scanning", value: subnet.scanEnabled ? "On" : "Off", tone: "text-sky-700 dark:text-sky-400" },
           { label: "Last scan", value: fmtTime(subnet.lastScanFinishedAt), tone: "text-xs text-slate-600 dark:text-slate-400" },
         ].map((t) => (
           <div key={t.label} className={cardCls}>
-            <div className="text-xs uppercase tracking-wide text-slate-500">{t.label}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{t.label}</div>
             <div className={`mt-1 text-2xl font-semibold ${t.tone}`}>{t.value}</div>
           </div>
         ))}
@@ -174,11 +174,11 @@ export default function IpamSubnetPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+        <div tabIndex={0} role="region" aria-label="Hosts in this subnet" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
-                <th className="px-3 py-2" />
+                <th className="px-3 py-2"><span className="sr-only">Status</span></th>
                 <th className="px-3 py-2">IP</th>
                 <th className="px-3 py-2">Name</th>
                 {subnet.dnsSync ? <th className="px-3 py-2">DNS</th> : null}
@@ -190,7 +190,7 @@ export default function IpamSubnetPage() {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {hosts.map((h) => (
-                <tr key={h.id} className={`hover:bg-slate-50 dark:hover:bg-slate-900 ${h.isUp ? "" : "opacity-60"}`}>
+                <tr key={h.id} className={`hover:bg-slate-50 dark:hover:bg-slate-900 ${h.isUp ? "" : "italic text-slate-600 dark:text-slate-400"}`}>
                   <td className="px-3 py-2">
                     <span
                       title={h.isUp ? "Up" : "Down"}
@@ -206,7 +206,7 @@ export default function IpamSubnetPage() {
                         <span title={source ? `via ${source}` : undefined}>
                           {name}
                           {source ? (
-                            <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">{source}</span>
+                            <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{source}</span>
                           ) : null}
                         </span>
                       );
@@ -229,10 +229,10 @@ export default function IpamSubnetPage() {
                               aria-label="DNS name override"
                               className={`${inputCls} w-36 px-2 py-1 font-mono text-xs`}
                             />
-                            <button onClick={() => void saveName()} title="Save" className="rounded p-1 text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <button onClick={() => void saveName()} title="Save" className="rounded p-1 text-emerald-700 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                               <Check className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => setEditing(null)} title="Cancel" className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <button onClick={() => setEditing(null)} title="Cancel" className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                               <X className="h-3.5 w-3.5" />
                             </button>
                           </div>
@@ -246,12 +246,12 @@ export default function IpamSubnetPage() {
                             <span className="inline-flex items-center gap-1.5" title={o?.message ?? (o ? undefined : "Not synced yet")}>
                               {st ? <span className={`h-2 w-2 rounded-full ${st.dot}`} aria-hidden /> : null}
                               <span className="font-mono">{o?.fqdn ? o.fqdn.split(".")[0] : st ? st.label : "—"}</span>
-                              {h.dnsName ? <span className="text-[10px] uppercase tracking-wide text-slate-400">override</span> : null}
+                              {h.dnsName ? <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">override</span> : null}
                               {canWrite ? (
                                 <button
                                   onClick={() => setEditing({ id: h.id, value: h.dnsName ?? "", error: null })}
                                   title="Set the DNS name for this host"
-                                  className="rounded p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                  className="rounded p-0.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                                 >
                                   <Pencil className="h-3 w-3" />
                                 </button>
@@ -262,19 +262,19 @@ export default function IpamSubnetPage() {
                       )}
                     </td>
                   ) : null}
-                  <td className="px-3 py-2 font-mono text-[11px] text-slate-500">{h.macAddress ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs uppercase text-slate-500">{h.respondedVia ?? "—"}</td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
+                  <td className="px-3 py-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">{h.macAddress ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs uppercase text-slate-500 dark:text-slate-400">{h.respondedVia ?? "—"}</td>
+                  <td className="px-3 py-2 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                     {h.openPorts.length ? h.openPorts.join(", ") : "—"}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{fmtTime(h.lastSeenAt)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{fmtTime(h.lastSeenAt)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-400">Auto-refreshes every 10s.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 10s.</p>
     </div>
   );
 }

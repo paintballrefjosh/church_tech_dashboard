@@ -375,7 +375,7 @@ export function NotesBoard({ initial, initialArchived, initialQuery }: Props) {
     <div>
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
-          <StickyNote className="h-6 w-6 text-brand-600" aria-hidden />
+          <StickyNote className="h-6 w-6 text-brand-600 dark:text-brand-400" aria-hidden />
           Notes
         </h1>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -802,6 +802,7 @@ function NoteCard({
         // no hover-reveal affordance.
         className="note-drag-handle absolute left-1/2 top-0 z-10 flex h-4 -translate-x-1/2 cursor-move items-center justify-center rounded-b bg-slate-500/20 px-3 text-slate-400 opacity-40 transition hover:bg-slate-500/30 hover:text-slate-700 hover:opacity-100 group-hover:opacity-100 dark:text-slate-500 dark:hover:text-slate-200 [@media(hover:none)]:h-6 [@media(hover:none)]:px-5 [@media(hover:none)]:opacity-100"
         title="Drag to rearrange"
+        role="img"
         aria-label="Drag to rearrange"
       >
         <GripVertical className="h-3 w-3 rotate-90" aria-hidden />
@@ -822,7 +823,7 @@ function NoteCard({
           title={note.pinned ? "Unpin" : "Pin"}
           onClick={() => onPatch({ pinned: !note.pinned })}
           className={`rounded p-1 ${
-            note.pinned ? "text-amber-600" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            note.pinned ? "text-amber-700" : "text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           }`}
         >
           {note.pinned ? <Pin className="h-4 w-4 fill-current" aria-hidden /> : <PinOff className="h-4 w-4" aria-hidden />}
@@ -874,7 +875,7 @@ function NoteCard({
       </div>
 
       {uploadError ? (
-        <p role="alert" className="mt-1 text-xs text-rose-600">
+        <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">
           {uploadError}
         </p>
       ) : null}
@@ -884,17 +885,23 @@ function NoteCard({
       </div>
 
       <footer className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center">
           {NOTE_COLORS.map((c) => (
+            // The button is 24px (the smallest comfortable target); the dot inside is the 16px it always was.
             <button
               key={c}
               type="button"
               aria-label={`Colour: ${c}`}
+              aria-pressed={note.color === c}
               onClick={() => onPatch({ color: c })}
-              className={`h-4 w-4 rounded-full border ${DOT_CLASS[c]} ${
-                note.color === c ? "ring-2 ring-offset-2 ring-slate-500 ring-offset-transparent" : ""
-              }`}
-            />
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full"
+            >
+              <span
+                className={`block h-4 w-4 rounded-full border ${DOT_CLASS[c]} ${
+                  note.color === c ? "ring-2 ring-offset-2 ring-slate-500 ring-offset-transparent" : ""
+                }`}
+              />
+            </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
@@ -938,7 +945,7 @@ function NoteCard({
             onClick={() => {
               if (confirm("Delete this note? This cannot be undone.")) onDelete();
             }}
-            className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700"
+            className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 hover:text-rose-700"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete
           </button>
@@ -1138,7 +1145,7 @@ function DropTextOverlay({
       {value.length > 0 ? (
         value
       ) : (
-        <span className="text-slate-400 dark:text-slate-500">
+        <span className="text-slate-500 dark:text-slate-400">
           {placeholder ?? " "}
         </span>
       )}

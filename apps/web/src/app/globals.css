@@ -526,3 +526,24 @@ html[data-page-width="custom"] :is(.max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .
 .dark [data-table-hover] table tr:hover > :is(td, th):hover {
   background-image: linear-gradient(theme("colors.brand.300 / 0.32"), theme("colors.brand.300 / 0.32"));
 }
+
+/* The skip link moves focus to <main> (tabindex -1); the page itself needs no ring. */
+main:focus {
+  outline: none;
+}
+
+/* People who ask their system for less motion get none from the app's own transitions, pulses and bounces (a spinner keeps
+   turning: it is the only sign that something is loading). The canvas backdrops and the looks handle the setting themselves. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation: none !important;
+  }
+}

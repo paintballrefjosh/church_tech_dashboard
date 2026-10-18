@@ -76,7 +76,7 @@ export function StationsAdminClient({ initial }: { initial: ChecklistStation[] }
         className="flex flex-wrap items-end gap-2 rounded-md border border-slate-300 p-4 dark:border-slate-800"
       >
         <label className="flex flex-col text-xs">
-          <span className="text-slate-500">Station name</span>
+          <span className="text-slate-500 dark:text-slate-400">Station name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -87,7 +87,7 @@ export function StationsAdminClient({ initial }: { initial: ChecklistStation[] }
           />
         </label>
         <label className="flex flex-col text-xs">
-          <span className="text-slate-500">Planning Center position (optional)</span>
+          <span className="text-slate-500 dark:text-slate-400">Planning Center position (optional)</span>
           <input
             value={pcAlias}
             onChange={(e) => setPcAlias(e.target.value)}
@@ -103,18 +103,18 @@ export function StationsAdminClient({ initial }: { initial: ChecklistStation[] }
         >
           <Plus className="h-4 w-4" aria-hidden /> Add station
         </button>
-        {err ? <span className="text-xs text-rose-600">{err}</span> : null}
+        {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
       </form>
 
       {stations.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           No stations yet. Add Camera, FOH, ProPresenter, Lights, Stream…
         </p>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
           {stations.map((s) => (
             <li key={s.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-              <MonitorSpeaker className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+              <MonitorSpeaker className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
               <input
                 defaultValue={s.name}
                 maxLength={120}
@@ -140,7 +140,7 @@ export function StationsAdminClient({ initial }: { initial: ChecklistStation[] }
                 type="button"
                 onClick={() => void destroy(s)}
                 aria-label={`Delete ${s.name}`}
-                className="text-rose-600 hover:text-rose-700"
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

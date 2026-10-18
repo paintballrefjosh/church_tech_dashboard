@@ -49,7 +49,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
 
 export default function DnsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}>
       <DnsPageInner />
     </Suspense>
   );
@@ -81,7 +81,7 @@ function DnsPageInner() {
     return () => clearInterval(t);
   }, [loadSummary]);
 
-  if (!summary) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!summary) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   if (!summary.configured) {
     return (
@@ -158,10 +158,10 @@ function ServerHeader({ summary, onRefresh }: { summary: DnsSummary; onRefresh: 
           <div className="text-sm font-medium">
             {ok ? (summary.server ?? "Technitium") : "Primary unreachable"}
             {ok && summary.version ? (
-              <span className="ml-2 text-xs font-normal text-slate-500">Technitium {summary.version}</span>
+              <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">Technitium {summary.version}</span>
             ) : null}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
             {ok
               ? `${summary.zoneCount} zone${summary.zoneCount === 1 ? "" : "s"} · ${
                   summary.clustered ? "cluster" : "single node, not clustered"
@@ -173,7 +173,7 @@ function ServerHeader({ summary, onRefresh }: { summary: DnsSummary; onRefresh: 
       <button
         onClick={onRefresh}
         title="Refresh"
-        className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <RefreshCw className="h-4 w-4" />
       </button>
@@ -212,7 +212,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
   const tiles = t
     ? [
         { label: "Queries", value: fmtNum(t.queries), tone: "text-slate-900 dark:text-slate-100" },
-        { label: "Blocked", value: pctOf(t.blocked, t.queries), sub: fmtNum(t.blocked), tone: "text-amber-600 dark:text-amber-400" },
+        { label: "Blocked", value: pctOf(t.blocked, t.queries), sub: fmtNum(t.blocked), tone: "text-amber-700 dark:text-amber-400" },
         { label: "Cached", value: pctOf(t.cached, t.queries), sub: fmtNum(t.cached), tone: "text-slate-900 dark:text-slate-100" },
         {
           label: "Failures",
@@ -228,8 +228,8 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
     <div className="space-y-5">
       {summary.nodes ? (
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Cluster nodes</h2>
-          <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cluster nodes</h2>
+          <div tabIndex={0} role="region" aria-label="DNS cluster nodes" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                 <tr>
@@ -254,7 +254,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
                       </span>
                     </td>
                     <td className="px-3 py-2 text-xs">{n.version ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{n.state === "Self" ? "—" : fmtTime(n.lastSeen)}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{n.state === "Self" ? "—" : fmtTime(n.lastSeen)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -262,7 +262,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
           </div>
         </section>
       ) : summary.clustered ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Node list unavailable: the API token needs View on Administration in Technitium.
         </p>
       ) : null}
@@ -271,7 +271,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Queries{stats ? (stats.cluster ? " · whole cluster" : " · this node") : ""}
           </h2>
           <select
@@ -293,9 +293,9 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {tiles.map((tile) => (
                 <div key={tile.label} className={cardCls}>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">{tile.label}</div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{tile.label}</div>
                   <div className={`mt-1 text-2xl font-semibold tabular-nums ${tile.tone}`}>{tile.value}</div>
-                  {tile.sub ? <div className="text-xs text-slate-500 tabular-nums">{tile.sub}</div> : null}
+                  {tile.sub ? <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{tile.sub}</div> : null}
                 </div>
               ))}
             </div>
@@ -306,7 +306,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
             </div>
           </>
         ) : !error ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
         ) : null}
       </section>
     </div>
@@ -356,8 +356,8 @@ function HealthMonitorsCard({ summary }: { summary: DnsSummary }) {
 
   return (
     <section className={cardCls}>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Health monitors</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Health monitors</h2>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Adds a DNS uptime monitor per node (shown under{" "}
         <Link href="/monitoring" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
           Services
@@ -367,7 +367,7 @@ function HealthMonitorsCard({ summary }: { summary: DnsSummary }) {
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="block min-w-0 flex-1">
-          <span className="text-xs text-slate-500">Node IPs</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Node IPs</span>
           <input
             value={ips}
             onChange={(e) => setIps(e.target.value)}
@@ -394,9 +394,9 @@ function TopList({ title, rows, showDomain }: { title: string; rows: DnsTopEntry
   const max = rows.reduce((m, r) => Math.max(m, r.hits), 0);
   return (
     <div className={cardCls}>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h3>
       {rows.length === 0 ? (
-        <p className="text-xs text-slate-400">None in this range.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">None in this range.</p>
       ) : (
         <ul className="space-y-1.5">
           {rows.map((r) => (
@@ -405,7 +405,7 @@ function TopList({ title, rows, showDomain }: { title: string; rows: DnsTopEntry
                 <span className="truncate font-mono" title={r.name}>
                   {showDomain && r.domain ? r.domain : r.name}
                 </span>
-                <span className="shrink-0 tabular-nums text-slate-500">{fmtNum(r.hits)}</span>
+                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{fmtNum(r.hits)}</span>
               </div>
               <div className="mt-0.5 h-1 rounded bg-slate-100 dark:bg-slate-800">
                 <div className="h-1 rounded bg-brand-500" style={{ width: `${max > 0 ? (r.hits / max) * 100 : 0}%` }} />
@@ -548,9 +548,9 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
   };
 
   if (error && !zones) return <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>;
-  if (!zones) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!zones) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
   if (zones.length === 0) {
-    return <p className="text-sm text-slate-500">No zones on this server yet. Create them in Technitium.</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400">No zones on this server yet. Create them in Technitium.</p>;
   }
 
   return (
@@ -571,10 +571,10 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
             }`}
           >
             <span className="min-w-0">
-              <span className={`block truncate font-mono text-xs ${z.disabled ? "line-through opacity-60" : ""}`} title={z.name}>
+              <span className={`block truncate font-mono text-xs ${z.disabled ? "line-through text-slate-600 dark:text-slate-400" : ""}`} title={z.name}>
                 {z.name}
               </span>
-              <span className="text-[10px] text-slate-500">{z.type}</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400">{z.type}</span>
             </span>
             <span className="flex shrink-0 gap-1">
               {z.syncFailed ? <span className={ZONE_FLAG_CLS} title="Last zone transfer failed">sync</span> : null}
@@ -588,7 +588,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
       <div className="min-w-0 space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden />
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -600,7 +600,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
           <button
             onClick={() => void loadRecords()}
             title="Reload records"
-            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
@@ -618,7 +618,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
         </div>
 
         {canWrite && zoneInfo && zoneInfo.type !== "Primary" ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             This is a {zoneInfo.type.toLowerCase()} zone; edit its records on the zone&apos;s primary.
           </p>
         ) : null}
@@ -626,9 +626,9 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
         {error ? <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p> : null}
 
         {!filtered ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
+          <div tabIndex={0} role="region" aria-label="Records in this zone" className="overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                 <tr>
@@ -642,7 +642,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={zoneWritable ? 5 : 4} className="px-3 py-6 text-center text-sm text-slate-500">
+                    <td colSpan={zoneWritable ? 5 : 4} className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                       {records && records.length > 0 ? "No records match the filter." : "This zone has no records."}
                     </td>
                   </tr>
@@ -650,7 +650,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
                   filtered.map((r, i) => (
                     <tr
                       key={`${r.name}|${r.type}|${r.value}|${i}`}
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-900 ${r.disabled ? "opacity-50" : ""}`}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-900 ${r.disabled ? "italic text-slate-600 dark:text-slate-400" : ""}`}
                     >
                       <td className="px-3 py-1.5 font-mono text-xs" title={r.name}>
                         {rel(r.name)}
@@ -663,9 +663,9 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
                       <td className="px-3 py-1.5 text-xs font-medium">{r.type}</td>
                       <td className="px-3 py-1.5 font-mono text-xs break-all">
                         {r.value}
-                        {r.comments ? <div className="font-sans text-[11px] text-slate-500">{r.comments}</div> : null}
+                        {r.comments ? <div className="font-sans text-[11px] text-slate-500 dark:text-slate-400">{r.comments}</div> : null}
                       </td>
-                      <td className="px-3 py-1.5 text-right text-xs tabular-nums text-slate-500">{r.ttl}</td>
+                      <td className="px-3 py-1.5 text-right text-xs tabular-nums text-slate-500 dark:text-slate-400">{r.ttl}</td>
                       {zoneWritable ? (
                         <td className="px-3 py-1.5">
                           {r.data && !r.managed ? (
@@ -676,14 +676,14 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
                                   setEditing({ mode: "edit", record: r });
                                 }}
                                 title="Edit record"
-                                className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => void removeRecord(r)}
                                 title="Delete record"
-                                className="rounded p-1.5 text-slate-500 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
+                                className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -699,7 +699,7 @@ function Records({ paramZone, paramQ, canWrite }: { paramZone: string | null; pa
           </div>
         )}
         {filtered && records ? (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
             {filtered.length} of {records.length} records. DNSSEC signing records are hidden.
           </p>
         ) : null}
@@ -1019,7 +1019,7 @@ const TRIGGER_LABEL: Record<DnsSyncRun["trigger"], string> = {
 const thCls = "px-3 py-2";
 const tableWrap = "overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800";
 const theadCls = "bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400";
-const sectionTitle = "mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500";
+const sectionTitle = "mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 
 function SyncView({ canWrite }: { canWrite: boolean }) {
   const [status, setStatus] = useState<DnsSyncStatus | null>(null);
@@ -1114,9 +1114,9 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
         <div className="text-sm">
           <div className="font-medium">
             {status?.enabled ? "Sync is on" : "Sync is off"}
-            {status?.zone ? <span className="ml-2 font-mono text-xs font-normal text-slate-500">{status.zone}</span> : null}
+            {status?.zone ? <span className="ml-2 font-mono text-xs font-normal text-slate-500 dark:text-slate-400">{status.zone}</span> : null}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
             {last
               ? `Last run ${fmtTime(last.startedAt)} (${TRIGGER_LABEL[last.trigger]})${
                   last.error ? `: ${last.error}` : `: ${last.added} added, ${last.updated} updated, ${last.removed} removed`
@@ -1129,7 +1129,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
           <button
             onClick={() => void load()}
             title="Refresh plan"
-            className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
@@ -1202,13 +1202,13 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
                         <td className="px-3 py-1.5 font-mono text-xs">
                           {a.fromValue && a.fromValue !== a.value ? (
                             <>
-                              <span className="text-slate-400 line-through">{a.fromValue}</span> {a.value}
+                              <span className="text-slate-500 dark:text-slate-400 line-through">{a.fromValue}</span> {a.value}
                             </>
                           ) : (
                             a.value
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-xs text-slate-500">{a.reason}</td>
+                        <td className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">{a.reason}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1220,7 +1220,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
           {plan.conflicts.length > 0 ? (
             <section>
               <h2 className={sectionTitle}>Conflicts</h2>
-              <p className="mb-2 text-xs text-slate-500">
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                 A hand-made record already uses these names, so the sync leaves them alone. Delete or rename the
                 hand-made record, or give the host a different DNS name on its IPAM subnet page.
               </p>
@@ -1252,7 +1252,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
           {plan.missingReverseZones.length > 0 ? (
             <section>
               <h2 className={sectionTitle}>Missing reverse zones</h2>
-              <p className="mb-2 text-xs text-slate-500">
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                 PTR records for these ranges are skipped until a reverse zone exists. The sync never creates zones by
                 itself.
               </p>
@@ -1279,7 +1279,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
       <section>
         <h2 className={sectionTitle}>Synced records ({managed.length})</h2>
         {managed.length === 0 ? (
-          <p className="text-xs text-slate-500">None yet.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">None yet.</p>
         ) : (
           <div className={tableWrap}>
             <table className="w-full text-left text-sm">
@@ -1326,7 +1326,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
       <section>
         <h2 className={sectionTitle}>Recent runs</h2>
         {runs.length === 0 ? (
-          <p className="text-xs text-slate-500">No runs yet.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">No runs yet.</p>
         ) : (
           <div className={tableWrap}>
             <table className="w-full text-left text-sm">
@@ -1344,7 +1344,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {runs.map((r) => (
                   <tr key={r.id}>
-                    <td className="px-3 py-1.5 text-xs text-slate-500">{fmtTime(r.startedAt)}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">{fmtTime(r.startedAt)}</td>
                     <td className="px-3 py-1.5 text-xs">{TRIGGER_LABEL[r.trigger]}</td>
                     <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.added}</td>
                     <td className="px-3 py-1.5 text-right text-xs tabular-nums">{r.updated}</td>
@@ -1356,7 +1356,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
                       ) : r.failed > 0 ? (
                         <span className="text-rose-700 dark:text-rose-300">{r.failed} failed</span>
                       ) : !r.finishedAt ? (
-                        <span className="text-slate-500">running…</span>
+                        <span className="text-slate-500 dark:text-slate-400">running…</span>
                       ) : (
                         <span className="text-emerald-700 dark:text-emerald-300">ok</span>
                       )}

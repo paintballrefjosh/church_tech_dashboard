@@ -92,7 +92,7 @@ export function ImportWikiForm({ groups }: { groups: GroupBrief[] }) {
       </label>
       <label className="block">
         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-          Title <span className="font-normal text-slate-400">(defaults to the filename)</span>
+          Title <span className="font-normal text-slate-500 dark:text-slate-400">(defaults to the filename)</span>
         </span>
         <input
           name="title"

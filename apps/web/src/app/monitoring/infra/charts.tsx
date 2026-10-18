@@ -45,8 +45,8 @@ export function MetricChart({
   return (
     <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
-        <span className="text-xs text-slate-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h2>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {hasData ? `${round(data[data.length - 1]?.v)}${unit}` : "—"}
         </span>
       </div>
@@ -95,7 +95,7 @@ export function MetricChart({
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
             {mounted ? "No data in this range yet." : ""}
           </div>
         )}
@@ -147,7 +147,7 @@ export function MultiSeriesChart({
   return (
     <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h2>
       </div>
       <div style={{ height }}>
         {mounted && hasData ? (
@@ -199,7 +199,7 @@ export function MultiSeriesChart({
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
             {mounted ? "No data in this range yet." : ""}
           </div>
         )}

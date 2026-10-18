@@ -72,7 +72,7 @@ export function NewEventForm({
   return (
     <form onSubmit={submit} className="mt-6 space-y-4 text-sm">
       <label className="block">
-        <span className="text-xs text-slate-500">Template</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Template</span>
         <select
           required
           value={templateId}
@@ -88,7 +88,7 @@ export function NewEventForm({
       </label>
 
       <label className="block">
-        <span className="text-xs text-slate-500">Event name</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Event name</span>
         <input
           required
           value={name}
@@ -100,7 +100,7 @@ export function NewEventForm({
       </label>
 
       <label className="block">
-        <span className="text-xs text-slate-500">Date / time (optional)</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Date / time (optional)</span>
         <input
           type="datetime-local"
           value={scheduledAt}
@@ -110,22 +110,22 @@ export function NewEventForm({
       </label>
 
       <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Planning Center (optional)
         </legend>
         {!pcConfigured ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Planning Center isn&apos;t configured / reachable. Tasks will be unassigned by default;
             you can assign them manually after creation.
           </p>
         ) : pcPlans.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             No upcoming PC plans found in the default service type. You can still leave this blank.
           </p>
         ) : (
           <div className="space-y-3">
             <label className="block">
-              <span className="text-xs text-slate-500">Linked plan</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Linked plan</span>
               <select
                 value={pcPlanId}
                 onChange={(e) => setPcPlanId(e.target.value)}
@@ -152,7 +152,7 @@ export function NewEventForm({
                 checked={autoAssign}
                 onChange={(e) => setAutoAssign(e.target.checked)}
                 disabled={!pcPlanId}
-                className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
               />
               Auto-assign tasks by matching position name to PC team-members
             </label>

@@ -52,7 +52,7 @@ function CheckRow({ c }: { c: PostureCheck }) {
         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${look.badge}`}>
           <look.Icon className="h-3.5 w-3.5" aria-hidden /> {look.label}
         </span>
-        <h3 className="min-w-0 flex-1 text-sm font-medium">{c.title}</h3>
+        <h2 className="min-w-0 flex-1 text-sm font-medium">{c.title}</h2>
         {c.fix ? (
           <Link href={c.fix.href} className="shrink-0 text-sm text-brand-600 hover:underline dark:text-brand-400">
             {c.fix.label}

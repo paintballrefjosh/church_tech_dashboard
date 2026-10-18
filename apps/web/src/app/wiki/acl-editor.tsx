@@ -89,7 +89,7 @@ export function AclEditor({
               <button
                 type="button"
                 onClick={() => remove(a.groupId)}
-                className="text-xs text-rose-600 hover:text-rose-700"
+                className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700"
               >
                 remove
               </button>

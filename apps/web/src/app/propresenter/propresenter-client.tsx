@@ -89,7 +89,7 @@ export function PropresenterClient() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm">
         {health?.reachable ? (
-          <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
             <CircleCheck className="h-4 w-4" aria-hidden /> Connected
           </span>
         ) : (
@@ -101,12 +101,12 @@ export function PropresenterClient() {
       </div>
 
       <section className="rounded-md border border-slate-300 p-5 dark:border-slate-800">
-        <div className="text-xs uppercase tracking-wide text-slate-500">Active presentation</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Active presentation</div>
         <div className="mt-1 text-lg font-semibold">{presentationName}</div>
       </section>
 
       <section className="rounded-md border border-slate-300 p-5 dark:border-slate-800">
-        <div className="text-xs uppercase tracking-wide text-slate-500">Current slide</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Current slide</div>
         <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-sm">
           {slideText}
         </pre>

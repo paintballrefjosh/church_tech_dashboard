@@ -97,7 +97,7 @@ export function TemplatesClient({
 
       {editing !== null ? (
         <form onSubmit={save} className="space-y-3 rounded-md border border-slate-300 p-4 dark:border-slate-800" data-testid="template-form">
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             Name
             <input
               value={name}
@@ -108,7 +108,7 @@ export function TemplatesClient({
               data-testid="template-name"
             />
           </label>
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             What it is for (shown in the list)
             <input
               value={description}
@@ -119,7 +119,7 @@ export function TemplatesClient({
             />
           </label>
           <div>
-            <span className="mb-1 block text-xs text-slate-500">Outline</span>
+            <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Outline</span>
             <WikiBodyEditor name="body" value={body} onChange={setBody} ariaLabel="Template outline" />
           </div>
           {err ? (

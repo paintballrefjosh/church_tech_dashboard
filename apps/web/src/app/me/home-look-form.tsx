@@ -75,7 +75,7 @@ export function HomeLookForm({
       </label>
       <div className="min-h-[1.25rem]" role="status">
         {msg ? (
-          <span className={msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+          <span className={msg.ok ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
             {msg.text}
           </span>
         ) : null}

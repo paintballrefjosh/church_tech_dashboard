@@ -23,7 +23,7 @@ export function WorkersStrip() {
       }`}
     >
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <Server className="h-3.5 w-3.5" aria-hidden /> Probe workers
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -97,7 +97,7 @@ function WorkerCard({
         </span>
       </div>
       <div className="mt-1 flex items-center gap-1.5 text-[11px]">
-        <span className="text-slate-400">build</span>
+        <span className="text-slate-500 dark:text-slate-400">build</span>
         <span
           className={`truncate font-mono ${
             buildDiffers ? "font-semibold text-rose-700 dark:text-rose-300" : "text-slate-600 dark:text-slate-300"
@@ -134,7 +134,7 @@ function WorkerCard({
             />
             <Fig label="Avg latency" value={w.avgLatencyMs == null ? "-" : `${w.avgLatencyMs} ms`} />
           </dl>
-          <p className="mt-1.5 text-[11px] text-slate-400">last check {ago(w.lastCheckAt)}</p>
+          <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">last check {ago(w.lastCheckAt)}</p>
         </>
       )}
     </li>
@@ -144,7 +144,7 @@ function WorkerCard({
 function Fig({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-wide text-slate-400">{label}</dt>
+      <dt className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</dt>
       <dd className={`font-medium ${tone ?? ""}`}>{value}</dd>
     </div>
   );

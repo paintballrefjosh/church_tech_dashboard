@@ -78,7 +78,7 @@ export default function CiscoVlansPage() {
     void load();
   }, [load]);
 
-  if (!vlans) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!vlans) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const conflicts = vlans.filter((v) => v.nameConflict).length;
   const pending = vlans.filter((v) => v.switches.some((s) => s.state !== "in_sync")).length;
@@ -202,11 +202,11 @@ export default function CiscoVlansPage() {
       label: "Status",
       render: (v) => {
         const seen = v.switches.filter((s) => s.vlanStatus !== null);
-        if (seen.length === 0) return <span className="text-xs text-slate-400">not on a switch</span>;
+        if (seen.length === 0) return <span className="text-xs text-slate-500 dark:text-slate-400">not on a switch</span>;
         return seen.every((s) => s.vlanStatus === "active") ? (
-          <span className="text-xs text-emerald-600 dark:text-emerald-400">active</span>
+          <span className="text-xs text-emerald-700 dark:text-emerald-400">active</span>
         ) : (
-          <span className="text-xs text-slate-500">mixed</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">mixed</span>
         );
       },
       sortValue: (v) => (v.switches.every((s) => s.vlanStatus === "active") ? "active" : "mixed"),
@@ -236,7 +236,7 @@ export default function CiscoVlansPage() {
                   </button>
                 </div>
               ) : (
-                <span className="text-[10px] text-slate-400" title="VLAN 1 and 1002-1005 exist on every switch and are never changed">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400" title="VLAN 1 and 1002-1005 exist on every switch and are never changed">
                   built in
                 </span>
               ),
@@ -248,7 +248,7 @@ export default function CiscoVlansPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">VLAN database</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">VLAN database</h2>
         {conflicts > 0 ? (
           <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
             {conflicts} name conflict{conflicts === 1 ? "" : "s"}
@@ -275,11 +275,11 @@ export default function CiscoVlansPage() {
         rightSlot={
           <>
             <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-              <input type="checkbox" checked={conflictsOnly} onChange={(e) => setConflictsOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700" />
+              <input type="checkbox" checked={conflictsOnly} onChange={(e) => setConflictsOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
               Conflicts only
             </label>
             <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-              <input type="checkbox" checked={pendingOnly} onChange={(e) => setPendingOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700" />
+              <input type="checkbox" checked={pendingOnly} onChange={(e) => setPendingOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
               Not in sync only
             </label>
             <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
@@ -322,7 +322,7 @@ export default function CiscoVlansPage() {
               </Field>
             </div>
             <fieldset>
-              <legend className="text-xs text-slate-500">Switches that should have this VLAN</legend>
+              <legend className="text-xs text-slate-500 dark:text-slate-400">Switches that should have this VLAN</legend>
               <div className="mt-1 max-h-48 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2 dark:border-slate-800">
                 {switches.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 text-sm">
@@ -332,7 +332,7 @@ export default function CiscoVlansPage() {
                       onChange={(e) =>
                         setForm({ ...form, switchIds: e.target.checked ? [...form.switchIds, s.id] : form.switchIds.filter((x) => x !== s.id) })
                       }
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700"
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700"
                     />
                     {s.hostname}
                   </label>
@@ -347,7 +347,7 @@ export default function CiscoVlansPage() {
                 </button>
               </div>
             </fieldset>
-            {formError ? <p className="text-xs text-rose-600">{formError}</p> : null}
+            {formError ? <p className="text-xs text-rose-600 dark:text-rose-400">{formError}</p> : null}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setForm(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700">
                 Cancel

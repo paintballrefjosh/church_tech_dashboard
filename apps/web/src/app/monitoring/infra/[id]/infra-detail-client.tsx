@@ -18,6 +18,7 @@ import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useCanWrite } from "../../network-cisco/cisco-ui";
 import { MONITORING_HEALTH_REFRESH } from "../../section-tabs";
 import { AcknowledgeButton } from "../../acknowledge-button";
+import { useModal } from "@/components/modal";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -333,10 +334,10 @@ export function InfraDetailClient({
     <div className="space-y-5 text-sm">
       {/* Header */}
       <header className="flex flex-wrap items-center gap-3">
-        <meta.Icon className="h-6 w-6 text-brand-600" aria-hidden />
+        <meta.Icon className="h-6 w-6 text-brand-600 dark:text-brand-400" aria-hidden />
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{target.name}</h1>
-          <div className="font-mono text-xs text-slate-500">
+          <div className="font-mono text-xs text-slate-500 dark:text-slate-400">
             {meta.label} · {target.host}
           </div>
         </div>
@@ -409,7 +410,7 @@ export function InfraDetailClient({
       ) : null}
 
       {/* Everything below is the last reading; greyed out while monitoring is off. */}
-      <div className={target.enabled ? "space-y-5" : "space-y-5 opacity-50 grayscale"}>
+      <div className={target.enabled ? "space-y-5" : "space-y-5 grayscale"}>
       {/* Headline stats */}
       <section className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
@@ -430,7 +431,7 @@ export function InfraDetailClient({
       {/* Time-series charts */}
       <section className="space-y-3">
         <div className="flex items-center gap-1">
-          <span className="mr-2 text-xs uppercase tracking-wide text-slate-500">History</span>
+          <span className="mr-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">History</span>
           {RANGES.map((r) => (
             <button
               key={r.key}
@@ -551,7 +552,7 @@ export function InfraDetailClient({
 
       {/* Incidents */}
       <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Alert history</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Alert history</h2>
         {incidents.length === 0 ? (
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No alerts recorded.</p>
         ) : (
@@ -559,9 +560,9 @@ export function InfraDetailClient({
             {incidents.map((i) => (
               <li key={i.id} className="flex items-center gap-3 py-2">
                 {i.resolvedAt ? (
-                  <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                  <CircleCheck className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">
@@ -590,7 +591,7 @@ export function InfraDetailClient({
       <section className="flex items-center justify-between rounded-md border border-rose-200 p-4 text-xs dark:border-rose-900/50">
         <div>
           <div className="text-sm font-medium text-rose-700 dark:text-rose-300">Delete target</div>
-          <div className="text-rose-600/80 dark:text-rose-400/80">
+          <div className="text-rose-700 dark:text-rose-300">
             Removes the target, its credentials, and all metrics history.
           </div>
         </div>
@@ -762,9 +763,9 @@ function UpdatesCard({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             {count > 0 ? (
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
             ) : (
-              <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+              <CircleCheck className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
             )}
             <span className="text-sm font-medium">
               {count === 0 ? "Up to date" : `${count} update${count === 1 ? "" : "s"} available`}
@@ -816,7 +817,7 @@ function UpdateRunHistory({ runs }: { runs: InfraUpdateRun[] }) {
                 {r.triggeredByName ? ` · ${r.triggeredByName}` : ""}
               </span>
               {r.packageManager ? (
-                <span className="text-slate-400 dark:text-slate-500">via {r.packageManager}</span>
+                <span className="text-slate-500 dark:text-slate-400">via {r.packageManager}</span>
               ) : null}
               {r.fullUpgrade ? (
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -833,7 +834,7 @@ function UpdateRunHistory({ runs }: { runs: InfraUpdateRun[] }) {
                   rebooted
                 </span>
               ) : null}
-              <span className="ml-auto capitalize text-slate-400 dark:text-slate-500">
+              <span className="ml-auto capitalize text-slate-500 dark:text-slate-400">
                 {r.status.replace("_", " ")}
               </span>
             </button>
@@ -851,10 +852,10 @@ function UpdateRunHistory({ runs }: { runs: InfraUpdateRun[] }) {
 }
 
 function RunStatusIcon({ status }: { status: InfraUpdateRun["status"] }) {
-  if (status === "needs_sudo") return <KeyRound className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />;
-  if (status === "running") return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-600" aria-hidden />;
-  if (status === "success") return <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden />;
-  return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden />;
+  if (status === "needs_sudo") return <KeyRound className="h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />;
+  if (status === "running") return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-600 dark:text-brand-400" aria-hidden />;
+  if (status === "success") return <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />;
+  return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />;
 }
 
 /** The newest run stopped on sudo: say so where it can't be missed, with a way back into the terminal. */
@@ -915,12 +916,16 @@ function SudoTerminalDialog({
   const submit = (enable: boolean) => {
     if (password && !busy) onSubmit(password, enable);
   };
+  const panelRef = useModal<HTMLDivElement>(() => {
+    if (!busy) onClose();
+  });
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={() => !busy && onClose()}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={`sudo on ${targetName}`}
@@ -951,7 +956,7 @@ function SudoTerminalDialog({
         <div className="space-y-3 p-4 font-mono text-[12px] leading-relaxed text-slate-200">
           <div>
             <span className="text-emerald-400">{user}@{targetName}</span>
-            <span className="text-slate-500">:~$</span> sudo -v
+            <span className="text-slate-400">:~$</span> sudo -v
           </div>
           <pre className="whitespace-pre-wrap break-words text-amber-200">{run.output || "sudo: a password is required"}</pre>
 
@@ -1054,22 +1059,29 @@ function RunUpdatesModal({
   const [reboot, setReboot] = useState(true);
   const [fullUpgrade, setFullUpgrade] = useState(false);
   const [includePhased, setIncludePhased] = useState(false);
+  const panelRef = useModal<HTMLDivElement>(() => {
+    if (!busy) onCancel();
+  });
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => !busy && onCancel()}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="run-updates-title"
         className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold">Run updates on {targetName}?</h3>
+          <h2 id="run-updates-title" className="text-base font-semibold">Run updates on {targetName}?</h2>
           <button
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+            className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -1084,7 +1096,7 @@ function RunUpdatesModal({
             checked={reboot}
             onChange={(e) => setReboot(e.target.checked)}
             disabled={busy}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
           />
           <span>
             <span className="block font-medium">Reboot after updating, if required</span>
@@ -1100,7 +1112,7 @@ function RunUpdatesModal({
             checked={fullUpgrade}
             onChange={(e) => setFullUpgrade(e.target.checked)}
             disabled={busy}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
           />
           <span>
             <span className="block font-medium">Full upgrade (apt only)</span>
@@ -1117,7 +1129,7 @@ function RunUpdatesModal({
             checked={includePhased}
             onChange={(e) => setIncludePhased(e.target.checked)}
             disabled={busy}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-900"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
           />
           <span>
             <span className="block font-medium">Include phased updates (apt only)</span>
@@ -1196,12 +1208,12 @@ function FilesystemsCard({
                 return (
                   <tr
                     key={i}
-                    className={`border-t border-slate-100 dark:border-slate-800 ${ignored ? "opacity-50" : ""}`}
+                    className={`border-t border-slate-100 dark:border-slate-800 ${ignored ? "italic text-slate-600 dark:text-slate-400" : ""}`}
                   >
                     <td className="truncate py-1.5 pr-2 font-mono" title={mount}>
                       {mount}
                     </td>
-                    <td className="py-1.5 text-right text-slate-500">
+                    <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">
                       {formatBytes(num(f, "usedBytes"))} / {formatBytes(num(f, "sizeBytes"))}
                     </td>
                     <td className="py-1.5 pl-3">
@@ -1231,7 +1243,7 @@ function FilesystemsCard({
                           />
                         </button>
                       ) : ignored ? (
-                        <span className="text-[10px] font-medium text-slate-500">Ignored</span>
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Ignored</span>
                       ) : null}
                     </td>
                   </tr>
@@ -1339,7 +1351,7 @@ function ServicesCard({
                     <span
                       className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
                         active
-                          ? "text-emerald-600 dark:text-emerald-400"
+                          ? "text-emerald-700 dark:text-emerald-400"
                           : row
                             ? "text-rose-600 dark:text-rose-400"
                             : "text-slate-500 dark:text-slate-400"
@@ -1359,7 +1371,7 @@ function ServicesCard({
                         type="button"
                         onClick={() => onRemove(name)}
                         title={`Stop watching ${name}`}
-                        className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                        className="text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                       >
                         <X className="h-3.5 w-3.5" aria-hidden />
                       </button>
@@ -1426,7 +1438,7 @@ function ServicesCard({
                           </span>
                           <span
                             className={`shrink-0 text-[10px] ${
-                              s.active ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"
+                              s.active ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"
                             }`}
                           >
                             {s.status}
@@ -1483,7 +1495,7 @@ function InterfacesCard({ ifaces }: { ifaces: Rec[] }) {
               <col className="w-24" />
             </colgroup>
             <thead>
-              <tr className="text-left text-slate-400">
+              <tr className="text-left text-slate-500 dark:text-slate-400">
                 <th className="py-1 font-medium">Interface</th>
                 <th className="py-1 text-right font-medium">↓ Rx</th>
                 <th className="py-1 text-right font-medium">↑ Tx</th>
@@ -1539,7 +1551,7 @@ function DockerDetail({ entities }: { entities: InfraEntity[] }) {
             <col className="w-24" />
           </colgroup>
           <thead>
-            <tr className="text-left text-slate-400">
+            <tr className="text-left text-slate-500 dark:text-slate-400">
               <th className="py-1 font-medium">Container</th>
               <th className="py-1 font-medium">State</th>
               <th className="py-1 text-right font-medium">CPU</th>
@@ -1550,7 +1562,7 @@ function DockerDetail({ entities }: { entities: InfraEntity[] }) {
             {[...groups.entries()].map(([project, list]) => (
               <Fragment key={project}>
                 <tr>
-                  <td colSpan={4} className="pt-3 pb-0.5 text-[11px] font-semibold text-slate-500">
+                  <td colSpan={4} className="pt-3 pb-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                     {project}
                   </td>
                 </tr>
@@ -1558,7 +1570,7 @@ function DockerDetail({ entities }: { entities: InfraEntity[] }) {
                   <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="py-1.5 pr-2">
                       <div className="truncate font-medium">{c.name}</div>
-                      <div className="truncate font-mono text-[10px] text-slate-400">
+                      <div className="truncate font-mono text-[10px] text-slate-500 dark:text-slate-400">
                         {String(c.state.image ?? "")}
                       </div>
                     </td>
@@ -1592,7 +1604,7 @@ function ProxmoxDetail({ entities, metrics }: { entities: InfraEntity[]; metrics
       {quorate !== null ? (
         <div className="text-xs">
           Cluster quorum:{" "}
-          <span className={quorate ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+          <span className={quorate ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
             {quorate ? "quorate" : "no quorum"}
           </span>
         </div>
@@ -1604,7 +1616,7 @@ function ProxmoxDetail({ entities, metrics }: { entities: InfraEntity[]; metrics
           ) : (
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-slate-400">
+                <tr className="text-left text-slate-500 dark:text-slate-400">
                   <th className="py-1 font-medium">Node</th>
                   <th className="py-1 text-right font-medium">CPU</th>
                   <th className="py-1 text-right font-medium">Mem</th>
@@ -1630,7 +1642,7 @@ function ProxmoxDetail({ entities, metrics }: { entities: InfraEntity[]; metrics
           ) : (
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-left text-slate-400">
+                <tr className="text-left text-slate-500 dark:text-slate-400">
                   <th className="py-1 font-medium">Guest</th>
                   <th className="py-1 font-medium">Type</th>
                   <th className="py-1 font-medium">Status</th>
@@ -1641,7 +1653,7 @@ function ProxmoxDetail({ entities, metrics }: { entities: InfraEntity[]; metrics
                 {guests.map((g) => (
                   <tr key={g.id} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="py-1.5 font-medium">{g.name}</td>
-                    <td className="py-1.5 uppercase text-slate-400">{String(g.state.guestType ?? "")}</td>
+                    <td className="py-1.5 uppercase text-slate-500 dark:text-slate-400">{String(g.state.guestType ?? "")}</td>
                     <td className="py-1.5">
                       <ContainerState status={g.status} health={null} />
                     </td>
@@ -1676,8 +1688,8 @@ function ContainerState({ status, health }: { status: string; health: string | n
   const cls = bad
     ? "text-rose-600 dark:text-rose-400"
     : down
-      ? "text-slate-500"
-      : "text-emerald-600 dark:text-emerald-400";
+      ? "text-slate-500 dark:text-slate-400"
+      : "text-emerald-700 dark:text-emerald-400";
   return (
     <span className={cls}>
       {status}
@@ -1698,7 +1710,7 @@ function Card({
   return (
     <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h2>
         {action}
       </div>
       {children}

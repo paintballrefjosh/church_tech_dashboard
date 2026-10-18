@@ -94,7 +94,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   return (
     <form onSubmit={submit} className="mt-6 space-y-4 text-sm">
       <label className="block">
-        <span className="text-xs text-slate-500">Name</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Name</span>
         <input
           required
           value={name}
@@ -107,7 +107,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
-          <span className="text-xs text-slate-500">Kind</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Kind</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as Kind)}
@@ -121,7 +121,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           </select>
         </label>
         <label className="block sm:col-span-2">
-          <span className="text-xs text-slate-500">Target</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Target</span>
           <input
             required
             value={target}
@@ -146,7 +146,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
       {kind === "http" ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs text-slate-500">Method</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Method</span>
             <select
               value={httpMethod}
               onChange={(e) => setHttpMethod(e.target.value)}
@@ -158,7 +158,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Expected status</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Expected status</span>
             <input
               type="number"
               min={100}
@@ -169,7 +169,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Body contains (optional)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Body contains (optional)</span>
             <input
               value={httpExpectBody}
               onChange={(e) => setHttpExpectBody(e.target.value)}
@@ -184,7 +184,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
       {kind === "tls" ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs text-slate-500">Port</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Port</span>
             <input
               type="number"
               min={1}
@@ -195,7 +195,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Warn when days left ≤</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Warn when days left ≤</span>
             <input
               type="number"
               min={1}
@@ -211,7 +211,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
       {kind === "dns" ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs text-slate-500">Record type</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Record type</span>
             <select
               value={dnsRecordType}
               onChange={(e) => setDnsRecordType(e.target.value)}
@@ -225,7 +225,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
             </select>
           </label>
           <label className="block sm:col-span-2">
-            <span className="text-xs text-slate-500">Expected value contains (optional)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Expected value contains (optional)</span>
             <input
               value={dnsExpectedValue}
               onChange={(e) => setDnsExpectedValue(e.target.value)}
@@ -239,7 +239,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
-          <span className="text-xs text-slate-500">Interval (seconds)</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Interval (seconds)</span>
           <input
             type="number"
             min={10}
@@ -250,7 +250,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           />
         </label>
         <label className="block">
-          <span className="text-xs text-slate-500">Failures to alert</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Failures to alert</span>
           <input
             type="number"
             min={1}
@@ -261,7 +261,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           />
         </label>
         <label className="block">
-          <span className="text-xs text-slate-500">Successes to clear</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Successes to clear</span>
           <input
             type="number"
             min={1}
@@ -278,19 +278,19 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           type="checkbox"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
+          className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
         />
         <span>Enabled</span>
       </label>
 
       <fieldset className="space-y-2 rounded-md border border-slate-300 p-3 dark:border-slate-700">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Status page</legend>
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status page</legend>
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
             checked={showOnStatus}
             onChange={(e) => setShowOnStatus(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
+            className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
           />
           <span>Show on the status page (everyone who signs in can see it)</span>
         </label>
@@ -304,7 +304,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
               placeholder={name || "For example: Internet"}
               className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
             />
-            <span className="mt-1 block text-xs text-slate-500">Plain words for staff and volunteers. Leave blank to use the monitor's name. The address being checked is never shown.</span>
+            <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Plain words for staff and volunteers. Leave blank to use the monitor's name. The address being checked is never shown.</span>
           </label>
         ) : null}
       </fieldset>

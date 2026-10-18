@@ -17,6 +17,7 @@ import {
   type PrinterStatus,
   type PrinterKind,
 } from "@church/shared";
+import { useModal } from "@/components/modal";
 
 const STATUS_LABEL: Record<PrinterStatus, string> = {
   green: "OK",
@@ -96,7 +97,7 @@ export function PrintersList({
   return (
     <div className="mt-6 space-y-4">
       {err ? (
-        <p role="alert" className="text-sm text-rose-600">
+        <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
           {err}
         </p>
       ) : null}
@@ -114,7 +115,7 @@ export function PrintersList({
       ) : null}
 
       {printers.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           No printers yet. {canAdmin ? "Click Add printer to register one." : "Ask an admin to add one."}
         </p>
       ) : (
@@ -186,7 +187,7 @@ function PrinterCard({
       className={`relative flex flex-col gap-3 rounded-md border border-slate-300 bg-white p-4 ring-4 ring-inset dark:border-slate-800 dark:bg-slate-900 ${STATUS_RING[printer.lastStatus]}`}
     >
       <header className="flex items-start gap-2">
-        <PrinterIcon className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+        <PrinterIcon className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium">{printer.name}</span>
@@ -223,7 +224,7 @@ function PrinterCard({
 
       {printer.supplies.length > 0 ? (
         <section>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Supplies
           </div>
           <ul className="space-y-1">
@@ -247,7 +248,7 @@ function PrinterCard({
 
       {printer.inputs.length > 0 ? (
         <section>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Paper trays
           </div>
           <ul className="space-y-1">
@@ -273,7 +274,7 @@ function PrinterCard({
 
       {printer.alerts.length > 0 ? (
         <section className="text-[11px] text-slate-600 dark:text-slate-300">
-          <div className="mb-0.5 font-semibold uppercase tracking-wide text-slate-500">Alerts</div>
+          <div className="mb-0.5 font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Alerts</div>
           <ul className="space-y-0.5">
             {printer.alerts.map((a, i) => (
               <li key={i}>
@@ -326,7 +327,7 @@ function PrinterCard({
                 type="button"
                 onClick={onEdit}
                 aria-label={`Edit ${printer.name}`}
-                className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -334,7 +335,7 @@ function PrinterCard({
                 type="button"
                 onClick={onDelete}
                 aria-label={`Delete ${printer.name}`}
-                className="text-rose-600 hover:text-rose-700"
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -440,10 +441,13 @@ function PrinterFormDrawer({
     });
   }
 
+  const dialogRef = useModal<HTMLDivElement>(onClose);
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
+      aria-label={mode === "create" ? "Add printer" : `Edit ${printer?.name ?? ""}`}
       onClick={onClose}
       className="fixed inset-0 z-[1000] flex items-start justify-end bg-black/40 p-4"
     >
@@ -495,7 +499,7 @@ function PrinterFormDrawer({
           </Field>
 
           <fieldset className="rounded-md border border-slate-300 p-3 dark:border-slate-700">
-            <legend className="px-1 text-xs uppercase tracking-wide text-slate-500">SNMP</legend>
+            <legend className="px-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">SNMP</legend>
             <div className="space-y-2">
               <Field label="Port">
                 <input
@@ -534,7 +538,7 @@ function PrinterFormDrawer({
 
           {kind === "fiery" ? (
             <fieldset className="rounded-md border border-slate-300 p-3 dark:border-slate-700">
-              <legend className="px-1 text-xs uppercase tracking-wide text-slate-500">Fiery REST</legend>
+              <legend className="px-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Fiery REST</legend>
               <div className="space-y-2">
                 <Field label="API base URL">
                   <input

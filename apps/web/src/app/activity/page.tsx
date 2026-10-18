@@ -62,7 +62,7 @@ export default async function ActivityPage() {
         </p>
 
         {items.length === 0 ? (
-          <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+          <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             No activity yet. As people create tickets, edit pages and pin notes, you&apos;ll see them here.
           </p>
         ) : (
@@ -79,7 +79,7 @@ export default async function ActivityPage() {
                   className={`relative rounded-md border border-slate-300 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900 ${meta.bar} border-l-4`}
                 >
                   <div className="flex items-start gap-3">
-                    <meta.Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                    <meta.Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 text-sm">
                         <span
@@ -100,7 +100,7 @@ export default async function ActivityPage() {
                           {e.summary}
                         </p>
                       ) : null}
-                      <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                      <p className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         {e.actorEmail ?? "system"} · <LocalDateTime value={e.ts} />
                       </p>
                     </div>

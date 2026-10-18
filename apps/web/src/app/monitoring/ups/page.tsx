@@ -6,7 +6,7 @@ import type { Ups, UpsSummary } from "@church/shared";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime } from "../network-cisco/cisco-ui";
 
-const UNKNOWN_CFG = { label: "Unknown", cls: "text-slate-500", dot: "bg-slate-400" };
+const UNKNOWN_CFG = { label: "Unknown", cls: "text-slate-500 dark:text-slate-400", dot: "bg-slate-400" };
 const STATUS_CFG: Record<string, { label: string; cls: string; dot: string }> = {
   green: { label: "Online", cls: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
   yellow: { label: "On battery", cls: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500" },
@@ -126,12 +126,12 @@ export default function UpsPage() {
     refreshBadges();
   };
 
-  if (!devices) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!devices) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   const tiles = [
     { label: "Devices", value: summary?.total ?? devices.length, tone: "text-slate-900 dark:text-slate-100" },
-    { label: "Online", value: summary?.green ?? 0, tone: "text-emerald-600 dark:text-emerald-400" },
-    { label: "On battery", value: summary?.yellow ?? 0, tone: "text-amber-600 dark:text-amber-400" },
+    { label: "Online", value: summary?.green ?? 0, tone: "text-emerald-700 dark:text-emerald-400" },
+    { label: "On battery", value: summary?.yellow ?? 0, tone: "text-amber-700 dark:text-amber-400" },
     { label: "Critical", value: summary?.red ?? 0, tone: "text-rose-600 dark:text-rose-400" },
   ];
 
@@ -140,7 +140,7 @@ export default function UpsPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.label} className={cardCls}>
-            <div className="text-xs uppercase tracking-wide text-slate-500">{t.label}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{t.label}</div>
             <div className={`mt-1 text-2xl font-semibold ${t.tone}`}>{t.value}</div>
           </div>
         ))}
@@ -151,7 +151,7 @@ export default function UpsPage() {
       {canWrite ? (
         <section className={`${cardCls} flex flex-wrap items-end gap-3`}>
           <label className="block">
-            <span className="text-xs text-slate-500">Name</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Name</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -160,7 +160,7 @@ export default function UpsPage() {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">Host / IP</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Host / IP</span>
             <input
               value={host}
               onChange={(e) => setHost(e.target.value)}
@@ -169,7 +169,7 @@ export default function UpsPage() {
             />
           </label>
           <label className="block">
-            <span className="text-xs text-slate-500">SNMP community (optional)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">SNMP community (optional)</span>
             <input
               value={community}
               onChange={(e) => setCommunity(e.target.value)}
@@ -221,12 +221,12 @@ export default function UpsPage() {
                 <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                   <td className="px-3 py-2 font-medium">
                     {u.name}
-                    {!u.enabled ? <span className="ml-1 text-xs text-slate-400">(disabled)</span> : null}
+                    {!u.enabled ? <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">(disabled)</span> : null}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">
                     {u.host}
                     {u.lastError ? (
-                      <span className="ml-1 text-amber-600" title={u.lastError}>
+                      <span className="ml-1 text-amber-700 dark:text-amber-400" title={u.lastError}>
                         !
                       </span>
                     ) : null}
@@ -237,21 +237,21 @@ export default function UpsPage() {
                   <td className="px-3 py-2 text-right tabular-nums">{pct(u.batteryPct)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{mins(u.runtimeMin)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{pct(u.loadPct)}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{fmtTime(u.lastCheckedAt)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{fmtTime(u.lastCheckedAt)}</td>
                   {canWrite ? (
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => void pollNow(u)}
                           title="Poll now"
-                          className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => void removeDevice(u)}
                           title="Remove UPS"
-                          className="rounded p-1.5 text-slate-500 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
+                          className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -264,7 +264,7 @@ export default function UpsPage() {
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-400">Auto-refreshes every 15s.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s.</p>
     </div>
   );
 }

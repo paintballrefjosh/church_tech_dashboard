@@ -67,7 +67,7 @@ export function TagsAdminClient({ initial }: { initial: Tag[] }) {
         className="flex flex-wrap items-end gap-2 rounded-md border border-slate-300 p-4 dark:border-slate-800"
       >
         <label className="flex flex-col text-xs">
-          <span className="text-slate-500">Name</span>
+          <span className="text-slate-500 dark:text-slate-400">Name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -78,7 +78,7 @@ export function TagsAdminClient({ initial }: { initial: Tag[] }) {
           />
         </label>
         <label className="flex flex-col text-xs">
-          <span className="text-slate-500">Color</span>
+          <span className="text-slate-500 dark:text-slate-400">Color</span>
           <select
             value={color}
             onChange={(e) => setColor(e.target.value as TagColor)}
@@ -98,11 +98,11 @@ export function TagsAdminClient({ initial }: { initial: Tag[] }) {
         >
           <Plus className="h-4 w-4" aria-hidden /> Create tag
         </button>
-        {err ? <span className="text-xs text-rose-600">{err}</span> : null}
+        {err ? <span className="text-xs text-rose-600 dark:text-rose-400">{err}</span> : null}
       </form>
 
       {tags.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           No tags yet. Create your first one above.
         </p>
       ) : (
@@ -129,7 +129,7 @@ export function TagsAdminClient({ initial }: { initial: Tag[] }) {
                 type="button"
                 onClick={() => void destroy(t.id, t.name)}
                 aria-label={`Delete ${t.name}`}
-                className="text-rose-600 hover:text-rose-700"
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

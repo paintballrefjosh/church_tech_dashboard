@@ -150,7 +150,7 @@ export function HelpdeskEmailPanel({ initial }: { initial: InboundStatus | null 
           {status.week.skipped} skipped, {status.week.error} failed.
         </p>
         {status.recent.length === 0 ? (
-          <p className="mt-3 rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">No messages yet.</p>
+          <p className="mt-3 rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">No messages yet.</p>
         ) : (
           <div className="mt-3 overflow-x-auto rounded-md border border-slate-300 dark:border-slate-800">
             <table className="w-full text-left text-sm" data-testid="inbound-recent">
@@ -176,7 +176,7 @@ export function HelpdeskEmailPanel({ initial }: { initial: InboundStatus | null 
                         <span className={`inline-flex rounded-full px-2 py-0.5 font-medium ${o.cls}`}>{o.label}</span>
                         {r.reasonText ? <span className="ml-2 text-slate-600 dark:text-slate-400">{r.reasonText}</span> : null}
                         {r.ticketId ? (
-                          <Link href={`/tickets/${r.ticketId}`} className="ml-2 text-brand-600 hover:underline">
+                          <Link href={`/tickets/${r.ticketId}`} className="ml-2 text-brand-600 dark:text-brand-400 hover:underline">
                             Open
                           </Link>
                         ) : null}

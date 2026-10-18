@@ -76,7 +76,7 @@ export function NotificationDeliveryForm() {
 
   if (!loaded) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>;
 
-  const box = "h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900";
+  const box = "h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900";
   const timeInput =
     "rounded-md border border-slate-300 bg-transparent px-2 py-1 text-sm disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950";
 
@@ -85,7 +85,7 @@ export function NotificationDeliveryForm() {
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input type="checkbox" className={box} checked={value.quietEnabled} onChange={(e) => change({ quietEnabled: e.target.checked })} data-testid="delivery-quiet" />
-          <Moon className="h-4 w-4 text-slate-500" aria-hidden />
+          <Moon className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
           Quiet hours
         </label>
         <div className="ml-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
@@ -166,7 +166,7 @@ export function NotificationDeliveryForm() {
           <Save className="h-4 w-4" aria-hidden /> Save
         </button>
         {err ? <span role="alert" className="text-rose-600 dark:text-rose-400">{err}</span> : null}
-        {ok ? <span role="status" className="text-emerald-600 dark:text-emerald-400">{ok}</span> : null}
+        {ok ? <span role="status" className="text-emerald-700 dark:text-emerald-400">{ok}</span> : null}
       </div>
     </div>
   );

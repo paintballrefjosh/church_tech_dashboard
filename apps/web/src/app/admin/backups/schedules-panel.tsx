@@ -154,7 +154,7 @@ function ScheduleForm({
       <label className="text-sm">
         <span className={label}>Keep the latest</span>
         <input name="keep" className={input} type="number" min={1} max={365} value={v.keep} onChange={(e) => set("keep", Number(e.target.value))} required />
-        <span className="mt-0.5 block text-[11px] text-slate-500">Older backups from this schedule are deleted automatically.</span>
+        <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Older backups from this schedule are deleted automatically.</span>
       </label>
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <input type="checkbox" checked={v.includeFiles} onChange={(e) => set("includeFiles", e.target.checked)} />
@@ -168,7 +168,7 @@ function ScheduleForm({
         <input type="checkbox" checked={v.enabled} onChange={(e) => set("enabled", e.target.checked)} />
         Enabled
       </label>
-      <p className="text-xs text-slate-500 sm:col-span-2">{describeSchedule(v)}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 sm:col-span-2">{describeSchedule(v)}</p>
       {error ? <div className="sm:col-span-2"><ErrorNote>{error}</ErrorNote></div> : null}
       <div className="flex gap-2 sm:col-span-2">
         <button type="submit" disabled={busy} className="rounded-md bg-brand-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
@@ -293,7 +293,7 @@ export function SchedulesPanel({ initialSchedules, runningOperation }: { initial
       {creating ? <ScheduleForm initial={blank()} submitLabel="Create schedule" onSubmit={create} onCancel={() => setCreating(false)} /> : null}
 
       {schedules.length === 0 && !creating ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           No schedules yet. Nothing is backed up automatically.
         </p>
       ) : null}
@@ -305,15 +305,15 @@ export function SchedulesPanel({ initialSchedules, runningOperation }: { initial
               <ScheduleForm initial={fromSchedule(s)} submitLabel="Save changes" onSubmit={(v) => update(s.id, v)} onCancel={() => setEditing(null)} />
             </li>
           ) : (
-            <li key={s.id} className={`rounded-md border border-slate-300 p-4 dark:border-slate-800 ${s.enabled ? "" : "opacity-70"}`} data-schedule-id={s.id}>
+            <li key={s.id} className={`rounded-md border border-slate-300 p-4 dark:border-slate-800 ${s.enabled ? "" : "italic text-slate-600 dark:text-slate-400"}`} data-schedule-id={s.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 font-medium">
-                    <CalendarClock aria-hidden className="h-4 w-4 text-brand-600" /> {s.name}
-                    {!s.enabled ? <span className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-500 dark:border-slate-700">Paused</span> : null}
+                    <CalendarClock aria-hidden className="h-4 w-4 text-brand-600 dark:text-brand-400" /> {s.name}
+                    {!s.enabled ? <span className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 dark:border-slate-700">Paused</span> : null}
                   </div>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{describeSchedule(s)}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {s.enabled && s.nextRunAt ? (
                       <>Next: <LocalDateTime value={s.nextRunAt} options={WHEN} /></>
                     ) : (

@@ -141,15 +141,15 @@ export function OffsitePanel({
 
         {status.destination ? (
           <dl className="mt-3 grid max-w-3xl grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm" data-testid="offsite-destination">
-            <dt className="text-slate-500">Bucket</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Bucket</dt>
             <dd className="break-all">{status.destination.bucket} at {status.destination.endpoint}</dd>
-            <dt className="text-slate-500">Folder</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Folder</dt>
             <dd>{status.destination.folder || "(top of the bucket)"}</dd>
-            <dt className="text-slate-500">Keeps</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Keeps</dt>
             <dd>{status.keep > 0 ? `the newest ${status.keep} copies` : "every copy"}</dd>
-            <dt className="text-slate-500">Last copy</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Last copy</dt>
             <dd>{status.lastCopyAt ? <LocalDateTime value={status.lastCopyAt} options={WHEN} /> : "none yet"}</dd>
-            <dt className="text-slate-500">This site</dt>
+            <dt className="text-slate-500 dark:text-slate-400">This site</dt>
             <dd>
               {status.copied} copied{status.pending > 0 ? `, ${status.pending} waiting` : ""}
               {status.failing > 0 ? `, ${status.failing} failed` : ""}
@@ -216,7 +216,7 @@ export function OffsitePanel({
             AUTH_SECRET if saved passwords and tokens should keep working.
           </p>
         ) : objects.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+          <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             Nothing from this site is in that folder yet.
           </p>
         ) : (
@@ -227,7 +227,7 @@ export function OffsitePanel({
                   <th className="px-3 py-2">Copy</th>
                   <th className="px-3 py-2">Made</th>
                   <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2"></th>
+                  <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -238,7 +238,7 @@ export function OffsitePanel({
                     <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{formatBytes(o.sizeBytes)}</td>
                     <td className="px-3 py-2 text-right">
                       {o.backupId ? (
-                        <span className="text-xs text-slate-500">Also on this site</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Also on this site</span>
                       ) : (
                         <button type="button" onClick={() => void bringBack(o)} disabled={running} className={button}>
                           Bring back
@@ -251,7 +251,7 @@ export function OffsitePanel({
             </table>
           </div>
         )}
-        <p className="mt-3 max-w-3xl text-xs text-slate-500">
+        <p className="mt-3 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
           A copy is the same file as a download from the Backups tab: it holds password hashes, encrypted secrets and all your data, and it is
           not encrypted again. Use a private bucket, and a key that can only reach that bucket.
         </p>

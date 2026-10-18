@@ -61,10 +61,10 @@ export default async function PlanDetailPage({
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <nav className="mb-3 text-sm">
+        <nav aria-label="Breadcrumb" className="mb-3 text-sm">
           <Link
             href="/planning-center"
-            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to services
           </Link>
@@ -76,11 +76,11 @@ export default async function PlanDetailPage({
 
         {times.length > 0 ? (
           <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Times</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Times</h2>
             <ul className="mt-2 space-y-1 text-sm">
               {times.map((t) => (
                 <li key={t.id} className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                  <Clock className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" aria-hidden />
                   <span>
                     {t.startsAt ? (
                       <LocalDateTime
@@ -109,22 +109,22 @@ export default async function PlanDetailPage({
         ) : null}
 
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Positions
           </h2>
           {positions.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No team members assigned yet.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No team members assigned yet.</p>
           ) : (
             <ul className="mt-2 divide-y divide-slate-200 text-sm dark:divide-slate-800">
               {positions.map((p) => (
                 <li key={p} className="flex items-baseline gap-3 py-2">
-                  <span className="w-36 shrink-0 text-xs uppercase tracking-wide text-slate-500">
+                  <span className="w-36 shrink-0 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {p}
                   </span>
                   <div className="flex-1">
                     {byPosition.get(p)!.map((a, i) => (
                       <span key={a.teamMemberId} className="mr-2 inline-flex items-center gap-1">
-                        {i > 0 ? <span className="text-slate-400">·</span> : null}
+                        {i > 0 ? <span className="text-slate-500 dark:text-slate-400">·</span> : null}
                         <StatusIcon status={a.status} />
                         <span
                           className={
@@ -151,8 +151,8 @@ export default async function PlanDetailPage({
 
 function StatusIcon({ status }: { status: string | null }) {
   if (status === "C")
-    return <CircleCheck className="h-3.5 w-3.5 text-emerald-500" aria-label="Confirmed" />;
+    return <CircleCheck className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" aria-label="Confirmed" />;
   if (status === "D")
-    return <AlertTriangle className="h-3.5 w-3.5 text-rose-500" aria-label="Declined" />;
-  return <CircleHelp className="h-3.5 w-3.5 text-slate-400" aria-label="Unconfirmed" />;
+    return <AlertTriangle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" aria-label="Declined" />;
+  return <CircleHelp className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" aria-label="Unconfirmed" />;
 }

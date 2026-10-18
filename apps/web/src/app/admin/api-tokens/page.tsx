@@ -61,7 +61,7 @@ export default async function AdminApiTokensPage({
           .
         </p>
 
-        <nav className="mt-6 flex gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
+        <nav aria-label="Token lists" className="mt-6 flex gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
           {FILTERS.map((f) => (
             <Link
               key={f.key}
@@ -69,7 +69,7 @@ export default async function AdminApiTokensPage({
               className={`mb-[-1px] border-b-2 px-3 py-2 ${
                 status === f.key
                   ? "border-brand-600 text-brand-700 dark:text-brand-300"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               {f.label}

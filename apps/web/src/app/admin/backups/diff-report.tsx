@@ -45,7 +45,7 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
     <details className="group border-t border-slate-200 first:border-t-0 dark:border-slate-800" data-table={t.table}>
       <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-900">
         <span className="font-medium">{t.title}</span>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {formatCount(t.currentRows)} now, {formatCount(t.backupRows)} in the backup
         </span>
         <span className="ml-auto flex flex-wrap gap-1.5">
@@ -62,7 +62,7 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
               {t.samples.added.map((r) => (
                 <li key={r.key}>{r.label}</li>
               ))}
-              {moreAdded > 0 ? <li className="list-none text-xs text-slate-500">and {formatCount(moreAdded)} more</li> : null}
+              {moreAdded > 0 ? <li className="list-none text-xs text-slate-500 dark:text-slate-400">and {formatCount(moreAdded)} more</li> : null}
             </ul>
           </div>
         ) : null}
@@ -73,7 +73,7 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
               {t.samples.removed.map((r) => (
                 <li key={r.key}>{r.label}</li>
               ))}
-              {moreRemoved > 0 ? <li className="list-none text-xs text-slate-500">and {formatCount(moreRemoved)} more</li> : null}
+              {moreRemoved > 0 ? <li className="list-none text-xs text-slate-500 dark:text-slate-400">and {formatCount(moreRemoved)} more</li> : null}
             </ul>
           </div>
         ) : null}
@@ -85,7 +85,7 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
                 <div key={r.key} className="overflow-x-auto rounded border border-slate-200 dark:border-slate-800">
                   <div className="bg-slate-50 px-2 py-1 text-xs font-medium dark:bg-slate-900">{r.label}</div>
                   <table className="w-full text-left text-xs">
-                    <thead className="text-slate-500">
+                    <thead className="text-slate-500 dark:text-slate-400">
                       <tr>
                         <th className="px-2 py-1 font-medium">Column</th>
                         <th className="px-2 py-1 font-medium">Now</th>
@@ -97,7 +97,7 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
                         <tr key={c.column} className="border-t border-slate-100 align-top dark:border-slate-800">
                           <td className="px-2 py-1 font-mono">{c.column}</td>
                           {c.secret ? (
-                            <td colSpan={2} className="px-2 py-1 italic text-slate-500">differs (secret, not shown)</td>
+                            <td colSpan={2} className="px-2 py-1 italic text-slate-500 dark:text-slate-400">differs (secret, not shown)</td>
                           ) : (
                             <>
                               <td className="max-w-xs break-words px-2 py-1">{shown(c.current)}</td>
@@ -110,12 +110,12 @@ function TableDetail({ t }: { t: BackupDiffTable }) {
                   </table>
                 </div>
               ))}
-              {moreChanged > 0 ? <p className="text-xs text-slate-500">and {formatCount(moreChanged)} more</p> : null}
+              {moreChanged > 0 ? <p className="text-xs text-slate-500 dark:text-slate-400">and {formatCount(moreChanged)} more</p> : null}
             </div>
           </div>
         ) : null}
         {t.samples.added.length + t.samples.removed.length + t.samples.changed.length === 0 ? (
-          <p className="text-xs text-slate-500">The affected rows are not described here (they are settings with no readable name).</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">The affected rows are not described here (they are settings with no readable name).</p>
         ) : null}
       </div>
     </details>
@@ -244,13 +244,13 @@ export function DiffReport({ report }: { report: BackupDiffReport }) {
               {files.added > 0 ? (
                 <li>
                   <span className="font-medium text-emerald-700 dark:text-emerald-400">{formatCount(files.added)}</span> file{files.added === 1 ? "" : "s"} ({formatBytes(files.addedBytes)}) will be put back into storage
-                  {files.samples.added.length > 0 ? <span className="text-xs text-slate-500"> - e.g. {files.samples.added.slice(0, 3).join(", ")}</span> : null}
+                  {files.samples.added.length > 0 ? <span className="text-xs text-slate-500 dark:text-slate-400"> - e.g. {files.samples.added.slice(0, 3).join(", ")}</span> : null}
                 </li>
               ) : null}
               {files.removed > 0 ? (
                 <li>
                   <span className="font-medium text-rose-700 dark:text-rose-400">{formatCount(files.removed)}</span> file{files.removed === 1 ? "" : "s"} ({formatBytes(files.removedBytes)}) uploaded since will be deleted from storage
-                  {files.samples.removed.length > 0 ? <span className="text-xs text-slate-500"> - e.g. {files.samples.removed.slice(0, 3).join(", ")}</span> : null}
+                  {files.samples.removed.length > 0 ? <span className="text-xs text-slate-500 dark:text-slate-400"> - e.g. {files.samples.removed.slice(0, 3).join(", ")}</span> : null}
                 </li>
               ) : null}
             </ul>
@@ -261,7 +261,7 @@ export function DiffReport({ report }: { report: BackupDiffReport }) {
       {report.identicalTables.length > 0 ? (
         <details className="text-sm">
           <summary className="cursor-pointer text-slate-600 dark:text-slate-400">{report.identicalTables.length} kinds of data are identical and would not change</summary>
-          <p className="mt-1 text-xs text-slate-500">{report.identicalTables.join(", ")}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{report.identicalTables.join(", ")}</p>
         </details>
       ) : null}
     </div>

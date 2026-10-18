@@ -77,7 +77,7 @@ export function SavedViewsBar({ resourceType }: { resourceType: "ticket" | "wiki
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <span className="uppercase tracking-wide text-slate-500 dark:text-slate-400">Views</span>
       {views.length === 0 ? (
-        <span className="text-slate-400">none yet</span>
+        <span className="text-slate-500 dark:text-slate-400">none yet</span>
       ) : (
         views.map((v) => (
           <span key={v.id} className="inline-flex items-center gap-1">
@@ -92,7 +92,7 @@ export function SavedViewsBar({ resourceType }: { resourceType: "ticket" | "wiki
               type="button"
               onClick={() => remove(v.id)}
               aria-label={`Delete view ${v.name}`}
-              className="text-slate-400 hover:text-rose-600"
+              className="text-slate-500 dark:text-slate-400 hover:text-rose-600"
             >
               <Trash2 className="h-3 w-3" />
             </button>

@@ -126,7 +126,7 @@ export function NetworkClient() {
     return () => clearInterval(t);
   }, [connected, load]);
 
-  if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   if (health && !health.configured) {
     return (
@@ -163,7 +163,7 @@ export function NetworkClient() {
           onClick={() => void load(false)}
           disabled={refreshing}
           aria-label="Refresh"
-          className="ml-auto mb-[-1px] inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
+          className="ml-auto mb-[-1px] inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
           {refreshing ? "Refreshing…" : "Refresh"}
@@ -199,7 +199,7 @@ function TabButton({
       className={`mb-[-1px] border-b-2 px-3 py-2 ${
         active
           ? "border-brand-600 text-brand-700 dark:text-brand-300"
-          : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
       }`}
     >
       {children}
@@ -218,6 +218,7 @@ function DevicesTable({
     {
       key: "status",
       label: "",
+      srLabel: "Status",
       render: (d) => <DeviceStatus state={d.state} />,
       // Sort surfaces disconnected first when descending.
       sortValue: (d) => (d.state === 1 ? 0 : d.state === 0 ? 2 : 1),
@@ -250,7 +251,7 @@ function DevicesTable({
       key: "uptime",
       label: "Uptime",
       align: "right",
-      render: (d) => <span className="text-xs text-slate-500">{formatUptime(d.uptime)}</span>,
+      render: (d) => <span className="text-xs text-slate-500 dark:text-slate-400">{formatUptime(d.uptime)}</span>,
       sortValue: (d) => d.uptime ?? 0,
     },
     {
@@ -303,7 +304,7 @@ function ClientsTable({ items }: { items: UClient[] }) {
       label: "RX / TX",
       align: "right",
       render: (c) => (
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {formatBytes(c.rx_bytes)} / {formatBytes(c.tx_bytes)}
         </span>
       ),
@@ -325,10 +326,10 @@ function ClientsTable({ items }: { items: UClient[] }) {
 function DeviceStatus({ state }: { state?: number }) {
   // UniFi state codes: 1 = connected, 0 = disconnected, others = pending / upgrading.
   if (state === 1)
-    return <CircleCheck className="h-4 w-4 text-emerald-500" aria-label="Connected" />;
+    return <CircleCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-label="Connected" />;
   if (state === 0)
-    return <AlertTriangle className="h-4 w-4 text-rose-500" aria-label="Disconnected" />;
-  return <CircleHelp className="h-4 w-4 text-slate-400" aria-label="Pending" />;
+    return <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" aria-label="Disconnected" />;
+  return <CircleHelp className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-label="Pending" />;
 }
 
 function formatUptime(secs?: number): string {

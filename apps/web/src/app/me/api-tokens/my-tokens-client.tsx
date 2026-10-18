@@ -94,14 +94,14 @@ export function MyTokensClient({
         </button>
       ) : null}
 
-      {err ? <p className="text-sm text-rose-600">{err}</p> : null}
+      {err ? <p className="text-sm text-rose-600 dark:text-rose-400">{err}</p> : null}
       <TokenTable
         tokens={tokens}
         onRevoke={(t) => void revoke(t)}
         busyId={busyId}
         emptyText="You have no API tokens."
       />
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Revoked and expired tokens stay listed for 90 days.
       </p>
     </div>

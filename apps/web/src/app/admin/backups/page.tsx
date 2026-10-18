@@ -66,7 +66,7 @@ export default async function BackupsPage({ searchParams }: { searchParams: Prom
               className={`mb-[-1px] border-b-2 px-3 py-2 ${
                 tab === t.key
                   ? "border-brand-600 text-brand-700 dark:text-brand-300"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
               aria-current={tab === t.key ? "page" : undefined}
             >

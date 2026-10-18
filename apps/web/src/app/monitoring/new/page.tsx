@@ -14,8 +14,8 @@ export default async function NewMonitorPage() {
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <nav className="mb-3 text-sm">
-          <Link href="/monitoring" className="inline-flex items-center gap-1 text-brand-600 hover:underline">
+        <nav aria-label="Breadcrumb" className="mb-3 text-sm">
+          <Link href="/monitoring" className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to monitors
           </Link>
         </nav>

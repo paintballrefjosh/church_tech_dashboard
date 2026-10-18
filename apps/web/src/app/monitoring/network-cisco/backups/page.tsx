@@ -126,12 +126,13 @@ export default function CiscoBackupsPage() {
     {
       key: "sel",
       label: "",
+      srLabel: "Select for compare",
       render: (r) => (
         <input
           type="checkbox"
           checked={sel.some((s) => s.id === r.id)}
           onChange={() => toggleSel(r)}
-          className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700"
+          className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700"
           aria-label="select for compare"
         />
       ),
@@ -140,7 +141,7 @@ export default function CiscoBackupsPage() {
     { key: "at", label: "Backed up at", render: (r) => <span className="text-xs">{fmtTime(r.backedUpAt)}</span>, sortValue: (r) => new Date(r.backedUpAt).getTime() },
     { key: "type", label: "Type", render: (r) => <span className="text-xs capitalize">{r.backupType}</span>, sortValue: (r) => r.backupType },
     { key: "size", label: "Size", align: "right", render: (r) => <span className="text-xs">{fmtBytes(r.configSize)}</span>, sortValue: (r) => r.configSize },
-    { key: "cksum", label: "Checksum", render: (r) => <span className="font-mono text-[10px] text-slate-500">{r.checksum.slice(0, 16)}…</span>, sortValue: (r) => r.checksum },
+    { key: "cksum", label: "Checksum", render: (r) => <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{r.checksum.slice(0, 16)}…</span>, sortValue: (r) => r.checksum },
     {
       key: "actions",
       label: "",
@@ -162,7 +163,7 @@ export default function CiscoBackupsPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Config backups</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Config backups</h2>
       <DataTable
         rows={rows}
         columns={columns}
@@ -193,7 +194,7 @@ export default function CiscoBackupsPage() {
         rightSlot={
           <>
             {sel.length === 2 && !sameSwitch ? (
-              <span className="text-xs text-amber-600 dark:text-amber-400">Pick two backups from the same switch to compare</span>
+              <span className="text-xs text-amber-700 dark:text-amber-400">Pick two backups from the same switch to compare</span>
             ) : null}
             <button
               type="button"
@@ -212,7 +213,7 @@ export default function CiscoBackupsPage() {
           title="Config comparison"
           subtitle={
             <>
-              {diff.title} · <span className="text-emerald-600 dark:text-emerald-400">+{diff.added}</span> ·{" "}
+              {diff.title} · <span className="text-emerald-700 dark:text-emerald-400">+{diff.added}</span> ·{" "}
               <span className="text-rose-600 dark:text-rose-400">−{diff.removed}</span>
             </>
           }
@@ -231,7 +232,7 @@ export default function CiscoBackupsPage() {
                       : d.type === "removed"
                         ? "bg-rose-50 px-4 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
                         : d.type === "separator"
-                          ? "px-4 py-0.5 text-center text-slate-400"
+                          ? "px-4 py-0.5 text-center text-slate-500 dark:text-slate-400"
                           : "px-4 text-slate-600 dark:text-slate-400"
                   }
                 >
@@ -260,7 +261,7 @@ export default function CiscoBackupsPage() {
                 disabled={viewing.text === null}
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+                {copied ? <Check className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
                 {copied ? "Copied" : "Copy"}
               </button>
               <button
@@ -278,7 +279,7 @@ export default function CiscoBackupsPage() {
           {viewing.error ? (
             <p className="p-6 text-sm text-rose-600 dark:text-rose-400">{viewing.error}</p>
           ) : viewing.text === null ? (
-            <p className="flex items-center gap-2 p-6 text-sm text-slate-500">
+            <p className="flex items-center gap-2 p-6 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading the config…
             </p>
           ) : (

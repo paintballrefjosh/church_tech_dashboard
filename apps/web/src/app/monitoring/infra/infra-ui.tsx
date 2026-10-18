@@ -24,13 +24,13 @@ export function StatusPill({ status, enabled }: { status: InfraStatus; enabled?:
   }
   if (status === "up")
     return (
-      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
         <CircleCheck className="h-4 w-4" aria-hidden /> Up
       </span>
     );
   if (status === "degraded")
     return (
-      <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+      <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
         <AlertTriangle className="h-4 w-4" aria-hidden /> Degraded
       </span>
     );
@@ -55,7 +55,7 @@ export function Gauge({ label, pct }: { label: string; pct: number | null | unde
   return (
     <div>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-slate-500">{label}</span>
+        <span className="text-slate-500 dark:text-slate-400">{label}</span>
         <span className="font-medium tabular-nums">{v === null ? "—" : `${Math.round(v)}%`}</span>
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
@@ -68,7 +68,7 @@ export function Gauge({ label, pct }: { label: string; pct: number | null | unde
 export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-1 text-base font-medium">{value}</div>
     </div>
   );

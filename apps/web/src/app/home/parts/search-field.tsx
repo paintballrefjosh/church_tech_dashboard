@@ -19,7 +19,7 @@ export function SearchField({
   className = "",
   inputClassName = "w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-9 text-sm dark:border-slate-700 dark:bg-slate-900",
   panelClassName = "absolute left-0 right-0 z-30 mt-2 max-h-[28rem] overflow-y-auto rounded-md border border-slate-300 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900",
-  iconClassName = "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400",
+  iconClassName = "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400",
   trailing,
 }: {
   placeholder?: string;
@@ -88,7 +88,7 @@ export function SearchField({
               inputRef.current?.focus();
             }}
             aria-label="Clear search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             <X className="h-4 w-4" />
           </button>

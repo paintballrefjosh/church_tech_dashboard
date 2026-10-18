@@ -105,7 +105,7 @@ export function MonitoringTabs() {
             className={`mb-[-1px] inline-flex items-center gap-1.5 border-b-2 px-3 py-2 ${
               active
                 ? "border-brand-600 text-brand-700 dark:text-brand-300"
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
             <t.Icon className="h-4 w-4" aria-hidden />

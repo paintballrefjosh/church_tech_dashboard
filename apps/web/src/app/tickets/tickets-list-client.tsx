@@ -82,7 +82,7 @@ export function TicketsListClient({
     return (
       <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
         No tickets match these filters.{" "}
-        <Link href="/tickets/new" className="text-brand-600 underline">
+        <Link href="/tickets/new" className="text-brand-600 dark:text-brand-400 underline">
           Open a new one
         </Link>
         .
@@ -203,11 +203,11 @@ export function TicketsListClient({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="ml-auto text-xs text-slate-500 hover:underline"
+            className="ml-auto text-xs text-slate-500 dark:text-slate-400 hover:underline"
           >
             Clear selection
           </button>
-          {error ? <p className="w-full text-xs text-rose-600">{error}</p> : null}
+          {error ? <p className="w-full text-xs text-rose-600 dark:text-rose-400">{error}</p> : null}
         </div>
       ) : null}
     </div>

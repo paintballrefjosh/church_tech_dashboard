@@ -122,7 +122,7 @@ export function TotpPanel({ initialEnabled }: { initialEnabled: boolean }) {
           </button>
         </div>
         {err ? <p className="text-sm text-rose-600 dark:text-rose-400">{err}</p> : null}
-        {ok ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{ok}</p> : null}
+        {ok ? <p className="text-sm text-emerald-700 dark:text-emerald-400">{ok}</p> : null}
       </div>
     );
   }
@@ -139,7 +139,7 @@ export function TotpPanel({ initialEnabled }: { initialEnabled: boolean }) {
           dangerouslySetInnerHTML={{ __html: qr }}
         />
         <details className="text-xs">
-          <summary className="cursor-pointer text-slate-500">
+          <summary className="cursor-pointer text-slate-500 dark:text-slate-400">
             Can&apos;t scan? Show the setup key
           </summary>
           <code className="mt-2 block break-all rounded bg-slate-100 p-2 text-xs dark:bg-slate-800">
@@ -207,7 +207,7 @@ export function TotpPanel({ initialEnabled }: { initialEnabled: boolean }) {
         Set up two-factor
       </button>
       {err ? <p className="text-sm text-rose-600 dark:text-rose-400">{err}</p> : null}
-      {ok ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{ok}</p> : null}
+      {ok ? <p className="text-sm text-emerald-700 dark:text-emerald-400">{ok}</p> : null}
     </div>
   );
 }

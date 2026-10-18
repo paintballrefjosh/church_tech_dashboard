@@ -136,7 +136,7 @@ export function UserMenu({ email }: { email: string }) {
           className="fx-solid absolute right-0 z-50 mt-1 w-64 rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="border-b border-slate-100 px-2 pb-2 pt-1 dark:border-slate-800">
-            <div className="text-[10px] uppercase tracking-wide text-slate-500">Signed in as</div>
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Signed in as</div>
             <div className="truncate text-sm font-medium" title={email}>
               {email}
             </div>
@@ -148,7 +148,7 @@ export function UserMenu({ email }: { email: string }) {
             onClick={() => setOpen(false)}
             className="mt-1 flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <UserIcon className="h-4 w-4 text-slate-500" aria-hidden />
+            <UserIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span>Profile &amp; settings</span>
           </Link>
 
@@ -158,7 +158,7 @@ export function UserMenu({ email }: { email: string }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <LayoutTemplate className="h-4 w-4 text-slate-500" aria-hidden />
+            <LayoutTemplate className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span>Home page look</span>
           </Link>
 
@@ -168,7 +168,7 @@ export function UserMenu({ email }: { email: string }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <KeySquare className="h-4 w-4 text-slate-500" aria-hidden />
+            <KeySquare className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span>API tokens</span>
           </Link>
 
@@ -178,7 +178,7 @@ export function UserMenu({ email }: { email: string }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <Radio className="h-4 w-4 text-slate-500" aria-hidden />
+            <Radio className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span>Status</span>
           </Link>
 
@@ -188,7 +188,7 @@ export function UserMenu({ email }: { email: string }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <Bell className="h-4 w-4 text-slate-500" aria-hidden />
+            <Bell className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span className="flex-1">Notifications</span>
             {unread > 0 ? (
               <span className="rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -207,9 +207,9 @@ export function UserMenu({ email }: { email: string }) {
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             {mounted && isDark ? (
-              <Sun className="h-4 w-4 text-slate-500" aria-hidden />
+              <Sun className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             ) : (
-              <Moon className="h-4 w-4 text-slate-500" aria-hidden />
+              <Moon className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             )}
             <span>{mounted && isDark ? "Light mode" : "Dark mode"}</span>
           </button>

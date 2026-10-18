@@ -28,7 +28,7 @@ export function AdminTokensClient({ initialTokens }: { initialTokens: ApiTokenAd
 
   return (
     <>
-      {err ? <p className="mb-3 text-sm text-rose-600">{err}</p> : null}
+      {err ? <p className="mb-3 text-sm text-rose-600 dark:text-rose-400">{err}</p> : null}
       <TokenTable
         tokens={tokens}
         showOwner

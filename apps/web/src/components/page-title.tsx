@@ -9,7 +9,7 @@ type IconType = ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 export function PageTitle({ icon: Icon, children }: { icon: IconType; children: ReactNode }) {
   return (
     <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
-      <Icon aria-hidden className="h-6 w-6 text-brand-600" />
+      <Icon aria-hidden className="h-6 w-6 text-brand-600 dark:text-brand-400" />
       <span>{children}</span>
     </h1>
   );

@@ -101,7 +101,7 @@ export function TemplateEditorClient({
     <div className="mt-6 space-y-6">
       <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
         <label className="flex flex-col gap-1 text-sm sm:max-w-sm">
-          <span className="text-xs font-medium text-slate-500">Station</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Station</span>
           <select
             value={stationId}
             onChange={(e) => void saveStation(e.target.value)}
@@ -114,10 +114,10 @@ export function TemplateEditorClient({
               </option>
             ))}
           </select>
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
             This whole template is the checklist for that station.{" "}
             {stations.length === 0 ? (
-              <a href="/admin/checklists/stations" className="text-brand-600 underline">
+              <a href="/admin/checklists/stations" className="text-brand-600 dark:text-brand-400 underline">
                 Add stations
               </a>
             ) : null}
@@ -152,7 +152,7 @@ export function TemplateEditorClient({
                   type="button"
                   onClick={() => void deleteTask(t.id)}
                   aria-label="Delete task"
-                  className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                  className="rounded-md p-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
@@ -193,13 +193,13 @@ export function TemplateEditorClient({
             <Plus className="h-3.5 w-3.5" aria-hidden /> Add
           </button>
         </div>
-        {err ? <p className="mt-2 text-xs text-rose-600">{err}</p> : null}
+        {err ? <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{err}</p> : null}
       </section>
 
       <section className="flex items-center justify-between rounded-md border border-rose-200 p-4 text-xs dark:border-rose-900/50">
         <div>
           <div className="text-sm font-medium text-rose-700 dark:text-rose-300">Delete template</div>
-          <div className="text-rose-600/80 dark:text-rose-400/80">
+          <div className="text-rose-700 dark:text-rose-300">
             Removes the template (and its task list). Existing events keep working.
           </div>
         </div>

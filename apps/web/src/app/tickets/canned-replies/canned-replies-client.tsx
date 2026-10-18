@@ -80,7 +80,7 @@ export function CannedRepliesClient({ initial, canWrite }: { initial: CannedRepl
 
       {editing !== null ? (
         <form onSubmit={save} className="space-y-3 rounded-md border border-slate-300 p-4 dark:border-slate-800" data-testid="canned-form">
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             Title (what you will look for in the list)
             <input
               value={title}
@@ -91,7 +91,7 @@ export function CannedRepliesClient({ initial, canWrite }: { initial: CannedRepl
               data-testid="canned-title"
             />
           </label>
-          <label className="block text-xs text-slate-500">
+          <label className="block text-xs text-slate-500 dark:text-slate-400">
             Reply
             <textarea
               value={body}
@@ -125,7 +125,7 @@ export function CannedRepliesClient({ initial, canWrite }: { initial: CannedRepl
       ) : null}
 
       {replies.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+        <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
           No saved replies yet.
         </p>
       ) : (
@@ -138,10 +138,10 @@ export function CannedRepliesClient({ initial, canWrite }: { initial: CannedRepl
               </div>
               {canWrite ? (
                 <div className="flex shrink-0 gap-2">
-                  <button type="button" onClick={() => start(r)} aria-label={`Edit ${r.title}`} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+                  <button type="button" onClick={() => start(r)} aria-label={`Edit ${r.title}`} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button type="button" onClick={() => void remove(r)} aria-label={`Delete ${r.title}`} className="text-rose-600 hover:text-rose-700">
+                  <button type="button" onClick={() => void remove(r)} aria-label={`Delete ${r.title}`} className="text-rose-600 dark:text-rose-400 hover:text-rose-700">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>

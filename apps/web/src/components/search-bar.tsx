@@ -24,12 +24,8 @@ export function SearchBar() {
         setOpen(false);
         inputRef.current?.blur();
       }
-      // Cmd/Ctrl-K focuses the search bar — keyboard shortcut for power users.
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-        setOpen(true);
-      }
+      // Cmd/Ctrl-K belongs to the command palette (command-palette.tsx), which searches too. This bar used to answer it as
+      // well, so both opened at once and focus was left in the bar behind the palette.
     }
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -48,7 +44,7 @@ export function SearchBar() {
   return (
     <div ref={wrapRef} className="relative w-full max-w-xs sm:max-w-sm md:max-w-md">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" aria-hidden />
         <input
           ref={inputRef}
           type="search"
@@ -73,7 +69,7 @@ export function SearchBar() {
               inputRef.current?.focus();
             }}
             aria-label="Clear search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             <X className="h-4 w-4" />
           </button>

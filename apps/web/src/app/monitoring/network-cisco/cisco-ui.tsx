@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, X } from "lucide-react";
 import type { CiscoSwitch } from "@church/shared";
+import { DialogFrame, useModal } from "@/components/modal";
 
 /** True when the current user holds the monitoring admin tier ("network admin"). */
 export function useCanWrite(): boolean {
@@ -166,16 +167,16 @@ export const inputCls =
 export const cardCls = "rounded-md border border-slate-300 p-4 dark:border-slate-800";
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const titleId = useId();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="mb-3 text-base font-semibold">{title}</h3>
-        {children}
-      </div>
-    </div>
+    <DialogFrame
+      onClose={onClose}
+      labelledBy={titleId}
+      className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+    >
+      <h2 id={titleId} className="mb-3 text-base font-semibold">{title}</h2>
+      {children}
+    </DialogFrame>
   );
 }
 
@@ -197,18 +198,15 @@ export function BigModal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Focus goes in, stays in and comes back; Escape closes (useModal). The page behind does not scroll meanwhile.
+  const panelRef = useModal<HTMLDivElement>(onClose);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
@@ -219,12 +217,13 @@ export function BigModal({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className="flex h-full max-h-[94vh] w-full max-w-[min(96rem,100%)] flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
           <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold">{title}</h3>
+            <h2 className="truncate text-base font-semibold">{title}</h2>
             {subtitle ? <div className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</div> : null}
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -233,7 +232,7 @@ export function BigModal({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <X className="h-5 w-5" aria-hidden />
             </button>
@@ -249,7 +248,7 @@ export function BigModal({
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );

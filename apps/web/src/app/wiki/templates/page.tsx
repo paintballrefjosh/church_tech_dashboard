@@ -30,8 +30,8 @@ export default async function WikiTemplatesPage() {
     <>
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-8">
-        <nav className="mb-4 text-sm">
-          <Link href="/wiki" className="text-brand-600 hover:underline">
+        <nav aria-label="Breadcrumb" className="mb-4 text-sm">
+          <Link href="/wiki" className="text-brand-600 dark:text-brand-400 hover:underline">
             ← Wiki
           </Link>
         </nav>

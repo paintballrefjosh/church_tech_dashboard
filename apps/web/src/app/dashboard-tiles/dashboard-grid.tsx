@@ -63,7 +63,7 @@ function renderTile(id: string, config: Record<string, unknown>, initialData: Da
     case "checklists.my_open_tasks":
       return <MyChecklistsTile limit={asInt(config.limit, 5)} />;
     default:
-      return <p className="text-xs text-slate-500">Unknown tile id: {id}</p>;
+      return <p className="text-xs text-slate-500 dark:text-slate-400">Unknown tile id: {id}</p>;
   }
 }
 
@@ -301,16 +301,16 @@ export function DashboardGrid({
     <div>
       <header className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
-          <LayoutDashboard className="h-6 w-6 text-brand-600" aria-hidden />
+          <LayoutDashboard className="h-6 w-6 text-brand-600 dark:text-brand-400" aria-hidden />
           Dashboard
         </h1>
         <div className="ml-auto flex items-center gap-2 text-sm">
           {saveStatus === "saving" ? (
-            <span className="text-xs text-slate-500">Saving…</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Saving…</span>
           ) : saveStatus === "saved" ? (
-            <span className="text-xs text-emerald-600">Saved</span>
+            <span className="text-xs text-emerald-700 dark:text-emerald-400">Saved</span>
           ) : saveStatus === "error" ? (
-            <span className="text-xs text-rose-600">Save failed</span>
+            <span className="text-xs text-rose-600 dark:text-rose-400">Save failed</span>
           ) : null}
           {editMode ? (
             <>
@@ -356,7 +356,7 @@ export function DashboardGrid({
 
       {editMode && pickerOpen ? (
         <div className="mb-4 rounded-lg border border-slate-300 p-3 dark:border-slate-800">
-          <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Available tiles</p>
+          <p className="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Available tiles</p>
           <ul className="grid gap-2 sm:grid-cols-2">
             {TILE_CATALOGUE
               // Hide tiles whose underlying module the user can't access at
@@ -389,7 +389,7 @@ export function DashboardGrid({
               setEditMode(true);
               setPickerOpen(true);
             }}
-            className="text-brand-600 underline"
+            className="text-brand-600 dark:text-brand-400 underline"
           >
             Add one
           </button>

@@ -53,7 +53,7 @@ export function ProfileForm({
   return (
     <form onSubmit={save} className="space-y-3 text-sm">
       <label className="block">
-        <span className="text-xs text-slate-500">Display name</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Display name</span>
         <input
           type="text"
           value={name}
@@ -64,7 +64,7 @@ export function ProfileForm({
         />
       </label>
       <label className="block">
-        <span className="text-xs text-slate-500">Email</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Email</span>
         <input
           type="text"
           value={email}
@@ -83,7 +83,7 @@ export function ProfileForm({
           <Save className="h-4 w-4" aria-hidden /> Save
         </button>
         {err ? <span className="text-rose-600 dark:text-rose-400">{err}</span> : null}
-        {ok ? <span className="text-emerald-600 dark:text-emerald-400">{ok}</span> : null}
+        {ok ? <span className="text-emerald-700 dark:text-emerald-400">{ok}</span> : null}
       </div>
     </form>
   );

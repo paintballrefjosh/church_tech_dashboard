@@ -111,9 +111,9 @@ export function WikiPagePicker({ onPick, onClose }: { onPick: (page: PickedWikiP
           className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
         />
         <ul role="listbox" aria-label="Pages" className="mt-2 max-h-64 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-800">
-          {pages === null && !failed ? <li className="px-3 py-2 text-sm text-slate-500">Loading...</li> : null}
-          {failed ? <li className="px-3 py-2 text-sm text-rose-600">Could not load the pages.</li> : null}
-          {pages !== null && shown.length === 0 ? <li className="px-3 py-2 text-sm text-slate-500">No page matches.</li> : null}
+          {pages === null && !failed ? <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Loading...</li> : null}
+          {failed ? <li className="px-3 py-2 text-sm text-rose-600 dark:text-rose-400">Could not load the pages.</li> : null}
+          {pages !== null && shown.length === 0 ? <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No page matches.</li> : null}
           {shown.map((p, i) => (
             <li key={p.id} role="option" aria-selected={i === hover}>
               <button

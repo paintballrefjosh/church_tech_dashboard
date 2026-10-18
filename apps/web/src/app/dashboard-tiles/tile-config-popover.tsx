@@ -65,7 +65,7 @@ export function TileConfigPopover({
         aria-expanded={open}
         // tile-no-drag stops the click from initiating a drag in
         // react-grid-layout's draggableCancel matcher.
-        className="tile-no-drag rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
+        className="tile-no-drag rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
         aria-label="Tile settings"
         title="Tile settings"
         onMouseDown={(e) => e.stopPropagation()}
@@ -84,7 +84,7 @@ export function TileConfigPopover({
           // pick the whole tile up.
           className="tile-no-drag absolute right-0 z-50 mt-1 w-64 rounded-md border border-slate-300 bg-white p-3 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Tile settings
           </div>
           <div className="space-y-3">
@@ -119,12 +119,12 @@ function ConfigField({
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:border-slate-700 dark:bg-slate-950"
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-950"
         />
         <span>
           <span className="font-medium">{field.label}</span>
           {field.description ? (
-            <span className="block text-[10px] text-slate-500">{field.description}</span>
+            <span className="block text-[10px] text-slate-500 dark:text-slate-400">{field.description}</span>
           ) : null}
         </span>
       </label>
@@ -134,7 +134,7 @@ function ConfigField({
     <label className="block text-xs">
       <span className="font-medium">{field.label}</span>
       {field.description ? (
-        <span className="block text-[10px] text-slate-500">{field.description}</span>
+        <span className="block text-[10px] text-slate-500 dark:text-slate-400">{field.description}</span>
       ) : null}
       <input
         type="number"

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, RefreshCw, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { WEEKDAYS, type AssignableUser, type ChecklistService } from "@church/shared";
+import { DialogFrame } from "@/components/modal";
 
 interface TemplateBrief {
   id: string;
@@ -205,13 +206,13 @@ export function ServiceEditor({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-slate-500">Name</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Sunday Service" className={inputCls} />
         </label>
         <div className="flex flex-col gap-1 text-sm sm:col-span-2">
-          <span className="text-xs font-medium text-slate-500">Templates (task lists)</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Templates (task lists)</span>
           {templates.length === 0 ? (
-            <p className="text-xs text-slate-500">No templates yet — create one first.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">No templates yet — create one first.</p>
           ) : (
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-md border border-slate-300 p-2.5 dark:border-slate-700">
               {templates.map((t) => (
@@ -231,7 +232,7 @@ export function ServiceEditor({
             <span className="text-[11px] text-rose-600 dark:text-rose-400">Choose at least one template.</span>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5">
-              {templateIds.length > 1 ? <span className="text-[11px] text-slate-500">Tasks combine in this order:</span> : null}
+              {templateIds.length > 1 ? <span className="text-[11px] text-slate-500 dark:text-slate-400">Tasks combine in this order:</span> : null}
               {templateIds.map((id, i) => (
                 <span
                   key={id}
@@ -246,7 +247,7 @@ export function ServiceEditor({
                         onClick={() => moveTemplate(id, -1)}
                         disabled={i === 0}
                         aria-label="Move earlier"
-                        className="text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
                       >
                         <ArrowUp className="h-3 w-3" aria-hidden />
                       </button>
@@ -255,7 +256,7 @@ export function ServiceEditor({
                         onClick={() => moveTemplate(id, 1)}
                         disabled={i === templateIds.length - 1}
                         aria-label="Move later"
-                        className="text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
                       >
                         <ArrowDown className="h-3 w-3" aria-hidden />
                       </button>
@@ -264,8 +265,8 @@ export function ServiceEditor({
                   <button
                     type="button"
                     onClick={() => toggleTemplate(id)}
-                    aria-label="Remove"
-                    className="text-slate-400 hover:text-rose-600"
+                    aria-label={`Remove ${templateLabel.get(id) ?? "template"}`}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-rose-600"
                   >
                     <X className="h-3 w-3" aria-hidden />
                   </button>
@@ -275,7 +276,7 @@ export function ServiceEditor({
           )}
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-slate-500">Repeats every</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Repeats every</span>
           <select value={weekday} onChange={(e) => setWeekday(parseInt(e.target.value, 10))} className={inputCls}>
             {WEEKDAYS.map((d, i) => (
               <option key={d} value={i}>
@@ -285,11 +286,11 @@ export function ServiceEditor({
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium text-slate-500">At</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">At</span>
           <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className={inputCls} />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          <span className="text-xs font-medium text-slate-500">Description (optional)</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Description (optional)</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
         </label>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
@@ -299,9 +300,9 @@ export function ServiceEditor({
       </div>
 
       <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Stations</legend>
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stations</legend>
         {positions.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {templateIds.length ? "These templates have no positions on their tasks." : "Choose a template to see its stations."}
           </p>
         ) : (
@@ -322,9 +323,9 @@ export function ServiceEditor({
                   </label>
                   {p.include ? (
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6">
-                      <span className="text-[11px] text-slate-500">Default people:</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">Default people:</span>
                       {p.defaultUserIds.length === 0 ? (
-                        <span className="text-[11px] text-slate-400">none</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">none</span>
                       ) : (
                         p.defaultUserIds.map((uid) => (
                           <span key={uid} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] dark:bg-slate-800">
@@ -332,8 +333,8 @@ export function ServiceEditor({
                             <button
                               type="button"
                               onClick={() => setPos(p.positionName, { defaultUserIds: p.defaultUserIds.filter((x) => x !== uid) })}
-                              aria-label="Remove"
-                              className="text-slate-400 hover:text-rose-600"
+                              aria-label={`Remove ${userLabel.get(uid) ?? "this person"}`}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-rose-600"
                             >
                               <X className="h-3 w-3" aria-hidden />
                             </button>
@@ -343,6 +344,7 @@ export function ServiceEditor({
                       {addable.length > 0 ? (
                         <select
                           value=""
+                          aria-label={`Add a default person for ${p.positionName}`}
                           onChange={(e) => {
                             if (e.target.value)
                               setPos(p.positionName, { defaultUserIds: [...p.defaultUserIds, e.target.value] });
@@ -398,8 +400,7 @@ export function ServiceEditor({
       </div>
 
       {confirmDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <DialogFrame onClose={() => { if (!busy) setConfirmDelete(false); }} label="Delete service" overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900" closeOnBackdrop={false}>
             <h3 className="text-base font-semibold">Delete service</h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Also delete{" "}
@@ -434,8 +435,7 @@ export function ServiceEditor({
                 Yes, delete them
               </button>
             </div>
-          </div>
-        </div>
+          </DialogFrame>
       ) : null}
     </div>
   );

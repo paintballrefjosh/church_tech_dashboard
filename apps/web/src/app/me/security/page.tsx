@@ -31,7 +31,7 @@ export default async function SecurityPage() {
 
         <section className="mt-8 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <KeyRound className="h-5 w-5 text-brand-600" aria-hidden />
+            <KeyRound className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             Two-factor authentication (TOTP)
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
@@ -45,7 +45,7 @@ export default async function SecurityPage() {
 
         <section className="mt-6 rounded-md border border-slate-300 p-5 dark:border-slate-800">
           <h2 className="flex items-center gap-2 text-lg font-medium">
-            <MonitorSmartphone className="h-5 w-5 text-brand-600" aria-hidden />
+            <MonitorSmartphone className="h-5 w-5 text-brand-600 dark:text-brand-400" aria-hidden />
             Where you are signed in
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">

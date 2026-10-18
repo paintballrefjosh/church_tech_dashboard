@@ -49,6 +49,7 @@ export function CommandPalette({ access }: { access: Access }) {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const { q, setQ, hits, clear } = useGlobalSearch({ limit: 10, debounceMs: 150 });
 
   const say = useCallback((t: Toast) => {
@@ -65,6 +66,8 @@ export function CommandPalette({ access }: { access: Access }) {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        // Remember where focus was: nothing "triggers" the palette, so the dialog cannot hand focus back by itself.
+        if (document.activeElement instanceof HTMLElement && !document.activeElement.closest('[role="dialog"]')) opener.current = document.activeElement;
         setOpen((v) => !v);
       }
     }
@@ -74,6 +77,18 @@ export function CommandPalette({ access }: { access: Access }) {
       delete document.documentElement.dataset.paletteReady;
     };
   }, []);
+
+  // When it closes, focus goes back to what had it (a keyboard user must not be dropped at the top of the page).
+  useEffect(() => {
+    if (open) return;
+    const el = opener.current;
+    opener.current = null;
+    // After the dialog's own focus handling (it runs on a timer queued while it unmounts).
+    const t = setTimeout(() => {
+      if (el && document.contains(el)) el.focus();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [open]);
 
   // Who the person is (id and permissions) and whether alerts are paused are read when the palette opens, so what is
   // offered matches the moment: "Resume alerts" only while they are paused.
@@ -250,7 +265,7 @@ export function CommandPalette({ access }: { access: Access }) {
             ) : (
               <>
                 <div className="flex items-center gap-2 border-b border-slate-300 px-3 py-2 dark:border-slate-700">
-                  <Search className="h-4 w-4 text-slate-400" aria-hidden />
+                  <Search className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
                   <Command.Input
                     value={q}
                     onValueChange={setQ}
@@ -258,10 +273,10 @@ export function CommandPalette({ access }: { access: Access }) {
                     className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
                     autoFocus
                   />
-                  <kbd className="rounded border border-slate-300 px-1 text-[10px] text-slate-500 dark:border-slate-600">esc</kbd>
+                  <kbd className="rounded border border-slate-300 px-1 text-[10px] text-slate-500 dark:text-slate-400 dark:border-slate-600">esc</kbd>
                 </div>
                 <Command.List className="max-h-[24rem] overflow-y-auto p-1 text-sm">
-                  <Command.Empty className="p-4 text-center text-xs text-slate-500">No results.</Command.Empty>
+                  <Command.Empty className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">No results.</Command.Empty>
 
                   {hits.length > 0 ? (
                     <Command.Group heading="Search results">
@@ -275,9 +290,9 @@ export function CommandPalette({ access }: { access: Access }) {
                             onSelect={() => go(hrefForHit(h))}
                             className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 aria-selected:bg-slate-100 dark:aria-selected:bg-slate-800"
                           >
-                            <Icon className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                            <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                             <span className="truncate">{h.title}</span>
-                            <span className="ml-auto text-[10px] uppercase text-slate-400">{kindMeta?.label ?? h.kind}</span>
+                            <span className="ml-auto text-[10px] uppercase text-slate-500 dark:text-slate-400">{kindMeta?.label ?? h.kind}</span>
                           </Command.Item>
                         );
                       })}
@@ -297,9 +312,9 @@ export function CommandPalette({ access }: { access: Access }) {
                             data-testid={`palette-${c.id}`}
                             className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 aria-selected:bg-slate-100 dark:aria-selected:bg-slate-800"
                           >
-                            <c.icon className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                            <c.icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                             <span>{c.label}</span>
-                            {c.kind === "run" && c.confirm ? <span className="ml-auto text-[10px] uppercase text-slate-400">asks first</span> : null}
+                            {c.kind === "run" && c.confirm ? <span className="ml-auto text-[10px] uppercase text-slate-500 dark:text-slate-400">asks first</span> : null}
                           </Command.Item>
                         ))}
                       </Command.Group>

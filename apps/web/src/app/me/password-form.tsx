@@ -52,7 +52,7 @@ export function PasswordForm() {
   return (
     <form onSubmit={submit} className="space-y-3 text-sm">
       <label className="block">
-        <span className="text-xs text-slate-500">Current password</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Current password</span>
         <input
           type="password"
           autoComplete="current-password"
@@ -61,12 +61,12 @@ export function PasswordForm() {
           maxLength={256}
           className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950"
         />
-        <span className="mt-1 block text-xs text-slate-500">
+        <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
           Leave blank only if you have never set a password here (you sign in with Google or Microsoft).
         </span>
       </label>
       <label className="block">
-        <span className="text-xs text-slate-500">New password</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">New password</span>
         <input
           type="password"
           autoComplete="new-password"
@@ -79,7 +79,7 @@ export function PasswordForm() {
         />
       </label>
       <label className="block">
-        <span className="text-xs text-slate-500">Confirm new password</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Confirm new password</span>
         <input
           type="password"
           autoComplete="new-password"
@@ -100,7 +100,7 @@ export function PasswordForm() {
           <KeyRound className="h-4 w-4" aria-hidden /> Change password
         </button>
         {err ? <span className="text-rose-600 dark:text-rose-400">{err}</span> : null}
-        {ok ? <span className="text-emerald-600 dark:text-emerald-400">{ok}</span> : null}
+        {ok ? <span className="text-emerald-700 dark:text-emerald-400">{ok}</span> : null}
       </div>
     </form>
   );

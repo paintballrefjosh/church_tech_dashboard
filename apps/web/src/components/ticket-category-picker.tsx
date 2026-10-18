@@ -82,7 +82,7 @@ export function TicketCategoryPicker({
             if (!open) void loadAll();
           }}
           aria-label="Add category"
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:hover:border-slate-300 dark:hover:text-slate-200"
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400 hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:hover:border-slate-300 dark:hover:text-slate-200"
         >
           <Plus className="h-3 w-3" aria-hidden /> Category
         </button>
@@ -100,11 +100,11 @@ export function TicketCategoryPicker({
           />
           <ul className="mt-1 max-h-48 overflow-y-auto">
             {all.length === 0 ? (
-              <li className="p-2 text-center text-[10px] text-slate-500">
+              <li className="p-2 text-center text-[10px] text-slate-500 dark:text-slate-400">
                 No categories defined. Ask an admin to add some.
               </li>
             ) : visible.length === 0 ? (
-              <li className="p-2 text-center text-[10px] text-slate-500">
+              <li className="p-2 text-center text-[10px] text-slate-500 dark:text-slate-400">
                 {filter ? "No matches." : "All categories already assigned."}
               </li>
             ) : null}
