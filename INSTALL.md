@@ -1207,6 +1207,21 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   long unchanged stretches folded, and a title change shown. The two menus compare any two versions, including the page as
   it is now; **This version** shows the text as it was; **Restore this version** writes it back as a new revision.
 
+## The command palette (Ctrl+K / Cmd+K)
+
+One box for finding things and doing small things without leaving the page. It lists only what the signed-in person can
+use: pages for the modules they have (admin pages only for site admins), then:
+
+- **This page** - on a ticket: take it, mark it waiting on the requester, mark it resolved (staff). On a wiki page: edit,
+  history, and "this page is still correct".
+- **Actions** - switch light/dark, copy the link to the page, mark all notifications read, sign out, and (people who may
+  change monitoring) **Pause alerts for 1, 4, 8 or 24 hours** or **Resume alerts**. Pausing asks for confirmation and says
+  what it will do; alerts come back by themselves. Each action is the same audited request the page's own buttons make
+  (maintenance mode shows in the audit log as usual), and a refusal is shown in a message, never swallowed.
+- **Create** and **Go to**.
+
+Typing also searches tickets, notes, wiki pages and monitoring data as before.
+
 ## Notifications: quiet hours, a daily summary and push
 
 Everyone sets these under **Profile > Notifications**. The first three work out of the box; push needs HTTPS.

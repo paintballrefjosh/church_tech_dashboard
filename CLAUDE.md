@@ -372,6 +372,14 @@ sign-in redirect a browser refuses to register it). Tests: `notification-deliver
 (derivation, a verified VAPID signature, the endpoint allowlist), smoke `notification-delivery.mjs`, e2e `notification-delivery.spec.ts` (the browser's push
 manager is stubbed: headless Chromium has no push service and refuses subscribing in incognito; a real device round trip was never run).
 
+**Command palette** (`apps/web/src/components/command-palette.tsx`; what it offers is decided ONLY by the pure `paletteCommands` in `apps/web/src/lib/palette.ts`,
+unit-tested in `palette.test.ts`). A `go` command needs the module (any tier; admin pages need `access.admin === "admin"`); a `run` command reuses an existing
+audited route and is offered by PERMISSION STRING from `GET /me` (read when the palette opens), never by tier guesses: pausing alerts needs `monitors:write:any`,
+which is the monitoring ADMIN tier. The route still decides; a failure is shown in a toast. **An action that changes what other people see (pausing alerts) must
+set `confirm`**, which shows a confirmation step (Escape backs out of it first). Page context comes from the address (`currentThing`: `/tickets/<uuid>`,
+`/wiki/<uuid>...`). A new action = a `RunCommand` here, a case in `execute`, a test. The palette sets `data-palette-ready` on `<html>` once Ctrl+K is heard (tests
+wait for it); the dialog wrapper itself has no size, so assert on the search box, not the dialog. e2e `palette.spec.ts`.
+
 **UniFi device acks:** an offline UniFi device can be acknowledged
 (`POST /api/v1/unifi/devices/:mac/ack`, gated on `monitors:write:any`) to
 suppress it from the Network (UniFi) tab problem badge. Acks live in

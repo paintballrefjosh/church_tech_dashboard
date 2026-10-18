@@ -86,7 +86,7 @@ export async function TopBar({
             <>
               {/* Mounts the global Cmd+K palette. It opens itself on the
                   keystroke and is invisible otherwise. */}
-              {kiosk ? null : <CommandPalette />}
+              {kiosk ? null : <CommandPalette access={access} />}
               {/* Profile / notifications / theme / sign-out all live inside
                   the UserMenu now — keeps the right-hand side to two
                   controls instead of five. */}

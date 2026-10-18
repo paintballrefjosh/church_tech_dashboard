@@ -63,6 +63,13 @@ export function MaintenanceControl() {
     void load();
   }, [load]);
 
+  // Something else changed it (the command palette's "Pause alerts"): look again.
+  useEffect(() => {
+    const onChange = () => void load();
+    window.addEventListener(MONITORING_HEALTH_REFRESH, onChange);
+    return () => window.removeEventListener(MONITORING_HEALTH_REFRESH, onChange);
+  }, [load]);
+
   // When the window ends, look again so the switch goes back to "Enabled" without a reload.
   useEffect(() => {
     if (!until) return;
