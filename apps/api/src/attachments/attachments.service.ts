@@ -3,6 +3,7 @@ import {
   Inject,
   BadRequestException,
   NotFoundException,
+  PayloadTooLargeException,
 } from "@nestjs/common";
 import { and, asc, eq } from "drizzle-orm";
 import type { Readable } from "node:stream";
@@ -10,6 +11,7 @@ import {
   ATTACHMENT_CUSTOM_EXTENSIONS_SETTING,
   ATTACHMENT_TYPES_SETTING,
   CUSTOM_ATTACHMENT_CONTENT_TYPE,
+  MAX_ATTACHMENT_BYTES,
   resolveAllowedAttachmentTypes,
   resolveCustomAttachmentExtensions,
   type AttachmentParentType,
@@ -76,12 +78,20 @@ export class AttachmentsService {
       );
     }
 
-    // Buffer the upload so we can sniff magic bytes before storing.
-    // fastify-multipart caps fileSize at MAX_ATTACHMENT_BYTES (10 MiB) so the
-    // memory cost per upload is bounded.
+    // Buffer the upload so the type is judged on the file's own bytes BEFORE anything reaches the store. The buffer is
+    // bounded (MAX_ATTACHMENT_BYTES per upload): a streamed put would not use less memory at this size, because the
+    // S3 client holds a whole part before sending it, and it would leave a stored object to clean up on every refusal.
+    // @fastify/multipart cuts the stream at the limit and only sets `truncated`: a file that was cut must be REFUSED,
+    // never stored as if it were whole.
     const chunks: Buffer[] = [];
     for await (const chunk of file.stream) {
       chunks.push(chunk as Buffer);
+    }
+    if ((file.stream as Readable & { truncated?: boolean }).truncated === true) {
+      chunks.length = 0;
+      throw new PayloadTooLargeException(
+        `The file is larger than the ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MiB limit for attachments.`,
+      );
     }
     const buf = Buffer.concat(chunks);
     if (buf.length === 0) throw new BadRequestException("empty upload");

@@ -756,7 +756,13 @@ exception to "verified": matched by the file NAME only (they win over the browse
 (html, svg, xml, js, exe, bat, sh, php ... anything that runs in a browser, on a computer or on a server) and any extension
 the checklist already covers (so unticking a type there cannot be undone here). The same function runs in the UI, in
 `validateSettingValue` and when the setting is read (`resolveCustomAttachmentExtensions`). Settings are cached 60 s per node,
-so editing the row in SQL (instead of the UI, which invalidates) takes up to a minute to apply. The upload size cap is still the fixed `MAX_ATTACHMENT_BYTES`. Tests: `apps/api/test/attachment-types.test.ts`.
+so editing the row in SQL (instead of the UI, which invalidates) takes up to a minute to apply. The upload size cap is still the fixed `MAX_ATTACHMENT_BYTES`. **A file over it is refused with 413 and nothing is stored**:
+@fastify/multipart cuts the stream at the limit and only sets `truncated` (it does not fail the request), and until 2026-10-19 `upload`
+ignored that and stored the first 10 MiB of a larger file as if it were whole. `upload` buffers the file (bounded by that cap) and judges
+its type on its own bytes before anything reaches S3; it is NOT streamed to S3, because minio holds a whole part in memory before sending
+it (no saving at 10 MiB) and every refusal would then leave an object to delete. Downloads already stream; presigned redirects are out
+because the object store is never exposed outside the stack. Tests: `apps/api/test/attachment-types.test.ts`, `attachments-upload.test.ts`,
+smoke "an upload over the size limit is refused".
 
 ## Home page looks
 

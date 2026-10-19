@@ -917,6 +917,20 @@ async function main() {
     assert(res.status === 400, `expected 400, got ${res.status}`);
   });
 
+  await test("an upload over the size limit is refused and nothing is stored", async () => {
+    const before = await (await fetchWithCookies(`/api/v1/notes/${attachNoteId}/attachments`, {}, jar)).res.json();
+    const fd = new FormData();
+    fd.append("file", new Blob([new Uint8Array(11 * 1024 * 1024).fill(0x61)], { type: "text/plain" }), "huge.txt");
+    const { res } = await fetchWithCookies(
+      `/api/v1/notes/${attachNoteId}/attachments`,
+      { method: "POST", body: fd },
+      jar,
+    );
+    assert(res.status === 413, `expected 413, got ${res.status}`);
+    const after = await (await fetchWithCookies(`/api/v1/notes/${attachNoteId}/attachments`, {}, jar)).res.json();
+    assert(after.length === before.length, `a cut-short file was stored (${before.length} -> ${after.length})`);
+  });
+
   await test("DELETE /api/v1/notes/:id/attachments/:aid removes it", async () => {
     const { res } = await fetchWithCookies(
       `/api/v1/notes/${attachNoteId}/attachments/${createdAttachmentId}`,
