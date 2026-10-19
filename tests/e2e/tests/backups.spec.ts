@@ -68,6 +68,17 @@ test.describe("Backups", () => {
     expect(download.suggestedFilename()).toMatch(/\.tar\.gz$/);
   });
 
+  test("a stored backup can be checked: it is read back in full and marked as checked", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto("/admin/backups");
+    const row = page.getByTestId("backup-table").locator("tr", { hasText: backupName });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: /^Check / }).click();
+    await expect(row.getByTestId("verified-badge")).toBeVisible({ timeout: 90_000 });
+    await expect(row.getByText(/Read back in full .*a restore can use it/)).toBeVisible();
+    await expect(row.getByTestId("check-failed-badge")).toHaveCount(0);
+  });
+
   test("a schedule can be created, paused, resumed and deleted", async ({ page }) => {
     await page.goto("/admin/backups?tab=schedules");
     await page.getByRole("button", { name: "New schedule" }).click();

@@ -161,6 +161,22 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     assert(one.tableCounts.users === first.tableCounts.users, "row counts differ after the round trip");
   });
 
+  await test("backups: a stored backup can be read back and checked in full, and the result is kept on it", async () => {
+    assert(first.verifiedAt === null && first.verifyError === null, `fresh backup already checked: ${first.verifiedAt}`);
+    const { res } = await session(`/api/v1/admin/backups/${first.id}/verify`, { method: "POST" });
+    assert(res.status === 202, `verify status ${res.status}: ${await res.clone().text()}`);
+    const { operationId } = await res.json();
+    const op = await waitFor(operationId);
+    assert(op.kind === "verify" && op.status === "succeeded", `check ${op.status}: ${op.error}`);
+    assert(op.result.checked === 1 && op.result.failed === 0, `result ${JSON.stringify(op.result)}`);
+    const one = await (await session(`/api/v1/admin/backups/${first.id}`)).res.json();
+    assert(one.verifiedAt && one.verifyError === null, `after the check: ${JSON.stringify({ at: one.verifiedAt, err: one.verifyError })}`);
+    const missing = await session("/api/v1/admin/backups/00000000-0000-4000-8000-000000000000/verify", { method: "POST" });
+    assert(missing.res.status === 404, `missing status ${missing.res.status}`);
+    const bad = await session("/api/v1/admin/backups/not-a-uuid/verify", { method: "POST" });
+    assert(bad.res.status === 400, `bad id status ${bad.res.status}`);
+  });
+
   await test("backups: a damaged or foreign upload is rejected, even a big one (over the ordinary 10 MiB upload limit)", async () => {
     const notGzip = new FormData();
     notGzip.append("file", new Blob([Buffer.from("this is not a backup")]), "junk.tar.gz");

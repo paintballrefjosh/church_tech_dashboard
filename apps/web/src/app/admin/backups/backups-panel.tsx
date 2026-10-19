@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CloudUpload, Download, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CloudUpload, Download, Pencil, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import type { BackupOperation, BackupStorageInfo, BackupSummary } from "@church/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, formatCount, KIND_LABEL, post, useOperation } from "./client-api";
@@ -63,13 +63,20 @@ export function BackupsPanel({
   };
 
   const { op, lost, track } = useOperation(async (finished) => {
-    if (finished.status === "failed") setError(finished.error ?? (finished.kind === "offsite" ? "The offsite copy failed." : "The backup failed."));
-    else setNotice(finished.kind === "offsite" ? "Copied offsite." : "Backup finished.");
+    if (finished.status === "failed") {
+      setError(finished.error ?? (finished.kind === "offsite" ? "The offsite copy failed." : finished.kind === "verify" ? "The check failed." : "The backup failed."));
+    } else if (finished.kind === "verify") {
+      const r = finished.result as { checked?: number; failed?: number } | null;
+      if (r && (r.failed ?? 0) > 0) setError("The check found a problem with a backup. It is shown on that backup below.");
+      else setNotice("The stored backup is whole and can be restored.");
+    } else {
+      setNotice(finished.kind === "offsite" ? "Copied offsite." : "Backup finished.");
+    }
     await refresh();
   });
 
   useEffect(() => {
-    if (runningOperation && (runningOperation.kind === "backup" || runningOperation.kind === "import" || runningOperation.kind === "offsite")) track(runningOperation.id);
+    if (runningOperation && (runningOperation.kind === "backup" || runningOperation.kind === "import" || runningOperation.kind === "offsite" || runningOperation.kind === "verify")) track(runningOperation.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -97,6 +104,20 @@ export function BackupsPanel({
       const link = await post<{ url: string }>(`/${b.id}/download-link`, undefined, "Couldn't prepare the download");
       // A plain navigation: the browser saves it (the response is an attachment) without leaving the page.
       window.location.assign(link.url);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function check(b: BackupSummary) {
+    setError(null);
+    setNotice(null);
+    setBusyId(b.id);
+    try {
+      const started = await post<{ operationId: string }>(`/${b.id}/verify`, undefined, "Couldn't start the check");
+      track(started.operationId);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -179,7 +200,7 @@ export function BackupsPanel({
         </form>
         {op && op.status === "running" ? (
           <div className="mt-3">
-            <OperationProgress op={op} title={op.kind === "import" ? "Checking the uploaded file" : op.kind === "offsite" ? "Copying offsite" : "Making a backup"} />
+            <OperationProgress op={op} title={op.kind === "import" ? "Checking the uploaded file" : op.kind === "offsite" ? "Copying offsite" : op.kind === "verify" ? "Checking the stored backup" : "Making a backup"} />
           </div>
         ) : null}
         {lost ? <div className="mt-3"><ErrorNote>{lost}</ErrorNote></div> : null}
@@ -250,7 +271,29 @@ export function BackupsPanel({
                             <CloudUpload aria-hidden className="h-3 w-3" /> Offsite
                           </span>
                         ) : null}
+                        {b.status === "ready" && b.verifiedAt && !b.verifyError ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            data-testid="verified-badge"
+                          >
+                            <ShieldCheck aria-hidden className="h-3 w-3" /> Checked
+                          </span>
+                        ) : null}
+                        {b.status === "ready" && b.verifyError ? (
+                          <span
+                            className="inline-block rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                            data-testid="check-failed-badge"
+                          >
+                            Check failed
+                          </span>
+                        ) : null}
                       </div>
+                      {b.status === "ready" && b.verifiedAt && !b.verifyError ? (
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          Read back in full <LocalDateTime value={b.verifiedAt} options={WHEN} />: complete, and a restore can use it.
+                        </p>
+                      ) : null}
+                      {b.verifyError ? <p className="mt-1 max-w-md text-xs text-rose-600 dark:text-rose-400">The check found: {b.verifyError}</p> : null}
                       {b.offsiteError ? <p className="mt-1 max-w-md text-xs text-rose-600 dark:text-rose-400">Offsite copy failed: {b.offsiteError}</p> : null}
                       {b.error ? <p className={`mt-1 max-w-md text-xs ${b.status === "failed" ? "text-rose-600 dark:text-rose-400" : "text-amber-700 dark:text-amber-400"}`}>{b.error}</p> : null}
                     </td>
@@ -284,6 +327,16 @@ export function BackupsPanel({
                           >
                             <RotateCcw aria-hidden className="h-3.5 w-3.5" /> Restore...
                           </Link>
+                          <button
+                            type="button"
+                            onClick={() => void check(b)}
+                            disabled={busyId === b.id || running}
+                            aria-label={`Check ${b.name}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-900"
+                            data-testid="backup-check"
+                          >
+                            <ShieldCheck aria-hidden className="h-3.5 w-3.5" /> Check
+                          </button>
                           {offsiteEnabled && !(b.offsiteAt && !b.offsiteError) ? (
                             <button
                               type="button"

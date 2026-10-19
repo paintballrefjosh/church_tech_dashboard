@@ -21,6 +21,7 @@ function facts(over: Partial<PostureFacts> = {}): PostureFacts {
     maintenanceMode: false,
     maintenanceUntil: null,
     backups: { lastReadyAt: NOW - DAY, scheduleEnabled: true },
+    backupChecks: { lastPassedAt: NOW - DAY, newestFailing: false, failing: 0 },
     offsite: { enabled: true, lastCopyAt: NOW - DAY, failing: 0 },
     helpdeskEmail: { enabled: false, auth: "strict", authServerSet: false },
     auditRetentionDays: 365,
@@ -111,6 +112,18 @@ describe("security posture", () => {
     expect(check({ auth: "off" })).toMatchObject({ severity: "warn" });
     expect(check({ auth: "aligned", authServerSet: false })).toMatchObject({ severity: "info" });
     expect(check({ authServerSet: true })).toMatchObject({ severity: "ok" });
+  });
+
+  it("backup checks: failing newest is critical, failing older warns, unchecked warns after a day, fresh is ok", () => {
+    const check = (c: Partial<PostureFacts["backupChecks"]>, lastReadyAt: number | null = NOW - 3_600_000) =>
+      byId(evaluatePosture(facts({ backups: { lastReadyAt, scheduleEnabled: true }, backupChecks: { lastPassedAt: NOW - DAY, newestFailing: false, failing: 0, ...c } })), "backup-check");
+    expect(check({ newestFailing: true, failing: 1 })).toMatchObject({ severity: "critical", title: "The newest backup failed its check" });
+    expect(check({ failing: 1 })).toMatchObject({ severity: "warn", title: "An earlier backup failed its check" });
+    expect(check({ lastPassedAt: null })).toBeUndefined(); // made an hour ago: not its turn yet
+    expect(check({ lastPassedAt: null }, NOW - 3 * DAY)).toMatchObject({ severity: "warn", title: "No backup has been checked" });
+    expect(check({ lastPassedAt: NOW - 30 * DAY })).toMatchObject({ severity: "warn" });
+    expect(check({})).toMatchObject({ severity: "ok" });
+    expect(check({}, null)).toBeUndefined();
   });
 
   it("offsite copies: off, none yet, failing, stale, fresh", () => {

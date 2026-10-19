@@ -6,7 +6,7 @@ COMPOSE_PROD := bash scripts/compose.sh --prod
 NODE_RUN := docker run --rm -v "$$PWD":/w -w /w -u $$(id -u):$$(id -g) -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache node:20-alpine sh -c
 PNPM := npx -y pnpm@9.12.0
 
-.PHONY: help check-repo check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore db-backup-s3 db-list-s3 db-restore-s3 prod-up prod-down prod-logs prod-migrate prod-seed rebuild rebuild-all upgrade
+.PHONY: verify-restore help check-repo check-ports init-env init-data up down restart logs ps psql migrate seed reset-admin reset-test-user disable-test-user build install typecheck lint test test-smoke test-e2e regression nuke db-backup db-restore db-backup-s3 db-list-s3 db-restore-s3 prod-up prod-down prod-logs prod-migrate prod-seed rebuild rebuild-all upgrade
 
 help:
 	@echo "Common targets:"
@@ -24,6 +24,7 @@ help:
 	@echo "  make reset-test-user  Force the regression test user back to default state"
 	@echo "  make disable-test-user Disable the regression test user (post-test teardown)"
 	@echo "  make regression       Run smoke + e2e suite (does NOT touch bootstrap admin)"
+	@echo "  make verify-restore   Rehearse a restore of a real backup on a throwaway cluster (ARGS=\"--archive FILE\", \"--keep\")"
 	@echo "  make upgrade          Upgrade this node to the newest version (ARGS=\"--check\", \"--rollback\", ...; see INSTALL.md)"
 	@echo "  make prod-up          Start prod stack"
 
@@ -104,6 +105,11 @@ reset-admin:
 # Used by the regression suite. Creates/refreshes a dedicated test user
 # (regression-test@local) with admin role and a known default password.
 # The bootstrap admin user is NOT touched.
+# Restore rehearsal: restores a real backup (default: a fresh one of this dev stack) into a throwaway cluster and checks the
+# result against the file. Builds the cluster if there is none (several minutes). See tests/cluster/verify-restore.sh.
+verify-restore:
+	tests/cluster/verify-restore.sh $(ARGS)
+
 reset-test-user:
 	$(COMPOSE) exec api node dist/scripts/reset-test-user.js
 

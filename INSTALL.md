@@ -814,7 +814,8 @@ and `db-s3.sh` only when the old install is the production stack.
 `.env`, data and compose project, so the real scripts are what runs:
 
 - `sim.sh up 3` builds shape C (three nodes), `failover.sh`, `replace-node.sh`, `witness.sh`,
-  `restore-node-death.py`, `backup-restore.sh` and `cross-node.mjs` exercise it;
+  `restore-node-death.py`, `backup-restore.sh`, `verify-restore.sh` (restores a real backup from elsewhere and
+  compares every node with the file) and `cross-node.mjs` exercise it;
 - `shape-d.sh up cockroach|yugabyte` builds shape D and `shape-d.sh test` runs the smoke and browser
   suites through its load balancer plus the cross-node, backup, node-kill, failover and Cluster page checks;
 - `compose-config.sh` checks what `scripts/compose.sh` accepts and rejects without starting anything.
@@ -944,7 +945,7 @@ How sign-in behaves, for the person running the server:
 - **The Security overview** (`/admin/security`, site administrators) is a checklist of how the site is set
   up: the install password still in place, administrators without two-factor, how wide Google and
   Microsoft sign-in are, API tokens that never expire or are unused, switches without a pinned host key,
-  maintenance mode left on with no end time, the Site URL and mail settings, the age of the last backup and of its offsite copy, and how long the
+  maintenance mode left on with no end time, the Site URL and mail settings, the age of the last backup, whether it passed its check, and the age of its offsite copy, and how long the
   audit log is kept. It only reads settings and counts, so it changes nothing and shows no secrets;
   each line links to where it is fixed.
 - **Failed sign-ins are limited per account.** On top of the 10-per-minute limit per IP
@@ -1529,6 +1530,30 @@ passwords and tokens should keep working.
 A copy is the same file you can download: it holds everything in the database and is **not encrypted again**.
 Use a private bucket and a key that reaches only that bucket. The Security overview notes when backups are only
 kept on the installation, and warns when copies are failing or the newest is more than eight days old.
+
+**Checking that a backup can be restored.** A backup nobody has read back is a hope, not a backup. Every backup is
+re-read from storage in full: the node leading the `backup-verify` job (every ten minutes) checks each of the newest
+three ready backups once, a few minutes after it is made, and the newest one again after a week (storage can damage a
+file that was fine). The check streams the stored file from its first byte to its last and confirms the size and
+SHA-256 recorded when it was made, a clean decompression, every table's row count and every file's checksum as the
+backup says, and that the rows themselves are usable: primary keys present and unique, required values filled, and every
+link pointing at a row that is in the file. It writes nothing to the live data. The result is kept on the backup (a
+**Checked** badge with the time, or **Check failed** with the reason); a **Check** button on each row does it on demand.
+A failed check notifies the administrators once, is retried after six hours, and the Security overview calls the
+newest backup failing **critical** (an older failing one is a warning, and none passing for a long time is a warning
+too). This proves the file is whole and consistent; it is not a restore. The real thing is the rehearsal below.
+
+**Rehearsing a restore on a throwaway cluster.** `make verify-restore` (`tests/cluster/verify-restore.sh`) takes a fresh
+backup of the dev stack (reads only; it deletes the backup afterwards and leaves nothing behind), builds or reuses the
+throwaway cluster of `tests/cluster/sim.sh` (its own `AUTH_SECRET`, its own different data), uploads the file to node 1,
+runs the check above, compares, and restores with the safety copy on. A restore of a backup made elsewhere replaces the
+very account that asked for it, so the script watches the restore from inside the cluster, then compares the database of
+**every node** with the file using the app's own comparison, which must report no added, removed or changed row and no
+file difference. Finally it signs in as the restored test user and reads notes, tickets, the wiki, checklists and
+monitors. `make verify-restore ARGS="--archive file.tar.gz --no-signin"` rehearses a backup you already have (for a
+file that does not contain the test user); `--keep` leaves the cluster up. Run it after a release, or monthly from cron
+(`0 3 1 * * cd /path/to/church-dashboard && tests/cluster/verify-restore.sh >> /var/log/verify-restore.log 2>&1`). It
+needs the cluster to be built from the current source, and it only ever restores into that cluster, never the dev stack.
 
 **Things to know.**
 

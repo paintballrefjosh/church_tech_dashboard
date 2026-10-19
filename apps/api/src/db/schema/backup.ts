@@ -68,6 +68,10 @@ export const backups = pgTable(
     offsiteTriedAt: timestamp("offsite_tried_at", { withTimezone: true }),
     /** Which destination the copy is in (a short hash of endpoint, bucket and folder): a new bucket gets new copies. */
     offsiteDest: text("offsite_dest"),
+    /** Last full re-read of the stored archive (checksum, every row and file): when it passed, why it failed, when it was tried. */
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifyError: text("verify_error"),
+    verifyTriedAt: timestamp("verify_tried_at", { withTimezone: true }),
   },
   (t) => ({
     createdIdx: index("backups_created_idx").on(t.createdAt),

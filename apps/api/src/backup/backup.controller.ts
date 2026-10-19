@@ -29,6 +29,7 @@ import { SessionOnly } from "../auth/session-only.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { BackupService } from "./backup.service";
 import { OffsiteService } from "./offsite.service";
+import { VerifyService } from "./verify.service";
 
 const uuid = z.string().uuid();
 
@@ -64,6 +65,7 @@ export class BackupController {
   constructor(
     private readonly backups: BackupService,
     private readonly offsite: OffsiteService,
+    private readonly verify: VerifyService,
   ) {}
 
   // ---- reads (declared before the `:id` routes so they are not taken for ids) ----
@@ -232,6 +234,14 @@ export class BackupController {
   async downloadLink(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     const link = await this.backups.createDownloadToken(user.id, parseId(id));
     return { url: `/api/v1/admin/backups/download?token=${encodeURIComponent(link.token)}`, filename: link.filename, expiresAt: link.expiresAt, token: link.token };
+  }
+
+  /** Re-read this stored backup end to end and record whether it is whole and usable. Reads only. */
+  @Post(":id/verify")
+  @HttpCode(202)
+  @Audited({ action: "backup.verify", resourceType: "backup", resourceIdFromParams: idParam })
+  verifyBackup(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.verify.startCheck(user, parseId(id));
   }
 
   /** Copy this one backup to the offsite bucket now, whatever kind it is. */

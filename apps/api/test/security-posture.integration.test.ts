@@ -83,6 +83,21 @@ describe.skipIf(!url)("security posture against a real database", () => {
     await q(`DELETE FROM backups WHERE name LIKE 'posture-test-%'`);
   });
 
+  it("reads the backup checks: last pass as epoch milliseconds, whether the newest failed, how many recent ones failed", async () => {
+    await q(`DELETE FROM backups WHERE name LIKE 'posture-test-%'`);
+    const none = await service.facts();
+    await q(`INSERT INTO backups (name, kind, status, s3_key, created_at, verified_at) VALUES ('posture-test-ok', 'manual', 'ready', 'k-pc-1', now() - interval '2 hours', now() - interval '1 hour')`);
+    const passing = await service.facts();
+    expect(Math.abs((passing.backupChecks.lastPassedAt as number) - (Date.now() - 3_600_000))).toBeLessThan(5 * 60_000);
+    expect(passing.backupChecks.newestFailing).toBe(false);
+    expect(passing.backupChecks.failing).toBe(none.backupChecks.failing);
+    await q(`INSERT INTO backups (name, kind, status, s3_key, created_at, verify_error) VALUES ('posture-test-bad', 'manual', 'ready', 'k-pc-2', now() + interval '1 hour', 'damaged')`);
+    const failing = await service.facts();
+    expect(failing.backupChecks.newestFailing).toBe(true);
+    expect(failing.backupChecks.failing).toBe(none.backupChecks.failing + 1);
+    await q(`DELETE FROM backups WHERE name LIKE 'posture-test-%'`);
+  });
+
   it("produces a report whose first line is the install password", async () => {
     const r = await service.report();
     expect(r.checks[0]).toMatchObject({ id: "default-admin-password", severity: "critical" });

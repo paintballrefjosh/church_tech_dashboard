@@ -13,6 +13,7 @@ import { backedUpTables } from "../src/backup/backup-schema";
 import { appliedMigrations, storeBackup } from "../src/backup/backup-writer";
 import { gunzipped, readArchive } from "../src/backup/archive";
 import { inspectArchive } from "../src/backup/backup-inspect";
+import { verifyStoredArchive } from "../src/backup/backup-verify";
 import { computeDiff, type DiffOutput } from "../src/backup/backup-diff";
 import { applyRestore } from "../src/backup/backup-restore";
 import { keyOf, rowFingerprint, selectList, type Row } from "../src/backup/row-codec";
@@ -171,6 +172,24 @@ describe.skipIf(!url)("backup and restore against a real database", () => {
     expect(listed.stdout).toContain("tables/users/000001.ndjson");
     expect(listed.stdout).toContain(`files/${KEY1}`);
     expect(listed.stdout).toContain("summary.json");
+  });
+
+  it("a stored backup of real data passes the stored-backup check, and a damaged copy of it does not", async () => {
+    const stored1 = await storeBackup({ db, store }, "backups/bk-1.tar.gz", options);
+    const ok = await verifyStoredArchive(() => store.get("backups/bk-1.tar.gz"), { sha256: stored1.sha256, sizeBytes: stored1.sizeBytes });
+    expect(ok.problems).toEqual([]);
+    expect(ok.ok).toBe(true);
+    expect(ok.rows).toBeGreaterThan(10);
+    expect(ok.files).toBe(2);
+    expect(ok.bytes).toBe(stored1.sizeBytes);
+
+    // One flipped byte in the middle of the compressed file: the checksum (or the decompression) catches it.
+    const bad = Buffer.from(stored());
+    bad[Math.floor(bad.length / 2)] ^= 0xff;
+    store.objects.set("backups/bad.tar.gz", { data: bad, contentType: "application/gzip" });
+    const damaged = await verifyStoredArchive(() => store.get("backups/bad.tar.gz"), { sha256: stored1.sha256, sizeBytes: stored1.sizeBytes });
+    expect(damaged.ok).toBe(false);
+    expect(damaged.problems.length).toBeGreaterThan(0);
   });
 
   it("does not put skipped tables, such as the audit log, in a backup", async () => {

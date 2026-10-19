@@ -215,6 +215,8 @@ export class BackupService implements OnModuleInit {
       // A copy retention has since removed from the bucket (key cleared) is no longer a copy.
       offsiteAt: r.offsiteAt && r.offsiteKey ? r.offsiteAt.toISOString() : null,
       offsiteError: r.offsiteError,
+      verifiedAt: r.verifiedAt ? r.verifiedAt.toISOString() : null,
+      verifyError: r.verifyError,
     };
   }
 

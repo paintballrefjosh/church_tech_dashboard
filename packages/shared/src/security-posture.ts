@@ -1,5 +1,6 @@
 import { isSingleTenant } from "./oauth-policy";
 import { OFFSITE_STALE_DAYS } from "./backup-offsite";
+import { judgeVerification, type VerifyFacts } from "./backup-verify";
 
 /**
  * The admin "Security" overview: facts about how the site is set up, judged by plain rules into a list of checks an
@@ -36,6 +37,8 @@ export interface PostureFacts {
   /** End of the maintenance window (epoch ms), or null when it has none. Only meaningful while `maintenanceMode`. */
   maintenanceUntil: number | null;
   backups: { lastReadyAt: number | null; scheduleEnabled: boolean };
+  /** Re-reads of stored backups (see backup-verify.ts). */
+  backupChecks: VerifyFacts;
   /** Copies in a second bucket: switched on, newest verified copy (epoch ms), backups whose last copy attempt failed. */
   offsite: { enabled: boolean; lastCopyAt: number | null; failing: number };
   /** The helpdesk mailbox: switched on, how sure it is of a sender (`strict` | `aligned` | `off`), and whether the mail server's name is set. */
@@ -298,6 +301,8 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
       add({ id: "offsite", title: `Last offsite copy ${ageText(f.now - f.offsite.lastCopyAt)}`, severity: f.offsite.failing > 0 ? "warn" : "ok", detail: f.offsite.failing > 0 ? "Some copies are failing. See the Offsite tab." : "Backups are also kept in another bucket." , fix: f.offsite.failing > 0 ? offsiteFix : undefined });
     }
   }
+  const verdict = judgeVerification(f.backupChecks, f.backups.lastReadyAt, f.now);
+  if (verdict) add({ id: "backup-check", ...verdict, fix: verdict.severity === "ok" ? undefined : { label: "Backups", href: "/admin/backups" } });
   if (f.helpdeskEmail.enabled) {
     const fix = { label: "Helpdesk email settings", href: "/admin/settings/helpdesk" };
     if (f.helpdeskEmail.auth === "off") {

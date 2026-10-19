@@ -31,6 +31,7 @@ export * from "./user-agent";
 export * from "./security-posture";
 export * from "./maintenance";
 export * from "./backup-offsite";
+export * from "./backup-verify";
 export * from "./alert-rules";
 export * from "./helpdesk";
 export * from "./inbound-mail";

@@ -12,7 +12,7 @@ export type BackupKind = (typeof BACKUP_KINDS)[number];
 export const BACKUP_STATUSES = ["running", "ready", "failed"] as const;
 export type BackupStatus = (typeof BACKUP_STATUSES)[number];
 
-export const BACKUP_OPERATION_KINDS = ["backup", "import", "compare", "restore", "offsite"] as const;
+export const BACKUP_OPERATION_KINDS = ["backup", "import", "compare", "restore", "offsite", "verify"] as const;
 export type BackupOperationKind = (typeof BACKUP_OPERATION_KINDS)[number];
 
 export const BACKUP_OPERATION_STATUSES = ["running", "succeeded", "failed"] as const;
@@ -117,6 +117,9 @@ export interface BackupSummary {
   /** When the copy in the offsite bucket was verified, and why the last attempt failed (if it did). */
   offsiteAt: string | null;
   offsiteError: string | null;
+  /** When the stored archive last passed a full re-read, and why the last re-read failed (if it did). */
+  verifiedAt: string | null;
+  verifyError: string | null;
 }
 
 export interface BackupProgress {

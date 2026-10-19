@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { evaluatePosture, type PostureFacts, type PostureReport } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { apiTokens, backupSchedules, backups, ciscoSwitches, groupMemberships, groups, users } from "../db/schema";
@@ -28,7 +28,7 @@ export class SecurityPostureService {
     const idleCut = new Date(now.getTime() - 90 * DAY_MS);
     const live = and(eq(users.isActive, true), isNull(users.deletedAt), eq(users.approvalStatus, "approved"));
 
-    const [adminRows, userRows, boot, pending, tokenRows, ciscoRows, lastBackup, schedules, offsiteRows] = await Promise.all([
+    const [adminRows, userRows, boot, pending, tokenRows, ciscoRows, lastBackup, schedules, offsiteRows, checkRows, newestBackup] = await Promise.all([
       this.db
         .select({ total: sql<number>`count(*)`, withoutTotp: sql<number>`count(*) FILTER (WHERE ${users.totpEnabled} = false)` })
         .from(users)
@@ -71,6 +71,15 @@ export class SecurityPostureService {
           failing: sql<number>`count(*) FILTER (WHERE ${backups.offsiteError} IS NOT NULL AND ${backups.kind} = 'scheduled' AND ${backups.createdAt} > ${new Date(now.getTime() - 14 * DAY_MS)})`,
         })
         .from(backups),
+      this.db
+        .select({
+          at: sql<string | number | null>`extract(epoch FROM max(${backups.verifiedAt})) * 1000`,
+          // Recent backups only: an old failure nobody retries must not warn forever.
+          failing: sql<number>`count(*) FILTER (WHERE ${backups.verifyError} IS NOT NULL AND ${backups.createdAt} > ${new Date(now.getTime() - 14 * DAY_MS)})`,
+        })
+        .from(backups)
+        .where(eq(backups.status, "ready")),
+      this.db.select({ verifyError: backups.verifyError }).from(backups).where(eq(backups.status, "ready")).orderBy(desc(backups.createdAt)).limit(1),
     ]);
 
     const text = async (key: string): Promise<string> => {
@@ -116,6 +125,11 @@ export class SecurityPostureService {
       maintenanceMode: maintenance.active,
       maintenanceUntil: maintenance.until,
       backups: { lastReadyAt: lastReady, scheduleEnabled: n(schedules[0]?.c) > 0 },
+      backupChecks: {
+        lastPassedAt: checkRows[0]?.at != null ? Number(checkRows[0].at) : null,
+        newestFailing: newestBackup[0]?.verifyError != null,
+        failing: n(checkRows[0]?.failing),
+      },
       offsite: {
         enabled: await flag("backup.offsite.enabled"),
         lastCopyAt: offsiteRows[0]?.at != null ? Number(offsiteRows[0].at) : null,

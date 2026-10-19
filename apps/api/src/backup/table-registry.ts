@@ -121,7 +121,8 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   // ---- monitoring ----
   monitors: {
     policy: "data", group: MONITORING, title: "Service monitors", label: ["name"],
-    volatile: ["status", "last_checked_at", "claimed_until", "last_checked_by", "last_latency_ms", "consecutive_fails", "consecutive_oks", "flapping_since"],
+    // updated_at too: the probe worker stamps it on every check, so it would show every monitor as "changed".
+    volatile: ["status", "last_checked_at", "claimed_until", "last_checked_by", "last_latency_ms", "consecutive_fails", "consecutive_oks", "flapping_since", "updated_at"],
   },
   // The escalation steps already sent are not restored: a restored open incident is judged afresh.
   monitor_incidents: { policy: "data", group: MONITORING, title: "Incidents", label: ["reason", "detail"], volatile: ["escalation_level", "escalated_at"] },

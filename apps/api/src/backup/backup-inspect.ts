@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readArchive, type FileIndexEntry, type Manifest, type Summary } from "./archive";
+import { readArchive, type ArchiveEvent, type FileIndexEntry, type Manifest, type Summary } from "./archive";
 
 export interface Inspection {
   manifest: Manifest;
@@ -13,9 +13,10 @@ export interface Inspection {
  * Read a whole backup and check it is intact: well-formed JSON everywhere, row counts that
  * match the summary, every file's size and SHA-256 as recorded. Used on a file somebody uploaded
  * (it may be damaged, or not a backup at all) before it is offered for a restore.
+ * `observe` sees every event as it goes by (the stored-backup check looks at the rows too).
  * Throws an Error with a message fit to show a person.
  */
-export async function inspectArchive(source: AsyncIterable<Buffer>): Promise<Inspection> {
+export async function inspectArchive(source: AsyncIterable<Buffer>, observe?: (event: ArchiveEvent) => void): Promise<Inspection> {
   let manifest: Manifest | null = null;
   let summary: Summary | null = null;
   let index: FileIndexEntry[] | null = null;
@@ -24,6 +25,7 @@ export async function inspectArchive(source: AsyncIterable<Buffer>): Promise<Ins
 
   try {
     for await (const event of readArchive(source)) {
+      observe?.(event);
       if (event.type === "manifest") {
         manifest = event.manifest;
         for (const t of manifest.tables) counted[t.name] = 0;

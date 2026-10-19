@@ -1221,6 +1221,19 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   everything a download holds. Tests: `backup-offsite.test.ts` (pure), `backup-offsite.integration.test.ts` (run on
   CockroachDB and YugabyteDB), smoke "offsite" tests, the Offsite tab in `backups.spec.ts`; the real round trip was run
   against a second Garage bucket.
+- **Stored backups are re-read and checked** (`backup/verify.service.ts`, `backup-verify.ts`, migration 0069
+  `backups.verified_at/verify_error/verify_tried_at`, rules in `packages/shared/src/backup-verify.ts`, unit-tested). Job
+  `backup-verify` (10 min) checks the newest `VERIFY_RECENT` ready backups once and the newest again every
+  `VERIFY_RECHECK_DAYS`; a failed one retries after `VERIFY_RETRY_MINUTES`. It runs as a `verify` operation under the ordinary
+  operation lease (so it excludes restores and deletes of that file), reads only, and judges: size and SHA-256 recorded at
+  write time (hash the whole stored file: drain the stream after the tar ends), `inspectArchive` (counts, file checksums),
+  and `ContentChecker` (keys present and unique, required columns filled, every foreign key's parent in the archive; a backup
+  is one serializable snapshot so a dangling link means a wrong file). Failure: one `backup.failed` notice, the Security
+  overview (`judgeVerification`: newest failing = critical). **This proves a file is whole, not that it restores**: the
+  restore rehearsal does (`tests/cluster/verify-restore.sh` / `make verify-restore`: restores a real backup of the dev
+  stack into the throwaway cluster, then compares EVERY node with the file via `dist/scripts/rehearse-restore.js diff`,
+  the app's own `computeDiff`; it cannot rely on signing in afterwards because a restore of a foreign backup replaces the
+  asking account). Integration test: the "stored backup of real data" case in `backup.integration.test.ts`.
 - **Object store**: use `removeObject` per key. minio's `removeObjects` is refused by Garage ("Invalid
   delete XML query"), and swallowing delete errors had leaked archives; `removeBackup` keeps the row when
   the delete fails and `sweepOrphans` cleans up archives with no row.

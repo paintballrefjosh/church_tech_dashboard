@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { BackupController } from "./backup.controller";
 import { BackupService } from "./backup.service";
 import { OBJECT_STORE, S3ObjectStore } from "./object-store";
+import { VerifyService } from "./verify.service";
 import { OFFSITE_STORE_FACTORY, OffsiteService, s3OffsiteStoreFactory } from "./offsite.service";
 
 /**
@@ -13,10 +14,11 @@ import { OFFSITE_STORE_FACTORY, OffsiteService, s3OffsiteStoreFactory } from "./
   providers: [
     BackupService,
     OffsiteService,
+    VerifyService,
     { provide: OBJECT_STORE, useClass: S3ObjectStore },
     { provide: OFFSITE_STORE_FACTORY, useValue: s3OffsiteStoreFactory },
   ],
   controllers: [BackupController],
-  exports: [BackupService, OffsiteService],
+  exports: [BackupService, OffsiteService, VerifyService],
 })
 export class BackupModule {}
