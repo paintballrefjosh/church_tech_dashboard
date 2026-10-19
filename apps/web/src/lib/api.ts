@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import { CONSISTENCY_COOKIE, parseConsistencySetCookie } from "./consistency-cookie";
 
 const internal = process.env.API_INTERNAL_URL ?? "http://api:3001";
 
@@ -33,7 +34,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
   const hasBody = init?.body !== undefined && init?.body !== null && init?.body !== "";
 
-  return fetch(`${internal}${path}`, {
+  const res = await fetch(`${internal}${path}`, {
     ...init,
     headers: {
       ...(hasBody ? { "content-type": "application/json" } : {}),
@@ -43,6 +44,58 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
+  });
+  await relayConsistencyCookie(res);
+  return res;
+}
+
+/**
+ * Hand the API's `church_rv` cookie (see consistency-cookie.ts) on to the browser. Every mutating call the
+ * web makes for a person goes through here or `streamToApi`, so no route handler has to remember it. It
+ * is set through `cookies()`, which Next merges into whatever response the handler returns. Only a
+ * mutating API answer carries the cookie, and those come from route handlers and server actions, where
+ * cookies may be written; a read during page rendering never has one, and the catch covers the rest.
+ */
+async function relayConsistencyCookie(res: Response): Promise<void> {
+  for (const line of res.headers.getSetCookie?.() ?? []) {
+    const c = parseConsistencySetCookie(line);
+    if (!c) continue;
+    try {
+      (await cookies()).set(CONSISTENCY_COOKIE, c.value, { path: "/", maxAge: c.maxAge, httpOnly: true, sameSite: "lax" });
+    } catch {
+      // not in a place where cookies can be written; the next request is only "within about a second"
+    }
+  }
+}
+
+/**
+ * Stream a browser upload (multipart, with its boundary) on to the API without buffering it, and give the
+ * API what `apiFetch` does: the person's cookies, their address and browser (the audit log records them;
+ * without them an upload was audited as the web container, agent "node") and the consistency cookie back.
+ */
+export async function streamToApi(req: Request, path: string): Promise<Response> {
+  const cookieHeader = req.headers.get("cookie");
+  const hdrs: Record<string, string> = {};
+  const contentType = req.headers.get("content-type");
+  const contentLength = req.headers.get("content-length");
+  if (contentType) hdrs["content-type"] = contentType;
+  if (contentLength) hdrs["content-length"] = contentLength;
+  if (cookieHeader) hdrs["cookie"] = cookieHeader;
+  const clientIp = (req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "").split(",")[0]?.trim() ?? "";
+  if (clientIp) hdrs["x-forwarded-for"] = clientIp;
+  const userAgent = req.headers.get("user-agent");
+  if (userAgent) hdrs["user-agent"] = userAgent;
+  const upstream = await fetch(`${internal}${path}`, {
+    method: "POST",
+    headers: hdrs,
+    body: req.body,
+    // @ts-expect-error - undici-specific: required when streaming a request body
+    duplex: "half",
+  });
+  await relayConsistencyCookie(upstream);
+  return new Response(await upstream.text(), {
+    status: upstream.status,
+    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
   });
 }
 
@@ -68,12 +121,9 @@ export async function forwardToApi(req: Request, upstream: string): Promise<Resp
     if (body) init.body = body;
   }
   const res = await apiFetch(`${upstream}${search}`, init);
-  const out = new Response(await res.text(), {
+  // apiFetch has already handed the API's consistency cookie on to the browser.
+  return new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
   });
-  // The API's "read your own writes" cookie (api cluster/read-your-writes.ts) must reach the browser,
-  // or the next request, which may land on another node, would not ask that node to catch up.
-  for (const c of res.headers.getSetCookie?.() ?? []) if (c.startsWith("church_rv=")) out.headers.append("set-cookie", c);
-  return out;
 }

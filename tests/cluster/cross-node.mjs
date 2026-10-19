@@ -132,6 +132,29 @@ await test("the session cookie is accepted by every other node (no stickiness)",
   }
 });
 
+// A change made through the web app's own routes (what the browser calls: /api/..., not /api/v1/...) must hand the
+// API's "read your own writes" cookie to the browser, or the next request, on another node, never asks that node to
+// catch up. Plain handlers, the shared forwarder and the streamed uploads each take a different path in the web.
+await test("changes made through the web routes (plain, forwarded, uploaded) carry the consistency cookie", async () => {
+  const hasRv = (r) => (r.headers.getSetCookie?.() ?? []).some((c) => c.startsWith("church_rv="));
+  const mk = await req(A, "/api/notes", jar, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `rv ${token}`, body: "" }) });
+  assert(mk.status === 200 || mk.status === 201, `create gave ${mk.status}`);
+  assert(hasRv(mk), "POST /api/notes (plain handler) dropped the consistency cookie");
+  const id = (await json(mk)).id;
+  const fd = new FormData();
+  fd.append("file", new Blob([Buffer.concat([PNG_SIG, randomBytes(64)])], { type: "image/png" }), "rv.png");
+  const up = await req(A, `/api/notes/${id}/attachments`, jar, { method: "POST", body: fd });
+  assert(up.status === 200 || up.status === 201, `upload gave ${up.status}`);
+  assert(hasRv(up), "the streamed upload dropped the consistency cookie");
+  const fwd = await req(A, "/api/me/sessions/revoke-others", jar, { method: "POST" });
+  assert(fwd.status === 200 || fwd.status === 201 || fwd.status === 204, `revoke-others gave ${fwd.status}`);
+  assert(hasRv(fwd), "the forwarded route (forwardToApi) dropped the consistency cookie");
+  const read = await req(A, `/api/notes/${id}`, jar);
+  assert(!hasRv(read), "a read should not set the cookie");
+  const del = await req(A, `/api/notes/${id}`, jar, { method: "DELETE" });
+  assert(hasRv(del), "DELETE /api/notes/:id dropped the consistency cookie");
+});
+
 await test(`a note created through ${A} is read through the others`, async () => {
   const r = await req(A, "/api/v1/notes", jar, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `xnode ${token}`, body: `zebrafish${token}` }) });
   assert(r.status === 200 || r.status === 201, `create gave ${r.status}`);

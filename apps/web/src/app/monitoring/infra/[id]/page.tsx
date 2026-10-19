@@ -14,12 +14,12 @@ export default async function InfraDetailPage({ params }: { params: Promise<{ id
   if (!session?.user) redirect("/signin");
   const { id } = await params;
 
-  const target = await apiJson<InfraTarget>(`/api/v1/infra/targets/${id}`).catch(() => null);
+  const target = await apiJson<InfraTarget>(`/api/v1/infra/targets/${encodeURIComponent(id)}`).catch(() => null);
   if (!target) notFound();
   const [entities, incidents, updateRuns] = await Promise.all([
-    apiJson<InfraEntity[]>(`/api/v1/infra/targets/${id}/entities`).catch(() => [] as InfraEntity[]),
-    apiJson<MonitorIncident[]>(`/api/v1/infra/targets/${id}/incidents`).catch(() => [] as MonitorIncident[]),
-    apiJson<InfraUpdateRun[]>(`/api/v1/infra/targets/${id}/update-runs`).catch(() => [] as InfraUpdateRun[]),
+    apiJson<InfraEntity[]>(`/api/v1/infra/targets/${encodeURIComponent(id)}/entities`).catch(() => [] as InfraEntity[]),
+    apiJson<MonitorIncident[]>(`/api/v1/infra/targets/${encodeURIComponent(id)}/incidents`).catch(() => [] as MonitorIncident[]),
+    apiJson<InfraUpdateRun[]>(`/api/v1/infra/targets/${encodeURIComponent(id)}/update-runs`).catch(() => [] as InfraUpdateRun[]),
   ]);
 
   return (

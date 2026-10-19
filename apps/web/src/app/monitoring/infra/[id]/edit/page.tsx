@@ -14,7 +14,7 @@ export default async function EditInfraTargetPage({ params }: { params: Promise<
   const session = await auth();
   if (!session?.user) redirect("/signin");
   const { id } = await params;
-  const target = await apiJson<InfraTarget>(`/api/v1/infra/targets/${id}`).catch(() => null);
+  const target = await apiJson<InfraTarget>(`/api/v1/infra/targets/${encodeURIComponent(id)}`).catch(() => null);
   if (!target) notFound();
 
   return (

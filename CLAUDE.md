@@ -1037,8 +1037,12 @@ must keep a second node working:
   above); the ordering guarantee is separate: in a cluster every mutating response first flushes the bus
   (`ClusterBus.flushNow`) and sets a 10 s `church_rv` cookie, and a request carrying it makes its node run
   a poll first (`ClusterBus.syncSince`). Without that the smoke suite fails through a load balancer
-  (password change then write: 403, settings, TOTP). Next route handlers that proxy the API must relay the
-  cookie (`forwardToApi` does); server actions calling `apiFetch` do not yet. Cookie-less clients (API
+  (password change then write: 403, settings, TOTP). The web relays the cookie in ONE place: `apiFetch` (and
+  `streamToApi`, for the multipart upload proxies) sets it on the browser through `cookies()` after any API answer that carries
+  it, so a route handler or server action using them needs nothing extra (until 2026-10-19 only `forwardToApi` did and about
+  sixty other handlers dropped it). Proxy uploads with `streamToApi`, never a hand-rolled `fetch`: that also forwards the
+  person's address and browser, which a raw fetch lost (uploads were audited as the web container, agent "node"). Cross-node
+  test: "changes made through the web routes ... carry the consistency cookie". Cookie-less clients (API
   tokens) get "within about a second": write tests for them to allow for it.
 - **The admin Cluster page** (`apps/api/src/cluster-admin/`, `/admin/cluster`) reads the same tables the
   coordination uses (`cluster_nodes`, `cluster_leases`) plus a database and object-store probe and, for the
