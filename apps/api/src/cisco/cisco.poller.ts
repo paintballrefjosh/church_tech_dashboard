@@ -192,12 +192,17 @@ export class CiscoPoller implements OnModuleInit {
   async triggerManualBackup(id: string): Promise<void> {
     const [sw] = await this.db.select().from(ciscoSwitches).where(eq(ciscoSwitches.id, id)).limit(1);
     if (!sw) return;
+    await this.snapshot(sw, "manual");
+  }
+
+  /** Read the running configuration over SSH and keep it as a backup of the given type; false when nothing useful came back. */
+  protected async snapshot(sw: SwitchRow, type: "manual" | "pre-change"): Promise<boolean> {
     const cfg = this.pinnedConn(sw);
     const versionRaw = await sshShell(cfg, ["show version"]);
     const os = detectOS(versionRaw);
     const runCmd = os === "nxos" ? "show run all" : "show running-config";
     const raw = await sshShell(cfg, [runCmd]);
-    await this.saveBackup(id, extractRunningConfig(raw, os), "manual");
+    return this.saveBackup(sw.id, extractRunningConfig(raw, os), type);
   }
 
   async pollSwitch(sw: SwitchRow): Promise<void> {
@@ -537,7 +542,7 @@ export class CiscoPoller implements OnModuleInit {
 
   // ---- backups ----
 
-  async saveBackup(switchId: string, rawConfig: string, type: "incremental" | "full" | "manual"): Promise<boolean> {
+  async saveBackup(switchId: string, rawConfig: string, type: "incremental" | "full" | "manual" | "pre-change"): Promise<boolean> {
     const normalized = normalizeConfig(rawConfig);
     if (!normalized || normalized.length < 20) return false; // nothing useful captured
     const checksum = configChecksum(normalized);
@@ -689,12 +694,31 @@ export class CiscoPoller implements OnModuleInit {
     }
   }
 
+  /**
+   * Apply, check, then save, in that order. The lines are built (and every value validated) before the switch is touched;
+   * a copy of its configuration is kept first; the lines run WITHOUT `write memory`; and only when the switch accepted
+   * every one is the startup configuration written, in a second short session. The old single session ended in
+   * `write memory` whatever the switch had said, so a rejected line left the lines around it saved, and the error was
+   * only noticed afterwards. Now a rejected line leaves the startup configuration alone (a reload undoes the rest), and
+   * the copy taken first is in Backups as "pre-change".
+   */
   private async pushNow(id: string, changes: PushChange[]): Promise<void> {
     const [sw] = await this.db.select().from(ciscoSwitches).where(eq(ciscoSwitches.id, id)).limit(1);
     if (!sw) throw new Error("switch not found");
-    const output = await sshShell(this.pinnedConn(sw), buildPushCommands(changes));
+    const cfg = this.pinnedConn(sw);
+    const commands = buildPushCommands(changes, { save: false });
+    if (!(await this.snapshot(sw, "pre-change"))) {
+      throw new Error("Could not read the switch's configuration to keep a copy first, so nothing was changed.");
+    }
+    const output = await sshShell(cfg, commands);
     // The session ends normally even when the switch refused a command, so look for its error lines.
     const refused = findCliError(output);
-    if (refused) throw new Error(`The switch refused a command: ${refused}`);
+    if (refused) {
+      throw new Error(
+        `The switch refused a command: ${refused}. Lines before it may be active on the switch but were NOT saved to its startup configuration (a reload undoes them); the configuration from before is in Backups as "pre-change".`,
+      );
+    }
+    const saved = findCliError(await sshShell(cfg, ["write memory"]));
+    if (saved) throw new Error(`The changes are active on the switch but it would not save them: ${saved}`);
   }
 }

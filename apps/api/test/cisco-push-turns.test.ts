@@ -35,6 +35,8 @@ function poller() {
   const db = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: "sw" }] }) }) }) };
   const p = new CiscoPoller(db as never, {} as never, {} as never, {} as never, {} as never, new FakeLeases() as never, {} as never);
   (p as unknown as { pinnedConn: () => object }).pinnedConn = () => ({});
+  // The safety copy of the configuration (two more SSH sessions and a stored backup) is covered in cisco-push-safety.test.ts.
+  (p as unknown as { snapshot: () => Promise<boolean> }).snapshot = async () => true;
   return p;
 }
 
@@ -46,9 +48,10 @@ describe("pushes to switches", () => {
     const speed = (port: string) => [{ portId: port, field: "speed", value: "1000" }];
 
     await Promise.all([p.pushToSwitch("sw-a", speed("Gi1/0/1")), p.pushToSwitch("sw-a", speed("Gi1/0/2"))]);
-    expect(sessions).toHaveLength(2);
+    // each push is two sessions: the lines, then the save
+    expect(sessions).toHaveLength(4);
     expect(maxActive).toBe(1);
-    expect(sessions[1]!.start).toBeGreaterThanOrEqual(sessions[0]!.end);
+    expect(sessions[2]!.start).toBeGreaterThanOrEqual(sessions[1]!.end);
 
     sessions.length = 0;
     maxActive = 0;
@@ -63,7 +66,8 @@ describe("pushes to switches", () => {
       { portId: "Gi1/0/1", field: "speed", value: "1G" },
       { portId: "Gi1/0/1", field: "duplex", value: "full" },
     ]);
-    expect(sessions[0]!.cmds).toEqual(["configure terminal", "interface Gi1/0/1", "speed 1000", "duplex full", "exit", "end", "write memory"]);
+    expect(sessions[0]!.cmds).toEqual(["configure terminal", "interface Gi1/0/1", "speed 1000", "duplex full", "exit", "end"]);
+    expect(sessions[1]!.cmds).toEqual(["write memory"]);
 
     sessions.length = 0;
     await expect(p.pushToSwitch("sw-a", [{ portId: "Gi1/0/1", field: "description", value: "x\nreload" }])).rejects.toThrow(/control characters/);

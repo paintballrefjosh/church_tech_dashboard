@@ -175,6 +175,21 @@ UniFi `unifi:read:any` / `unifi:admin` permissions are now granted by the
 settings category (`/admin/settings/monitoring`). The API endpoints stay at
 `/api/v1/unifi/*` — only the module/UI grouping changed.
 
+**Cisco pushes and stored configurations were reviewed 2026-10-19.** Rules: (1) **`buildPushCommands` is the one place a CLI line is made, and it
+validates every value** (interface name pattern, VLAN numbers, allowed-VLAN list, speed, duplex, mode, host name, VLAN name, no control characters)
+whatever route the value came by: `interface range Gi1/0/1-48` or `speed 1000 ; reload` is a command, not a setting. The port schema checks the same
+shapes at the door. (2) **A push is apply, check, save**, never one session ending in `write memory`: `pushNow` keeps a copy of the running config first
+(backup type `pre-change`; no copy = nothing is changed), runs the lines with `save: false`, looks for refusals (`findCliError`, which includes
+authorization failures), and only then writes the startup config in a second short session. A refused line leaves the startup config alone (a reload
+undoes the rest). (3) **SSH algorithm lists are strongest first** (`ssh.ts`): the client's order decides, and the old order made a switch that offers
+curve25519 and AES-GCM negotiate `diffie-hellman-group1-sha1` and CBC for the password (measured). The old algorithms stay, last, for old IOS boxes.
+**Leave `serverHostKey` order alone**: the pinned fingerprint is of the key type the switch presents, and reordering could make a switch with several host
+keys look like an interception. (4) **Stored configurations are readable by every volunteer** (`monitors:read:any` is the Monitoring USER tier), and they
+hold SNMP communities, local-user and enable hashes and AAA/routing keys, so `GET .../backups/:id` and `.../diff/...` redact those lines
+(`config-redact.ts`, `<hidden>`, same line count) unless the caller has `monitors:write:any`. Redact before diffing; a new route that returns config text
+must do the same. Tests: `cisco-push-validation`, `cisco-push-safety`, `cisco-ssh-algorithms` (a fake switch that offers old and new), `cisco-config-redact`,
+smoke `tests/smoke/cisco.mjs` (a volunteer account reads a real stored config; read-only, pushes nothing). Never push to the real switches to test.
+
 Cisco SSH **pins the switch's host key** (`cisco_switches.known_host_key`, migration 0059): trust on first use,
 then a different key is refused before the password is sent (`SshHostKeyMismatchError`, shown on the switch
 page with a "Trust new host key" action: `POST /cisco/switches/:id/reset-host-key`). Changing a switch's IP
