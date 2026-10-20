@@ -31,29 +31,38 @@ export interface SshShellOpts {
   onHostKey?: (fingerprint: string) => void;
 }
 
-const LEGACY_ALGORITHMS = {
+/**
+ * Old IOS boxes need old algorithms to negotiate at all, so they stay available, but LAST: the client's list order decides
+ * (RFC 4253: the first entry on the client's list that the server also has). With the oldest first, a switch that
+ * supports curve25519 and AES-GCM still got diffie-hellman-group1-sha1 and aes128-cbc for the password and every command.
+ *
+ * `serverHostKey` keeps its original order ON PURPOSE: the pinned fingerprint (cisco_switches.known_host_key) is of
+ * whichever key type the switch presented, and a switch with several host keys would present a different one, and so be
+ * refused as a possible interception, if this list were reordered.
+ */
+export const LEGACY_ALGORITHMS = {
   kex: [
-    "diffie-hellman-group1-sha1",
-    "diffie-hellman-group14-sha1",
-    "diffie-hellman-group-exchange-sha1",
-    "diffie-hellman-group14-sha256",
-    "diffie-hellman-group16-sha512",
+    "curve25519-sha256",
+    "curve25519-sha256@libssh.org",
     "ecdh-sha2-nistp256",
     "ecdh-sha2-nistp384",
     "ecdh-sha2-nistp521",
-    "curve25519-sha256",
-    "curve25519-sha256@libssh.org",
+    "diffie-hellman-group16-sha512",
+    "diffie-hellman-group14-sha256",
+    "diffie-hellman-group14-sha1",
+    "diffie-hellman-group-exchange-sha1",
+    "diffie-hellman-group1-sha1",
   ],
   cipher: [
-    "aes128-cbc",
-    "aes192-cbc",
-    "aes256-cbc",
-    "3des-cbc",
+    "aes128-gcm@openssh.com",
+    "aes256-gcm@openssh.com",
     "aes128-ctr",
     "aes192-ctr",
     "aes256-ctr",
-    "aes128-gcm@openssh.com",
-    "aes256-gcm@openssh.com",
+    "aes256-cbc",
+    "aes192-cbc",
+    "aes128-cbc",
+    "3des-cbc",
   ],
   serverHostKey: [
     "ssh-rsa",
@@ -63,7 +72,7 @@ const LEGACY_ALGORITHMS = {
     "ecdsa-sha2-nistp256",
     "ssh-ed25519",
   ],
-  hmac: ["hmac-sha1", "hmac-sha2-256", "hmac-sha2-512"],
+  hmac: ["hmac-sha2-256", "hmac-sha2-512", "hmac-sha1"],
 } as const;
 
 const QUIET_MS = 1500;

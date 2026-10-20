@@ -35,6 +35,7 @@ import type {
 import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shared";
 import { CiscoVlansService } from "./cisco-vlans.service";
 import { parseVlanScope } from "./vlan-drift";
+import { redactConfig } from "./config-redact";
 import { diffConfigs, type DiffResult } from "./diff";
 
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
@@ -215,17 +216,22 @@ export class CiscoService {
     }));
   }
 
-  async backup(switchId: string, backupId: string): Promise<{ id: string; configText: string; backedUpAt: string }> {
+  /**
+   * A stored configuration. `redact` hides its secrets (SNMP communities, user and enable hashes, AAA and routing keys,
+   * see config-redact.ts): it is on for everyone who cannot change the switches, because every volunteer holds the
+   * Monitoring user tier that reads these.
+   */
+  async backup(switchId: string, backupId: string, redact: boolean): Promise<{ id: string; configText: string; backedUpAt: string }> {
     const [row] = await this.db
       .select()
       .from(ciscoConfigBackups)
       .where(and(eq(ciscoConfigBackups.id, backupId), eq(ciscoConfigBackups.switchId, switchId)))
       .limit(1);
     if (!row) throw new NotFoundException("Backup not found");
-    return { id: row.id, configText: row.configText, backedUpAt: row.backedUpAt.toISOString() };
+    return { id: row.id, configText: redact ? redactConfig(row.configText) : row.configText, backedUpAt: row.backedUpAt.toISOString() };
   }
 
-  async backupDiff(switchId: string, aId: string, bId: string): Promise<DiffResult> {
+  async backupDiff(switchId: string, aId: string, bId: string, redact: boolean): Promise<DiffResult> {
     const rows = await this.db
       .select({ id: ciscoConfigBackups.id, configText: ciscoConfigBackups.configText })
       .from(ciscoConfigBackups)
@@ -233,7 +239,8 @@ export class CiscoService {
     const a = rows.find((r) => r.id === aId);
     const b = rows.find((r) => r.id === bId);
     if (!a || !b) throw new NotFoundException("Backup not found");
-    return diffConfigs(a.configText, b.configText);
+    // Redact BEFORE diffing: a diff shows the lines themselves.
+    return redact ? diffConfigs(redactConfig(a.configText), redactConfig(b.configText)) : diffConfigs(a.configText, b.configText);
   }
 
   async deleteBackup(switchId: string, backupId: string): Promise<{ ok: true }> {

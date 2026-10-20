@@ -11,6 +11,14 @@ import type { Writable } from "node:stream";
 
 const BLOCK = 512;
 
+/**
+ * The largest extended (PAX) header the reader will hold. A real one is a few dozen bytes (a long path). The reader
+ * used to hold whatever size the header announced, and a header announcing 64 MiB took over three minutes of CPU to
+ * "read" (the buffer was re-copied for every chunk that arrived), from a few dozen KB of gzip: a file that holds the
+ * backup lease for as long as it likes. Anything bigger is a damaged or hostile file.
+ */
+export const MAX_PAX_BYTES = 1024 * 1024;
+
 function octal(n: number, width: number): string {
   return n.toString(8).padStart(width - 1, "0") + "\0";
 }
@@ -227,11 +235,18 @@ export async function* readTar(source: AsyncIterable<Buffer>): AsyncGenerator<Ta
     if (sum !== storedSum) throw new Error("tar: header checksum mismatch (the file is damaged or not a tar archive)");
 
     const size = parseOctal(h, 124, 12);
+    // NaN (not octal), negative, or beyond what a number holds exactly: no real archive says that.
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new Error("tar: a header announces an impossible size (the file is damaged or not a tar archive)");
+    }
     const type = String.fromCharCode(h[156] === 0 ? 0x30 : h[156]!);
     const prefix = cstring(h, 345, 155);
     const baseName = cstring(h, 0, 100);
 
     if (type === "x" || type === "g") {
+      if (size > MAX_PAX_BYTES) {
+        throw new Error("tar: an extended header is far larger than any real one (the file is damaged, or built to exhaust memory)");
+      }
       const data = await input.read(size);
       await input.skip(pad(size).length);
       if (type === "x") pax = { ...pax, ...parsePax(data) };

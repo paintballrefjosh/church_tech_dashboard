@@ -1,6 +1,34 @@
 import { gzipSync } from "node:zlib";
 import { randomBytes } from "node:crypto";
 
+
+// ---- hand-made (hostile) backup files: a tar.gz built here, byte by byte ----
+const BLOCK = 512;
+function tarHeader(name, sizeText, type = "0") {
+  const h = Buffer.alloc(BLOCK);
+  h.write(name, 0);
+  h.write("0000644\0", 100);
+  h.write("0000000\0", 108);
+  h.write("0000000\0", 116);
+  h.write(sizeText.padEnd(12, "\0"), 124);
+  h.write("00000000000\0", 136);
+  h.fill(0x20, 148, 156);
+  h[156] = type.charCodeAt(0);
+  h.write("ustar\0", 257);
+  h.write("00", 263);
+  let sum = 0;
+  for (let i = 0; i < BLOCK; i++) sum += h[i];
+  h.write(sum.toString(8).padStart(6, "0") + "\0 ", 148);
+  return h;
+}
+const octal12 = (n) => n.toString(8).padStart(11, "0") + "\0";
+function tarEntry(name, data) {
+  const pad = (BLOCK - (data.length % BLOCK)) % BLOCK;
+  return Buffer.concat([tarHeader(name, octal12(data.length)), data, Buffer.alloc(pad)]);
+}
+const tarEnd = () => Buffer.alloc(BLOCK * 2);
+const MANIFEST = { format: "church-dashboard-backup", version: 1, id: "smoke", name: "[smoke] hostile", createdAt: new Date().toISOString(), appVersion: null, schemaMigrations: 1, secretFingerprint: "x", includeFiles: true, createdBy: null, tables: [] };
+
 /**
  * Backup smoke tests (admin > Backups), run from run.mjs. Everything here is non-destructive: it
  * makes, downloads, uploads, compares and deletes backups of the running stack. It never restores,
@@ -197,6 +225,50 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     // A failed backup cannot be compared or restored.
     const c = await session(`/api/v1/admin/backups/${backupId}/compare`, { method: "POST" });
     assert(c.res.status === 400, `compare of a failed backup: ${c.res.status}`);
+  });
+
+  // A restore acts on whatever a backup file says, so a hostile file must be refused at the upload check, in plain words.
+  const uploadHostile = async (tarBytes, filename) => {
+    const fd = new FormData();
+    fd.append("file", new Blob([gzipSync(tarBytes)]), filename);
+    const up = await session("/api/v1/admin/backups/upload", { method: "POST", body: fd });
+    assert(up.res.status === 202, `upload status ${up.res.status}: ${await up.res.clone().text()}`);
+    const { backupId, operationId } = await up.res.json();
+    made.push(backupId);
+    return { backupId, op: await waitFor(operationId, 60) };
+  };
+
+  await test("backups: an upload that names a file outside the uploads folder is refused (it would overwrite a stored backup)", async () => {
+    const tar = Buffer.concat([
+      tarEntry("manifest.json", Buffer.from(JSON.stringify(MANIFEST))),
+      tarEntry("files/backups/some-stored-backup.tar.gz", Buffer.from("not yours")),
+      tarEnd(),
+    ]);
+    const { backupId, op } = await uploadHostile(tar, "outside.tar.gz");
+    assert(op.status === "failed" && /outside the uploads folder/.test(op.error ?? ""), `op: ${op.status} ${op.error}`);
+    const row = await (await session(`/api/v1/admin/backups/${backupId}`)).res.json();
+    assert(row.status === "failed", `row status ${row.status}`);
+    const files = await session(`/api/v1/admin/backups/${backupId}/restore`, { method: "POST", ...json({ confirm: "RESTORE" }) });
+    assert(files.res.status === 400, `restore of a refused upload: ${files.res.status}`);
+  });
+
+  await test("backups: an upload with an oversized extended header is refused at once instead of being read for minutes", async () => {
+    // 64 MiB of zeros compresses to ~64 KB; the old reader tried to hold it all and re-copied it for every chunk.
+    const tar = Buffer.concat([
+      tarEntry("manifest.json", Buffer.from(JSON.stringify(MANIFEST))),
+      tarHeader("PaxHeader", octal12(64 * 1024 * 1024), "x"),
+      Buffer.alloc(64 * 1024 * 1024),
+    ]);
+    const started = Date.now();
+    const { op } = await uploadHostile(tar, "pax-bomb.tar.gz");
+    assert(op.status === "failed" && /extended header is far larger/.test(op.error ?? ""), `op: ${op.status} ${op.error}`);
+    assert(Date.now() - started < 30_000, `took ${Date.now() - started} ms`);
+  });
+
+  await test("backups: an upload whose header size is not a number is refused in plain words", async () => {
+    const tar = Buffer.concat([tarHeader("manifest.json", "zzzzzzzzzzz\0"), Buffer.alloc(BLOCK)]);
+    const { op } = await uploadHostile(tar, "bad-size.tar.gz");
+    assert(op.status === "failed" && /impossible size/.test(op.error ?? ""), `op: ${op.status} ${op.error}`);
   });
 
   await test("backups: restore refuses without the typed confirmation, and rename works", async () => {

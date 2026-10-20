@@ -2208,6 +2208,10 @@ async function main() {
   const { wikiImportTests } = await import("./wiki-import.mjs");
   await wikiImportTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- Cisco: configuration secrets and port-name validation (tests/smoke/cisco.mjs; never touches a switch) ----
+  const { ciscoTests } = await import("./cisco.mjs");
+  await ciscoTests({ test, assert, fetchWithCookies, jar });
+
   // ---- notification delivery: quiet hours, summary, push (tests/smoke/notification-delivery.mjs) ----
   const { notificationDeliveryTests } = await import("./notification-delivery.mjs");
   await notificationDeliveryTests({ test, assert, fetchWithCookies, jar });

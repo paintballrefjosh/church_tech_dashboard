@@ -10,6 +10,7 @@ import {
   Query,
   BadGatewayException,
   BadRequestException,
+  Logger,
 } from "@nestjs/common";
 import {
   PERMISSIONS,
@@ -20,6 +21,7 @@ import {
   ciscoVlanSetSchema,
   updateCiscoPortSchema,
 } from "@church/shared";
+import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";
@@ -42,6 +44,8 @@ const WRITE = PERMISSIONS.MONITORS_WRITE_ANY;
 
 @Controller("cisco")
 export class CiscoController {
+  private readonly logger = new Logger(CiscoController.name);
+
   constructor(
     private readonly cisco: CiscoService,
     private readonly poller: CiscoPoller,
@@ -149,16 +153,18 @@ export class CiscoController {
     return this.cisco.backupStatus();
   }
 
+  // The Monitoring user tier (every volunteer, by default) may read these, so secrets in the text are hidden unless the
+  // caller can change the switches (see config-redact.ts).
   @Get("switches/:id/backups/:backupId")
   @RequirePermissions(READ)
-  backup(@Param("id") id: string, @Param("backupId") backupId: string) {
-    return this.cisco.backup(id, backupId);
+  backup(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Param("backupId") backupId: string) {
+    return this.cisco.backup(id, backupId, !user.permissions.includes(WRITE));
   }
 
   @Get("switches/:id/backups/:aId/diff/:bId")
   @RequirePermissions(READ)
-  backupDiff(@Param("id") id: string, @Param("aId") aId: string, @Param("bId") bId: string) {
-    return this.cisco.backupDiff(id, aId, bId);
+  backupDiff(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Param("aId") aId: string, @Param("bId") bId: string) {
+    return this.cisco.backupDiff(id, aId, bId, !user.permissions.includes(WRITE));
   }
 
   @Delete("switches/:id/backups/:backupId")
@@ -297,7 +303,7 @@ export class CiscoController {
     const row = await this.cisco.updatePort(id, portRowId, { adminEnabled: enabled });
     void this.poller
       .pushToSwitch(id, [{ portId: row.portId, field: "admin_enabled", value: enabled ? "1" : "0" }])
-      .catch(() => undefined);
+      .catch((err: unknown) => this.logger.warn(`port ${row.portId} toggle was not pushed to switch ${id}: ${(err as Error).message}`));
     return { ok: true, started: true };
   }
 

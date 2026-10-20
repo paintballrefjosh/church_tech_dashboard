@@ -98,7 +98,7 @@ export type SetSwitchViewInput = z.infer<typeof setSwitchViewSchema>;
 
 export interface CiscoBackupListItem {
   id: string;
-  backupType: "full" | "incremental" | "manual";
+  backupType: "full" | "incremental" | "manual" | "pre-change";
   backedUpAt: string;
   checksum: string;
   configSize: number;
@@ -307,7 +307,13 @@ export function speedLabel(raw: string | null | undefined): string {
 }
 
 export const ciscoPortInputSchema = z.object({
-  portId: z.string().min(1).max(32),
+  // An interface name (Gi1/0/1, Po1, Ethernet1/1, mgmt0): it is typed into `interface <name>` on the switch, so no spaces
+  // ("interface range ..." would be every port), separators or anything else.
+  portId: z
+    .string()
+    .min(1)
+    .max(32)
+    .regex(/^[A-Za-z][A-Za-z-]{0,30}\d[\d/.:]{0,20}$/, "Use an interface name such as Gi1/0/1"),
   // A description is sent to the switch as one CLI line, so no line breaks or control characters.
   description: z
     .string()
@@ -315,13 +321,17 @@ export const ciscoPortInputSchema = z.object({
     .regex(/^[^\u0000-\u001f\u007f]*$/, "No line breaks or control characters")
     .optional(),
   adminEnabled: z.boolean().optional(),
-  speed: z.string().max(16).optional(),
-  duplex: z.string().max(16).optional(),
+  speed: z.string().max(16).regex(/^\s*(?:auto\w*|\d{1,6}(?:\.\d+)?\s*[mMgG]?(?:bps|b)?)?\s*$/, "Use auto or a speed such as 100, 1000 or 1G").optional(),
+  duplex: z.string().max(16).regex(/^\s*(?:auto|full|half)?\s*$/i, "Use auto, full or half").optional(),
   mode: z.enum(["access", "trunk"]).optional(),
   hasSwitchport: z.boolean().optional(),
   accessVlan: z.number().int().min(1).max(4094).optional(),
   trunkNativeVlan: z.number().int().min(1).max(4094).optional(),
-  trunkAllowedVlans: z.string().max(255).optional(),
+  trunkAllowedVlans: z
+    .string()
+    .max(255)
+    .regex(/^\s*(?:all|none|(?:(?:add|remove|except)\s+)?\d{1,4}(?:-\d{1,4})?(?:,\d{1,4}(?:-\d{1,4})?)*)?\s*$/i, "Use VLAN numbers and ranges such as 10,20-30, all or none")
+    .optional(),
 });
 export type CiscoPortInput = z.infer<typeof ciscoPortInputSchema>;
 

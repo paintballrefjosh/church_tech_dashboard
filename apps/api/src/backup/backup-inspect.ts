@@ -46,6 +46,9 @@ export async function inspectArchive(source: AsyncIterable<Buffer>, observe?: (e
       }
     }
   } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(`The backup is damaged: part of it is not valid data (${err.message.slice(0, 120)}).`);
+    }
     const msg = (err as Error).message;
     if (/incorrect header check|unexpected end of file|invalid (block|stored|distance|code)|data error/i.test(msg)) {
       throw new Error("The file is not a complete, valid backup (it could not be decompressed). Was the download interrupted?");
