@@ -85,6 +85,7 @@ export function SwitchFaceplate({
   const other = layout.otherImage;
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buttons = useRef(new Map<string, HTMLElement>());
+  const restoringFocus = useRef(false);
   const popoverId = useRef(`faceplate-popover-${Math.random().toString(36).slice(2, 9)}`).current;
 
   const open = pinned ?? hover;
@@ -130,7 +131,12 @@ export function SwitchFaceplate({
       if (e.key !== "Escape") return;
       const id = open?.id;
       closeAll();
-      if (id) buttons.current.get(id)?.focus();
+      if (id) {
+        // Giving the port its focus back must not open its preview again.
+        restoringFocus.current = true;
+        buttons.current.get(id)?.focus();
+        restoringFocus.current = false;
+      }
     }
     function onDown(e: PointerEvent) {
       const t = e.target as Node;
@@ -179,7 +185,9 @@ export function SwitchFaceplate({
         onPointerLeave={(e) => {
           if (e.pointerType === "mouse") scheduleClose();
         }}
-        onFocus={(e) => previewOn(item.id, e.currentTarget)}
+        onFocus={(e) => {
+          if (!restoringFocus.current) previewOn(item.id, e.currentTarget);
+        }}
         onBlur={scheduleClose}
         onClick={(e) => pinOn(item.id, e.currentTarget)}
         style={style}

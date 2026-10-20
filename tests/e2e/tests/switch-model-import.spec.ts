@@ -113,6 +113,7 @@ test.describe("Switch models: import from a file", () => {
     await page.goto("/monitoring/network-cisco/models");
     await page.getByRole("button", { name: "Import from a file" }).click();
     await page.getByLabel("Choose a stencil or picture file").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a picture") });
-    await expect(page.getByRole("alert")).toContainText("not a kind of file");
+    // Next adds its own role=alert route announcer, so pick the importer's message by its text.
+    await expect(page.getByRole("alert").filter({ hasText: "not a kind of file" })).toBeVisible();
   });
 });
