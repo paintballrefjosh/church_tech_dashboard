@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from "@nestjs/common";
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import {
@@ -10,12 +10,14 @@ import {
   ciscoMacTable,
   ciscoArpCache,
   ciscoNeighbors,
+  switchModels,
 } from "../db/schema";
 import { encryptSecret } from "../settings/crypto";
 import type {
   CiscoSwitch,
   CreateCiscoSwitchInput,
   UpdateCiscoSwitchInput,
+  SetSwitchViewInput,
   CiscoBackupListItem,
   CiscoBackupRow,
   CiscoDriftEvent,
@@ -148,6 +150,28 @@ export class CiscoService {
     // Blank/omitted password = keep the stored credential.
     if (input.password && input.password.length > 0) patch.passwordEnc = encryptSecret(input.password);
     await this.db.update(ciscoSwitches).set(patch).where(eq(ciscoSwitches.id, id));
+    return this.getById(id);
+  }
+
+  /**
+   * Choose which switch model draws this switch's picture: "auto" lets the model text decide (the web matches it against
+   * each model's match strings), "model" pins one for this switch, "off" lists the ports with no picture. Touches nothing
+   * on the switch itself.
+   */
+  async setSwitchView(id: string, input: SetSwitchViewInput): Promise<CiscoSwitch> {
+    await this.rowById(id);
+    if (input.mode === "model") {
+      const [m] = await this.db.select({ id: switchModels.id }).from(switchModels).where(eq(switchModels.id, input.modelId!)).limit(1);
+      if (!m) throw new BadRequestException("That switch model does not exist");
+    }
+    await this.db
+      .update(ciscoSwitches)
+      .set({
+        switchModelId: input.mode === "model" ? input.modelId! : null,
+        switchViewOff: input.mode === "off",
+        updatedAt: new Date(),
+      })
+      .where(eq(ciscoSwitches.id, id));
     return this.getById(id);
   }
 
@@ -878,6 +902,8 @@ function toSwitch(row: SwitchRow): CiscoSwitch {
     alertPrefs: normalizePrefs(row.alertPrefs),
     hasPassword: Boolean(row.passwordEnc),
     hostKeyPinned: Boolean(row.knownHostKey),
+    switchModelId: row.switchModelId ?? null,
+    switchViewOff: row.switchViewOff,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ATTACHMENT_PARENT_TYPES = ["note", "ticket", "ticket_comment", "wiki_page"] as const;
+export const ATTACHMENT_PARENT_TYPES = ["note", "ticket", "ticket_comment", "wiki_page", "switch_model"] as const;
 export type AttachmentParentType = (typeof ATTACHMENT_PARENT_TYPES)[number];
 
 /**

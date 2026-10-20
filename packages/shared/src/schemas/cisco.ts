@@ -40,6 +40,10 @@ export const ciscoSwitchSchema = z.object({
   hasPassword: z.boolean(),
   /** The switch's SSH host key has been recorded; a different key is refused. */
   hostKeyPinned: z.boolean().optional(),
+  /** The switch model an admin picked for this switch's picture (see setSwitchViewSchema); null = decided by the model text. */
+  switchModelId: z.string().uuid().nullable().optional(),
+  /** An admin turned the switch view off for this switch: its ports are listed only. */
+  switchViewOff: z.boolean().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   // Present on list rows (aggregated); optional on single-get.
@@ -73,6 +77,22 @@ export const updateCiscoSwitchSchema = z.object({
   alertPrefs: ciscoAlertPrefsSchema.partial().optional(),
 });
 export type UpdateCiscoSwitchInput = z.infer<typeof updateCiscoSwitchSchema>;
+
+/**
+ * Which switch model draws a switch's front-of-the-switch picture. "auto" (the default) matches the model text the switch
+ * reports against each model's match strings; "model" is an admin's pick for this switch alone and beats that match;
+ * "off" lists the ports with no picture. A "model" needs its id.
+ */
+export const setSwitchViewSchema = z
+  .object({
+    mode: z.enum(["auto", "model", "off"]),
+    modelId: z.string().uuid().optional(),
+  })
+  .refine((v) => (v.mode === "model") === (v.modelId !== undefined), {
+    message: "A model is needed for mode 'model', and only then",
+    path: ["modelId"],
+  });
+export type SetSwitchViewInput = z.infer<typeof setSwitchViewSchema>;
 
 // ---- read-only output types (frontend typing; not validated on input) ----
 

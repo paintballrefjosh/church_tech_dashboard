@@ -18,6 +18,7 @@ export * from "./schemas/ticket-category";
 export * from "./schemas/checklist";
 export * from "./schemas/printer";
 export * from "./schemas/cisco";
+export * from "./schemas/switch-model";
 export * from "./schemas/ipam";
 export * from "./schemas/ups";
 export * from "./schemas/dns";

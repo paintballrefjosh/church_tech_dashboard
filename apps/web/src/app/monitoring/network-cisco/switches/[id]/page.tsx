@@ -17,6 +17,13 @@ import {
 import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
 import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
+import { PortViewToggle, usePortView } from "@/components/port-view-toggle";
+import { SwitchFaceplate, type FaceItem, type FaceState } from "@/components/switch-faceplate";
+import { slotForPort, type FaceplateLayout } from "@/lib/faceplates/layouts";
+import { resolveSwitchView } from "@/lib/faceplates/custom";
+import { SwitchViewLine } from "@/components/switch-view-line";
+import { useSwitchModels } from "@/lib/use-switch-models";
+import { SwitchFormModal, formFromSwitch, type SwitchFormState } from "../../switch-form";
 
 /** The standard speeds, plus the port's own value when it is something else (a typo stays visible, not hidden). */
 function speedOptions(current: string): Array<{ value: string; label: string }> {
@@ -51,6 +58,120 @@ const EMPTY: PortForm = {
   trunkAllowedVlans: "1-4094",
 };
 
+/** How a port looks on the picture: shut down (by the desired config) wins over what the switch last reported. */
+function faceState(p: CiscoPortRow): { state: FaceState; text: string } {
+  if (!p.adminEnabled) return { state: "shut", text: "shut down" };
+  if (p.operStatus === "err-disabled") return { state: "error", text: "error-disabled" };
+  if (p.operStatus === "up") return { state: "up", text: "up" };
+  if (p.operStatus === "down") return { state: "down", text: "enabled, no link" };
+  return { state: "unknown", text: "not read yet" };
+}
+
+function portToForm(p: CiscoPortRow): PortForm {
+  return {
+    id: p.id,
+    portId: p.portId,
+    description: p.description,
+    adminEnabled: p.adminEnabled,
+    speed: p.speed,
+    duplex: p.duplex,
+    mode: p.mode === "trunk" ? "trunk" : "access",
+    hasSwitchport: p.hasSwitchport,
+    accessVlan: p.accessVlan,
+    trunkNativeVlan: p.trunkNativeVlan,
+    trunkAllowedVlans: p.trunkAllowedVlans,
+  };
+}
+
+function PortDetails({
+  p,
+  canWrite,
+  busy,
+  pushing,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  p: CiscoPortRow;
+  canWrite: boolean;
+  busy: boolean;
+  pushing: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const fs = faceState(p);
+  const rows: Array<[string, string]> = [
+    ["Description", p.description || "—"],
+    ["Admin", p.adminEnabled ? "enabled" : "shut"],
+    ["Live", p.operStatus ?? "—"],
+    ["Mode", p.hasSwitchport ? p.mode : "routed"],
+    [p.mode === "trunk" ? "Native / allowed" : "VLAN", p.mode === "trunk" ? `${p.trunkNativeVlan} · ${p.trunkAllowedVlans}` : p.hasSwitchport ? String(p.accessVlan) : "—"],
+    ["Speed / duplex", `${speedLabel(p.speed)} · ${normaliseDuplex(p.duplex)}`],
+    ["Neighbor", p.neighborHostname ? `${p.neighborHostname}${p.neighborPort ? ` (${p.neighborPort})` : ""}` : "—"],
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-sm font-semibold">{p.portId}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">{fs.text}</span>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-slate-500 dark:text-slate-400">{k}</dt>
+            <dd className="break-words">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {canWrite ? (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <button
+            type="button"
+            disabled={busy || pushing}
+            onClick={onToggle}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            {pushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : p.adminEnabled ? <PowerOff className="h-3.5 w-3.5" aria-hidden /> : <Power className="h-3.5 w-3.5" aria-hidden />}
+            {pushing ? "Pushing…" : p.adminEnabled ? "Shut down" : "Enable"}
+          </button>
+          <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+            <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-300 dark:hover:bg-rose-900/30"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One FaceItem per port, each physical slot used once: an uplink cage can be in the desired config under two names
+ * (Gi1/1/1 and Te1/1/1, from whichever module was fitted before), and the one the switch has reported on is the
+ * one that is really there. The other joins the "other interfaces" strip, so nothing is hidden.
+ */
+function faceItems(ports: CiscoPortRow[], layout: FaceplateLayout): FaceItem[] {
+  const sorted = [...ports].sort((a, b) => a.portId.localeCompare(b.portId, undefined, { numeric: true }));
+  const claimed = new Map<string, CiscoPortRow>();
+  for (const p of sorted) {
+    const slot = slotForPort(p.portId, layout);
+    if (slot === null) continue;
+    const cur = claimed.get(slot);
+    if (!cur || (cur.operStatus === null && p.operStatus !== null)) claimed.set(slot, p);
+  }
+  return sorted.map((p) => {
+    const slot = slotForPort(p.portId, layout);
+    const fs = faceState(p);
+    return { id: p.id, slot: slot !== null && claimed.get(slot)?.id === p.id ? slot : null, label: p.portId, state: fs.state, stateText: fs.text };
+  });
+}
+
 export default function CiscoSwitchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const canWrite = useCanWrite();
@@ -58,6 +179,7 @@ export default function CiscoSwitchDetailPage() {
   const [ports, setPorts] = useState<CiscoPortRow[]>([]);
   const [vlans, setVlans] = useState<CiscoSwitchVlan[]>([{ vlanId: 1, name: "default" }]);
   const [form, setForm] = useState<PortForm | null>(null);
+  const [switchForm, setSwitchForm] = useState<SwitchFormState | null>(null);
   const [confirmDel, setConfirmDel] = useState<CiscoPortRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmTrust, setConfirmTrust] = useState(false);
@@ -65,6 +187,8 @@ export default function CiscoSwitchDetailPage() {
   // id. Several can be under way at once; the server makes the pushes to this one switch take turns.
   const [pushingPorts, setPushingPorts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [view, setView] = usePortView();
+  const { models } = useSwitchModels();
 
   const load = useCallback(async () => {
     const [s, p, v] = await Promise.all([
@@ -240,21 +364,7 @@ export default function CiscoSwitchDetailPage() {
               <div className="flex items-center justify-end gap-1.5">
                 <button
                   type="button"
-                  onClick={() =>
-                    setForm({
-                      id: p.id,
-                      portId: p.portId,
-                      description: p.description,
-                      adminEnabled: p.adminEnabled,
-                      speed: p.speed,
-                      duplex: p.duplex,
-                      mode: p.mode === "trunk" ? "trunk" : "access",
-                      hasSwitchport: p.hasSwitchport,
-                      accessVlan: p.accessVlan,
-                      trunkNativeVlan: p.trunkNativeVlan,
-                      trunkAllowedVlans: p.trunkAllowedVlans,
-                    })
-                  }
+                  onClick={() => setForm(portToForm(p))}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
@@ -273,6 +383,13 @@ export default function CiscoSwitchDetailPage() {
         ]
       : []),
   ];
+
+  // Which picture this switch gets: an admin's choice for it, else a model whose match string is in its model text, else
+  // the built-in drawing for a few Cisco models (resolveSwitchView says which, for the line under the header).
+  const switchView = resolveSwitchView(models ?? [], { model: sw?.model, switchModelId: sw?.switchModelId, switchViewOff: sw?.switchViewOff });
+  const layout = switchView.layout;
+  const showFaceplate = view === "switch" && layout !== null && ports.length > 0;
+  const toggle = layout ? <PortViewToggle value={view} onChange={setView} /> : null;
 
   return (
     <div className="space-y-4">
@@ -306,9 +423,20 @@ export default function CiscoSwitchDetailPage() {
               >
                 <Plus className="h-4 w-4" aria-hidden /> Add port
               </button>
+              <button
+                type="button"
+                onClick={() => setSwitchForm(formFromSwitch(sw))}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <Pencil className="h-4 w-4" aria-hidden /> Edit switch
+              </button>
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {sw && models !== null ? (
+        <SwitchViewLine view={switchView} deviceModel={sw.model} canWrite={canWrite} />
       ) : null}
 
       {Object.entries(pushingPorts).map(([portRowId, text]) => (
@@ -352,7 +480,47 @@ export default function CiscoSwitchDetailPage() {
         </div>
       ) : null}
 
+      {showFaceplate && layout ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {ports.filter((p) => p.operStatus === "up").length} of {ports.length} interfaces up. Hover a port for its details.
+            </span>
+            {toggle}
+          </div>
+          <SwitchFaceplate
+            layout={layout}
+            items={faceItems(ports, layout)}
+            renderDetails={(portRowId, close) => {
+              const p = ports.find((x) => x.id === portRowId);
+              if (!p) return null;
+              return (
+                <PortDetails
+                  p={p}
+                  canWrite={canWrite}
+                  busy={busy}
+                  pushing={!!pushingPorts[p.id]}
+                  onToggle={() => {
+                    close();
+                    void toggleAdmin(p);
+                  }}
+                  onEdit={() => {
+                    close();
+                    setForm(portToForm(p));
+                  }}
+                  onDelete={() => {
+                    close();
+                    setConfirmDel(p);
+                  }}
+                />
+              );
+            }}
+          />
+        </div>
+      ) : (
       <DataTable
+        rightSlot={toggle}
+        rowsSelector="footer"
         rows={ports}
         columns={columns}
         getKey={(p) => p.id}
@@ -360,6 +528,7 @@ export default function CiscoSwitchDetailPage() {
         filterPlaceholder="Filter ports…"
         emptyText="No ports imported yet. Poll the switch to import its interfaces as the baseline."
       />
+      )}
 
       {form ? (
         <Modal title={form.id ? `Edit ${form.portId}` : "Add port"} onClose={() => setForm(null)}>
@@ -424,6 +593,18 @@ export default function CiscoSwitchDetailPage() {
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {switchForm ? (
+        <SwitchFormModal
+          initial={switchForm}
+          onClose={() => setSwitchForm(null)}
+          onSaved={async (text) => {
+            setStatus({ ok: true, text });
+            setSwitchForm(null);
+            await load();
+          }}
+        />
       ) : null}
 
       {confirmDel ? (

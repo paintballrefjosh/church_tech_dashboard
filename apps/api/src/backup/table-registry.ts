@@ -159,6 +159,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
     policy: "data", group: MONITORING, title: "Cisco ports", label: ["port_id", "description"],
     volatile: ["neighbor_hostname", "neighbor_ip", "neighbor_port"],
   },
+  switch_models: { policy: "data", group: MONITORING, title: "Switch models (pictures and port layouts)", label: ["name"] },
   cisco_vlans: { policy: "data", group: MONITORING, title: "Cisco VLANs (desired)", label: ["vlan_id", "name"] },
   cisco_config_backups: { policy: "data", group: MONITORING, title: "Cisco configuration backups", label: ["backup_type", "backed_up_at"] },
   cisco_arp_cache: rebuilt("Cisco ARP cache"),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Trash2, RefreshCw } from "lucide-react";
-import { type CiscoSwitch, type CiscoAlertPrefs, CISCO_ALERT_CATEGORIES } from "@church/shared";
+import type { CiscoSwitch } from "@church/shared";
 import {
   StatusPill,
   computeStatus,
@@ -11,47 +11,16 @@ import {
   useCanWrite,
   StatusLine,
   Modal,
-  Field,
-  inputCls,
   cardCls,
   type SwStatus,
 } from "./cisco-ui";
 import { CISCO_ADD_SWITCH_EVENT, CISCO_ADD_SWITCH_FLAG } from "./cisco-tabs";
-
-const NO_ALERTS: CiscoAlertPrefs = {
-  deviceOffline: false,
-  portStateChange: false,
-  configChange: false,
-  uptimeChange: false,
-};
-
-interface FormState {
-  id: string | null;
-  hostname: string;
-  ipAddress: string;
-  username: string;
-  password: string;
-  model: string;
-  location: string;
-  checkPortState: boolean;
-  alertPrefs: CiscoAlertPrefs;
-}
-const EMPTY: FormState = {
-  id: null,
-  hostname: "",
-  ipAddress: "",
-  username: "admin",
-  password: "",
-  model: "",
-  location: "",
-  checkPortState: true,
-  alertPrefs: { ...NO_ALERTS },
-};
+import { EMPTY_SWITCH_FORM, SwitchFormModal, formFromSwitch, type SwitchFormState } from "./switch-form";
 
 export default function CiscoDashboardPage() {
   const canWrite = useCanWrite();
   const [switches, setSwitches] = useState<CiscoSwitch[] | null>(null);
-  const [form, setForm] = useState<FormState | null>(null);
+  const [form, setForm] = useState<SwitchFormState | null>(null);
   const [confirmDel, setConfirmDel] = useState<CiscoSwitch | null>(null);
   const [busy, setBusy] = useState(false);
   const [polling, setPolling] = useState<string | null>(null);
@@ -73,7 +42,7 @@ export default function CiscoDashboardPage() {
   }, [load]);
 
   useEffect(() => {
-    const openAdd = () => setForm({ ...EMPTY });
+    const openAdd = () => setForm({ ...EMPTY_SWITCH_FORM });
     try {
       if (sessionStorage.getItem(CISCO_ADD_SWITCH_FLAG)) {
         sessionStorage.removeItem(CISCO_ADD_SWITCH_FLAG);
@@ -85,45 +54,6 @@ export default function CiscoDashboardPage() {
     window.addEventListener(CISCO_ADD_SWITCH_EVENT, openAdd);
     return () => window.removeEventListener(CISCO_ADD_SWITCH_EVENT, openAdd);
   }, []);
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form) return;
-    setBusy(true);
-    setStatus(null);
-    try {
-      const editing = Boolean(form.id);
-      const body: Record<string, unknown> = {
-        hostname: form.hostname.trim(),
-        ipAddress: form.ipAddress.trim(),
-        username: form.username.trim(),
-        model: form.model.trim() || undefined,
-        location: form.location.trim() || undefined,
-        checkPortState: form.checkPortState,
-        alertPrefs: form.alertPrefs,
-      };
-      if (form.password) body.password = form.password;
-      const r = await fetch(editing ? `/api/cisco/switches/${form.id}` : "/api/cisco/switches", {
-        method: editing ? "PATCH" : "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) {
-        const b = (await r.json().catch(() => ({}))) as { message?: string; error?: string };
-        setStatus({ ok: false, text: b.message ?? b.error ?? `Failed (${r.status})` });
-        return;
-      }
-      setStatus({
-        ok: true,
-        text: editing ? "Switch saved." : "Switch added — polling + importing ports in the background.",
-      });
-      setForm(null);
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function doDelete() {
     if (!confirmDel) return;
@@ -180,7 +110,7 @@ export default function CiscoDashboardPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No switches yet.{" "}
             {canWrite ? (
-              <button type="button" onClick={() => setForm({ ...EMPTY })} className="text-brand-600 dark:text-brand-400 hover:underline">
+              <button type="button" onClick={() => setForm({ ...EMPTY_SWITCH_FORM })} className="text-brand-600 dark:text-brand-400 hover:underline">
                 Add one
               </button>
             ) : (
@@ -259,19 +189,7 @@ export default function CiscoDashboardPage() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() =>
-                            setForm({
-                              id: s.id,
-                              hostname: s.hostname,
-                              ipAddress: s.ipAddress,
-                              username: s.username,
-                              password: "",
-                              model: s.model ?? "",
-                              location: s.location ?? "",
-                              checkPortState: s.checkPortState,
-                              alertPrefs: { ...NO_ALERTS, ...s.alertPrefs },
-                            })
-                          }
+                          onClick={() => setForm(formFromSwitch(s))}
                           className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
@@ -306,80 +224,15 @@ export default function CiscoDashboardPage() {
       <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s.</p>
 
       {form ? (
-        <Modal title={form.id ? "Edit switch" : "Add switch"} onClose={() => setForm(null)}>
-          <form onSubmit={save} className="space-y-3 text-sm">
-            {!form.id ? (
-              <p className="rounded-md border border-brand-300 bg-brand-50 px-3 py-2 text-xs text-brand-800 dark:border-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
-                The switch is polled immediately on save and all interfaces imported as the baseline config.
-              </p>
-            ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Hostname *">
-                <input required value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} className={`w-full ${inputCls}`} />
-              </Field>
-              <Field label="IP address *">
-                <input required value={form.ipAddress} onChange={(e) => setForm({ ...form, ipAddress: e.target.value })} className={`w-full font-mono text-xs ${inputCls}`} />
-              </Field>
-              <Field label="Username">
-                <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className={`w-full font-mono text-xs ${inputCls}`} />
-              </Field>
-              <Field label={form.id ? "Password (leave blank to keep)" : "Password"}>
-                <input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={`w-full ${inputCls}`} />
-              </Field>
-              <Field label="Model (auto-detected)">
-                <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="auto-detected" className={`w-full ${inputCls}`} />
-              </Field>
-              <Field label="Location">
-                <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className={`w-full ${inputCls}`} />
-              </Field>
-            </div>
-            <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={form.checkPortState} onChange={(e) => setForm({ ...form, checkPortState: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
-              <span>Port state monitoring</span>
-            </label>
-
-            <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Alerts</legend>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Notify monitoring admins (in-app + email) when this switch changes state.
-              </p>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {CISCO_ALERT_CATEGORIES.map((c) => {
-                  // Port-state-change alerts only fire when port-state monitoring
-                  // is on (see cisco.poller evaluateAlerts), so grey the toggle out
-                  // when the master switch is off to reflect that it has no effect.
-                  const disabled = c.key === "portStateChange" && !form.checkPortState;
-                  return (
-                    <label key={c.key} className={`flex items-start gap-2 ${disabled ? "opacity-50" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={form.alertPrefs[c.key]}
-                        disabled={disabled}
-                        onChange={(e) => setForm({ ...form, alertPrefs: { ...form.alertPrefs, [c.key]: e.target.checked } })}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 disabled:cursor-not-allowed dark:border-slate-700"
-                      />
-                      <span>
-                        <span className="block text-sm">{c.label}</span>
-                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                          {disabled ? "Requires port state monitoring (above)." : c.description}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setForm(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700">
-                Cancel
-              </button>
-              <button type="submit" disabled={busy} className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">
-                {form.id ? "Save changes" : "Add & import"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <SwitchFormModal
+          initial={form}
+          onClose={() => setForm(null)}
+          onSaved={async (text) => {
+            setStatus({ ok: true, text });
+            setForm(null);
+            await load();
+          }}
+        />
       ) : null}
 
       {confirmDel ? (

@@ -49,6 +49,7 @@ export function DataTable<T>({
   emptyText = "No matching rows.",
   pageSizeOptions = [25, 50, 100, 200],
   initialPageSize,
+  rowsSelector = "top",
   server,
 }: {
   rows: T[];
@@ -60,6 +61,8 @@ export function DataTable<T>({
   emptyText?: string;
   pageSizeOptions?: number[];
   initialPageSize?: number;
+  /** Where the "Rows" selector sits: "top" beside the filter (the default), or "footer", bottom left on the pagination row. */
+  rowsSelector?: "top" | "footer";
   server?: ServerMode;
 }) {
   const isServer = Boolean(server);
@@ -138,6 +141,23 @@ export function DataTable<T>({
     };
   }, []);
 
+  const rowsPicker = (
+    <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+      Rows
+      <select
+        value={pageSize}
+        onChange={(e) => setSize(Number(e.target.value))}
+        className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950"
+      >
+        {pageSizeOptions.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -156,20 +176,7 @@ export function DataTable<T>({
         </span>
         <div className="ml-auto flex items-center gap-2">
           {rightSlot}
-          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            Rows
-            <select
-              value={pageSize}
-              onChange={(e) => setSize(Number(e.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950"
-            >
-              {pageSizeOptions.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          {rowsSelector === "top" ? rowsPicker : null}
         </div>
       </div>
 
@@ -225,29 +232,34 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {pageCount > 1 ? (
-        <div className="flex items-center justify-end gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <span>
-            Page {page + 1} of {pageCount}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => goPage(page - 1)}
-              disabled={page <= 0}
-              className="inline-flex items-center gap-0.5 rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
-            </button>
-            <button
-              type="button"
-              onClick={() => goPage(page + 1)}
-              disabled={page >= pageCount - 1}
-              className="inline-flex items-center gap-0.5 rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </div>
+      {pageCount > 1 || rowsSelector === "footer" ? (
+        <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div>{rowsSelector === "footer" ? rowsPicker : null}</div>
+          {pageCount > 1 ? (
+            <div className="flex items-center gap-3">
+              <span>
+                Page {page + 1} of {pageCount}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goPage(page - 1)}
+                  disabled={page <= 0}
+                  className="inline-flex items-center gap-0.5 rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goPage(page + 1)}
+                  disabled={page >= pageCount - 1}
+                  className="inline-flex items-center gap-0.5 rounded-md border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

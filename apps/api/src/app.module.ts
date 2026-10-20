@@ -37,6 +37,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
 import { SavedViewsModule } from "./saved-views/saved-views.module";
 import { AuthTokensModule } from "./auth-tokens/auth-tokens.module";
 import { CiscoModule } from "./cisco/cisco.module";
+import { SwitchModelsModule } from "./switch-models/switch-models.module";
 import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
 import { DnsModule } from "./dns/dns.module";
@@ -95,6 +96,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     SavedViewsModule,
     AuthTokensModule,
     CiscoModule,
+    SwitchModelsModule,
     IpamModule,
     UpsModule,
     DnsModule,

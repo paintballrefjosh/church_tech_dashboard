@@ -181,6 +181,21 @@ page with a "Trust new host key" action: `POST /cisco/switches/:id/reset-host-ke
 clears the pin. Writes to a switch (`pushToSwitch`, manual backup) refuse to run until a key is recorded
 (`pinnedConn`). Test: `apps/api/test/cisco-host-key.test.ts` runs a real in-process ssh2 server.
 
+**Switch view** (Cisco switch page): the ports open as a picture of the switch from the front with a hover popover per port, and a
+"Switch view | List view" toggle (remembered in this browser) beside the Rows selector. **Switch models** are admin data
+(`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; page `/monitoring/network-cisco/models`; reads
+`monitors:read:any`, writes `monitors:write:any`): a front and back picture (stored as `attachments`, parent type `switch_model`, size read
+from the file's own bytes), match strings, which side has the ports, and a box per port as a fraction of that picture, placed in a drag
+editor with an Auto option (find sockets / even grid / rename in order). **Import from a file** (`apps/web/src/lib/stencils/`,
+`components/stencil-importer.tsx`) takes a vendor stencil zip, `.vss/.vssx/.vsd/.vsdx`, `.ppt/.pptx` or a plain picture and lets the admin pick
+the front and back: all reading and EMF drawing happens in the browser and the pictures go through the ordinary image upload route, so
+the server is unchanged (the binary Visio reader was checked byte for byte against libvisio; see the docs). Which model draws a switch is `resolveSwitchView` (an admin's per-switch pick or "off", `cisco_switches.switch_model_id` / `switch_view_off`,
+migration 0071, `PUT /cisco/switches/:id/switch-view`; else the model text matched against the models' match strings; else a built-in), and the
+page shows which one it was ("matched on C3064PQ"); the choice is made in the Edit switch form (shared `SwitchFormModal`). A matching model wins over the three rough built-in layouts in
+`apps/web/src/lib/faceplates/layouts.ts`; `SwitchFaceplate` is generic and not Cisco-specific (the UniFi page is meant to reuse it and
+the models). Rules (name-to-port matching, cage aliases, colours never alone, popover behaviour, how Auto works):
+[docs/switch-faceplates.md](docs/switch-faceplates.md). The routes are MCP-excluded (picture curation).
+
 There is also a **UPS** tab (`/monitoring/ups` — the `ups` module: an SNMP poller
 over UPS-MIB / RFC 1628, mirroring the `printers` module — `ups_devices` table, a
 `setInterval` poller in `ups.service.ts`, per-device SNMP creds falling back to

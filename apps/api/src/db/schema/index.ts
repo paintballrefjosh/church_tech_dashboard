@@ -21,6 +21,7 @@ export * from "./printers";
 export * from "./auth-tokens";
 export * from "./saved-views";
 export * from "./cisco";
+export * from "./switch-models";
 export * from "./unifi";
 export * from "./ipam";
 export * from "./ups";

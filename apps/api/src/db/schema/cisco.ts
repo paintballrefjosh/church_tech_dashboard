@@ -1,4 +1,5 @@
 import { pgTable, text, integer, boolean, timestamp, uuid, jsonb, index, unique } from "drizzle-orm/pg-core";
+import { switchModels } from "./switch-models";
 
 /**
  * Cisco switch management — ported from the standalone cisco-switch app. An
@@ -34,6 +35,10 @@ export const ciscoSwitches = pgTable(
     // Per-category alert toggles (CiscoAlertPrefs): deviceOffline,
     // portStateChange, configChange, uptimeChange. Empty = all off.
     alertPrefs: jsonb("alert_prefs").notNull().default({}),
+    // The switch model an admin picked for this switch's picture (null = matched on `model` by the switch models' match
+    // strings), and "no picture for this switch". See switch_models and docs/switch-faceplates.md.
+    switchModelId: uuid("switch_model_id").references(() => switchModels.id, { onDelete: "set null" }),
+    switchViewOff: boolean("switch_view_off").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

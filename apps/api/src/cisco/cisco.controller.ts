@@ -15,6 +15,7 @@ import {
   PERMISSIONS,
   createCiscoSwitchSchema,
   updateCiscoSwitchSchema,
+  setSwitchViewSchema,
   ciscoPortInputSchema,
   ciscoVlanSetSchema,
   updateCiscoPortSchema,
@@ -79,6 +80,16 @@ export class CiscoController {
     const parsed = updateCiscoSwitchSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     return this.cisco.update(id, parsed.data);
+  }
+
+  /** Which switch model draws this switch's picture (auto / a model / none). Display only: nothing is sent to the switch. */
+  @Put("switches/:id/switch-view")
+  @RequirePermissions(WRITE)
+  @Audited({ action: "cisco.switch.view", resourceType: "cisco_switch", resourceIdFromParams: (p) => p.id ?? null })
+  setSwitchView(@Param("id") id: string, @Body() body: unknown) {
+    const parsed = setSwitchViewSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.cisco.setSwitchView(id, parsed.data);
   }
 
   @Post("switches/:id/reset-host-key")
