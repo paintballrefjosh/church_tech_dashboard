@@ -1262,6 +1262,19 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   stack into the throwaway cluster, then compares EVERY node with the file via `dist/scripts/rehearse-restore.js diff`,
   the app's own `computeDiff`; it cannot rely on signing in afterwards because a restore of a foreign backup replaces the
   asking account). Integration test: the "stored backup of real data" case in `backup.integration.test.ts`.
+- **A backup file is untrusted input** (an admin may upload or restore a file from anywhere). Reviewed 2026-10-19; nothing is extracted to a
+  filesystem (rows go to the database through typed casts and identifiers taken from the LIVE schema, never from the file; files go to the object
+  store), so the risks were a hostile file turning into a denial of service or into writes to the wrong key. Rules: (1) **every file key from an
+  archive must pass `isSafeFileKey`** (`archive.ts`: under `attachments/`, no `.`/`..` segment, no control characters or backslash, 1024 at most) in the
+  tar entry name, `files.json` and the summary, because a restore puts each file at the key the archive names: before this a file entry
+  `files/backups/<stored backup>` overwrote a stored backup, the safety copy taken seconds earlier included. (2) The tar reader refuses a header
+  whose size is not a safe non-negative integer and an extended (PAX) header over `MAX_PAX_BYTES` (1 MiB): it used to hold whatever size was
+  announced and re-copy the buffer for every chunk, so a 64 KB gzip announcing 64 MiB ran for minutes at full CPU while holding the backup lease
+  (cost grows with the square of the size). (3) `gunzipped()` stops a stream that expands more than 250 times once past 2 GiB of output (gzip reaches
+  1000:1; a check or restore would hash and parse terabytes for hours under the lease). (4) The manifest, `files.json` and the summary are shape-checked
+  and bad JSON or a bad table folder name gives a plain "The backup is damaged" message, not a parser error. Accepted: a table part or JSON entry may
+  still be read whole up to `MAX_JSON_ENTRY` (256 MiB; the writer cuts parts at about 4 MiB, so only a hostile file comes near it). Tests:
+  `backup-archive-hardening.test.ts`, smoke "an upload that names a file outside the uploads folder ...", "an oversized extended header ...".
 - **Object store**: use `removeObject` per key. minio's `removeObjects` is refused by Garage ("Invalid
   delete XML query"), and swallowing delete errors had leaked archives; `removeBackup` keeps the row when
   the delete fails and `sweepOrphans` cleans up archives with no row.
