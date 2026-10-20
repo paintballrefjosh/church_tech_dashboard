@@ -44,7 +44,8 @@ test.describe("Maintenance mode with an end time", () => {
     await sw.click();
     await expect(page.getByRole("menu", { name: "Pause alerts for" })).toBeVisible();
     await page.getByRole("menuitem", { name: "1 hour" }).click();
-    await expect(page.getByText(/Maintenance, until \d/)).toBeVisible();
+    // "18:30" for today, "Tue 00:30" when the hour ahead falls after midnight (the browser's own clock): both are a time.
+    await expect(page.getByText(/Maintenance, until (?:[A-Z][a-z]{2} )?\d/)).toBeVisible();
     await expect(sw).not.toBeChecked();
 
     // The server agrees, with an end time about an hour away.

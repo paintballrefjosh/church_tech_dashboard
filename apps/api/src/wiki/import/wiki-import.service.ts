@@ -1,11 +1,10 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { Injectable, BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
 import { Readable } from "node:stream";
 import { MAX_IMPORT_SOURCE_BYTES, type WikiAclEntry, type WikiVisibility } from "@church/shared";
 import { WikiService } from "../wiki.service";
 import { AttachmentsService } from "../../attachments/attachments.service";
 import type { AuthenticatedUser } from "../../auth/current-user.decorator";
-import { convertDocx } from "./docx-converter";
-import { convertPdf } from "./pdf-converter";
+import { ConversionRefused, convertInSandbox } from "./convert-sandbox";
 import { textToMarkdown } from "./text-converter";
 import type { UploadImage } from "./types";
 
@@ -73,10 +72,9 @@ export class WikiImportService {
 
     let body: string;
     try {
-      if (kind === "docx") {
-        body = await convertDocx(input.buffer, uploadImage);
-      } else if (kind === "pdf") {
-        body = await convertPdf(input.buffer);
+      if (kind === "docx" || kind === "pdf") {
+        // docx and pdf are read in a child process with a clock and a memory ceiling (see convert-sandbox.ts).
+        body = await convertInSandbox(kind, input.buffer, uploadImage);
       } else {
         body = textToMarkdown(input.buffer.toString("utf-8"));
       }
@@ -84,9 +82,10 @@ export class WikiImportService {
       // Don't leave an empty orphan page (or its partially-uploaded images)
       // behind if conversion fails partway through.
       await this.wiki.delete(user, page.id).catch(() => {});
-      throw new BadRequestException(
-        `Couldn't read that file: ${err instanceof Error ? err.message : "unknown error"}`,
-      );
+      if (err instanceof ConversionRefused) {
+        throw err.busy ? new HttpException(err.message, HttpStatus.TOO_MANY_REQUESTS) : new BadRequestException(err.message);
+      }
+      throw new BadRequestException(`Couldn't read that file: ${err instanceof Error ? err.message : "unknown error"}`);
     }
 
     // Keep the original upload attached for provenance — best-effort, not

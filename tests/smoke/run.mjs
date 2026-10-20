@@ -2204,6 +2204,10 @@ async function main() {
   const { wikiUpkeepTests } = await import("./wiki-upkeep.mjs");
   await wikiUpkeepTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- wiki file import: .txt/.docx/.pdf, hostile files refused (tests/smoke/wiki-import.mjs) ----
+  const { wikiImportTests } = await import("./wiki-import.mjs");
+  await wikiImportTests({ test, assert, fetchWithCookies, jar });
+
   // ---- notification delivery: quiet hours, summary, push (tests/smoke/notification-delivery.mjs) ----
   const { notificationDeliveryTests } = await import("./notification-delivery.mjs");
   await notificationDeliveryTests({ test, assert, fetchWithCookies, jar });

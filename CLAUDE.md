@@ -764,6 +764,24 @@ it (no saving at 10 MiB) and every refusal would then leave an object to delete.
 because the object store is never exposed outside the stack. Tests: `apps/api/test/attachment-types.test.ts`, `attachments-upload.test.ts`,
 smoke "an upload over the size limit is refused".
 
+## Wiki file import (.docx / .pdf / .txt)
+
+`POST /wiki/import` (`wiki/import/`, any account with `wiki:create`, which is the baseline `user` group). **A .docx is a zip and a .pdf can hold
+compressed streams: a stranger controls how big they inflate.** A 1.5 MB .docx (one picture of zeros) and a 0.5 MB .pdf each killed a 1 GiB process
+(exit 137), and the unsandboxed importer also stored the inflated picture as a 1 GiB attachment, past the attachment cap. Rules:
+(1) **docx and pdf are read ONLY by `convertInSandbox`** (`convert-sandbox.ts`, worker `convert-worker.ts`): a child process with an empty
+environment, a 60 s clock, `--max-old-space-size=512` and an RSS ceiling (768 MiB, read from `/proc` every 100 ms; typed arrays are outside the heap, so
+`--max-old-space-size` alone does not stop an inflating parser). Never call mammoth or pdf-parse from the API process. A killed child gives the
+person a plain 400 and the API carries on; at most 2 conversions run per node and 6 wait, the rest get 429 (`ConversionLimiter`).
+(2) The child holds no database or secrets; embedded images come back over IPC and the API stores them through `AttachmentsService`, at most 200 per
+file, `MAX_ATTACHMENT_BYTES` each and 100 MiB together (extras are left out of the page, the import goes on).
+(3) The converted markdown never keeps a link target outside http/https/mailto/tel/relative (`dropUnsafeLinks`), and text that merely looks like markup
+(`<img onerror=...>` typed in Word) is escaped so it stays text. (4) A failed import deletes its page and attachments. pdf-parse 1.1.4 bundles pdf.js
+1.10.100 (2018) and is unmaintained: that is the reason the sandbox exists, and a replacement is worth considering. Tests: `wiki-import-sandbox.test.ts`
+(stand-in workers under `test/fixtures/import/`), `wiki-import-docx.test.ts`, smoke `tests/smoke/wiki-import.mjs` (builds the bombs in the test; a real
+browser-made PDF is `tests/smoke/fixtures/small.pdf`). PDFs written by hand failed to parse in pdf.js 1.10 ("bad XRef entry") for a reason never found;
+use a generated one.
+
 ## Home page looks
 
 The home page (`/`) can be shown in six looks that each person picks (plan and decisions: [docs/dashboard-themes.md](docs/dashboard-themes.md);
