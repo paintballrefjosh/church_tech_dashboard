@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Archive, GitCompareArrows, Search, Network, Share2, Plus, Cpu } from "lucide-react";
-import { useCanWrite } from "./cisco-ui";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, Archive, GitCompareArrows, Search, Network, Share2, Cpu } from "lucide-react";
 
 const BASE = "/monitoring/network-cisco";
-export const CISCO_ADD_SWITCH_EVENT = "cisco:add-switch";
-export const CISCO_ADD_SWITCH_FLAG = "cisco:add-switch-pending";
 
 const TABS = [
   { href: BASE, label: "Dashboard", Icon: LayoutDashboard, exact: true },
@@ -21,18 +18,6 @@ const TABS = [
 
 export function CiscoTabs() {
   const pathname = usePathname();
-  const router = useRouter();
-  const canWrite = useCanWrite();
-
-  function addSwitch() {
-    try {
-      sessionStorage.setItem(CISCO_ADD_SWITCH_FLAG, "1");
-    } catch {
-      /* private mode */
-    }
-    window.dispatchEvent(new Event(CISCO_ADD_SWITCH_EVENT));
-    if (pathname !== BASE) router.push(BASE);
-  }
 
   return (
     <div className="mb-5 flex flex-wrap items-center gap-1 text-xs">
@@ -54,15 +39,6 @@ export function CiscoTabs() {
           </Link>
         );
       })}
-      {canWrite ? (
-        <button
-          type="button"
-          onClick={addSwitch}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-2.5 py-1.5 font-medium text-white transition hover:bg-brand-700"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden /> Add switch
-        </button>
-      ) : null}
     </div>
   );
 }

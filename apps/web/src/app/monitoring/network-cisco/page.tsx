@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, RefreshCw, Plus } from "lucide-react";
 import type { CiscoSwitch } from "@church/shared";
 import {
   StatusPill,
@@ -14,7 +14,6 @@ import {
   cardCls,
   type SwStatus,
 } from "./cisco-ui";
-import { CISCO_ADD_SWITCH_EVENT, CISCO_ADD_SWITCH_FLAG } from "./cisco-tabs";
 import { EMPTY_SWITCH_FORM, SwitchFormModal, formFromSwitch, type SwitchFormState } from "./switch-form";
 
 export default function CiscoDashboardPage() {
@@ -40,20 +39,6 @@ export default function CiscoDashboardPage() {
     const t = setInterval(() => void load(), 15_000);
     return () => clearInterval(t);
   }, [load]);
-
-  useEffect(() => {
-    const openAdd = () => setForm({ ...EMPTY_SWITCH_FORM });
-    try {
-      if (sessionStorage.getItem(CISCO_ADD_SWITCH_FLAG)) {
-        sessionStorage.removeItem(CISCO_ADD_SWITCH_FLAG);
-        openAdd();
-      }
-    } catch {
-      /* private mode */
-    }
-    window.addEventListener(CISCO_ADD_SWITCH_EVENT, openAdd);
-    return () => window.removeEventListener(CISCO_ADD_SWITCH_EVENT, openAdd);
-  }, []);
 
   async function doDelete() {
     if (!confirmDel) return;
@@ -131,7 +116,22 @@ export default function CiscoDashboardPage() {
                 <th className="px-3 py-2">Location</th>
                 <th className="px-3 py-2">Uptime</th>
                 <th className="px-3 py-2 text-right">Ports</th>
-                <th className={`px-3 py-2 ${canWrite ? "text-right" : ""}`}>{canWrite ? "Actions" : "Last polled"}</th>
+                <th className={`px-3 py-2 ${canWrite ? "text-right" : ""}`}>
+                  {canWrite ? (
+                    <span className="inline-flex items-center justify-end gap-3">
+                      Actions
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...EMPTY_SWITCH_FORM })}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-2.5 py-1.5 text-xs font-medium normal-case tracking-normal text-white transition hover:bg-brand-700"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden /> Add switch
+                      </button>
+                    </span>
+                  ) : (
+                    "Last polled"
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
