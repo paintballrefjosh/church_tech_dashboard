@@ -204,8 +204,10 @@ export function parseRunningConfig(raw: string): ParsedConfig {
     // Any `switchport ...` line means this is an L2 port (many platforms never
     // emit a bare `switchport`, only `switchport mode trunk` etc.).
     if (/^switchport\b/.test(body)) cur.hasSwitchport = true;
-    if (/^shutdown\b/.test(body)) cur.adminEnabled = false;
-    else if (/^no shutdown\b/.test(body)) cur.adminEnabled = true;
+    // Exactly `shutdown` / `no shutdown`: `show run all` on NX-OS also prints `no shutdown lan` (a different setting) on every
+    // port, and matching only the start of the line read each shut port as enabled.
+    if (body === "shutdown") cur.adminEnabled = false;
+    else if (body === "no shutdown") cur.adminEnabled = true;
     let mm: RegExpExecArray | null;
     if ((mm = /^description\s+(.*)$/.exec(body))) cur.description = mm[1]!.trim();
     else if ((mm = /^speed\s+(\S+)/.exec(body))) {
