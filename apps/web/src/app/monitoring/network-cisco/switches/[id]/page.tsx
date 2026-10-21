@@ -18,9 +18,10 @@ import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
 import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 import { PortViewToggle, usePortView } from "@/components/port-view-toggle";
-import { SwitchFaceplate, type FaceItem, type FaceState } from "@/components/switch-faceplate";
+import { SwitchFaceplate, type FaceItem } from "@/components/switch-faceplate";
 import { slotForPort, type FaceplateLayout } from "@/lib/faceplates/layouts";
 import { resolveSwitchView } from "@/lib/faceplates/custom";
+import { faceState } from "@/lib/faceplates/face-state";
 import { SwitchViewLine } from "@/components/switch-view-line";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { SwitchFormModal, formFromSwitch, type SwitchFormState } from "../../switch-form";
@@ -57,15 +58,6 @@ const EMPTY: PortForm = {
   trunkNativeVlan: 1,
   trunkAllowedVlans: "1-4094",
 };
-
-/** How a port looks on the picture: shut down (by the desired config) wins over what the switch last reported. */
-function faceState(p: CiscoPortRow): { state: FaceState; text: string } {
-  if (!p.adminEnabled) return { state: "shut", text: "shut down" };
-  if (p.operStatus === "err-disabled") return { state: "error", text: "error-disabled" };
-  if (p.operStatus === "up") return { state: "up", text: "up" };
-  if (p.operStatus === "down") return { state: "down", text: "enabled, no link" };
-  return { state: "unknown", text: "not read yet" };
-}
 
 function portToForm(p: CiscoPortRow): PortForm {
   return {

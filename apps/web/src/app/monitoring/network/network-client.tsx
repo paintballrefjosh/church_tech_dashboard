@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CircleCheck, CircleHelp, RefreshCw } from "lucide-react";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { DataTable, type Column } from "@/components/data-table";
+import { clientTraffic } from "@/lib/unifi-traffic";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 
 interface Health {
@@ -36,6 +37,8 @@ interface UClient {
   oui?: string;
   rx_bytes?: number;
   tx_bytes?: number;
+  "wired-rx_bytes"?: number;
+  "wired-tx_bytes"?: number;
   signal?: number;
   is_wired?: boolean;
 }
@@ -301,14 +304,20 @@ function ClientsTable({ items }: { items: UClient[] }) {
     },
     {
       key: "traffic",
-      label: "RX / TX",
+      label: "Down / Up",
       align: "right",
-      render: (c) => (
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          {formatBytes(c.rx_bytes)} / {formatBytes(c.tx_bytes)}
-        </span>
-      ),
-      sortValue: (c) => (c.rx_bytes ?? 0) + (c.tx_bytes ?? 0),
+      render: (c) => {
+        const t = clientTraffic(c);
+        return (
+          <span className="text-xs text-slate-500 dark:text-slate-400" title="What the client downloaded / uploaded">
+            {formatBytes(t.down)} / {formatBytes(t.up)}
+          </span>
+        );
+      },
+      sortValue: (c) => {
+        const t = clientTraffic(c);
+        return (t.down ?? 0) + (t.up ?? 0);
+      },
     },
   ];
   return (
@@ -342,8 +351,9 @@ function formatUptime(secs?: number): string {
   return `${m}m`;
 }
 
-function formatBytes(b?: number): string {
-  if (!b || b <= 0) return "0";
+function formatBytes(b: number | null): string {
+  if (b === null) return "\u2014";
+  if (b <= 0) return "0";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let n = b;
   let i = 0;
