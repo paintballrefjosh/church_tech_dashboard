@@ -58,27 +58,77 @@ export interface LivePort {
   accessVlan: number | null;
 }
 
+/** The words an older parser knew. Only used for a line that does not sit under a recognisable column header. */
+const KNOWN_STATUS_LINE =
+  /^(\S+)\s+(.*?)\s+(connected|notconnect|notconnec|disabled|err-disabled|errdisabled|monitoring|suspended|inactive)\s+(\S+)\s+/i;
+const STATUS_HEADER = /^\s*Port\s+Name\s+Status\s+Vlan\b/i;
+
+/**
+ * What the status column means for the dashboard: `up`, `err-disabled`, `down` (shut down on the switch) or `notconnect` (anything
+ * else with no link). NX-OS has many more words than IOS and cuts them to the column width (`notconnec`, `err-disab`, `linkFlapE`);
+ * `xcvrAbsen` (no transceiver in the cage) and `noOperMem` (a port-channel with no working member) are the common ones on a
+ * Nexus. A port-channel or cage that is not carrying traffic is simply not up.
+ */
+function classifyStatus(status: string): string {
+  const s = status.toLowerCase();
+  if (s.startsWith("connect")) return "up";
+  if (s.startsWith("err") || s.startsWith("linkflap")) return "err-disabled";
+  if (s === "disabled" || s === "down") return "down";
+  return "notconnect";
+}
+
+/**
+ * `show interface(s) status` → one row per physical port. The columns are read at the offsets of the `Port Name Status Vlan ...`
+ * header, because the Name column holds free text with spaces and the status can be any word the switch has: matching a list of
+ * words silently dropped every port with a word nobody had listed (a Nexus with empty SFP cages showed them as "not read yet").
+ * A section ends at a blank line or a prompt, so lines of the configuration that follow in the same capture are never read. The word
+ * list of the older parser is used only for output that has no header at all.
+ */
 export function parseInterfacesStatus(raw: string): LivePort[] {
   const out: LivePort[] = [];
+  let cols: { status: number; vlan: number } | null = null;
+  let sawHeader = false;
   for (const rawLine of stripAnsi(raw).split("\n")) {
     const line = rawLine.replace(/\r$/, "");
-    // Port  Name  Status  Vlan  Duplex  Speed  Type  (Name may be blank)
-    const m = /^(\S+)\s+(.*?)\s+(connected|notconnect|notconnec|disabled|err-disabled|errdisabled|monitoring|suspended|inactive)\s+(\S+)\s+/i.exec(
-      line,
-    );
-    if (!m) continue;
-    const portId = normalizeIfName(m[1]!);
+    if (STATUS_HEADER.test(line)) {
+      cols = { status: line.search(/Status/i), vlan: line.search(/Vlan/i) };
+      sawHeader = true;
+      continue;
+    }
+    if (cols && (line.trim() === "" || line.includes("#"))) {
+      cols = null;
+      continue;
+    }
+    if (cols && /^\s*-+\s*$/.test(line)) continue;
+
+    let portTok: string | undefined;
+    let status: string | undefined;
+    let vlanTok: string | undefined;
+    if (cols && line.length > cols.vlan) {
+      const first = /^(\S+)/.exec(line)?.[1];
+      const st = line.slice(cols.status, cols.vlan).trim();
+      const vl = line.slice(cols.vlan).trim().split(/\s+/)[0];
+      if (first && st && !/\s/.test(st) && vl) {
+        portTok = first;
+        status = st;
+        vlanTok = vl;
+      }
+    }
+    if (!portTok) {
+      // No header anywhere in the capture: the old word list is all there is to go on.
+      if (sawHeader) continue;
+      const m = KNOWN_STATUS_LINE.exec(line);
+      if (!m) continue;
+      portTok = m[1]!;
+      status = m[3]!;
+      vlanTok = m[4]!;
+    }
+
+    const portId = normalizeIfName(portTok);
     if (!isPhysicalPort(portId)) continue;
-    const status = m[3]!.toLowerCase();
-    const vlanTok = m[4]!;
-    let operStatus = "down";
-    if (status.startsWith("connect")) operStatus = "up";
-    else if (status.startsWith("err")) operStatus = "err-disabled";
-    else if (status === "disabled") operStatus = "down";
-    else operStatus = "notconnect";
     const mode = vlanTok === "trunk" ? "trunk" : vlanTok === "routed" ? "routed" : "access";
-    const accessVlan = /^\d+$/.test(vlanTok) ? Number(vlanTok) : null;
-    out.push({ portId, operStatus, mode, accessVlan });
+    const accessVlan = /^\d+$/.test(vlanTok!) ? Number(vlanTok) : null;
+    out.push({ portId, operStatus: classifyStatus(status!), mode, accessVlan });
   }
   return out;
 }
