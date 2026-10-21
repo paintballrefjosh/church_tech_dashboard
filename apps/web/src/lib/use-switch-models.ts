@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SwitchModel } from "@church/shared";
 
+/**
+ * A model as the page uses it. An API node that has not been upgraded yet (the nodes of a cluster upgrade one at a time)
+ * answers without `kind` and `modules`: such a model is a switch with no modules.
+ */
+export function normaliseModel(m: SwitchModel): SwitchModel {
+  return { ...m, kind: m.kind === "module" ? "module" : "switch", modules: Array.isArray(m.modules) ? m.modules : [] };
+}
+
 /** The admin's switch models (null while loading or when they cannot be read: callers fall back to the built-in layouts). */
 export function useSwitchModels(): { models: SwitchModel[] | null; reload: () => Promise<void> } {
   const [models, setModels] = useState<SwitchModel[] | null>(null);
@@ -10,7 +18,7 @@ export function useSwitchModels(): { models: SwitchModel[] | null; reload: () =>
   const reload = useCallback(async () => {
     try {
       const r = await fetch("/api/switch-models", { credentials: "same-origin", cache: "no-store" });
-      setModels(r.ok ? ((await r.json()) as SwitchModel[]) : []);
+      setModels(r.ok ? ((await r.json()) as SwitchModel[]).map(normaliseModel) : []);
     } catch {
       setModels([]);
     }

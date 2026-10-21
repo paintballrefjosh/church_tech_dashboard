@@ -52,8 +52,8 @@ async function makePng(page: Page): Promise<Buffer> {
 async function fakeApi(page: Page) {
   const now = new Date().toISOString();
   const model: Record<string, unknown> = {
-    id: MODEL_ID, name: "", match: [], portSide: "front", frontImageId: null, backImageId: null,
-    frontWidth: null, frontHeight: null, backWidth: null, backHeight: null, ports: [], createdAt: now, updatedAt: now,
+    id: MODEL_ID, name: "", kind: "switch", match: [], portSide: "front", frontImageId: null, backImageId: null,
+    frontWidth: null, frontHeight: null, backWidth: null, backHeight: null, ports: [], modules: [], createdAt: now, updatedAt: now,
   };
   const uploads: Array<{ side: string; bytes: number }> = [];
   let png: Buffer | null = null;

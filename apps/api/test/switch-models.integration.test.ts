@@ -86,23 +86,23 @@ describe.skipIf(!url)("switch models against a real database", () => {
   const attachmentCount = async () => Number((await q("SELECT count(*) AS n FROM attachments WHERE parent_type = 'switch_model'")).rows[0].n);
 
   it("creates a model and lists it with its defaults", async () => {
-    const m = await svc.create({ name: "Catalyst 3850", match: ["C3850"], portSide: "front" });
+    const m = await svc.create({ name: "Catalyst 3850", kind: "switch", match: ["C3850"], portSide: "front" });
     expect(m).toMatchObject({ name: "Catalyst 3850", match: ["C3850"], portSide: "front", ports: [], frontImageId: null, backImageId: null });
     expect((await svc.list()).map((x) => x.id)).toEqual([m.id]);
     expect(await svc.get(m.id)).toMatchObject({ name: "Catalyst 3850" });
   });
 
   it("refuses a second model with the same name, in any case", async () => {
-    await svc.create({ name: "Nexus 3064", match: [], portSide: "front" });
-    await expect(svc.create({ name: "nexus 3064", match: [], portSide: "back" })).rejects.toBeInstanceOf(ConflictException);
-    const other = await svc.create({ name: "Other", match: [], portSide: "front" });
+    await svc.create({ name: "Nexus 3064", kind: "switch", match: [], portSide: "front" });
+    await expect(svc.create({ name: "nexus 3064", kind: "switch", match: [], portSide: "back" })).rejects.toBeInstanceOf(ConflictException);
+    const other = await svc.create({ name: "Other", kind: "switch", match: [], portSide: "front" });
     await expect(svc.update(other.id, { name: "NEXUS 3064" })).rejects.toBeInstanceOf(ConflictException);
     // renaming to its own name (a different case) is fine
     await expect(svc.update(other.id, { name: "OTHER" })).resolves.toMatchObject({ name: "OTHER" });
   });
 
   it("stores the port layout and gives it back exactly", async () => {
-    const m = await svc.create({ name: "M", match: [], portSide: "front" });
+    const m = await svc.create({ name: "M", kind: "switch", match: [], portSide: "front" });
     const ports = [port("Gi1/0/1"), port("Gi1/1/1", { kind: "sfp", aliases: ["Te1/1/1"], x: 0.8 })];
     const saved = await svc.update(m.id, { ports, portSide: "back", match: ["C3850-48"] });
     expect(saved.ports).toEqual(ports);
@@ -112,7 +112,7 @@ describe.skipIf(!url)("switch models against a real database", () => {
   });
 
   it("shows no ports, rather than failing the list, when the stored layout cannot be read", async () => {
-    const m = await svc.create({ name: "Broken", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Broken", kind: "switch", match: [], portSide: "front" });
     await q("UPDATE switch_models SET ports = '[{\"name\": 5}]'::jsonb WHERE id = $1", [m.id]);
     const [row] = await svc.list();
     expect(row!.ports).toEqual([]);
@@ -124,7 +124,7 @@ describe.skipIf(!url)("switch models against a real database", () => {
   });
 
   it("takes a picture, reads its size, and replaces it without leaving the old one behind", async () => {
-    const m = await svc.create({ name: "Pics", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Pics", kind: "switch", match: [], portSide: "front" });
     const a = await svc.setImage(m.id, "front", "u", { filename: "a.png", mimetype: "image/png", bytes: png(2000, 200) });
     expect(a).toMatchObject({ frontWidth: 2000, frontHeight: 200, backImageId: null });
     expect(a.frontImageId).toBeTruthy();
@@ -145,14 +145,14 @@ describe.skipIf(!url)("switch models against a real database", () => {
   });
 
   it("judges a picture on its own bytes, whatever the browser said", async () => {
-    const m = await svc.create({ name: "Bytes", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Bytes", kind: "switch", match: [], portSide: "front" });
     await expect(svc.setImage(m.id, "front", "u", { filename: "x.png", mimetype: "image/png", bytes: Buffer.from("<svg onload=alert(1)>") })).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.setImage(m.id, "front", "u", { filename: "x.png", mimetype: "image/png", bytes: Buffer.from("GIF89a" + "\0".repeat(40), "latin1") })).rejects.toBeInstanceOf(BadRequestException);
     expect(await attachmentCount()).toBe(0);
   });
 
   it("removes a picture and its attachment, and a side with none is left alone", async () => {
-    const m = await svc.create({ name: "Rm", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Rm", kind: "switch", match: [], portSide: "front" });
     await svc.setImage(m.id, "back", "u", { filename: "c.png", mimetype: "image/png", bytes: png(1000, 100) });
     const gone = await svc.removeImage(m.id, "back");
     expect(gone).toMatchObject({ backImageId: null, backWidth: null, backHeight: null });
@@ -162,7 +162,7 @@ describe.skipIf(!url)("switch models against a real database", () => {
   });
 
   it("clears the picture, not the model, if its attachment row goes (a restore of part of the data)", async () => {
-    const m = await svc.create({ name: "Fk", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Fk", kind: "switch", match: [], portSide: "front" });
     const withPic = await svc.setImage(m.id, "front", "u", { filename: "a.png", mimetype: "image/png", bytes: png(2000, 200) });
     await q("DELETE FROM attachments WHERE id = $1", [withPic.frontImageId]);
     const after = await svc.get(m.id);
@@ -171,13 +171,61 @@ describe.skipIf(!url)("switch models against a real database", () => {
   });
 
   it("deletes the model together with its pictures", async () => {
-    const m = await svc.create({ name: "Del", match: [], portSide: "front" });
+    const m = await svc.create({ name: "Del", kind: "switch", match: [], portSide: "front" });
     await svc.setImage(m.id, "front", "u", { filename: "a.png", mimetype: "image/png", bytes: png(2000, 200) });
     await svc.remove(m.id);
     expect(await svc.list()).toEqual([]);
     expect(await attachmentCount()).toBe(0);
     expect(removedParents).toEqual([`switch_model:${m.id}`]);
     await expect(svc.remove(m.id)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  describe("add-on modules (migration 0072)", () => {
+    const placed = (moduleId: string, over: Record<string, unknown> = {}) => ({ id: "m1", moduleId, x: 0.7, y: 0.2, w: 0.2, h: 0.5, ...over });
+
+    it("starts as a switch with no modules, and a module is created as one", async () => {
+      const sw = await svc.create({ name: "Catalyst 3750-X", kind: "switch", match: ["C3750X"], portSide: "front" });
+      expect(sw).toMatchObject({ kind: "switch", modules: [] });
+      const mod = await svc.create({ name: "C3KX-NM-10G", kind: "module", match: ["ignored"], portSide: "front" });
+      // a module is never matched to a device, so whatever match strings came with it are dropped
+      expect(mod).toMatchObject({ kind: "module", match: [], modules: [] });
+    });
+
+    it("stores the placements on a switch and gives them back exactly", async () => {
+      const sw = await svc.create({ name: "Host", kind: "switch", match: [], portSide: "front" });
+      const mod = await svc.create({ name: "NM", kind: "module", match: [], portSide: "front" });
+      const modules = [placed(mod.id), placed(mod.id, { id: "m2", x: 0.1 })];
+      expect((await svc.update(sw.id, { modules })).modules).toEqual(modules);
+      expect((await svc.get(sw.id)).modules).toEqual(modules);
+      expect((await svc.update(sw.id, { modules: [] })).modules).toEqual([]);
+    });
+
+    it("refuses a placement that points at a switch, at nothing, or sits on a module", async () => {
+      const sw = await svc.create({ name: "Host", kind: "switch", match: [], portSide: "front" });
+      const other = await svc.create({ name: "Other switch", kind: "switch", match: [], portSide: "front" });
+      const mod = await svc.create({ name: "NM", kind: "module", match: [], portSide: "front" });
+      await expect(svc.update(sw.id, { modules: [placed(other.id)] })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.update(sw.id, { modules: [placed("00000000-0000-4000-8000-000000000000")] })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.update(mod.id, { modules: [placed(mod.id)] })).rejects.toBeInstanceOf(BadRequestException);
+      expect((await svc.get(sw.id)).modules).toEqual([]);
+    });
+
+    it("will not delete a module that is placed on a switch, and says where", async () => {
+      const sw = await svc.create({ name: "Catalyst 3750-X", kind: "switch", match: [], portSide: "front" });
+      const mod = await svc.create({ name: "NM", kind: "module", match: [], portSide: "front" });
+      await svc.update(sw.id, { modules: [placed(mod.id)] });
+      await expect(svc.remove(mod.id)).rejects.toThrow(/Catalyst 3750-X/);
+      await expect(svc.remove(mod.id)).rejects.toBeInstanceOf(ConflictException);
+      await svc.update(sw.id, { modules: [] });
+      await svc.remove(mod.id);
+      expect((await svc.list()).map((m) => m.id)).toEqual([sw.id]);
+    });
+
+    it("shows no modules, rather than failing the list, when the stored ones cannot be read", async () => {
+      const sw = await svc.create({ name: "Broken", kind: "switch", match: [], portSide: "front" });
+      await q("UPDATE switch_models SET modules = '[{\"moduleId\": 5}]'::jsonb WHERE id = $1", [sw.id]);
+      expect((await svc.list())[0]!.modules).toEqual([]);
+    });
   });
 
   describe("which model draws a switch (migration 0071)", () => {
@@ -202,7 +250,7 @@ describe.skipIf(!url)("switch models against a real database", () => {
 
     it("starts as automatic, and saves a pick, 'off' and back to automatic", async () => {
       const sw = await newSwitch();
-      const m = await svc.create({ name: "Pick me", match: [], portSide: "front" });
+      const m = await svc.create({ name: "Pick me", kind: "switch", match: [], portSide: "front" });
       expect(await cisco.getById(sw)).toMatchObject({ switchModelId: null, switchViewOff: false });
 
       expect(await cisco.setSwitchView(sw, { mode: "model", modelId: m.id })).toMatchObject({ switchModelId: m.id, switchViewOff: false });
@@ -221,7 +269,7 @@ describe.skipIf(!url)("switch models against a real database", () => {
 
     it("goes back to automatic, keeping the switch, when its model is deleted", async () => {
       const sw = await newSwitch();
-      const m = await svc.create({ name: "Soon gone", match: [], portSide: "front" });
+      const m = await svc.create({ name: "Soon gone", kind: "switch", match: [], portSide: "front" });
       await cisco.setSwitchView(sw, { mode: "model", modelId: m.id });
       await svc.remove(m.id);
       expect(await cisco.getById(sw)).toMatchObject({ hostname: HOST, switchModelId: null, switchViewOff: false });

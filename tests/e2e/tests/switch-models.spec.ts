@@ -67,9 +67,9 @@ async function fakeApi(page: Page) {
   const now = new Date().toISOString();
   let png: Buffer | null = null;
   const model: FakeModel = {
-    id: MODEL_ID, name: "E2E Model", match: ["E2E-1"], portSide: "front",
+    id: MODEL_ID, name: "E2E Model", kind: "switch", match: ["E2E-1"], portSide: "front",
     frontImageId: null, backImageId: null, frontWidth: null, frontHeight: null, backWidth: null, backHeight: null,
-    ports: [], createdAt: now, updatedAt: now,
+    ports: [], modules: [], createdAt: now, updatedAt: now,
   };
   await page.route("**/api/me", async (route) => {
     const res = await route.fetch();

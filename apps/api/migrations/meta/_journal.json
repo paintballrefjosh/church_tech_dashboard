@@ -505,6 +505,13 @@
       "when": 1792868030977,
       "tag": "0071_switch_view_override",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792954430977,
+      "tag": "0072_switch_model_modules",
+      "breakpoints": true
     }
   ]
 }

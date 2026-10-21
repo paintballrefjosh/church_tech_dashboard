@@ -19,6 +19,20 @@ export interface FaceplatePortSpec {
   w: number;
   h: number;
   kind: FaceKind;
+  /** custom only: the placement of the add-on module this port belongs to; the port shows only while that module does. */
+  group?: string;
+}
+
+/** An add-on module's picture on a custom layout; drawn only while the device reports one of the ports in its `group`. */
+export interface FaceplateOverlay {
+  /** The placement id, equal to the `group` of the module's ports. */
+  id: string;
+  label: string;
+  url: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface FaceplateLayout {
@@ -39,6 +53,8 @@ export interface FaceplateLayout {
   modelId?: string;
   /** custom only: lower-case interface name or alias to the slot key of the port that has it. */
   names?: Record<string, string>;
+  /** custom only: add-on modules placed on the picture, in the order they were added. */
+  overlays?: FaceplateOverlay[];
   /** custom only: the picture of the other side of the switch (no ports on it), if one was uploaded. */
   otherImage?: { side: "front" | "back"; url: string; width: number; height: number };
 }

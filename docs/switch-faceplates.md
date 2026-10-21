@@ -108,6 +108,33 @@ zip entries, and a Visio file that inflates past 3 GiB are refused with a messag
 into the page. Reading is quick (a 68 MB vendor zip with 162 pictures: under 2 s, under 300 MB of memory). The vendor's artwork is
 theirs: this copies pictures only from files the admin chose, into this dashboard's own storage.
 
+### Add-on modules (migration 0072)
+
+Some switches take a plug-in network module with extra, usually faster, ports (a Catalyst 3750-X's C3KX-NM-10G, a 3850's
+C3850-NM-4-10G). A module is **a second kind of switch model**: `switch_models.kind` is `switch` (the default, matched to devices
+by its model text) or `module` (never matched, no match strings, cannot hold modules itself; the kind is fixed at creation).
+A module has its own picture and port boxes, made with the same editor, Auto and importer (the importer's "This is an add-on
+module" box, or "New add-on module" on the Switch models page), and its ports are named as the switch names them for the slot
+(`Te1/1/1` ..., with `Gi1/1/1` as an alias when the same cage has another name in another mode).
+
+A switch model lists the modules placed on it in `switch_models.modules` (`[{ id, moduleId, x, y, w, h }]`, fractions of the
+host's port-side picture, at most 8, `id` a stable key such as `m1`). The host's page has an **Add-on modules** section
+(`components/module-placement-editor.tsx`, saved on its own "Save modules" button, `PATCH /switch-models/:id { modules }`): pick a
+module, "Add to <model>", drag it onto the bay (or select it, arrow keys, + and -; or type percentages). The box keeps the module
+picture's proportions, so only the width is set (`lib/faceplates/module-ops.ts`, tested). The service refuses a placement that is
+not a module, a module that holds modules, and deleting a module that is still placed (409, naming the models).
+
+How it draws (`layoutFromSwitchModel(host, allModels)` in `custom.ts`, tested in `custom.test.ts`): the module's picture becomes an
+`overlay` in the host's layout units and each module port a layout port with `group` = the placement id and the key
+`<placement>/<name>`, scaled into the box. **A module shows only while the switch reports one of its ports** (`SwitchFaceplate`:
+an overlay and its ports are drawn when some port of the group has a device row), so no per-switch setting says who has the module,
+a switch without it is drawn as before (no empty cages), and one bay can hold alternatives (a 1G and a 10G module), each switch
+showing the one it really has. A name claimed twice goes to the first claimant (the host's own ports, then the modules in the order
+placed); the editor lists such clashes in amber. Limits: a module's port names are absolute, so it describes the module in the
+*first* switch of a stack (other members' ports are listed under the picture, as for any model), and a module is not read from
+`show inventory`: it appears because its ports do. A model from an API that has not been upgraded yet (no `kind` or `modules`) is
+a switch with none (`normaliseModel`).
+
 ### The editor (`components/port-layout-editor.tsx`, `port-autolayout-panel.tsx`)
 
 Drag a box to move it, the corner square to resize (all selected boxes change together), drag on empty space to select several,
@@ -176,8 +203,8 @@ lives under the Cisco tabs for now; UniFi's page should link to it.
 
 `lib/stencils/*.test.ts` (the zip, OLE and LZ readers, binary Visio and Visio/PowerPoint packages on small synthetic files built in
 `test-builders.ts`, what a file is, the EMF reader and renderer against a recording canvas, front/back choices),
-`switch-model-import.spec.ts` in `tests/e2e` (not run against a live stack),
-`lib/faceplates/*.test.ts` (layouts, matching, detection on synthetic pictures, editor operations), `apps/api/test/switch-models.test.ts`
-(image sizes, schemas), `switch-models.integration.test.ts` (CockroachDB and YugabyteDB), `cisco-switch-view.spec.ts` and
-`switch-models.spec.ts` in `tests/e2e` (fake API through `page.route`). The e2e specs were not run against the live stack; the
-same flows were driven in a browser against the real pages with a fake API.
+`switch-model-import.spec.ts` in `tests/e2e`,
+`lib/faceplates/*.test.ts` (layouts, matching, detection on synthetic pictures, editor operations, module placement),
+`apps/api/test/switch-models.test.ts` (image sizes, schemas), `switch-models.integration.test.ts` (CockroachDB and YugabyteDB,
+including the module rules), `cisco-switch-view.spec.ts`, `switch-models.spec.ts` and `switch-model-modules.spec.ts` in `tests/e2e`
+(fake API through `page.route`; the live stack only supplies the pages and the signed-in user).

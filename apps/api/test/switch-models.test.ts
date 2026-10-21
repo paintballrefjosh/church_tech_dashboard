@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSwitchModelSchema, setSwitchViewSchema, switchModelPortsSchema, updateSwitchModelSchema } from "@church/shared";
+import { createSwitchModelSchema, setSwitchViewSchema, switchModelModulesSchema, switchModelPortsSchema, updateSwitchModelSchema } from "@church/shared";
 import { imageSize } from "../src/switch-models/image-size";
 
 function png(w: number, h: number): Buffer {
@@ -89,7 +89,7 @@ const port = (name: string, over: Record<string, unknown> = {}) => ({ name, x: 0
 
 describe("switch model schemas", () => {
   it("fills in the defaults for a new model", () => {
-    expect(createSwitchModelSchema.parse({ name: "  Catalyst 3850  " })).toEqual({ name: "Catalyst 3850", match: [], portSide: "front" });
+    expect(createSwitchModelSchema.parse({ name: "  Catalyst 3850  " })).toEqual({ name: "Catalyst 3850", kind: "switch", match: [], portSide: "front" });
   });
 
   it("accepts ports, defaulting kind and aliases", () => {
@@ -137,5 +137,39 @@ describe("setSwitchViewSchema", () => {
     expect(setSwitchViewSchema.safeParse({ mode: "model", modelId: "not-a-uuid" }).success).toBe(false);
     expect(setSwitchViewSchema.safeParse({ mode: "sideways" }).success).toBe(false);
     expect(setSwitchViewSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("add-on module schemas", () => {
+  const MOD = "5a5a5a5a-1111-4e57-9b1c-5d6e7f8a9b0c";
+  const placed = (over: Record<string, unknown> = {}) => ({ id: "m1", moduleId: MOD, x: 0.7, y: 0.2, w: 0.2, h: 0.5, ...over });
+
+  it("creates a module only when asked to", () => {
+    expect(createSwitchModelSchema.parse({ name: "NM-10G", kind: "module" }).kind).toBe("module");
+    expect(createSwitchModelSchema.safeParse({ name: "x", kind: "chassis" }).success).toBe(false);
+  });
+
+  it("accepts placements and rejects ones that leave the picture", () => {
+    expect(switchModelModulesSchema.safeParse([placed()]).success).toBe(true);
+    expect(switchModelModulesSchema.safeParse([placed({ x: 0.9 })]).success).toBe(false);
+    expect(switchModelModulesSchema.safeParse([placed({ y: 0.7 })]).success).toBe(false);
+    expect(switchModelModulesSchema.safeParse([placed({ w: 0 })]).success).toBe(false);
+  });
+
+  it("needs a real module id and a plain key, used once", () => {
+    expect(switchModelModulesSchema.safeParse([placed({ moduleId: "nope" })]).success).toBe(false);
+    expect(switchModelModulesSchema.safeParse([placed({ id: "has space" })]).success).toBe(false);
+    expect(switchModelModulesSchema.safeParse([placed(), placed({ x: 0.1 })]).success).toBe(false);
+    expect(switchModelModulesSchema.safeParse([placed(), placed({ id: "m2", x: 0.1 })]).success).toBe(true);
+  });
+
+  it("takes at most eight modules", () => {
+    const many = Array.from({ length: 9 }, (_, i) => placed({ id: `m${i}`, x: 0.01 * i }));
+    expect(switchModelModulesSchema.safeParse(many).success).toBe(false);
+  });
+
+  it("is part of a model update", () => {
+    expect(updateSwitchModelSchema.parse({ modules: [placed()] }).modules).toHaveLength(1);
+    expect(updateSwitchModelSchema.parse({}).modules).toBeUndefined();
   });
 });

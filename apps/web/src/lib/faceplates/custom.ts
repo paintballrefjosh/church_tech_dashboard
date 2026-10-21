@@ -1,5 +1,5 @@
 import type { SetSwitchViewInput, SwitchModel } from "@church/shared";
-import { faceplateForModel, type FaceplateLayout } from "./layouts";
+import { faceplateForModel, type FaceplatePortSpec, type FaceplateLayout, type FaceplateOverlay } from "./layouts";
 
 /** Where a model's picture is served from. `?v=` is the attachment id, so a replaced picture is a new URL (the API caches for a day). */
 export function switchModelImageUrl(modelId: string, side: "front" | "back", imageId: string): string {
@@ -23,6 +23,7 @@ export function matchSwitchModelDetail(
   if (!text) return null;
   let best: { model: SwitchModel; matched: string; len: number } | null = null;
   for (const m of models) {
+    if (m.kind === "module") continue; // an add-on module is placed on a switch, never matched to one
     for (const raw of m.match) {
       const pattern = raw.trim().toUpperCase();
       if (pattern.length < 2 || !text.includes(pattern)) continue;
@@ -48,7 +49,7 @@ export interface SwitchView {
 /** What the picker shows for a switch: its saved choice ("auto", "off" or "model:<id>"), read from the switch row. */
 export function currentChoice(models: readonly SwitchModel[], sw: { switchModelId?: string | null; switchViewOff?: boolean }): string {
   if (sw.switchViewOff) return "off";
-  if (sw.switchModelId && models.some((m) => m.id === sw.switchModelId)) return `model:${sw.switchModelId}`;
+  if (sw.switchModelId && models.some((m) => m.id === sw.switchModelId && m.kind !== "module")) return `model:${sw.switchModelId}`;
   return "auto";
 }
 
@@ -98,21 +99,81 @@ export function resolveSwitchView(
   device: { model: string | null | undefined; switchModelId?: string | null; switchViewOff?: boolean },
 ): SwitchView {
   if (device.switchViewOff) return { how: "off", model: null, matched: null, layout: null };
-  const picked = device.switchModelId ? models.find((m) => m.id === device.switchModelId) : undefined;
-  if (picked) return { how: "chosen", model: picked, matched: null, layout: layoutFromSwitchModel(picked) };
+  const picked = device.switchModelId ? models.find((m) => m.id === device.switchModelId && m.kind !== "module") : undefined;
+  if (picked) return { how: "chosen", model: picked, matched: null, layout: layoutFromSwitchModel(picked, models) };
   const hit = matchSwitchModelDetail(models, device.model);
-  if (hit) return { how: "matched", model: hit.model, matched: hit.matched, layout: layoutFromSwitchModel(hit.model) ?? faceplateForModel(device.model) };
+  if (hit) return { how: "matched", model: hit.model, matched: hit.matched, layout: layoutFromSwitchModel(hit.model, models) ?? faceplateForModel(device.model) };
   return { how: "none", model: null, matched: null, layout: faceplateForModel(device.model) };
 }
 
 /** Width of a custom layout in its own units: the picture's height follows from its proportions. */
 export const CUSTOM_LAYOUT_WIDTH = 1000;
 
+/** The key of a module's port on the host's layout: the placement id keeps two copies of one module apart. */
+export function modulePortKey(placementId: string, portName: string): string {
+  return `${placementId}/${portName}`;
+}
+
+/** The name a person knows a layout port by ("Te1/1/1"), without the placement prefix a module port's key carries. */
+export function portLabelOfKey(key: string): string {
+  const at = key.indexOf("/");
+  return at < 0 ? key : key.slice(at + 1);
+}
+
+/**
+ * The add-on modules placed on a host, as pictures and ports in the host's layout units. A module's port boxes are
+ * fractions of the module's own picture, so they are scaled into the box the module was placed in. A module that cannot be
+ * drawn (deleted, no picture, no ports) is left out. On a name clash the host's own port, or the earlier module, keeps the
+ * name; the later port is still drawn but a device port can only land on the first.
+ */
+function placeModules(
+  host: SwitchModel,
+  all: readonly SwitchModel[],
+  width: number,
+  height: number,
+  names: Record<string, string>,
+): { ports: FaceplatePortSpec[]; overlays: FaceplateOverlay[] } {
+  const ports: FaceplatePortSpec[] = [];
+  const overlays: FaceplateOverlay[] = [];
+  for (const pl of host.modules) {
+    const mod = all.find((x) => x.id === pl.moduleId && x.kind === "module");
+    if (!mod) continue;
+    const imageId = mod.portSide === "front" ? mod.frontImageId : mod.backImageId;
+    const w = mod.portSide === "front" ? mod.frontWidth : mod.backWidth;
+    const h = mod.portSide === "front" ? mod.frontHeight : mod.backHeight;
+    if (!imageId || !w || !h || mod.ports.length === 0) continue;
+    overlays.push({
+      id: pl.id,
+      label: mod.name,
+      url: switchModelImageUrl(mod.id, mod.portSide, imageId),
+      x: pl.x * width,
+      y: pl.y * height,
+      w: pl.w * width,
+      h: pl.h * height,
+    });
+    for (const p of mod.ports) {
+      const key = modulePortKey(pl.id, p.name);
+      for (const n of [p.name, ...p.aliases]) if (!(n.toLowerCase() in names)) names[n.toLowerCase()] = key;
+      ports.push({
+        key,
+        group: pl.id,
+        kind: p.kind,
+        x: (pl.x + p.x * pl.w) * width,
+        y: (pl.y + p.y * pl.h) * height,
+        w: p.w * pl.w * width,
+        h: p.h * pl.h * height,
+      });
+    }
+  }
+  return { ports, overlays };
+}
+
 /**
  * A model as a layout the faceplate can draw, or null while it cannot be drawn yet (no picture on the port side, or no
- * ports on it). A model with no ports is still editable; it just has no switch view to show.
+ * ports on it). A model with no ports is still editable; it just has no switch view to show. `all` is every model, for
+ * the add-on modules placed on this one.
  */
-export function layoutFromSwitchModel(m: SwitchModel): FaceplateLayout | null {
+export function layoutFromSwitchModel(m: SwitchModel, all: readonly SwitchModel[] = []): FaceplateLayout | null {
   const side = m.portSide;
   const imageId = side === "front" ? m.frontImageId : m.backImageId;
   const w = side === "front" ? m.frontWidth : m.backWidth;
@@ -126,6 +187,7 @@ export function layoutFromSwitchModel(m: SwitchModel): FaceplateLayout | null {
     for (const n of [p.name, ...p.aliases]) names[n.toLowerCase()] = p.name;
     return { key: p.name, kind: p.kind, x: p.x * width, y: p.y * height, w: p.w * width, h: p.h * height };
   });
+  const placed = placeModules(m, all, width, height, names);
 
   const otherSide = side === "front" ? "back" : "front";
   const otherId = otherSide === "front" ? m.frontImageId : m.backImageId;
@@ -143,7 +205,8 @@ export function layoutFromSwitchModel(m: SwitchModel): FaceplateLayout | null {
     height,
     image: switchModelImageUrl(m.id, side, imageId),
     calibrated: true,
-    ports,
+    ports: [...ports, ...placed.ports],
+    overlays: placed.overlays.length > 0 ? placed.overlays : undefined,
     otherImage: otherId && ow && oh ? { side: otherSide, url: switchModelImageUrl(m.id, otherSide, otherId), width: ow, height: oh } : undefined,
   };
 }

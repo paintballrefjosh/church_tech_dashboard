@@ -92,6 +92,10 @@ export function SwitchFaceplate({
   const bySlot = new Map(items.filter((i) => i.slot !== null).map((i) => [i.slot as string, i]));
   const strip = items.filter((i) => i.slot === null || !layout.ports.some((p) => p.key === i.slot));
   const photo = layout.image && !imageFailed ? layout.image : null;
+  // An add-on module shows only while the device reports one of its ports, so a switch without the module is drawn as it is.
+  const activeGroups = new Set(layout.ports.filter((p) => p.group && bySlot.has(p.key)).map((p) => p.group as string));
+  const shownPorts = layout.ports.filter((p) => !p.group || activeGroups.has(p.group));
+  const shownOverlays = (layout.overlays ?? []).filter((o) => activeGroups.has(o.id));
 
   const cancelClose = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -216,9 +220,20 @@ export function SwitchFaceplate({
             // eslint-disable-next-line @next/next/no-img-element -- a fixed catalogue photo, sized by the layout
             <img src={photo} alt={layout.title} onError={() => setImageFailed(true)} className="absolute inset-0 h-full w-full select-none" draggable={false} />
           ) : (
-            <DrawnChassis layout={layout} />
+            <DrawnChassis layout={layout} ports={shownPorts} />
           )}
-          {layout.ports.map((spec) => {
+          {shownOverlays.map((o) => (
+            // eslint-disable-next-line @next/next/no-img-element -- the admin's own picture of the module
+            <img
+              key={o.id}
+              src={o.url}
+              alt={o.label}
+              draggable={false}
+              className="absolute select-none"
+              style={{ left: `${(o.x / layout.width) * 100}%`, top: `${(o.y / layout.height) * 100}%`, width: `${(o.w / layout.width) * 100}%`, height: `${(o.h / layout.height) * 100}%` }}
+            />
+          ))}
+          {shownPorts.map((spec) => {
             const item = bySlot.get(spec.key);
             const pos: CSSProperties = {
               left: `${(spec.x / layout.width) * 100}%`,
@@ -282,13 +297,13 @@ export function SwitchFaceplate({
 }
 
 /** The panel when there is no photo: a dark chassis with rack ears, under the port buttons. */
-function DrawnChassis({ layout }: { layout: FaceplateLayout }) {
+function DrawnChassis({ layout, ports }: { layout: FaceplateLayout; ports: FaceplateLayout["ports"] }) {
   const ear = (14 / layout.width) * 100;
   return (
     <div aria-hidden className="absolute inset-0 overflow-hidden rounded-[3px] bg-gradient-to-b from-slate-600 to-slate-800 shadow-inner">
       <div className="absolute inset-y-0 left-0 bg-slate-700" style={{ width: `${ear}%` }} />
       <div className="absolute inset-y-0 right-0 bg-slate-700" style={{ width: `${ear}%` }} />
-      {layout.ports.map((p) => (
+      {ports.map((p) => (
         <span
           key={p.key}
           className="absolute rounded-[2px] bg-slate-950 shadow-[inset_0_1px_2px_rgba(0,0,0,0.9)]"

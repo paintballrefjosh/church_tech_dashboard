@@ -10,6 +10,7 @@ const NOW = "2026-10-19T00:00:00.000Z";
 const model = (over: Partial<SwitchModel> = {}): SwitchModel => ({
   id: ID,
   name: "Catalyst 3850-48",
+  kind: "switch",
   match: ["C3850-48"],
   portSide: "front",
   frontImageId: IMG,
@@ -22,6 +23,7 @@ const model = (over: Partial<SwitchModel> = {}): SwitchModel => ({
     { name: "Gi1/0/1", aliases: [], kind: "rj45", x: 0.1, y: 0.2, w: 0.02, h: 0.3 },
     { name: "Gi1/1/1", aliases: ["Te1/1/1"], kind: "sfp", x: 0.8, y: 0.2, w: 0.03, h: 0.3 },
   ],
+  modules: [],
   createdAt: NOW,
   updatedAt: NOW,
   ...over,
@@ -179,5 +181,81 @@ describe("resolveSwitchView", () => {
     expect(builtin.layout?.source).not.toBe("custom");
     expect(resolveSwitchView([], { model: "SOMETHING-ELSE" })).toEqual({ how: "none", model: null, matched: null, layout: null });
     expect(resolveSwitchView([], { model: null })).toEqual({ how: "none", model: null, matched: null, layout: null });
+  });
+});
+
+describe("add-on modules", () => {
+  const MOD_ID = "5a5a5a5a-1111-4e57-9b1c-5d6e7f8a9b0c";
+  const MOD_IMG = "6b6b6b6b-1111-4e57-9b1c-5d6e7f8a9b0c";
+  const module10g = (over: Partial<SwitchModel> = {}): SwitchModel =>
+    model({
+      id: MOD_ID,
+      name: "C3KX-NM-10G",
+      kind: "module",
+      match: [],
+      frontImageId: MOD_IMG,
+      frontWidth: 400,
+      frontHeight: 200,
+      ports: [
+        { name: "Te1/1/1", aliases: ["Gi1/1/1"], kind: "sfp", x: 0.1, y: 0.25, w: 0.2, h: 0.5 },
+        { name: "Te1/1/2", aliases: [], kind: "sfp", x: 0.6, y: 0.25, w: 0.2, h: 0.5 },
+      ],
+      ...over,
+    });
+  // the module's box is the right-hand fifth of the switch's picture, half its height
+  const placed = { id: "m1", moduleId: MOD_ID, x: 0.8, y: 0.25, w: 0.2, h: 0.5 };
+  const host = (over: Partial<SwitchModel> = {}): SwitchModel => model({ modules: [placed], ports: [model().ports[0]!], ...over });
+
+  it("puts the module's picture and ports on the host, scaled into the box it was placed in", () => {
+    const layout = layoutFromSwitchModel(host(), [host(), module10g()])!;
+    expect(layout.overlays).toEqual([
+      { id: "m1", label: "C3KX-NM-10G", url: `/api/switch-models/${MOD_ID}/images/front?v=${MOD_IMG}`, x: 800, y: 25, w: 200, h: 50 },
+    ]);
+    const port = layout.ports.find((p) => p.key === "m1/Te1/1/1")!;
+    expect(port).toMatchObject({ group: "m1", kind: "sfp" });
+    // 0.1 across a box that starts at 0.8 and is 0.2 wide: 0.82 of 1000 units; the same for height (host is 1000 x 100)
+    expect(port.x).toBeCloseTo(820);
+    expect(port.w).toBeCloseTo(40);
+    expect(port.y).toBeCloseTo((0.25 + 0.25 * 0.5) * 100);
+    expect(port.h).toBeCloseTo(0.5 * 0.5 * 100);
+  });
+
+  it("maps the module's names and aliases to its ports, and the host keeps a name it already has", () => {
+    const layout = layoutFromSwitchModel(host(), [host(), module10g()])!;
+    expect(slotForPort("Te1/1/1", layout)).toBe("m1/Te1/1/1");
+    expect(slotForPort("gi1/1/1", layout)).toBe("m1/Te1/1/1");
+    expect(slotForPort("Gi1/0/1", layout)).toBe("Gi1/0/1");
+    const withClash = host({ ports: [...model().ports] }); // the host owns Gi1/1/1 (alias Te1/1/1) too
+    const layout2 = layoutFromSwitchModel(withClash, [withClash, module10g()])!;
+    expect(slotForPort("Te1/1/1", layout2)).toBe("Gi1/1/1");
+    expect(slotForPort("Te1/1/2", layout2)).toBe("m1/Te1/1/2");
+  });
+
+  it("leaves out a module that was deleted, has no picture, or has no ports", () => {
+    expect(layoutFromSwitchModel(host(), [host()])!.overlays).toBeUndefined();
+    expect(layoutFromSwitchModel(host(), [host(), module10g({ frontImageId: null })])!.overlays).toBeUndefined();
+    expect(layoutFromSwitchModel(host(), [host(), module10g({ ports: [] })])!.overlays).toBeUndefined();
+    // a switch model is not a module, whatever the placement points at
+    expect(layoutFromSwitchModel(host(), [host(), module10g({ kind: "switch" })])!.overlays).toBeUndefined();
+  });
+
+  it("a module is never matched to a switch or offered as a pick", () => {
+    const m = module10g({ match: ["C3KX-NM-10G"] });
+    expect(matchSwitchModel([m], "C3KX-NM-10G")).toBeNull();
+    expect(currentChoice([m], { switchModelId: MOD_ID })).toBe("auto");
+    expect(resolveSwitchView([m], { model: "C3KX-NM-10G", switchModelId: MOD_ID }).how).toBe("none");
+  });
+
+  it("a layout with no modules has none of the extras", () => {
+    const layout = layoutFromSwitchModel(model(), [model()])!;
+    expect(layout.overlays).toBeUndefined();
+    expect(layout.ports.every((p) => p.group === undefined)).toBe(true);
+  });
+
+  it("works through resolveSwitchView, which passes every model on", () => {
+    const h = host();
+    const v = resolveSwitchView([h, module10g()], { model: "WS-C3850-48F-E" });
+    expect(v.how).toBe("matched");
+    expect(v.layout?.overlays?.length).toBe(1);
   });
 });

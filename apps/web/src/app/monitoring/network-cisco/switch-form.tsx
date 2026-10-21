@@ -166,7 +166,7 @@ export function SwitchFormModal({
                 className={`w-full ${inputCls}`}
               >
                 <option value="auto">Automatic (match the model text)</option>
-                {models.map((m) => (
+                {models.filter((m) => m.kind !== "module").map((m) => (
                   <option key={m.id} value={`model:${m.id}`}>
                     Use {m.name}
                   </option>

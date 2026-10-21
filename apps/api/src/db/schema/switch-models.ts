@@ -10,6 +10,8 @@ import { attachments } from "./attachments";
 export const switchModels = pgTable("switch_models", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull().unique(),
+  /** "switch", or "module" for an add-on module (a network module placed on a switch model's picture). */
+  kind: text("kind").notNull().default("switch"),
   match: jsonb("match").notNull().default([]),
   portSide: text("port_side").notNull().default("front"),
   frontImageId: uuid("front_image_id").references(() => attachments.id, { onDelete: "set null" }),
@@ -19,6 +21,8 @@ export const switchModels = pgTable("switch_models", {
   backWidth: integer("back_width"),
   backHeight: integer("back_height"),
   ports: jsonb("ports").notNull().default([]),
+  /** Modules placed on this model's port-side picture: [{ id, moduleId, x, y, w, h }]. A module's id is another row here. */
+  modules: jsonb("modules").notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -128,6 +128,7 @@ export function StencilImporter({
   const [name, setName] = useState("");
   const [match, setMatch] = useState("");
   const [portSide, setPortSide] = useState<Side>("front");
+  const [asModule, setAsModule] = useState(false);
   const [dragging, setDragging] = useState(false);
   const nameTouched = useRef(false);
 
@@ -219,7 +220,7 @@ export function StencilImporter({
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), match: splitMatch(match), portSide }),
+          body: JSON.stringify({ name: name.trim(), kind: asModule ? "module" : "switch", match: asModule ? [] : splitMatch(match), portSide }),
         });
         if (!r.ok) throw new Error(await errorText(r));
         model = (await r.json()) as SwitchModel;
@@ -386,10 +387,14 @@ export function StencilImporter({
                         <span className="text-xs text-slate-600 dark:text-slate-400">Name</span>
                         <input value={name} maxLength={80} disabled={busy} onChange={(e) => { nameTouched.current = true; setName(e.target.value); }} className={`w-full ${field}`} />
                       </label>
-                      <label className="block">
-                        <span className="text-xs text-slate-600 dark:text-slate-400">Matches (model text, comma separated)</span>
-                        <input value={match} disabled={busy} onChange={(e) => { nameTouched.current = true; setMatch(e.target.value); }} placeholder="WS-C3850-48" className={`w-full font-mono text-xs ${field}`} />
-                      </label>
+                      {asModule ? (
+                        <p className="self-end text-xs text-slate-600 dark:text-slate-400">A module is placed on a switch model afterwards; it is never matched to a switch itself.</p>
+                      ) : (
+                        <label className="block">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">Matches (model text, comma separated)</span>
+                          <input value={match} disabled={busy} onChange={(e) => { nameTouched.current = true; setMatch(e.target.value); }} placeholder="WS-C3850-48" className={`w-full font-mono text-xs ${field}`} />
+                        </label>
+                      )}
                       <label className="block">
                         <span className="text-xs text-slate-600 dark:text-slate-400">The ports are on the</span>
                         <select value={portSide} disabled={busy} onChange={(e) => setPortSide(e.target.value as Side)} className={`w-full ${field}`}>
@@ -397,13 +402,17 @@ export function StencilImporter({
                           <option value="back">back</option>
                         </select>
                       </label>
+                      <label className="inline-flex items-center gap-1.5 sm:col-span-3">
+                        <input type="checkbox" checked={asModule} disabled={busy} onChange={(e) => setAsModule(e.target.checked)} />
+                        <span>This is an add-on module (such as a C3KX-NM-10G), not a switch</span>
+                      </label>
                     </div>
                   ) : (
                     <label className="block">
                       <span className="text-xs text-slate-600 dark:text-slate-400">Model (its chosen sides are replaced)</span>
                       <select value={existingId} disabled={busy} onChange={(e) => setExistingId(e.target.value)} className={`w-full ${field}`}>
                         {models.map((m) => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
+                          <option key={m.id} value={m.id}>{m.kind === "module" ? `${m.name} (module)` : m.name}</option>
                         ))}
                       </select>
                     </label>
