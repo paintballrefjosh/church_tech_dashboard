@@ -36,6 +36,8 @@ export const ciscoSwitchSchema = z.object({
   lastError: z.string().nullable(),
   configDrift: z.boolean(),
   checkPortState: z.boolean(),
+  /** Port-channels count in the port-state check and its alerts (off by default: a bundle is down because its members are). */
+  checkPortChannels: z.boolean().optional(),
   alertPrefs: ciscoAlertPrefsSchema,
   hasPassword: z.boolean(),
   /** The switch's SSH host key has been recorded; a different key is refused. */
@@ -61,6 +63,7 @@ export const createCiscoSwitchSchema = z.object({
   model: z.string().max(128).optional(),
   location: z.string().max(128).optional(),
   checkPortState: z.boolean().optional(),
+  checkPortChannels: z.boolean().optional(),
   alertPrefs: ciscoAlertPrefsSchema.partial().optional(),
 });
 export type CreateCiscoSwitchInput = z.infer<typeof createCiscoSwitchSchema>;
@@ -74,6 +77,7 @@ export const updateCiscoSwitchSchema = z.object({
   model: z.string().max(128).nullable().optional(),
   location: z.string().max(128).nullable().optional(),
   checkPortState: z.boolean().optional(),
+  checkPortChannels: z.boolean().optional(),
   alertPrefs: ciscoAlertPrefsSchema.partial().optional(),
 });
 export type UpdateCiscoSwitchInput = z.infer<typeof updateCiscoSwitchSchema>;

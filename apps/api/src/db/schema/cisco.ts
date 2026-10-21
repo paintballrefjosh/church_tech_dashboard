@@ -29,6 +29,8 @@ export const ciscoSwitches = pgTable(
     lastError: text("last_error"),
     configDrift: boolean("config_drift").notNull().default(false),
     checkPortState: boolean("check_port_state").notNull().default(true),
+    // Port-channels (Po*) count in the port-state check and its alerts only when this is on.
+    checkPortChannels: boolean("check_port_channels").notNull().default(false),
     // Set once the desired VLAN list has been taken from the switch (see cisco_vlans), so removing the last
     // wanted VLAN is not mistaken for "never seeded" and put back on the next poll.
     vlanBaselineAt: timestamp("vlan_baseline_at"),

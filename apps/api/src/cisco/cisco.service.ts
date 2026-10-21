@@ -73,7 +73,9 @@ export class CiscoService {
         .from(ciscoPortLiveState)
         .where(eq(ciscoPortLiveState.operStatus, "up"))
         .groupBy(ciscoPortLiveState.switchId),
-      // Desired-enabled ports that are operationally not up = real problems.
+      // Desired-enabled ports that are operationally not up = real problems. A port-channel (Po*) counts only on a switch that
+      // asked for it (`check_port_channels`): a bundle is down because its members are, and the members are counted, whereas an
+      // enabled bundle with no members at all (a leftover vPC or channel) is configuration to tidy, not a port to alarm about.
       this.db
         .select({ switchId: ciscoPorts.switchId, n: sql<number>`count(*)::int` })
         .from(ciscoPorts)
@@ -84,7 +86,14 @@ export class CiscoService {
             eq(ciscoPortLiveState.portId, ciscoPorts.portId),
           ),
         )
-        .where(and(eq(ciscoPorts.adminEnabled, true), sql`${ciscoPortLiveState.operStatus} <> 'up'`))
+        .innerJoin(ciscoSwitches, eq(ciscoSwitches.id, ciscoPorts.switchId))
+        .where(
+          and(
+            eq(ciscoPorts.adminEnabled, true),
+            sql`${ciscoPortLiveState.operStatus} <> 'up'`,
+            or(eq(ciscoSwitches.checkPortChannels, true), sql`${ciscoPorts.portId} NOT LIKE 'Po%'`),
+          ),
+        )
         .groupBy(ciscoPorts.switchId),
     ]);
     const pc = new Map(portCounts.map((r) => [r.switchId, Number(r.n)]));
@@ -125,6 +134,7 @@ export class CiscoService {
         model: input.model?.trim() || null,
         location: input.location?.trim() || null,
         checkPortState: input.checkPortState ?? true,
+        checkPortChannels: input.checkPortChannels ?? false,
         alertPrefs: normalizePrefs(input.alertPrefs),
       })
       .returning();
@@ -148,6 +158,7 @@ export class CiscoService {
     if (input.model !== undefined) patch.model = input.model?.trim() || null;
     if (input.location !== undefined) patch.location = input.location?.trim() || null;
     if (input.checkPortState !== undefined) patch.checkPortState = input.checkPortState;
+    if (input.checkPortChannels !== undefined) patch.checkPortChannels = input.checkPortChannels;
     // Blank/omitted password = keep the stored credential.
     if (input.password && input.password.length > 0) patch.passwordEnc = encryptSecret(input.password);
     await this.db.update(ciscoSwitches).set(patch).where(eq(ciscoSwitches.id, id));
@@ -906,6 +917,7 @@ function toSwitch(row: SwitchRow): CiscoSwitch {
     lastError: row.lastError ?? null,
     configDrift: row.configDrift,
     checkPortState: row.checkPortState,
+    checkPortChannels: row.checkPortChannels,
     alertPrefs: normalizePrefs(row.alertPrefs),
     hasPassword: Boolean(row.passwordEnc),
     hostKeyPinned: Boolean(row.knownHostKey),

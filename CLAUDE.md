@@ -190,6 +190,8 @@ hold SNMP communities, local-user and enable hashes and AAA/routing keys, so `GE
 must do the same. Tests: `cisco-push-validation`, `cisco-push-safety`, `cisco-ssh-algorithms` (a fake switch that offers old and new), `cisco-config-redact`,
 smoke `tests/smoke/cisco.mjs` (a volunteer account reads a real stored config; read-only, pushes nothing). Never push to the real switches to test.
 
+**Port-state check** (`cisco_switches.check_port_state`, and `check_port_channels` from migration 0073, off by default): the switch list's "Port down" status and the port-change alerts count enabled ports that are not up; a port-channel (`Po*`, `isPortChannel`) counts only when the switch has `check_port_channels` on, because a bundle is down when its members are. `parseInterfacesStatus` reads the status column by the header's offsets (NX-OS has many words: `xcvrAbsen`, `noOperMem`), and `parseRunningConfig` matches `shutdown` exactly (`show run all` prints `no shutdown lan` on every NX-OS port). The desired ports are seeded once from that parse, so after a parser fix re-import the switch's ports (`POST /cisco/switches/:id/discover`).
+
 Cisco SSH **pins the switch's host key** (`cisco_switches.known_host_key`, migration 0059): trust on first use,
 then a different key is refused before the password is sent (`SshHostKeyMismatchError`, shown on the switch
 page with a "Trust new host key" action: `POST /cisco/switches/:id/reset-host-key`). Changing a switch's IP

@@ -22,6 +22,7 @@ export interface SwitchFormState {
   model: string;
   location: string;
   checkPortState: boolean;
+  checkPortChannels: boolean;
   alertPrefs: CiscoAlertPrefs;
   /** The switch view choice: "auto", "off" or "model:<id>" (only an existing switch has one). */
   viewChoice: string;
@@ -36,6 +37,7 @@ export const EMPTY_SWITCH_FORM: SwitchFormState = {
   model: "",
   location: "",
   checkPortState: true,
+  checkPortChannels: false,
   alertPrefs: { ...NO_ALERTS },
   viewChoice: "auto",
 };
@@ -51,6 +53,7 @@ export function formFromSwitch(s: CiscoSwitch): SwitchFormState {
     model: s.model ?? "",
     location: s.location ?? "",
     checkPortState: s.checkPortState,
+    checkPortChannels: s.checkPortChannels ?? false,
     alertPrefs: { ...NO_ALERTS, ...s.alertPrefs },
     viewChoice: s.switchViewOff ? "off" : s.switchModelId ? `model:${s.switchModelId}` : "auto",
   };
@@ -96,6 +99,7 @@ export function SwitchFormModal({
         model: form.model.trim() || undefined,
         location: form.location.trim() || undefined,
         checkPortState: form.checkPortState,
+        checkPortChannels: form.checkPortChannels,
         alertPrefs: form.alertPrefs,
       };
       if (form.password) body.password = form.password;
@@ -181,6 +185,21 @@ export function SwitchFormModal({
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={form.checkPortState} onChange={(e) => setForm({ ...form, checkPortState: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700" />
           <span>Port state monitoring</span>
+        </label>
+        <label className={`ml-6 flex items-start gap-2 ${form.checkPortState ? "" : "opacity-50"}`}>
+          <input
+            type="checkbox"
+            checked={form.checkPortChannels}
+            disabled={!form.checkPortState}
+            onChange={(e) => setForm({ ...form, checkPortChannels: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 disabled:cursor-not-allowed dark:border-slate-700"
+          />
+          <span>
+            Include port-channels
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              Off: a port-channel is a logical bundle, so it is neither counted as a port down nor alerted on. Its member ports still are.
+            </span>
+          </span>
         </label>
 
         <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">

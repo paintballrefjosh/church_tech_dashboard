@@ -38,6 +38,10 @@ export function normalizeIfName(name: string): string {
 }
 
 const PHYSICAL_RE = /^(Gi|Te|Fa|Eth|Twe|Fo|Hu|Fi|Po)\d/;
+/** A port-channel (a logical bundle of ports), by the short name `normalizeIfName` gives it. */
+export function isPortChannel(normName: string): boolean {
+  return /^Po\d/.test(normName);
+}
 export function isPhysicalPort(normName: string): boolean {
   return PHYSICAL_RE.test(normName);
 }

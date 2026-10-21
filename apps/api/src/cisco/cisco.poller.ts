@@ -27,6 +27,7 @@ import { sshShell, stripAnsi } from "./ssh";
 import { configChecksum, normalizeConfig } from "./config-normalize";
 import {
   detectOS,
+  isPortChannel,
   parseInterfacesStatus,
   parseRunningConfig,
   extractRunningConfig,
@@ -328,6 +329,7 @@ export class CiscoPoller implements OnModuleInit {
     const portChanges: string[] = [];
     if (!firstPoll && oldLive.size > 0) {
       for (const l of live) {
+        if (isPortChannel(l.portId) && !sw.checkPortChannels) continue;
         const prev = oldLive.get(l.portId);
         if (prev !== undefined && prev !== null && (prev === "up") !== (l.operStatus === "up")) {
           portChanges.push(`${l.portId} ${l.operStatus === "up" ? "up" : "down"}`);

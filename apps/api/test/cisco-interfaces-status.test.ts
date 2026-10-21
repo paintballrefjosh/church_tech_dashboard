@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInterfacesStatus } from "../src/cisco/parsers";
+import { isPortChannel, parseInterfacesStatus } from "../src/cisco/parsers";
 
 // Captured from a Nexus 3000 (names changed): empty SFP cages say xcvrAbsen, a port-channel with no member says noOperMem, and the
 // management port and the SVIs have their own sections.
@@ -95,5 +95,15 @@ describe("parseInterfacesStatus", () => {
     const p = by(parseInterfacesStatus("Gi1/0/1   desk   connected   10   a-full a-1000 10/100/1000BaseTX\nGi1/0/2   x   notconnect   1   auto auto -"));
     expect(p["Gi1/0/1"]!.operStatus).toBe("up");
     expect(p["Gi1/0/2"]!.operStatus).toBe("notconnect");
+  });
+});
+
+describe("isPortChannel", () => {
+  it("is true for a port-channel's short name and for nothing else", () => {
+    expect(isPortChannel("Po10")).toBe(true);
+    expect(isPortChannel("Po127")).toBe(true);
+    expect(isPortChannel("Eth1/1")).toBe(false);
+    expect(isPortChannel("Gi1/0/1")).toBe(false);
+    expect(isPortChannel("Port-channel1")).toBe(false); // names are normalised to Po<n> first
   });
 });

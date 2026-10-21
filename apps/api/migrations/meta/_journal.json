@@ -512,6 +512,13 @@
       "when": 1792954430977,
       "tag": "0072_switch_model_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793040830977,
+      "tag": "0073_cisco_check_port_channels",
+      "breakpoints": true
     }
   ]
 }
