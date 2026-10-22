@@ -160,7 +160,10 @@ head1 "Looking at the nodes"
 (( DERIVED )) && warn "no node list (data/upgrade/nodes): using this machine plus CLUSTER_PEERS, over SSH as $(id -un), checkout ~/church-dashboard."
 for i in "${!N_TARGET[@]}"; do
   if ! info="$(nsh "$i" 'test -f scripts/upgrade.sh || { echo NOUPGRADE; exit 0; }; printf "%s\n" "$(git rev-parse HEAD)" "$(sed -n "s/^NODE_ID=//p" .env | tail -n 1)" "$(sed -n "s/^NODE_ROLE=//p" .env | tail -n 1)" "$(sed -n "s/^EXTERNAL_PORT=//p" .env | tail -n 1)" "$(git status --porcelain --untracked-files=no | head -n 1)"' 2>&1)"; then
-    die "cannot reach ${N_TARGET[$i]} (${info:-no output}). SSH uses keys only here: check the host, user and key, and that the folder '${N_DIR[$i]}' exists."
+    info="$(printf '%s' "$info" | tr -d '\r' | tr -c '[:print:]\n\t' '?' | tail -n 5)"   # a CR from a login banner would overwrite the start of the message
+    die "cannot reach ${N_TARGET[$i]}. SSH said:
+${info:-(no output)}
+SSH uses keys only here: check the host, user and key, and that the folder '${N_DIR[$i]}' exists."
   fi
   [[ "$info" != NOUPGRADE ]] || die "${N_TARGET[$i]}: no scripts/upgrade.sh in '${N_DIR[$i]}'. Is that the checkout?"
   mapfile -t f <<<"$info"
