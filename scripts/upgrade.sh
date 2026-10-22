@@ -147,9 +147,9 @@ BACK=0; git merge-base --is-ancestor "$TARGET" "$OLD" 2>/dev/null && BACK=1
 # ---- the plan ---------------------------------------------------------------------------------------
 head1 "$(short "$OLD") -> $(short "$TARGET")$( ((BACK)) && echo "  ${Y}(moving BACK to an older version)${Z}")"
 if (( BACK )); then
-  git log --oneline --no-decorate "$TARGET..$OLD" | head -n 15 | sed -E "s/^([0-9a-f]+) /  ${R}- removes${Z} ${C}\\1${Z} /"
+  git log --oneline --no-decorate -n 15 "$TARGET..$OLD" | sed -E "s/^([0-9a-f]+) /  ${R}- removes${Z} ${C}\\1${Z} /"
 else
-  git log --oneline --no-decorate "$OLD..$TARGET" | head -n 15 | sed -E "s/^([0-9a-f]+) /  ${G}+${Z} ${C}\\1${Z} /"
+  git log --oneline --no-decorate -n 15 "$OLD..$TARGET" | sed -E "s/^([0-9a-f]+) /  ${G}+${Z} ${C}\\1${Z} /"
   n=$(git rev-list --count "$OLD..$TARGET"); (( n > 15 )) && note "  ... and $((n - 15)) more"
 fi
 NEWMIG="$(git diff --name-only --diff-filter=A "$OLD" "$TARGET" -- apps/api/migrations | grep -c '\.sql$' || true)"

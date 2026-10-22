@@ -84,6 +84,17 @@ check "warns about the new .env.example setting" grep -q "NEW_SETTING" "$W/out"
 check "changes nothing" test "$(head_)" = "$OLD"
 check "starts no build and no container" bash -c "! grep -qE 'compose (build|up|run)' <<<\"$(calls)\""
 
+echo "== more than 15 new commits (head closing the pipe must not fail the run)"
+fresh none
+( cd "$W/dev" && for i in $(seq 1 20); do git commit -q --allow-empty -m "change $i"; done && git push -q origin master 2>/dev/null )
+up_ --prod --check
+check "exits 0" test "$(rc)" = 0
+check "lists 15 and counts the rest" grep -q "and 6 more" "$W/out"
+up_ --prod --yes
+check "upgrades" test "$(rc)" = 0
+up_ --prod --yes --rollback
+check "rolling back across them exits 0" test "$(rc)" = 0
+
 echo "== upgrade, single node"
 fresh none
 up_ --prod --yes
