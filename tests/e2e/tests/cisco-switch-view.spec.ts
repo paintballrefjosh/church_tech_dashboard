@@ -82,6 +82,9 @@ async function fakeApi(page: Page, model: string | null) {
     { ...port(1), id: "55555555-5555-4555-8555-000000000102", portId: "Te1/1/1", operStatus: "up" },
     { ...port(1), id: "55555555-5555-4555-8555-000000000103", portId: "Po10", operStatus: "up" },
   ];
+  // No admin switch models: the page falls back to the built-in layouts, so what is drawn does not depend on the pictures and
+  // add-on modules that happen to be in the real database (a module on the real WS-C3850-48 model once broke the cage check below).
+  await page.route("**/api/switch-models", (route) => route.fulfill({ json: [] }));
   await page.route(`**/api/cisco/switches/${SW_ID}`, (route) => route.fulfill({ json: fakeSwitch(model) }));
   await page.route(`**/api/cisco/switches/${SW_ID}/ports`, (route) => route.fulfill({ json: ports }));
   await page.route(`**/api/cisco/switches/${SW_ID}/vlans`, (route) => route.fulfill({ json: [{ vlanId: 10, name: "staff" }] }));
