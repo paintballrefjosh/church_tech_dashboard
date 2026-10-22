@@ -53,6 +53,92 @@ export function normaliseMac(raw: string): string {
   return (hex.match(/.{2}/g) ?? []).join(":");
 }
 
+// ---- power over ethernet ----
+
+export interface PoePort {
+  portId: string;
+  /**
+   * "on" while the switch is powering a device; otherwise off, faulty, power-deny ... as the switch words it, or
+   * "disabled" when the port is set to `power inline never` (the switch then just says off; its mode reads `never`, or `off` on a 3750-X).
+   */
+  status: string;
+  /** "Ieee PD", "Cisco IP Phone 7960"; null when the switch says n/a. */
+  device: string | null;
+  /** IEEE class 0-8, null when the switch says n/a. */
+  ieeeClass: number | null;
+  /** Power set aside for the device, milliwatts. */
+  allocatedMw: number | null;
+  /** Power the port actually delivers now, milliwatts (null on an IOS that does not measure). */
+  measuredMw: number | null;
+}
+
+function wattsToMw(raw: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)/.exec(raw.trim());
+  return m ? Math.round(Number(m[1]) * 1000) : null;
+}
+
+/**
+ * Stack members that have PoE, from the table at the top of `show power inline`
+ * (`Module Available Used Remaining` and one `1  790.0  143.7  646.3` row per member).
+ */
+export function parsePoeModules(raw: string): number[] {
+  const out: number[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const m = /^\s*(\d{1,2})\s+\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+-?\d+(?:\.\d+)?\s*$/.exec(line);
+    if (m && !out.includes(Number(m[1]))) out.push(Number(m[1]));
+  }
+  return out;
+}
+
+/**
+ * One block per port from `show power inline module N detail` (IOS and IOS-XE): ` Interface: Gi1/0/17`, then the operational
+ * status, device type, IEEE class, `Power drawn from the source` (set aside) and `Measured at the port` (actual).
+ * A switch with no PoE answers `% Invalid input` and gives an empty list.
+ */
+export function parsePoeDetail(raw: string): PoePort[] {
+  const out: PoePort[] = [];
+  let cur: PoePort | null = null;
+  let mode = "";
+  for (const line of raw.split(/\r?\n/)) {
+    const head = /^\s*Interface:\s*(\S+)\s*$/.exec(line);
+    if (head) {
+      mode = "";
+      cur = { portId: normalizeIfName(head[1]!), status: "off", device: null, ieeeClass: null, allocatedMw: null, measuredMw: null };
+      out.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    const kv = /^\s*([A-Za-z][A-Za-z ]*?):\s*(.*?)\s*$/.exec(line);
+    if (!kv) continue;
+    const value = kv[2]!;
+    switch (kv[1]!.toLowerCase()) {
+      case "inline power mode":
+        mode = value.toLowerCase();
+        break;
+      case "operational status": {
+        const status = value.toLowerCase() || "off";
+        cur.status = (mode === "never" || mode === "off") && status === "off" ? "disabled" : status;
+        break;
+      }
+      case "device type":
+        cur.device = value && !/^n\/a$/i.test(value) ? value : null;
+        break;
+      case "ieee class":
+        cur.ieeeClass = /^\d+$/.test(value) ? Number(value) : null;
+        break;
+      case "power drawn from the source":
+        cur.allocatedMw = wattsToMw(value);
+        break;
+      case "measured at the port":
+        cur.measuredMw = wattsToMw(value);
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
 // ---- interfaces status → live oper state ----
 
 export interface LivePort {

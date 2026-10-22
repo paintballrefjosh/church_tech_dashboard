@@ -192,6 +192,14 @@ smoke `tests/smoke/cisco.mjs` (a volunteer account reads a real stored config; r
 
 **Port-state check** (`cisco_switches.check_port_state`, and `check_port_channels` from migration 0073, off by default): the switch list's "Port down" status and the port-change alerts count enabled ports that are not up; a port-channel (`Po*`, `isPortChannel`) counts only when the switch has `check_port_channels` on, because a bundle is down when its members are. `parseInterfacesStatus` reads the status column by the header's offsets (NX-OS has many words: `xcvrAbsen`, `noOperMem`), and `parseRunningConfig` matches `shutdown` exactly (`show run all` prints `no shutdown lan` on every NX-OS port). The desired ports are seeded once from that parse, so after a parser fix re-import the switch's ports (`POST /cisco/switches/:id/discover`).
 
+**PoE on the switch page** (migration 0074, `cisco_port_live_state.poe_*`): on IOS and IOS-XE (never NX-OS) the poller also reads `show power inline`
+and `show power inline module N detail` (`readPoe`, best effort: a failure or a switch with no PoE just stores nothing; `parsePoeDetail`,
+`parsePoeModules`) and the ports list returns it as `poe` (`CiscoPortPoe`, milliwatts). A port with `status: "on"` gets a lightning bolt on the picture,
+and the hover window gets the PoE kind, class, power measured and power set aside (`apps/web/src/lib/poe.ts`). **The summary table's `Power` column is
+what was SET ASIDE for the device, not what it draws** (every class 0 device reads 15.4 W); the real figure is `Measured at the port` in the detail. The
+kind is the larger of what the IEEE class and the power set aside imply (class 0-3 PoE af, 4 PoE+ at, 5-8 PoE++ bt). `power inline never` reads `Inline Power
+Mode: never` (3850) or `off` (3750-X) and becomes status `disabled`.
+
 Cisco SSH **pins the switch's host key** (`cisco_switches.known_host_key`, migration 0059): trust on first use,
 then a different key is refused before the password is sent (`SshHostKeyMismatchError`, shown on the switch
 page with a "Trust new host key" action: `POST /cisco/switches/:id/reset-host-key`). Changing a switch's IP

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { FlipHorizontal2 } from "lucide-react";
+import { FlipHorizontal2, Zap } from "lucide-react";
 import type { FaceplateLayout } from "@/lib/faceplates/layouts";
 
 export type FaceState = "up" | "down" | "shut" | "error" | "unknown";
@@ -17,6 +17,8 @@ export interface FaceItem {
   state: FaceState;
   /** In words, for people who cannot tell the colours apart: "up", "shut down", "error-disabled". */
   stateText: string;
+  /** Set while the port is powering a device over Ethernet: a lightning bolt is drawn on it, and this says what in words ("PoE+, 8.1 W"). */
+  poe?: string;
 }
 
 const STATE_COLOUR: Record<FaceState, { ring: string; fill: string }> = {
@@ -40,7 +42,12 @@ function ringStyle(state: FaceState): CSSProperties {
   return { borderColor: c.ring, backgroundColor: c.fill, borderStyle: state === "unknown" ? "dashed" : "solid" };
 }
 
-export function FaceLegend() {
+/** The bolt that marks a port powering a device; sized by the box it sits in. */
+function PoeBolt({ className = "" }: { className?: string }) {
+  return <Zap aria-hidden fill="currentColor" stroke="#0f172a" strokeWidth={1.5} className={`pointer-events-none shrink-0 text-amber-300 ${className}`} />;
+}
+
+export function FaceLegend({ showPoe = false }: { showPoe?: boolean }) {
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400" aria-label="Port colours">
       {FACE_LEGEND.map((l) => (
@@ -49,6 +56,14 @@ export function FaceLegend() {
           {l.label}
         </li>
       ))}
+      {showPoe ? (
+        <li className="inline-flex items-center gap-1.5">
+          <span className="inline-flex h-3 w-3 items-center justify-center rounded-sm bg-slate-700" aria-hidden>
+            <PoeBolt className="h-2.5 w-2.5" />
+          </span>
+          Powering a device (PoE)
+        </li>
+      ) : null}
     </ul>
   );
 }
@@ -180,7 +195,7 @@ export function SwitchFaceplate({
         }}
         data-port={item.label}
         data-state={item.state}
-        aria-label={`${item.label}, ${item.stateText}`}
+        aria-label={`${item.label}, ${item.stateText}${item.poe ? `, ${item.poe}` : ""}`}
         aria-expanded={isOpen}
         aria-controls={isOpen ? popoverId : undefined}
         onPointerEnter={(e) => {
@@ -245,14 +260,19 @@ export function SwitchFaceplate({
               // A socket on the panel that the device has no row for: drawn, not interactive.
               return <span key={spec.key} aria-hidden className="absolute rounded-[2px] border border-dashed border-slate-500/60" style={pos} />;
             }
-            return portButton(item, { ...pos, ...ringStyle(item.state) }, "absolute rounded-[2px] border-2 outline-offset-2 transition-transform hover:z-10 hover:scale-110 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white");
+            return portButton(
+              item,
+              { ...pos, ...ringStyle(item.state) },
+              "absolute flex items-center justify-center overflow-hidden rounded-[2px] border-2 outline-offset-2 transition-transform hover:z-10 hover:scale-110 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white",
+              item.poe ? <PoeBolt className="h-full max-h-4 w-auto max-w-full" /> : undefined,
+            );
           })}
         </div>
       </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <FaceLegend />
+        <FaceLegend showPoe={items.some((i) => i.poe)} />
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
           {!layout.calibrated ? <span className="text-xs text-slate-500 dark:text-slate-400">Port positions on this model are approximate.</span> : null}
           {other ? (
@@ -279,8 +299,11 @@ export function SwitchFaceplate({
               portButton(
                 item,
                 ringStyle(item.state),
-                "rounded-md border-2 px-2 py-1 font-mono text-xs text-slate-900 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 dark:text-slate-100",
-                item.label,
+                "inline-flex items-center gap-1 rounded-md border-2 px-2 py-1 font-mono text-xs text-slate-900 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600 dark:text-slate-100",
+                <>
+                  {item.label}
+                  {item.poe ? <PoeBolt className="h-3.5 w-3.5" /> : null}
+                </>,
               ),
             )}
           </div>

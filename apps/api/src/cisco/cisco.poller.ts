@@ -29,6 +29,9 @@ import {
   detectOS,
   isPortChannel,
   parseInterfacesStatus,
+  parsePoeDetail,
+  parsePoeModules,
+  type PoePort,
   parseRunningConfig,
   extractRunningConfig,
   parseModel,
@@ -254,18 +257,29 @@ export class CiscoPoller implements OnModuleInit {
       ).map((r) => [r.portId, r.operStatus]),
     );
 
+    // Power over Ethernet, best effort: a switch without it (or one that fails here) just has no PoE readings this time.
+    const poe = os === "nxos" ? new Map<string, PoePort>() : await this.readPoe(sw, cfg);
+
     // Live oper state (dashboard up/down).
     if (live.length) {
       await this.db.delete(ciscoPortLiveState).where(eq(ciscoPortLiveState.switchId, sw.id));
       await this.db.insert(ciscoPortLiveState).values(
-        live.map((l) => ({
-          switchId: sw.id,
-          portId: l.portId,
-          operStatus: l.operStatus,
-          mode: l.mode,
-          accessVlan: l.accessVlan,
-          polledAt: now,
-        })),
+        live.map((l) => {
+          const p = poe.get(l.portId);
+          return {
+            switchId: sw.id,
+            portId: l.portId,
+            operStatus: l.operStatus,
+            mode: l.mode,
+            accessVlan: l.accessVlan,
+            poeStatus: p?.status ?? null,
+            poeDevice: p?.device ?? null,
+            poeClass: p?.ieeeClass ?? null,
+            poeAllocatedMw: p?.allocatedMw ?? null,
+            poeMeasuredMw: p?.measuredMw ?? null,
+            polledAt: now,
+          };
+        }),
       );
     }
 
@@ -339,6 +353,29 @@ export class CiscoPoller implements OnModuleInit {
     if (!firstPoll) {
       await this.evaluateAlerts(sw, { cameOnline: !wasReachable, portChanges, configChanged, rebooted, uptime });
     }
+  }
+
+  /**
+   * What each PoE port is delivering. `show power inline` lists the stack members that have PoE; the first member's detail rides
+   * along in the same session, and any other member costs one more. A failure is logged and reads as "no PoE data".
+   */
+  private async readPoe(sw: SwitchRow, cfg: ReturnType<CiscoPoller["conn"]>): Promise<Map<string, PoePort>> {
+    const out = new Map<string, PoePort>();
+    try {
+      const first = stripAnsi(await sshShell(cfg, ["show power inline", "show power inline module 1 detail"]));
+      const ports = parsePoeDetail(first);
+      const others = parsePoeModules(first)
+        .filter((m) => m !== 1)
+        .slice(0, 8);
+      if (others.length) {
+        const more = await sshShell(cfg, others.map((m) => `show power inline module ${m} detail`));
+        ports.push(...parsePoeDetail(stripAnsi(more)));
+      }
+      for (const p of ports) out.set(p.portId, p);
+    } catch (err) {
+      this.logger.debug(`poe ${sw.hostname}: ${(err as Error).message}`);
+    }
+    return out;
   }
 
   // ---- alerting ----

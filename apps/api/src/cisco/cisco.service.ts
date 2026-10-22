@@ -643,6 +643,11 @@ export class CiscoService {
         neighborHostname: ciscoPorts.neighborHostname,
         neighborPort: ciscoPorts.neighborPort,
         operStatus: ciscoPortLiveState.operStatus,
+        poeStatus: ciscoPortLiveState.poeStatus,
+        poeDevice: ciscoPortLiveState.poeDevice,
+        poeClass: ciscoPortLiveState.poeClass,
+        poeAllocatedMw: ciscoPortLiveState.poeAllocatedMw,
+        poeMeasuredMw: ciscoPortLiveState.poeMeasuredMw,
       })
       .from(ciscoPorts)
       .leftJoin(
@@ -651,7 +656,13 @@ export class CiscoService {
       )
       .where(eq(ciscoPorts.switchId, switchId))
       .orderBy(asc(ciscoPorts.portId));
-    return rows.map((r) => ({ ...r, operStatus: r.operStatus ?? null }));
+    return rows.map(({ poeStatus, poeDevice, poeClass, poeAllocatedMw, poeMeasuredMw, ...r }) => ({
+      ...r,
+      operStatus: r.operStatus ?? null,
+      poe: poeStatus
+        ? { status: poeStatus, device: poeDevice, ieeeClass: poeClass, allocatedMw: poeAllocatedMw, measuredMw: poeMeasuredMw }
+        : null,
+    }));
   }
 
   async createPort(switchId: string, input: CiscoPortInput): Promise<{ id: string; portId: string }> {

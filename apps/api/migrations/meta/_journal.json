@@ -519,6 +519,13 @@
       "when": 1793040830977,
       "tag": "0073_cisco_check_port_channels",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793040890977,
+      "tag": "0074_cisco_poe_state",
+      "breakpoints": true
     }
   ]
 }

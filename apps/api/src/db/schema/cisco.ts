@@ -91,6 +91,12 @@ export const ciscoPortLiveState = pgTable(
     accessVlan: integer("access_vlan"),
     trunkNativeVlan: integer("trunk_native_vlan"),
     trunkAllowedVlans: text("trunk_allowed_vlans"),
+    // Power over Ethernet, from `show power inline ... detail` (null on a port the switch does not list, or a switch without PoE).
+    poeStatus: text("poe_status"), // on | off | faulty | power-deny ...
+    poeDevice: text("poe_device"), // "Ieee PD", "Cisco IP Phone 7960" ...
+    poeClass: integer("poe_class"), // IEEE class 0-8
+    poeAllocatedMw: integer("poe_allocated_mw"), // power the switch has set aside for the device
+    poeMeasuredMw: integer("poe_measured_mw"), // what the port actually delivers now
     polledAt: timestamp("polled_at"),
   },
   (t) => ({ uq: unique("cisco_live_switch_port_uq").on(t.switchId, t.portId) }),

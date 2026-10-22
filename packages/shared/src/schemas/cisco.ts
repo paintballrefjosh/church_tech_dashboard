@@ -342,6 +342,20 @@ export type CiscoPortInput = z.infer<typeof ciscoPortInputSchema>;
 export const updateCiscoPortSchema = ciscoPortInputSchema.partial();
 export type UpdateCiscoPortInput = z.infer<typeof updateCiscoPortSchema>;
 
+/** What a PoE port is doing, as the switch last reported it. */
+export interface CiscoPortPoe {
+  /** "on" while it powers a device; otherwise off, faulty, power-deny ... */
+  status: string;
+  /** "Ieee PD", "Cisco IP Phone 7960"; null when unknown. */
+  device: string | null;
+  /** IEEE class 0-8; null when unknown. */
+  ieeeClass: number | null;
+  /** Milliwatts set aside for the device. */
+  allocatedMw: number | null;
+  /** Milliwatts the port actually delivers now. */
+  measuredMw: number | null;
+}
+
 /** A desired port row joined with its observed live oper state. */
 export interface CiscoPortRow {
   id: string;
@@ -356,6 +370,8 @@ export interface CiscoPortRow {
   trunkNativeVlan: number;
   trunkAllowedVlans: string;
   operStatus: string | null;
+  /** Null for a port the switch has no PoE reading for (no PoE hardware, or not polled yet). */
+  poe: CiscoPortPoe | null;
   neighborHostname: string | null;
   neighborPort: string | null;
 }

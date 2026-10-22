@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud, Loader2, Zap } from "lucide-react";
 import {
   CISCO_DUPLEX_CHOICES,
   CISCO_SPEED_CHOICES,
@@ -22,6 +22,7 @@ import { SwitchFaceplate, type FaceItem } from "@/components/switch-faceplate";
 import { slotForPort, type FaceplateLayout } from "@/lib/faceplates/layouts";
 import { resolveSwitchView } from "@/lib/faceplates/custom";
 import { faceState } from "@/lib/faceplates/face-state";
+import { poeInUse, poeProviding, poeRows, poeSummary } from "@/lib/poe";
 import { SwitchViewLine } from "@/components/switch-view-line";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { SwitchFormModal, formFromSwitch, type SwitchFormState } from "../../switch-form";
@@ -97,6 +98,7 @@ function PortDetails({
     ["Description", p.description || "—"],
     ["Admin", p.adminEnabled ? "enabled" : "shut"],
     ["Live", p.operStatus ?? "—"],
+    ...poeRows(p.poe),
     ["Mode", p.hasSwitchport ? p.mode : "routed"],
     [p.mode === "trunk" ? "Native / allowed" : "VLAN", p.mode === "trunk" ? `${p.trunkNativeVlan} · ${p.trunkAllowedVlans}` : p.hasSwitchport ? String(p.accessVlan) : "—"],
     ["Speed / duplex", `${speedLabel(p.speed)} · ${normaliseDuplex(p.duplex)}`],
@@ -105,7 +107,10 @@ function PortDetails({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-sm font-semibold">{p.portId}</span>
+        <span className="inline-flex items-center gap-1 font-mono text-sm font-semibold">
+          {p.portId}
+          {poeProviding(p.poe) ? <Zap aria-hidden className="h-3.5 w-3.5 text-amber-500" fill="currentColor" /> : null}
+        </span>
         <span className="text-xs text-slate-500 dark:text-slate-400">{fs.text}</span>
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
@@ -160,7 +165,14 @@ function faceItems(ports: CiscoPortRow[], layout: FaceplateLayout): FaceItem[] {
   return sorted.map((p) => {
     const slot = slotForPort(p.portId, layout);
     const fs = faceState(p);
-    return { id: p.id, slot: slot !== null && claimed.get(slot)?.id === p.id ? slot : null, label: p.portId, state: fs.state, stateText: fs.text };
+    return {
+      id: p.id,
+      slot: slot !== null && claimed.get(slot)?.id === p.id ? slot : null,
+      label: p.portId,
+      state: fs.state,
+      stateText: fs.text,
+      poe: p.poe && poeProviding(p.poe) ? poeSummary(p.poe) : undefined,
+    };
   });
 }
 
@@ -345,6 +357,24 @@ export default function CiscoSwitchDetailPage() {
       },
       sortValue: (p) => p.operStatus ?? "",
     },
+    ...(ports.some((p) => p.poe)
+      ? [
+          {
+            key: "poe",
+            label: "PoE",
+            render: (p: CiscoPortRow) =>
+              poeProviding(p.poe) && p.poe ? (
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <Zap aria-hidden className="h-3.5 w-3.5 text-amber-500" fill="currentColor" />
+                  {poeSummary(p.poe)}
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 dark:text-slate-400">{p.poe ? "off" : "—"}</span>
+              ),
+            sortValue: (p: CiscoPortRow) => (poeProviding(p.poe) ? (p.poe?.measuredMw ?? p.poe?.allocatedMw ?? 0) : -1),
+          },
+        ]
+      : []),
     { key: "neighbor", label: "Neighbor", render: (p) => <span className="text-xs text-slate-500 dark:text-slate-400">{p.neighborHostname ?? "—"}</span>, sortValue: (p) => p.neighborHostname ?? "" },
     ...(canWrite
       ? [
@@ -476,7 +506,8 @@ export default function CiscoSwitchDetailPage() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              {ports.filter((p) => p.operStatus === "up").length} of {ports.length} interfaces up. Hover a port for its details.
+              {ports.filter((p) => p.operStatus === "up").length} of {ports.length} interfaces up.
+              {poeInUse(ports) ? ` ${poeInUse(ports)} of PoE in use.` : ""} Hover a port for its details.
             </span>
             {toggle}
           </div>
