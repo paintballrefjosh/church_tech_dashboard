@@ -32,7 +32,9 @@
 #
 # State and logs are in data/upgrade/ (git-ignored). --rollback uses the commit recorded there.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# UPGRADE_ROOT lets upgrade-cluster.sh run THIS file (the target version's copy) from outside the checkout, so a node
+# never upgrades itself with the script it already had on disk.
+cd "${UPGRADE_ROOT:-$(dirname "$0")/..}"
 
 CHECK=0 ROLLBACK=0 YES=0 PRUNE=0 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
 while [[ $# -gt 0 ]]; do

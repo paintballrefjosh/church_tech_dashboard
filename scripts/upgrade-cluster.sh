@@ -40,6 +40,10 @@
 #     (or Ctrl-C here) does not interrupt it halfway; run this again and it carries on.
 #   * Nodes that only hold the database and object store (NODE_ROLE=data) are skipped: there is no app to upgrade.
 #
+# Each node runs the TARGET version's scripts/upgrade.sh (taken from git, kept in data/upgrade/upgrade.next.sh), not the
+# copy it already has, so a fix to the upgrade logic applies to the upgrade that delivers it and you only ever run
+# this from one machine. A node that cannot fetch the target (or a --rollback, which has none) uses its own copy.
+#
 # SSH is key-only (BatchMode): this script never asks for or stores a password. Extra ssh options (a key file, a
 # jump host) go in UC_SSH_OPTIONS, e.g. UC_SSH_OPTIONS="-i ~/.ssh/church".
 set -euo pipefail
@@ -69,7 +73,7 @@ while [[ $# -gt 0 ]]; do
     --settle) SETTLE="${2:?--settle needs a number of seconds}"; shift 2 ;;
     --prune) PRUNE=1; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,45p' "${UC_COPY:-$0}"; exit 0 ;;
+    -h|--help) sed -n '2,49p' "${UC_COPY:-$0}"; exit 0 ;;
     *) echo "upgrade-cluster.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -243,14 +247,25 @@ node_args() { # index -> the arguments for that node's upgrade.sh
 run_node() { # index -> exit status of that node's upgrade.sh
   local i=$1 args; args="$(node_args "$i")"
   [[ "$args" =~ ^[A-Za-z0-9._\ =/-]+$ ]] || die "unexpected characters in the arguments: $args"
+  # The node upgrades with the TARGET version's upgrade.sh, not the copy it already had: a fix to that script then
+  # applies to the very upgrade that delivers it. Nothing to take it from (--rollback has no target, a node that cannot
+  # reach the remote, a target without the file): the node's own copy is used, as before.
   if [[ "${N_TARGET[$i]}" == local ]]; then
+    local s=scripts/upgrade.sh
+    if [[ -n "$TARGET" ]] && mkdir -p data/upgrade && git show "$TARGET:scripts/upgrade.sh" >data/upgrade/upgrade.next.sh.tmp 2>/dev/null; then
+      mv -f data/upgrade/upgrade.next.sh.tmp data/upgrade/upgrade.next.sh; s=data/upgrade/upgrade.next.sh
+    else rm -f data/upgrade/upgrade.next.sh.tmp; fi
     # shellcheck disable=SC2086
-    bash scripts/upgrade.sh $args 2>&1 | prefixed "$i"
+    UPGRADE_ROOT="$UC_ROOT" bash "$s" $args 2>&1 | prefixed "$i"
     return "${PIPESTATUS[0]}"
   fi
-  local d; d="$(printf '%q' "${N_DIR[$i]}")"
+  local pick="" d; d="$(printf '%q' "${N_DIR[$i]}")"
+  if [[ -n "$TARGET" ]]; then
+    [[ "$TARGET" =~ ^[0-9a-f]{40}$ ]] || die "unexpected target commit: $TARGET"
+    pick="if git cat-file -e $TARGET^{commit} 2>/dev/null || { GIT_TERMINAL_PROMPT=0 git fetch --quiet --tags origin >/dev/null 2>&1 && git cat-file -e $TARGET^{commit} 2>/dev/null; }; then git show $TARGET:scripts/upgrade.sh >data/upgrade/upgrade.next.sh.tmp 2>/dev/null && mv -f data/upgrade/upgrade.next.sh.tmp data/upgrade/upgrade.next.sh && UC_S=data/upgrade/upgrade.next.sh; fi;"
+  fi
   ssh_args "$i"
-  ssh "${SSH_A[@]}" "${N_TARGET[$i]}" "cd $d && mkdir -p data/upgrade && rm -f data/upgrade/remote.rc && : >data/upgrade/remote.log && (setsid nohup bash -c 'bash scripts/upgrade.sh $args >data/upgrade/remote.log 2>&1; echo \$? >data/upgrade/remote.rc' >/dev/null 2>&1 </dev/null &)" \
+  ssh "${SSH_A[@]}" "${N_TARGET[$i]}" "cd $d && mkdir -p data/upgrade && rm -f data/upgrade/remote.rc data/upgrade/upgrade.next.sh.tmp && : >data/upgrade/remote.log && export UPGRADE_ROOT=\"\$PWD\" UC_S=scripts/upgrade.sh; $pick (setsid nohup bash -c 'bash \"\$UC_S\" $args >data/upgrade/remote.log 2>&1; echo \$? >data/upgrade/remote.rc' >/dev/null 2>&1 </dev/null &)" \
     || { echo "could not start the upgrade on ${N_TARGET[$i]}" >&2; return 255; }
   local off=0 fails=0 out rc size chunk
   while :; do

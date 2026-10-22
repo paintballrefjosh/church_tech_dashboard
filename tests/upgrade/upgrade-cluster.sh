@@ -34,6 +34,7 @@ chmod +x "$W/bin/ssh" "$W/bin/curl"
 STUB='#!/usr/bin/env bash
 id="$(sed -n "s/^NODE_ID=//p" .env)"
 echo "$id $*" >>"${FAKE_RUN:?}/calls"
+echo "$0 ${UPGRADE_ROOT:-}" >"${FAKE_RUN:?}/via.$id"
 echo "stub upgrade on $id"
 to=""; chk=""; while [[ $# -gt 0 ]]; do case "$1" in --to) to="$2"; shift 2 ;; --check) chk=1; shift ;; *) shift ;; esac; done
 [[ -n "$chk" ]] && exit 0
@@ -48,7 +49,7 @@ fresh() {
   git init -q --bare -b master "$W/origin.git"
   git clone -q "$W/origin.git" "$W/dev" 2>/dev/null
   ( cd "$W/dev" && git config user.email t@t && git config user.name t
-    mkdir -p scripts; printf '%s\n' "$STUB" >scripts/upgrade.sh; echo one >f
+    mkdir -p scripts; printf '%s\n' "${FIRST_STUB:-$STUB}" >scripts/upgrade.sh; echo one >f
     git add -A && git commit -q -m first && git push -q origin master 2>/dev/null )
   git clone -q "$W/origin.git" "$W/local" 2>/dev/null
   cp "$REPO/scripts/upgrade-cluster.sh" "$W/local/scripts/"
@@ -60,7 +61,7 @@ fresh() {
     printf 'NODE_ID=%s\nEXTERNAL_PORT=%s\n%s' "$n" "$port" "$([[ $n == witness ]] && echo NODE_ROLE=data)" >"$W/homes/$n/church-dashboard/.env"
     port=$((port + 1))
   done
-  ( cd "$W/dev" && echo two >f && git commit -q -am second && git push -q origin master 2>/dev/null )
+  ( cd "$W/dev" && echo two >f && printf '%s\n' "$STUB" >scripts/upgrade.sh && git commit -q -am second && git push -q origin master 2>/dev/null )
   NEW=$(git -C "$W/dev" rev-parse HEAD); OLD=$(git -C "$W/local" rev-parse HEAD)
 }
 nodes_file() { printf '%s\n' "$@" >"$W/local/data/upgrade/nodes"; }
@@ -97,6 +98,31 @@ check "shows each node's output under its name" grep -q "\[alpha\].*stub upgrade
 check "says it is done" grep -q "Done in" "$W/out"
 up_ --yes
 check "a second run has nothing to do" bash -c "grep -q 'nothing to do' '$W/out' && [[ \$(wc -l <'$W/run/calls') == 4 ]]"
+
+echo "== every node upgrades with the TARGET version's upgrade.sh"
+# The first commit's upgrade.sh (what every node has) is broken, like the real one that exited 141; the target's works.
+BROKEN='#!/usr/bin/env bash
+echo "the old upgrade.sh ran on this node" >&2; exit 141'
+FIRST_STUB="$BROKEN" fresh alpha beta; nodes_file local u@alpha u@beta
+up_ --yes
+check "exits 0 although the nodes' own upgrade.sh is broken" test "$(rc)" = 0
+check "every node is on the new commit" bash -c "[[ \$(head_of alpha) == $NEW && \$(head_of beta) == $NEW ]]"
+check "the old script never ran" bash -c "! grep -q 'old upgrade.sh ran' '$W/out'"
+check "a remote node ran the copy from git, rooted in its checkout" bash -c "[[ \$(cat '$W/run/via.alpha') == 'data/upgrade/upgrade.next.sh $W/homes/alpha/church-dashboard' ]]"
+check "the local node did too" bash -c "[[ \$(cat '$W/run/via.main') == 'data/upgrade/upgrade.next.sh $W/local' ]]"
+check "the copy is the target's file" bash -c "cmp -s '$W/homes/beta/church-dashboard/data/upgrade/upgrade.next.sh' <(git -C '$W/dev' show $NEW:scripts/upgrade.sh)"
+check "the copy's folder is git-ignored in the real repo (it must not change the build id)" git -C "$REPO" check-ignore -q data/upgrade/upgrade.next.sh
+
+echo "== a node that cannot fetch the target uses its own upgrade.sh"
+fresh alpha; nodes_file local u@alpha
+git -C "$W/homes/alpha/church-dashboard" remote set-url origin "$W/nowhere.git"
+up_ --yes
+check "the run goes on with the node's own copy" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh ]] && grep -q '^alpha ' <<<\"$(calls)\""
+
+echo "== --rollback uses each node's own upgrade.sh (there is no target)"
+fresh alpha; nodes_file local u@alpha
+up_ --yes --rollback
+check "no copy is fetched" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh && ! -e '$W/homes/alpha/church-dashboard/data/upgrade/upgrade.next.sh' ]]"
 
 echo "== a failing node stops the run"
 fresh alpha beta gamma witness; nodes_file "${APP4[@]}"

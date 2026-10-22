@@ -1077,8 +1077,8 @@ scripts/upgrade-cluster.sh             # upgrade all nodes, one after another
 scripts/upgrade-cluster.sh --rollback  # put every node back on the version it ran before (last node first)
 ```
 
-Run it from the first node (or any machine that can SSH to all of them with a key). It runs `scripts/upgrade.sh`
-on each node in turn, so each node is drained, built, migrated, swapped and checked exactly as above, and it
+Run it from the first node (or any machine that can SSH to all of them with a key); you never need to log in to the others. It runs `scripts/upgrade.sh`
+on each node in turn (the copy from the version you are upgrading TO, fetched from git on the node, so a fix to the upgrade script applies to the upgrade that delivers it; the machine you run it from needs a current checkout, so `git pull` there first), so each node is drained, built, migrated, swapped and checked exactly as above, and it
 moves to the next node only when the previous one answers `/healthz` with 200 again. Every node gets the same
 commit (resolved once, up front, and passed as `--to`), the first node takes the database backup, and a node
 that is already on that commit is skipped.

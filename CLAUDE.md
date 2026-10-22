@@ -1346,6 +1346,11 @@ roll back by itself. A failed build or migration puts the code back before anyth
   skipped, and it STOPS at the first failure (that node rolled itself back; later nodes untouched). It runs from a
   copy of itself because upgrading the local node replaces its own file. Test: `tests/upgrade/upgrade-cluster.sh`
   (fake ssh/curl and a stub `upgrade.sh`; the real SSH path was also run against an sshd container).
+- **Each node upgrades with the TARGET's `upgrade.sh`, not the copy on its disk** (`run_node`): the cluster script `git show <sha>:scripts/upgrade.sh`
+  into `data/upgrade/upgrade.next.sh` (git-ignored, so the build id is unchanged; the node fetches the commit first) and runs it with
+  `UPGRADE_ROOT` pointing at the checkout. Without this a bug fix in `upgrade.sh` only helps the upgrade AFTER the one that delivers it (a plan of
+  more than 15 commits exited 141 on `git log | head` under pipefail, on nodes that already had the fixed script pushed). A node that cannot fetch
+  the target, and `--rollback` (no target), use their own copy. Never pipe `git log` into `head` in these scripts; use `git log -n`.
 - **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
 - It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
   harness, and `--dev` on the dev stack.
