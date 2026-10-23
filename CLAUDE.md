@@ -1351,6 +1351,10 @@ roll back by itself. A failed build or migration puts the code back before anyth
   `UPGRADE_ROOT` pointing at the checkout. Without this a bug fix in `upgrade.sh` only helps the upgrade AFTER the one that delivers it (a plan of
   more than 15 commits exited 141 on `git log | head` under pipefail, on nodes that already had the fixed script pushed). A node that cannot fetch
   the target, and `--rollback` (no target), use their own copy. Never pipe `git log` into `head` in these scripts; use `git log -n`.
+- **"On the target commit" is not "running the target".** `git pull` moves the checkout and builds nothing, so the node you run the cluster script from
+  looked current while its containers were old (the dashboard showed it on a different build from the others). `upgrade.sh` compares the running api/web
+  `BUILD_ID` with `scripts/build-id.sh` before it says "nothing to upgrade" (and keeps the earlier `PREV_COMMIT` when it rebuilds the same commit);
+  `upgrade.sh --status` prints `down|current|stale <build>` and the cluster script uses it for nodes whose checkout is already on the target.
 - **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
 - It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
   harness, and `--dev` on the dev stack.

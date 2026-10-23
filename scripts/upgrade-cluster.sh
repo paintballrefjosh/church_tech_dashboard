@@ -205,7 +205,14 @@ for i in "${!N_TARGET[@]}"; do
   elif (( ROLLBACK )); then
     N_STATE[i]=todo; what="roll back from $(short "${N_HEAD[$i]}")"
   elif [[ "${N_HEAD[$i]}" == "$TARGET" ]]; then
-    N_STATE[i]=current; what="${G}already on $(short "$TARGET")${Z}"
+    # The checkout being on the target does not mean the node RUNS it (a `git pull` moves files and builds nothing).
+    # An answer we cannot get (an older upgrade.sh, no stack) is taken as current, as before.
+    st="$(nsh "$i" 'bash scripts/upgrade.sh --status 2>/dev/null | tail -n 1' 2>/dev/null || true)"
+    if [[ "$st" == stale* ]]; then
+      N_STATE[i]=todo; what="${Y}checkout is on $(short "$TARGET") but it runs build '${st#stale }'${Z}"
+    else
+      N_STATE[i]=current; what="${G}already on $(short "$TARGET")${Z}"
+    fi
   else
     N_STATE[i]=todo; what="$(short "${N_HEAD[$i]}") -> ${C}$(short "$TARGET")${Z}"
   fi

@@ -5,6 +5,7 @@
 #
 #   scripts/upgrade.sh                  upgrade to the newest commit of this branch's upstream
 #   scripts/upgrade.sh --check          show what would change, touch nothing
+#   scripts/upgrade.sh --status         does what runs match what is checked out? (down | current | stale <build>)
 #   scripts/upgrade.sh --to <ref>       upgrade (or move) to a commit, tag or branch
 #   scripts/upgrade.sh --rollback       go back to the version this node ran before the last upgrade
 #
@@ -36,10 +37,11 @@ set -euo pipefail
 # never upgrades itself with the script it already had on disk.
 cd "${UPGRADE_ROOT:-$(dirname "$0")/..}"
 
-CHECK=0 ROLLBACK=0 YES=0 PRUNE=0 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
+CHECK=0 STATUS=0 ROLLBACK=0 YES=0 PRUNE=0 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=1; shift ;;
+    --status) STATUS=1; CHECK=1; shift ;;
     --rollback) ROLLBACK=1; shift ;;
     --to) TO="${2:?--to needs a commit, tag or branch}"; shift 2 ;;
     --prod) STACK=prod; shift ;;
@@ -109,6 +111,19 @@ kv "stack:" "${C}$STACK${Z} ($DEPLOY_MODE), database: $DB_MODE"
 
 dc() { "${DC[@]}" "$@"; }
 running() { [[ -n "$(dc ps -q api 2>/dev/null | head -n 1)" ]]; }
+runs_build() { # service, build id
+  [[ "$(dc exec -T "$1" printenv BUILD_ID 2>/dev/null | tr -d '\r\n')" == "$2" ]]
+}
+running_build() { dc exec -T api printenv BUILD_ID 2>/dev/null | tr -d '\r\n' || true; }
+
+# --status (used by upgrade-cluster.sh): does what RUNS match what is checked out? One last line: down | current | stale <running build>.
+# A checkout can be on the target commit while its containers still run an older build (the code was pulled but never built).
+if (( STATUS )); then
+  running || { echo down; exit 0; }
+  want="$(bash scripts/build-id.sh)"
+  if runs_build api "$want" && runs_build web "$want"; then echo current; else echo "stale $(running_build)"; fi
+  exit 0
+fi
 
 # ---- pick the target ------------------------------------------------------------------------------
 BRANCH="$(git symbolic-ref --short -q HEAD || true)"
@@ -140,8 +155,14 @@ fi
 
 short() { git rev-parse --short=12 "$1"; }
 if [[ "$TARGET" == "$OLD" ]]; then
-  if running; then ok "already on $(short "$OLD"); nothing to upgrade."; exit 0; fi
-  warn "already on $(short "$OLD") but the stack is not running."
+  if running; then
+    # The code being here does not mean it is what runs: `git pull` moves the checkout and builds nothing.
+    WANT="$(bash scripts/build-id.sh)"
+    if runs_build api "$WANT" && runs_build web "$WANT"; then ok "already on $(short "$OLD") and running it; nothing to upgrade."; exit 0; fi
+    warn "the checkout is already on $(short "$OLD"), but the containers run build '$(running_build)', not '$WANT': building and swapping to bring them up to date."
+  else
+    warn "already on $(short "$OLD") but the stack is not running."
+  fi
 fi
 
 BACK=0; git merge-base --is-ancestor "$TARGET" "$OLD" 2>/dev/null && BACK=1
@@ -199,9 +220,6 @@ phase() { printf '%s  %s%s (%ds)%s\n' "$G" "$Z$B" "$1" "$((SECONDS - START))" "$
 # Inside the containers, so the answer does not depend on the proxy, the drain flag or the load balancer.
 api_ready() { dc exec -T api node -e "fetch('http://127.0.0.1:3001/api/v1/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" >/dev/null 2>&1; }
 web_ready() { dc exec -T web node -e "fetch('http://127.0.0.1:3000/',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))" >/dev/null 2>&1; }
-runs_build() { # service, build id
-  [[ "$(dc exec -T "$1" printenv BUILD_ID 2>/dev/null | tr -d '\r\n')" == "$2" ]]
-}
 wait_healthy() { # build id, seconds
   local want=$1 secs=$2 i=0
   until api_ready && web_ready && runs_build api "$want" && runs_build web "$want"; do
@@ -222,7 +240,9 @@ build_images() {
   rm -f "$out"; return 1
 }
 write_state() {
-  { echo "PREV_COMMIT=$OLD"; echo "BRANCH=${BRANCH:-$(state_get BRANCH)}"; echo "TARGET=$TARGET"; echo "STACK=$STACK"; echo "WHEN=$(date -u +%FT%TZ)"; } >"$STATE.new"
+  local prev=$OLD
+  [[ "$OLD" != "$TARGET" ]] || prev="$(state_get PREV_COMMIT)"; prev="${prev:-$OLD}"   # a rebuild of the same commit is not a version to roll back to
+  { echo "PREV_COMMIT=$prev"; echo "BRANCH=${BRANCH:-$(state_get BRANCH)}"; echo "TARGET=$TARGET"; echo "STACK=$STACK"; echo "WHEN=$(date -u +%FT%TZ)"; } >"$STATE.new"
   mv "$STATE.new" "$STATE"
 }
 goto_commit() { # sync the working tree to a commit

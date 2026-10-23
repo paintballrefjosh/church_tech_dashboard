@@ -111,6 +111,24 @@ check "does not drain a single node" bash -c "! grep -q cluster <<<\"$(calls)\""
 up_ --prod --yes
 check "a second run says it is up to date" grep -q "nothing to upgrade" "$W/out"
 
+echo "== the checkout is on the target but the containers run an older build (git pull builds nothing)"
+fresh none
+git -C "$W/work" pull -q origin master 2>/dev/null
+check "the checkout is on the new commit" test "$(head_)" = "$NEW"
+up_ --prod --status
+check "--status says stale and names the running build" bash -c "[[ \$(tail -n 1 '$W/out') == \"stale $(running_id)\" ]]"
+check "--status builds nothing" bash -c "! grep -qE 'compose (build|up|run)' <<<\"$(calls)\""
+up_ --prod --yes
+check "it is not called up to date: exits 0 and builds" bash -c "[[ $(rc) == 0 ]] && grep -q 'compose build' <<<\"$(calls)\" && grep -q 'containers run build' '$W/out'"
+check "now runs the checkout's build" test "$(running_id)" = "$(git -C "$W/work" rev-parse --short=12 HEAD)"
+up_ --prod --status
+check "--status now says current" bash -c "[[ \$(tail -n 1 '$W/out') == current ]]"
+fresh none
+up_ --prod --yes
+echo oldbuild >"$W/run/running"
+up_ --prod --yes
+check "a rebuild of the same commit keeps the real rollback target" test "$(state PREV_COMMIT)" = "$OLD"
+
 echo "== rollback"
 up_ --prod --yes --rollback
 check "exits 0" test "$(rc)" = 0

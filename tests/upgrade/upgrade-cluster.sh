@@ -33,12 +33,17 @@ chmod +x "$W/bin/ssh" "$W/bin/curl"
 # The stub upgrade.sh every node has: records "<node id> <args>", moves the checkout to --to unless told to fail.
 STUB='#!/usr/bin/env bash
 id="$(sed -n "s/^NODE_ID=//p" .env)"
+if [[ "${1:-}" == --status ]]; then
+  [[ -f "${FAKE_RUN:?}/stale.$id" ]] && echo "stale oldbuild" || echo current
+  exit 0
+fi
 echo "$id $*" >>"${FAKE_RUN:?}/calls"
 echo "$0 ${UPGRADE_ROOT:-}" >"${FAKE_RUN:?}/via.$id"
 echo "stub upgrade on $id"
 to=""; chk=""; while [[ $# -gt 0 ]]; do case "$1" in --to) to="$2"; shift 2 ;; --check) chk=1; shift ;; *) shift ;; esac; done
 [[ -n "$chk" ]] && exit 0
 [[ -f "$FAKE_RUN/fail.$id" ]] && { echo "build failed on $id" >&2; exit 1; }
+rm -f "$FAKE_RUN/stale.$id"
 if [[ -n "$to" ]]; then git fetch -q origin 2>/dev/null; git merge -q --ff-only "$to" 2>/dev/null || git checkout -q --detach "$to"; fi
 exit 0'
 
@@ -123,6 +128,17 @@ echo "== --rollback uses each node's own upgrade.sh (there is no target)"
 fresh alpha; nodes_file local u@alpha
 up_ --yes --rollback
 check "no copy is fetched" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh && ! -e '$W/homes/alpha/church-dashboard/data/upgrade/upgrade.next.sh' ]]"
+
+echo "== a node whose checkout is on the target but whose containers are old is upgraded"
+fresh alpha beta; nodes_file local u@alpha u@beta
+for n in alpha beta; do git -C "$W/homes/$n/church-dashboard" pull -q origin master 2>/dev/null; done
+touch "$W/run/stale.beta"
+up_ --yes
+check "exits 0" test "$(rc)" = 0
+check "the stale node is upgraded and says why" bash -c "grep -q '^beta ' <<<\"$(calls)\" && grep -q \"runs build 'oldbuild'\" '$W/out'"
+check "the node that really runs it is skipped" bash -c "! grep -q '^alpha ' <<<\"$(calls)\""
+up_ --yes
+check "a second run has nothing to do" grep -q "nothing to do" "$W/out"
 
 echo "== a failing node stops the run"
 fresh alpha beta gamma witness; nodes_file "${APP4[@]}"
