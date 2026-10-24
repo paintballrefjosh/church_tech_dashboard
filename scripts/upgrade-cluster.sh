@@ -12,7 +12,7 @@
 #   --no-backup          no database backup first (default: one, on the first node, with a bundled database)
 #   --drain-wait <sec>   passed to each node's upgrade.sh (how long a drained node waits for open requests)
 #   --settle <sec>       pause after a node is back, before the next one (default 10)
-#   --prune              passed to each node's upgrade.sh (remove dangling images afterwards)
+#   --no-prune           passed to each node's upgrade.sh (keep old images and build cache; default: they are tidied)
 #   --yes                do not ask for confirmation
 #
 # The node list is one node per line, `local` for the machine running this script and `[user@]host[:port] [folder]`
@@ -61,7 +61,7 @@ trap 'rm -rf "$CM_DIR" "${UC_COPY:-}"' EXIT
 
 POLL_SEC="${UC_POLL_SEC:-3}"           # how often a remote upgrade's log is read (tests shorten these)
 HEALTH_WAIT="${UC_HEALTH_WAIT:-90}"    # how long a finished node gets to answer /healthz
-CHECK=0 ROLLBACK=0 YES=0 PRUNE=0 TO="" NODES_FILE="" BACKUP=yes DRAIN_WAIT="" SETTLE=10
+CHECK=0 ROLLBACK=0 YES=0 NOPRUNE=0 TO="" NODES_FILE="" BACKUP=yes DRAIN_WAIT="" SETTLE=10
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=1; shift ;;
@@ -71,7 +71,8 @@ while [[ $# -gt 0 ]]; do
     --no-backup) BACKUP=no; shift ;;
     --drain-wait) DRAIN_WAIT="${2:?--drain-wait needs a number of seconds}"; shift 2 ;;
     --settle) SETTLE="${2:?--settle needs a number of seconds}"; shift 2 ;;
-    --prune) PRUNE=1; shift ;;
+    --prune) shift ;;   # the default now; kept so old command lines work
+    --no-prune) NOPRUNE=1; shift ;;
     --yes|-y) YES=1; shift ;;
     -h|--help) sed -n '2,49p' "${UC_COPY:-$0}"; exit 0 ;;
     *) echo "upgrade-cluster.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
@@ -246,7 +247,7 @@ node_args() { # index -> the arguments for that node's upgrade.sh
   fi
   (( CHECK )) && a+=(--check) || a+=(--yes)
   [[ -z "$DRAIN_WAIT" ]] || a+=(--drain-wait "$DRAIN_WAIT")
-  (( PRUNE )) && a+=(--prune)
+  (( NOPRUNE )) && a+=(--no-prune)
   printf '%s ' "${a[@]}"
 }
 

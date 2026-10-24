@@ -10,11 +10,12 @@ W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 pass=0; failn=0
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass=$((pass + 1)); echo "  ok    $what"; else failn=$((failn + 1)); echo "  FAIL  $what"; fi; }
 
-# A fake docker on PATH: `docker info` has no root dir (skips the space check), `image prune` succeeds.
+# A fake docker on PATH: `docker info` has no root dir (skips the space check), the prunes succeed (and are recorded).
 mkdir -p "$W/bin"
 cat >"$W/bin/docker" <<'EOF'
 #!/usr/bin/env bash
-case "$1" in image) echo "Total reclaimed space: 0B" ;; esac
+[[ -n "${FAKE_RUN:-}" ]] && echo "docker $*" >>"$FAKE_RUN/dockercalls"
+case "$1" in image) echo "Total reclaimed space: 0B" ;; builder) [[ "${FAKE_PRUNE:-}" == fail ]] && { echo "prune failed" >&2; exit 1; } ;; esac
 exit 0
 EOF
 chmod +x "$W/bin/docker"
@@ -110,6 +111,22 @@ check "records the previous commit" test "$(state PREV_COMMIT)" = "$OLD"
 check "does not drain a single node" bash -c "! grep -q cluster <<<\"$(calls)\""
 up_ --prod --yes
 check "a second run says it is up to date" grep -q "nothing to upgrade" "$W/out"
+
+echo "== tidying Docker's disk use after an upgrade"
+dcalls() { cat "$W/run/dockercalls" 2>/dev/null; }
+fresh none
+up_ --prod --yes
+check "removes dangling images and trims the build cache by default" bash -c "grep -q 'docker image prune -f' <<<\"$(dcalls)\" && grep -q 'docker builder prune -f --keep-storage 10GB' <<<\"$(dcalls)\""
+check "never removes volumes or tagged images" bash -c "! grep -qE 'volume|system prune|image prune -a|rmi' <<<\"$(dcalls)\""
+fresh none
+up_ --prod --yes --no-prune
+check "--no-prune leaves them alone" bash -c "[[ $(rc) == 0 ]] && ! grep -q prune <<<\"$(dcalls)\""
+fresh none
+FAKE_PRUNE=fail up_ --prod --yes
+check "a prune that fails does not fail the upgrade" test "$(rc)" = 0
+fresh none
+FAKE_BUILD=fail up_ --prod --yes
+check "a failed upgrade prunes nothing" bash -c "[[ $(rc) != 0 ]] && ! grep -q prune <<<\"$(dcalls)\""
 
 echo "== the checkout is on the target but the containers run an older build (git pull builds nothing)"
 fresh none

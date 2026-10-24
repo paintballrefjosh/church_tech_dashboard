@@ -1044,8 +1044,10 @@ lands in the object store; `--no-backup` skips it). In a cluster it is not repea
 first node with `--backup`. With an external database the script cannot back it up for you; use your
 database's tooling, or Admin > Backups for the app's own data.
 
-`--to <commit, tag or branch>` moves to a specific version (also older ones; the migrations stay), `--prune`
-removes the dangling images the builds leave, and `--prod` / `--dev` choose the stack when it cannot tell
+`--to <commit, tag or branch>` moves to a specific version (also older ones; the migrations stay), and, once the new
+version is verified, the script tidies Docker's disk use: dangling images go and the build cache is trimmed to
+`UPGRADE_CACHE_KEEP` (default `10GB`; volumes and running or tagged images are never touched; `--no-prune` skips it).
+Without this each upgrade added several GB of image layers and build cache to every node. And `--prod` / `--dev` choose the stack when it cannot tell
 (a cluster is always prod). Logs and the recorded previous version are in `data/upgrade/`. After a
 `--rollback` the checkout is on a detached commit: `git checkout <your branch>` before the next upgrade.
 A browser tab left open across an upgrade may need a reload.
@@ -1103,7 +1105,7 @@ SSH is key-only: the script never asks for or stores a password (`UC_SSH_OPTIONS
 options such as a key file or a jump host). A remote upgrade runs detached on its node and the script follows
 its log, so a dropped connection or Ctrl-C here does not interrupt it halfway; run the script again and it
 carries on. Nodes that only hold the database and object store (`NODE_ROLE=data`) are skipped. `--no-backup`,
-`--drain-wait`, `--prune`, `--settle <sec>` (pause between nodes, default 10) and `--to <ref>` work as described
+`--drain-wait`, `--no-prune`, `--settle <sec>` (pause between nodes, default 10) and `--to <ref>` work as described
 above.
 
 ## Alerts, escalation and the status page

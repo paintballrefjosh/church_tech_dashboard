@@ -14,7 +14,8 @@
 #                        take a database backup first (bundled database; default: yes on a single node, no in
 #                        a cluster, where one backup before the FIRST node is enough: run --backup there)
 #   --drain-wait <sec>   cluster: how long to wait after draining before the app is restarted (default 15)
-#   --prune              afterwards remove dangling images left by the builds
+#   --no-prune           keep the old images and build cache (default: after a SUCCESSFUL upgrade, remove the dangling
+#                        images the build leaves and trim Docker's build cache to UPGRADE_CACHE_KEEP, default 10GB)
 #   --yes                do not ask for confirmation
 #
 # What it does, in this order, and why:
@@ -37,7 +38,7 @@ set -euo pipefail
 # never upgrades itself with the script it already had on disk.
 cd "${UPGRADE_ROOT:-$(dirname "$0")/..}"
 
-CHECK=0 STATUS=0 ROLLBACK=0 YES=0 PRUNE=0 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
+CHECK=0 STATUS=0 ROLLBACK=0 YES=0 PRUNE=1 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=1; shift ;;
@@ -50,8 +51,9 @@ while [[ $# -gt 0 ]]; do
     --no-backup) BACKUP=no; shift ;;
     --drain-wait) DRAIN_WAIT="${2:?--drain-wait needs a number of seconds}"; shift 2 ;;
     --prune) PRUNE=1; shift ;;
+    --no-prune) PRUNE=0; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,38p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,39p' "$0"; exit 0 ;;
     *) echo "upgrade.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -330,9 +332,14 @@ if [[ "$DEPLOY_MODE" == cluster ]]; then
 fi
 
 # ---- 5. tidy up ----------------------------------------------------------------------------------------------------
+# Every upgrade builds three images from source and leaves the previous ones dangling plus BuildKit layers nothing
+# reuses (25-32 GB per node within weeks). Only after the new version is verified, so a failed upgrade keeps what it
+# could need to go back; volumes, running images and tagged images are never touched, and a failure here is not one
+# of the upgrade.
 if (( PRUNE )); then
-  head1 "Removing dangling images"
-  docker image prune -f | tail -n 1
+  head1 "Tidying Docker's disk use"
+  docker image prune -f 2>&1 | tail -n 1 || true
+  docker builder prune -f --keep-storage "${UPGRADE_CACHE_KEEP:-10GB}" 2>&1 | tail -n 1 || true
 fi
 printf '\n%s%s==> Done in %ds:%s %snow on %s%s%s (build %s)%s\n' "$B" "$G" "$((SECONDS - START))" "$Z" "$B" "$G" "$(short "$TARGET")" "$Z$B" "$NEWID" "$Z"
 note "  roll back with: scripts/upgrade.sh --rollback"

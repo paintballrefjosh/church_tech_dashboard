@@ -1355,6 +1355,10 @@ roll back by itself. A failed build or migration puts the code back before anyth
   looked current while its containers were old (the dashboard showed it on a different build from the others). `upgrade.sh` compares the running api/web
   `BUILD_ID` with `scripts/build-id.sh` before it says "nothing to upgrade" (and keeps the earlier `PREV_COMMIT` when it rebuilds the same commit);
   `upgrade.sh --status` prints `down|current|stale <build>` and the cluster script uses it for nodes whose checkout is already on the target.
+- **Disk use is tidied by default after a verified upgrade** (`upgrade.sh`, step 5): `docker image prune -f` and `docker builder prune -f --keep-storage
+  ${UPGRADE_CACHE_KEEP:-10GB}`; `--no-prune` skips. Until 2026-10-23 only `scripts/rebuild.sh` (the dev host) pruned, and `upgrade.sh --prune` was opt-in and
+  skipped the build cache, so prod nodes grew 25-32 GB of unused cache each. Never use `image prune -a` or `system prune` here: they delete images of stopped or
+  profile services (Garage, Cockroach) that the registries may no longer serve (MinIO was withdrawn).
 - **Never swap the database or object store from here** (a cluster node's database restarting is not an upgrade step).
 - It cannot run on the dev host's prod stack for the same reason nothing else can (shared `./data`): test with the fake
   harness, and `--dev` on the dev stack.

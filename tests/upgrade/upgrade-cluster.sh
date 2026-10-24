@@ -159,10 +159,10 @@ touch "$W/run/down.9002"   # beta's port
 up_ --yes
 check "stops at that node" bash -c "[[ \$(rc) != 0 ]] && grep -q 'healthz does not answer 200' '$W/out' && ! grep -q '^gamma ' <<<\"$(calls)\""
 
-echo "== --no-backup, --drain-wait and --prune are passed on"
+echo "== --no-backup, --drain-wait and --no-prune are passed on"
 fresh alpha; nodes_file local u@alpha
-up_ --yes --no-backup --drain-wait 5 --prune
-check "every node gets them" bash -c "[[ \$(grep -c -- '--no-backup' <<<\"$(calls)\") == 2 && \$(grep -c -- '--drain-wait 5' <<<\"$(calls)\") == 2 && \$(grep -c -- '--prune' <<<\"$(calls)\") == 2 ]] && ! grep -q -- '--backup ' <<<\"$(calls)\""
+up_ --yes --no-backup --drain-wait 5 --no-prune
+check "every node gets them" bash -c "[[ \$(grep -c -- '--no-backup' <<<\"$(calls)\") == 2 && \$(grep -c -- '--drain-wait 5' <<<\"$(calls)\") == 2 && \$(grep -c -- '--no-prune' <<<\"$(calls)\") == 2 ]] && ! grep -q -- '--backup ' <<<\"$(calls)\""
 
 echo "== --to"
 fresh alpha; nodes_file local u@alpha
