@@ -28,7 +28,14 @@ url="${*: -1}"; port="${url#*127.0.0.1:}"; port="${port%%/*}"
 [[ -f "$FAKE_RUN/down.$port" ]] && exit 22
 exit 0
 FAKE
-chmod +x "$W/bin/ssh" "$W/bin/curl"
+# docker: only `manifest inspect <ref>` matters (is the image in the registry?): true when $FAKE_RUN/published/<ref> exists.
+cat >"$W/bin/docker" <<'FAKE'
+#!/usr/bin/env bash
+echo "docker $*" >>"${FAKE_RUN:?}/dockercalls"
+if [[ "$1 $2" == "manifest inspect" ]]; then [[ -f "$FAKE_RUN/published/$(printf '%s' "$3" | tr '/:' '__')" ]]; exit $?; fi
+exit 0
+FAKE
+chmod +x "$W/bin/ssh" "$W/bin/curl" "$W/bin/docker"
 
 # The stub upgrade.sh every node has: records "<node id> <args>", moves the checkout to --to unless told to fail.
 STUB='#!/usr/bin/env bash
@@ -47,6 +54,13 @@ rm -f "$FAKE_RUN/stale.$id"
 if [[ -n "$to" ]]; then git fetch -q origin 2>/dev/null; git merge -q --ff-only "$to" 2>/dev/null || git checkout -q --detach "$to"; fi
 exit 0'
 
+# scripts/release.sh as a stub: records its arguments and "publishes" the checkout's build id (unless FAKE_RELEASE_FAIL=1).
+RELEASE_STUB='#!/usr/bin/env bash
+echo "release $*" >>"${FAKE_RUN:?}/release.calls"
+[[ "${FAKE_RELEASE_FAIL:-}" == 1 ]] && exit 1
+id="$(git rev-parse --short=12 HEAD)"; mkdir -p "$FAKE_RUN/published"
+for s in api web monitor; do : >"$FAKE_RUN/published/$(printf "%s" "${2%/}-$s:$id" | tr "/:" "__")"; done'
+
 # fresh <name>... : an origin with two commits; the local checkout and one clone per named remote node, all on the
 # first commit. The remote node names: alpha beta gamma (app nodes), witness (NODE_ROLE=data).
 fresh() {
@@ -54,10 +68,12 @@ fresh() {
   git init -q --bare -b master "$W/origin.git"
   git clone -q "$W/origin.git" "$W/dev" 2>/dev/null
   ( cd "$W/dev" && git config user.email t@t && git config user.name t
-    mkdir -p scripts; printf '%s\n' "${FIRST_STUB:-$STUB}" >scripts/upgrade.sh; echo one >f
+    mkdir -p scripts; printf '%s\n' "${FIRST_STUB:-$STUB}" >scripts/upgrade.sh; printf '%s\n' "$RELEASE_STUB" >scripts/release.sh; echo one >f
     git add -A && git commit -q -m first && git push -q origin master 2>/dev/null )
   git clone -q "$W/origin.git" "$W/local" 2>/dev/null
   cp "$REPO/scripts/upgrade-cluster.sh" "$W/local/scripts/"
+  # The real repo ignores .env and data/ and tracks the script itself; here they are not, and a tree with untracked files is not clean.
+  printf '.env\ndata/\nscripts/upgrade-cluster.sh\n' >>"$W/local/.git/info/exclude"
   printf 'NODE_ID=main\nEXTERNAL_PORT=9000\n' >"$W/local/.env"
   mkdir -p "$W/local/data/upgrade"
   local n port=9001
@@ -75,7 +91,7 @@ calls() { cat "$W/run/calls" 2>/dev/null; }
 # up_ args : run in the local checkout; output in $W/out, exit code in $W/rc
 up_() {
   ( cd "$W/local" && PATH="$W/bin:$PATH" FAKE_HOMES="$W/homes" FAKE_RUN="$W/run" FAKE_SSH_DOWN="${FAKE_SSH_DOWN:-}" \
-      UC_POLL_SEC=0.2 UC_HEALTH_WAIT=2 bash scripts/upgrade-cluster.sh --settle 0 "$@" >"$W/out" 2>&1 ); echo $? >"$W/rc"
+      FAKE_RELEASE_FAIL="${FAKE_RELEASE_FAIL:-}" UC_POLL_SEC=0.2 UC_HEALTH_WAIT=2 bash scripts/upgrade-cluster.sh --settle 0 "$@" >"$W/out" 2>&1 ); echo $? >"$W/rc"
 }
 rc() { cat "$W/rc"; }
 export -f calls head_of rc   # the checks below run them in a child bash
@@ -203,6 +219,55 @@ up_ --yes --to nonexistent-ref
 check "an unknown --to is refused" grep -q "is not a commit" "$W/out"
 up_ --yes --rollback --to "$NEW"
 check "--to with --rollback is refused" grep -q "either --to or --rollback" "$W/out"
+
+echo "== images from a registry (IMAGE_REGISTRY)"
+REG=ghcr.io/o/church
+publish() { # a build id: the three images are in the registry
+  mkdir -p "$W/run/published"; local s
+  for s in api web monitor; do : >"$W/run/published/$(printf '%s' "$REG-$s:$1" | tr '/:' '__')"; done
+}
+newid() { git -C "$W/dev" rev-parse --short=12 "$NEW"; }
+fresh alpha beta; nodes_file local u@alpha u@beta
+IMAGE_REGISTRY=$REG up_ --yes
+check "images not published: stops before any node is touched, and says how to publish" bash -c "[[ \$(rc) != 0 ]] && grep -q 'missing: api web monitor' '$W/out' && grep -q -- '--publish' '$W/out' && [[ -z \$(calls) ]] && [[ \$(head_of alpha) == $OLD ]]"
+check "it looked for the target's build id" bash -c "grep -q 'docker manifest inspect $REG-api:$(newid)' '$W/run/dockercalls'"
+fresh alpha beta; nodes_file local u@alpha u@beta; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --yes
+check "published: upgrades every node" bash -c "[[ \$(rc) == 0 ]] && [[ \$(head_of alpha) == $NEW && \$(head_of beta) == $NEW ]] && grep -q 'are published; each node pulls them' '$W/out'"
+check "the nodes are not told to build" bash -c "! grep -q -- '--build' <<<\"$(calls)\""
+fresh alpha beta; nodes_file local u@alpha u@beta
+IMAGE_REGISTRY=$REG up_ --check
+check "--check on unpublished images warns and still exits 0" bash -c "[[ \$(rc) == 0 ]] && grep -q 'images not published' '$W/out'"
+fresh alpha beta; nodes_file local u@alpha u@beta
+IMAGE_REGISTRY=$REG up_ --yes --build
+check "--build: no registry lookup, every node told to build" bash -c "[[ \$(rc) == 0 ]] && ! grep -q 'manifest inspect' '$W/run/dockercalls' && [[ \$(grep -c -- '--build' <<<\"$(calls)\") == 3 ]]"
+fresh alpha beta; nodes_file local u@alpha u@beta
+IMAGE_REGISTRY=$REG up_ --yes --publish
+check "--publish from a checkout that is not on the target is refused, nothing is pushed" bash -c "[[ \$(rc) != 0 ]] && grep -q 'not the target' '$W/out' && [[ ! -e '$W/run/release.calls' ]] && [[ -z \$(calls) ]]"
+fresh alpha beta; nodes_file local u@alpha u@beta
+git -C "$W/local" pull -q --ff-only origin master 2>/dev/null
+IMAGE_REGISTRY=$REG up_ --yes --publish
+check "--publish builds and pushes once, before the nodes" bash -c "[[ \$(rc) == 0 ]] && [[ \$(wc -l <'$W/run/release.calls') == 1 ]] && grep -q -- '--push $REG' '$W/run/release.calls' && [[ \$(head_of alpha) == $NEW && \$(head_of beta) == $NEW ]]"
+fresh alpha beta; nodes_file local u@alpha u@beta
+git -C "$W/local" pull -q --ff-only origin master 2>/dev/null; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --yes --publish
+check "--publish with everything already published pushes nothing" bash -c "[[ \$(rc) == 0 ]] && [[ ! -e '$W/run/release.calls' ]]"
+fresh alpha beta; nodes_file local u@alpha u@beta
+git -C "$W/local" pull -q --ff-only origin master 2>/dev/null
+IMAGE_REGISTRY=$REG FAKE_RELEASE_FAIL=1 up_ --yes --publish
+check "a failed publish stops before any node" bash -c "[[ \$(rc) != 0 ]] && grep -q 'no node was touched' '$W/out' && [[ -z \$(calls) ]]"
+fresh alpha beta; nodes_file local u@alpha u@beta
+up_ --yes --publish
+check "--publish without IMAGE_REGISTRY is refused" grep -q "needs IMAGE_REGISTRY" "$W/out"
+fresh alpha beta; nodes_file local u@alpha u@beta
+up_ --yes --publish --build
+check "--publish with --build is refused" grep -q "either --publish or --build" "$W/out"
+fresh alpha beta; nodes_file local u@alpha u@beta
+IMAGE_REGISTRY=$REG up_ --yes --rollback
+check "--rollback does not look in the registry" bash -c "[[ \$(rc) == 0 ]] && ! grep -q 'manifest inspect' '$W/run/dockercalls'"
+fresh alpha beta; nodes_file local u@alpha u@beta
+up_ --yes
+check "no IMAGE_REGISTRY: nothing changes (no lookup, no --build)" bash -c "[[ \$(rc) == 0 ]] && [[ ! -e '$W/run/dockercalls' ]] && ! grep -q -- '--build' <<<\"$(calls)\""
 
 echo "== colour"
 fresh alpha; nodes_file local u@alpha

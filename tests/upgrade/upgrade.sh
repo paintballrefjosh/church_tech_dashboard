@@ -15,7 +15,19 @@ mkdir -p "$W/bin"
 cat >"$W/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 [[ -n "${FAKE_RUN:-}" ]] && echo "docker $*" >>"$FAKE_RUN/dockercalls"
-case "$1" in image) echo "Total reclaimed space: 0B" ;; builder) [[ "${FAKE_PRUNE:-}" == fail ]] && { echo "prune failed" >&2; exit 1; } ;; esac
+# A fake registry: $FAKE_RUN/published/<ref> holds the build id the published image claims; `pull` copies it to
+# $FAKE_RUN/img.<ref> (the local store), which `image inspect` reads. Refs have / and : turned into _.
+safe() { printf "%s" "$1" | tr "/:" "__"; }
+case "$1" in
+  image) case "$2" in
+           inspect) f="$FAKE_RUN/img.$(safe "${!#}")"; [[ -f "$f" ]] || exit 1; echo "BUILD_ID=$(cat "$f")"; echo "NODE_ENV=production"; exit 0 ;;
+           *) echo "Total reclaimed space: 0B" ;;
+         esac ;;
+  pull) f="$FAKE_RUN/published/$(safe "$2")"; [[ -f "$f" ]] || { echo "Error response from daemon: manifest for $2 not found" >&2; exit 1; }
+        cp "$f" "$FAKE_RUN/img.$(safe "$2")"; echo "pulled $2" ;;
+  tag) f="$FAKE_RUN/img.$(safe "$2")"; [[ -f "$f" ]] || exit 1; cp "$f" "$FAKE_RUN/img.$(safe "$3")" ;;
+  builder) [[ "${FAKE_PRUNE:-}" == fail ]] && { echo "prune failed" >&2; exit 1; } ;;
+esac
 exit 0
 EOF
 chmod +x "$W/bin/docker"
@@ -29,6 +41,7 @@ case "$1" in
   --deploy-mode) echo "${DEPLOY_MODE:-single}"; exit 0 ;;
   ps) [[ -f "$RUN/running" ]] && echo abc123; exit 0 ;;
   build) [[ "${FAKE_BUILD:-}" == fail ]] && { echo "ERROR: web: Module not found" >&2; exit 1; }; exit 0 ;;
+  config) printf "name: t\nservices:\n  api:\n    image: church-prod-api\n    build:\n      context: /x\n  monitor:\n    image: church-prod-monitor\n  web:\n    image: church-prod-web\nvolumes: {}\n"; exit 0 ;;
   run) [[ "${FAKE_MIGRATE:-}" == fail ]] && { echo "migration 0002 failed" >&2; exit 1; }; exit 0 ;;
   up) id="$(bash scripts/build-id.sh)"
       if [[ -n "${FAKE_BAD_ID:-}" && "$id" == "$FAKE_BAD_ID"* ]]; then echo broken >"$RUN/running"; else echo "$id" >"$RUN/running"; fi
@@ -223,6 +236,78 @@ up_ --prod --yes
 check "a stack that is not running" grep -q "not running" "$W/out"
 up_ --yes
 check "no stack running and none named" grep -q "cannot tell which stack" "$W/out"
+
+echo "== images from a registry (IMAGE_REGISTRY)"
+REG=ghcr.io/o/church
+publish() { # build id [the id the image claims, if it should be wrong]
+  mkdir -p "$W/run/published"
+  local s; for s in api web monitor; do printf '%s' "${2:-$1}" >"$W/run/published/$(printf '%s' "$REG-$s:$1" | tr '/:' '__')"; done
+}
+newid() { git -C "$W/dev" rev-parse --short=12 HEAD; }
+oldid() { git -C "$W/dev" rev-parse --short=12 "$OLD"; }
+dcl() { cat "$W/run/dockercalls" 2>/dev/null; }
+fresh none; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+check "exits 0" test "$(rc)" = 0
+check "pulls all three images for the new build id" bash -c "[[ \$(grep -c '^docker pull $REG-.*:$(newid)\$' '$W/run/dockercalls') == 3 ]]"
+check "builds nothing" bash -c "! grep -q 'compose build' '$W/run/calls'"
+check "tags each pulled image with the name compose uses" bash -c "grep -q 'docker tag $REG-api:$(newid) church-prod-api' '$W/run/dockercalls' && grep -q 'docker tag $REG-web:$(newid) church-prod-web' '$W/run/dockercalls' && grep -q 'docker tag $REG-monitor:$(newid) church-prod-monitor' '$W/run/dockercalls'"
+check "migrates and swaps as before" bash -c "grep -q 'compose run -T --rm --no-deps api node dist/scripts/migrate.js' '$W/run/calls' && grep -q 'compose up -d --no-build --no-deps api web monitor' '$W/run/calls'"
+check "now runs the new build" test "$(running_id)" = "$(newid)"
+fresh none; publish "$(newid)"
+echo .env >>"$W/work/.git/info/exclude"   # as in the real repo, where .env is ignored (an untracked file changes the build id)
+echo "IMAGE_REGISTRY=$REG/" >>"$W/work/.env"
+up_ --prod --yes
+check "IMAGE_REGISTRY from .env (a trailing slash is ignored)" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q '^docker pull $REG-api:$(newid)\$' '$W/run/dockercalls'"
+
+fresh none
+IMAGE_REGISTRY=$REG up_ --prod --yes
+check "not published: falls back to building, and says so" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q 'compose build' '$W/run/calls' && grep -q 'falling back to building' '$W/out' && grep -q 'could not pull' '$W/out'"
+check "nothing is tagged from a partial pull" bash -c "! grep -q 'docker tag' '$W/run/dockercalls'"
+fresh none
+IMAGE_REGISTRY=$REG up_ --prod --yes --pull
+check "--pull fails instead of building" bash -c "[[ \$(cat '$W/rc') != 0 ]] && ! grep -q 'compose build' '$W/run/calls'"
+check "--pull puts the code back and swaps nothing" bash -c "[[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]] && ! grep -qE 'compose (run|up)' '$W/run/calls'"
+fresh none; publish "$(newid)" "not-this-build"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+check "an image that claims another build id is not used" bash -c "grep -q 'not using it' '$W/out' && ! grep -q 'docker tag' '$W/run/dockercalls'"
+check "... the node builds instead and still upgrades" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q 'compose build' '$W/run/calls'"
+fresh none; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --prod --yes --build
+check "--build ignores the registry" bash -c "[[ \$(cat '$W/rc') == 0 ]] && ! grep -q 'docker pull' '$W/run/dockercalls' && grep -q 'compose build' '$W/run/calls'"
+fresh none; publish "$(newid)"
+cp "$W/run/published/$(printf '%s' "$REG-api:$(newid)" | tr '/:' '__')" "$W/run/img.$(printf '%s' "$REG-api:$(newid)" | tr '/:' '__')"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+check "an image already on the node is not pulled again" bash -c "! grep -q 'docker pull $REG-api:' '$W/run/dockercalls' && grep -q 'docker pull $REG-web:' '$W/run/dockercalls'"
+fresh none; publish "$(newid)"
+echo .env >>"$W/work/.git/info/exclude"; echo "API_IMAGE=somewhere/api:1" >>"$W/work/.env"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+check "API_IMAGE together with IMAGE_REGISTRY is refused before anything changes" bash -c "[[ \$(cat '$W/rc') != 0 ]] && grep -q 'two ways of choosing the images' '$W/out' && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]]"
+fresh none
+up_ --prod --yes --pull
+check "--pull without a registry is refused" grep -q "needs IMAGE_REGISTRY" "$W/out"
+fresh none
+IMAGE_REGISTRY='bad registry;rm' up_ --prod --yes
+check "a registry prefix with odd characters is refused" grep -q "is not a registry prefix" "$W/out"
+fresh none; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --prod --check
+check "--check says where the images come from and pulls nothing" bash -c "grep -q 'pulled from' '$W/out' && ! grep -q 'docker pull' '$W/run/dockercalls'"
+fresh none
+up_ --prod --check
+check "without a registry the plan says images are built here" grep -q "built on this node" "$W/out"
+
+fresh none; publish "$(newid)"; publish "$(oldid)"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+IMAGE_REGISTRY=$REG up_ --prod --yes --rollback
+check "--rollback pulls the older version's images when they are published" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q '^docker pull $REG-api:$(oldid)\$' '$W/run/dockercalls' && [[ \$(grep -c 'compose build' '$W/run/calls') == 0 ]]"
+check "... and runs the old build" test "$(running_id)" = "$(oldid)"
+fresh none; publish "$(newid)"
+IMAGE_REGISTRY=$REG up_ --prod --yes
+IMAGE_REGISTRY=$REG up_ --prod --yes --rollback
+check "--rollback to an unpublished version builds it" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q 'compose build' '$W/run/calls' && [[ \$(tail -c 300 '$W/out') == *'falling back'* || \$(grep -c 'falling back' '$W/out') -ge 1 ]]"
+fresh none; publish "$(newid)"; publish "$(oldid)"
+IMAGE_REGISTRY=$REG FAKE_BAD_ID="$(newid)" up_ --prod --yes
+check "an unhealthy new version goes back to the old images (pulled)" bash -c "[[ \$(cat '$W/rc') != 0 ]] && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]] && grep -q '^docker pull $REG-api:$(oldid)\$' '$W/run/dockercalls' && grep -q 'previous version' '$W/out'"
 
 echo "== colour"
 fresh none

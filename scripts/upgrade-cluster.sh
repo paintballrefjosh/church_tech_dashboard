@@ -13,7 +13,16 @@
 #   --drain-wait <sec>   passed to each node's upgrade.sh (how long a drained node waits for open requests)
 #   --settle <sec>       pause after a node is back, before the next one (default 10)
 #   --no-prune           passed to each node's upgrade.sh (keep old images and build cache; default: they are tidied)
+#   --publish            build the target once HERE and push it to IMAGE_REGISTRY before the nodes start (this checkout must
+#                        be on the target commit, with a clean tree)
+#   --build              do not use the registry: every node builds its own images (the old way; slow)
 #   --yes                do not ask for confirmation
+#
+# Images: with IMAGE_REGISTRY in .env (the prefix scripts/release.sh --push uses) the target's three images must already
+# be published, and each node PULLS them (only the layers it lacks) instead of building. They are looked up before
+# anything is touched; if they are missing it stops and says how to publish them (--publish, or scripts/release.sh
+# --push), unless --build. A node whose own .env has no IMAGE_REGISTRY still builds. Rollback pulls the older version's
+# images when they are still there and builds when they are not.
 #
 # The node list is one node per line, `local` for the machine running this script and `[user@]host[:port] [folder]`
 # for the others (the folder is the checkout, relative to the SSH user's home or absolute; default
@@ -61,7 +70,7 @@ trap 'rm -rf "$CM_DIR" "${UC_COPY:-}"' EXIT
 
 POLL_SEC="${UC_POLL_SEC:-3}"           # how often a remote upgrade's log is read (tests shorten these)
 HEALTH_WAIT="${UC_HEALTH_WAIT:-90}"    # how long a finished node gets to answer /healthz
-CHECK=0 ROLLBACK=0 YES=0 NOPRUNE=0 TO="" NODES_FILE="" BACKUP=yes DRAIN_WAIT="" SETTLE=10
+CHECK=0 ROLLBACK=0 YES=0 NOPRUNE=0 TO="" NODES_FILE="" BACKUP=yes DRAIN_WAIT="" SETTLE=10 PUBLISH=0 FORCE_BUILD=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=1; shift ;;
@@ -73,14 +82,18 @@ while [[ $# -gt 0 ]]; do
     --settle) SETTLE="${2:?--settle needs a number of seconds}"; shift 2 ;;
     --prune) shift ;;   # the default now; kept so old command lines work
     --no-prune) NOPRUNE=1; shift ;;
+    --publish) PUBLISH=1; shift ;;
+    --build) FORCE_BUILD=1; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,49p' "${UC_COPY:-$0}"; exit 0 ;;
+    -h|--help) sed -n '2,57p' "${UC_COPY:-$0}"; exit 0 ;;
     *) echo "upgrade-cluster.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
 [[ "$SETTLE" =~ ^[0-9]+$ ]] || { echo "upgrade-cluster.sh: --settle must be a number of seconds" >&2; exit 2; }
 [[ -z "$DRAIN_WAIT" || "$DRAIN_WAIT" =~ ^[0-9]+$ ]] || { echo "upgrade-cluster.sh: --drain-wait must be a number of seconds" >&2; exit 2; }
 [[ -z "$TO" || $ROLLBACK -eq 0 ]] || { echo "upgrade-cluster.sh: use either --to or --rollback" >&2; exit 2; }
+(( PUBLISH + FORCE_BUILD < 2 )) || { echo "upgrade-cluster.sh: use either --publish or --build" >&2; exit 2; }
+(( ! ROLLBACK || ! PUBLISH )) || { echo "upgrade-cluster.sh: --publish does not apply to --rollback" >&2; exit 2; }
 
 if [[ ( -t 1 && -z "${NO_COLOR:-}" ) || "${UPGRADE_COLOR:-}" == always ]]; then
   B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; C=$'\033[36m'; Z=$'\033[0m'
@@ -229,10 +242,43 @@ if (( ! ROLLBACK )); then
 fi
 (( CHECK )) && note "  --check: each node will only report what it would do."
 
+# ---- are the images published? ---------------------------------------------------------------------------------------------
+REG="${IMAGE_REGISTRY:-$(conf_env IMAGE_REGISTRY)}"; REG="${REG%/}"
+MISSING=()
+if [[ -n "$REG" && $FORCE_BUILD -eq 0 && $ROLLBACK -eq 0 ]]; then
+  command -v docker >/dev/null 2>&1 || die "docker is needed to look in the registry ($REG); or use --build."
+  IMG_ID="$(git rev-parse --short=12 "$TARGET")"
+  for svc in api web monitor; do
+    docker manifest inspect "$REG-$svc:$IMG_ID" >/dev/null 2>&1 || MISSING+=("$svc")
+  done
+  if (( ${#MISSING[@]} == 0 )); then note "  images: $REG-{api,web,monitor}:$IMG_ID are published; each node pulls them"
+  elif (( PUBLISH )); then note "  images: not all published yet (missing: ${MISSING[*]}); will be built here and pushed to $REG first"
+  elif (( CHECK )); then warn "images not published: ${MISSING[*]} at $REG (id $IMG_ID). A real run stops here; add --publish, or run scripts/release.sh --push on the target commit."
+  else
+    die "the images for $(short "$TARGET") are not all in $REG (missing: ${MISSING[*]}; looked for $REG-<service>:$IMG_ID).
+Publish them once, then every node pulls:   scripts/upgrade-cluster.sh --publish ...   (from a clean checkout on that commit)
+                                      or:   scripts/release.sh --push
+Or let each node build its own (slow):      scripts/upgrade-cluster.sh --build ...
+(If they ARE published, check that this machine is logged in to the registry: docker login.)"
+  fi
+elif [[ -z "$REG" ]] && (( PUBLISH )); then
+  die "--publish needs IMAGE_REGISTRY (in .env or the environment): where should the images go?"
+elif [[ -n "$REG" && $FORCE_BUILD -eq 1 ]]; then note "  images: --build: every node builds its own"
+fi
+
 if (( YES == 0 && CHECK == 0 )); then
   [[ -t 0 ]] || die "no terminal to ask on. Add --yes to go ahead."
   read -r -p "Go ahead, one node at a time? [y/N] " a
   [[ "$a" =~ ^[Yy] ]] || { say "Nothing was changed."; exit 0; }
+fi
+
+# Publish once, here, before any node is touched.
+if (( PUBLISH && ${#MISSING[@]} > 0 && CHECK == 0 )); then
+  head1 "Building $(short "$TARGET") once and pushing it to $REG"
+  [[ "$(git rev-parse HEAD)" == "$TARGET" ]] || die "--publish builds THIS checkout, which is on $(short "$(git rev-parse HEAD)"), not the target $(short "$TARGET"). Check out the target here first (git checkout $(short "$TARGET")), or publish from a machine that has it."
+  [[ -z "$(git status --porcelain)" ]] || die "--publish needs a clean tree (the image tag is the commit), and this one has changes."
+  bash scripts/release.sh --push "$REG" || die "building or pushing the images failed; no node was touched."
+  ok "published; the nodes pull from here"
 fi
 
 # ---- running upgrade.sh on a node ----------------------------------------------------------------------------------
@@ -248,6 +294,7 @@ node_args() { # index -> the arguments for that node's upgrade.sh
   (( CHECK )) && a+=(--check) || a+=(--yes)
   [[ -z "$DRAIN_WAIT" ]] || a+=(--drain-wait "$DRAIN_WAIT")
   (( NOPRUNE )) && a+=(--no-prune)
+  (( FORCE_BUILD )) && a+=(--build)
   printf '%s ' "${a[@]}"
 }
 

@@ -525,6 +525,10 @@ What was done, which differs from the plan in one way (below):
   prints the `.env` lines (`BUILD_ID`, `API_IMAGE`, `WEB_IMAGE`, `MONITOR_IMAGE`) for the nodes.
   Compose accepts those image names; the defaults are unchanged (`church-api`, ... and
   `church-prod-api`, ... for prod).
+  Since 2026-10-24 the nodes can also PULL that release instead of taking the `.env` lines:
+  `IMAGE_REGISTRY=<prefix>`, `scripts/release.sh --push` (or `upgrade-cluster.sh --publish`), and
+  `upgrade.sh` pulls `<prefix>-api|web|monitor:<build id>`, checks the baked-in `BUILD_ID`, and tags the
+  image with the name compose already uses (see INSTALL.md "Upgrading from a registry").
 - **WebSocket only** on the gateway and all three clients, so no sticky sessions.
 - **`TRUSTED_PROXIES`** (see below), **`/healthz`** and **drain**.
 - **`readyz` returns 503** when the database cannot be reached (it returned 200 with

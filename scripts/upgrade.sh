@@ -16,7 +16,14 @@
 #   --drain-wait <sec>   cluster: how long to wait after draining before the app is restarted (default 15)
 #   --no-prune           keep the old images and build cache (default: after a SUCCESSFUL upgrade, remove the dangling
 #                        images the build leaves and trim Docker's build cache to UPGRADE_CACHE_KEEP, default 10GB)
+#   --build              build the images on this node even when IMAGE_REGISTRY is set
+#   --pull               with IMAGE_REGISTRY: fail instead of building when the images cannot be pulled
 #   --yes                do not ask for confirmation
+#
+# Images: with IMAGE_REGISTRY set (.env or the environment, the same prefix scripts/release.sh --push uses) the node
+# PULLS the three images for the target's build id instead of building them, so only the layers it does not have
+# are transferred and no node needs build tooling or time; an image that is not there (not published yet, no
+# access) falls back to building here, with a warning. Without IMAGE_REGISTRY it always builds, as before.
 #
 # What it does, in this order, and why:
 #   1. Looks first: fetches, lists the commits, the new migrations and the new .env.example settings, and stops
@@ -38,7 +45,7 @@ set -euo pipefail
 # never upgrades itself with the script it already had on disk.
 cd "${UPGRADE_ROOT:-$(dirname "$0")/..}"
 
-CHECK=0 STATUS=0 ROLLBACK=0 YES=0 PRUNE=1 TO="" STACK="" BACKUP="" DRAIN_WAIT=15
+CHECK=0 STATUS=0 ROLLBACK=0 YES=0 PRUNE=1 TO="" STACK="" BACKUP="" DRAIN_WAIT=15 FORCE_BUILD=0 PULL_ONLY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --check) CHECK=1; shift ;;
@@ -52,13 +59,16 @@ while [[ $# -gt 0 ]]; do
     --drain-wait) DRAIN_WAIT="${2:?--drain-wait needs a number of seconds}"; shift 2 ;;
     --prune) PRUNE=1; shift ;;
     --no-prune) PRUNE=0; shift ;;
+    --build) FORCE_BUILD=1; shift ;;
+    --pull) PULL_ONLY=1; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,39p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,46p' "$0"; exit 0 ;;
     *) echo "upgrade.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
 [[ "$DRAIN_WAIT" =~ ^[0-9]+$ ]] || { echo "upgrade.sh: --drain-wait must be a number of seconds" >&2; exit 2; }
 [[ -z "$TO" || $ROLLBACK -eq 0 ]] || { echo "upgrade.sh: use either --to or --rollback" >&2; exit 2; }
+(( FORCE_BUILD + PULL_ONLY < 2 )) || { echo "upgrade.sh: use either --build or --pull" >&2; exit 2; }
 
 # Colour only on a terminal (the log file never gets escape codes: see the tee below). NO_COLOR turns it off,
 # UPGRADE_COLOR=always forces it (the tests use that).
@@ -110,6 +120,18 @@ if [[ "$STACK" == prod ]]; then DC=(bash scripts/compose.sh --prod); else DC=(ba
 [[ "$NODE_ROLE" == full ]] || die "this node only runs the database and object store (NODE_ROLE=data): there is no app here to upgrade. Pull the new code and follow INSTALL.md."
 DB_MODE="$("${DC[@]}" --db-mode 2>/dev/null || echo bundled)"
 kv "stack:" "${C}$STACK${Z} ($DEPLOY_MODE), database: $DB_MODE"
+
+# Where the images come from: a registry (pulled, tagged build id) or this node's own build.
+REGISTRY="${IMAGE_REGISTRY:-$(conf_env IMAGE_REGISTRY)}"
+REGISTRY="${REGISTRY%/}"
+if [[ -n "$REGISTRY" ]]; then
+  [[ "$REGISTRY" =~ ^[A-Za-z0-9._:/-]+$ ]] || die "IMAGE_REGISTRY='$REGISTRY' is not a registry prefix (for example ghcr.io/owner/church)."
+  for v in API_IMAGE WEB_IMAGE MONITOR_IMAGE; do
+    [[ -z "${!v:-$(conf_env "$v")}" ]] || die "$v is set, and so is IMAGE_REGISTRY: they are two ways of choosing the images. Remove $v (IMAGE_REGISTRY follows the build id by itself)."
+  done
+fi
+(( ! PULL_ONLY )) || [[ -n "$REGISTRY" ]] || die "--pull needs IMAGE_REGISTRY (in .env or the environment)."
+USE_REGISTRY=0; [[ -n "$REGISTRY" && $FORCE_BUILD -eq 0 ]] && USE_REGISTRY=1
 
 dc() { "${DC[@]}" "$@"; }
 running() { [[ -n "$(dc ps -q api 2>/dev/null | head -n 1)" ]]; }
@@ -196,6 +218,7 @@ if [[ "$BACKUP" == yes && "$DB_MODE" != bundled ]]; then
   BACKUP=no
 fi
 kv "  database backup first:" "$BACKUP$([[ "$DEPLOY_MODE" == cluster && "$BACKUP" == no ]] && echo ' (cluster: take one before the first node with --backup)')"
+if (( USE_REGISTRY )); then kv "  images:" "pulled from ${C}$REGISTRY${Z}$( ((PULL_ONLY)) || echo ' (built here if they are not there)')"; else kv "  images:" "built on this node"; fi
 kv "  swap:" "$([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, restart api/web/monitor, wait healthy, undrain" || echo 'restart api/web/monitor (a short interruption)')"
 (( CHECK )) && { say; ok "--check: nothing was changed."; exit 0; }
 
@@ -241,6 +264,44 @@ build_images() {
   fi
   rm -f "$out"; return 1
 }
+# The name compose gives a service's image (church-prod-api ...): a pulled image is tagged with it, so `up --no-build`, a later
+# `compose up` and --rollback all find it exactly where a local build would have left it.
+COMPOSE_CONFIG=""
+image_of() { # service (reads COMPOSE_CONFIG, filled by pull_images)
+  awk -v s="$1" '/^[^ ]/ {top=$1} top=="services:" && /^  [A-Za-z0-9_-]+:[ ]*$/ {cur=$1; sub(/:$/,"",cur)} top=="services:" && cur==s && /^    image:/ {print $2; exit}' <<<"$COMPOSE_CONFIG"
+}
+# Pull the three images for a build id and make them the ones compose runs. All or nothing: nothing is tagged until
+# every image is here AND says it is that build (a tag is only a name; BUILD_ID is baked into the image).
+pull_images() { # build id
+  local id=$1 s ref got name
+  if [[ "$id" == dev || "$id" == *-* ]]; then
+    warn "build id '$id' is not a committed version (uncommitted or untracked files), so no registry has it."; return 1
+  fi
+  for s in api web monitor; do
+    ref="$REGISTRY-$s:$id"
+    if docker image inspect "$ref" >/dev/null 2>&1; then note "  $ref is already here"
+    else
+      note "  pulling $ref"
+      docker pull "$ref" || { warn "could not pull $ref (not published yet, or this node is not logged in to the registry)."; return 1; }
+    fi
+    got="$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$ref" 2>/dev/null | sed -n 's/^BUILD_ID=//p' | tail -n 1)"
+    [[ "$got" == "$id" ]] || { warn "$ref says it is build '${got:-unknown}', not '$id'; not using it."; return 1; }
+  done
+  COMPOSE_CONFIG="$(dc config 2>/dev/null || true)"   # once, here: image_of runs in a subshell and could not keep it
+  for s in api web monitor; do
+    name="$(image_of "$s")"
+    [[ -n "$name" ]] || { warn "cannot tell which image name compose uses for $s."; return 1; }
+    docker tag "$REGISTRY-$s:$id" "$name" || return 1
+  done
+}
+get_images() { # build id
+  if (( USE_REGISTRY )); then
+    pull_images "$1" && return 0
+    (( PULL_ONLY )) && return 1
+    warn "falling back to building the images on this node (slower)."
+  fi
+  build_images
+}
 write_state() {
   local prev=$OLD
   [[ "$OLD" != "$TARGET" ]] || prev="$(state_get PREV_COMMIT)"; prev="${prev:-$OLD}"   # a rebuild of the same commit is not a version to roll back to
@@ -274,17 +335,17 @@ if [[ "$BACKUP" == yes ]]; then
 fi
 
 # ---- 1. the new code, and the new images while the old version keeps serving ---------------------------
-head1 "Fetching the new version and building it (the site keeps running the old one)"
+head1 "Fetching the new version and $( ((USE_REGISTRY)) && echo 'its images' || echo 'building it') (the site keeps running the old one)"
 write_state
 goto_commit "$TARGET"
 NEWID="$(bash scripts/build-id.sh)"
 kv "build id:" "$NEWID"
-if ! build_images; then
-  warn "the build failed. Putting the code back; the running site was not touched."
+if ! get_images "$NEWID"; then
+  warn "getting the images failed. Putting the code back; the running site was not touched."
   goto_commit "$OLD"
   exit 1
 fi
-phase "images built"
+phase "images ready"
 
 # ---- 2. migrate with the new image, before the swap ----------------------------------------------------
 if (( BACK == 0 )); then
@@ -317,7 +378,7 @@ else
   dc logs --tail 30 api web 2>&1 | sed "s/^/    ${D}/; s/\$/${Z}/" || true
   goto_commit "$OLD"
   OLDID="$(bash scripts/build-id.sh)"
-  if build_images && swap && wait_healthy "$OLDID" "$HEALTH_WAIT"; then
+  if get_images "$OLDID" && swap && wait_healthy "$OLDID" "$HEALTH_WAIT"; then
     undrain
     # The failed target must not be what --rollback goes back to.
     { echo "PREV_COMMIT=$TARGET"; echo "BRANCH=${BRANCH:-$(state_get BRANCH)}"; echo "TARGET=$OLD"; echo "STACK=$STACK"; echo "WHEN=$(date -u +%FT%TZ)"; } >"$STATE"

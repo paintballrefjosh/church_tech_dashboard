@@ -1337,6 +1337,20 @@ inside the containers (`/readyz`, web answering, `BUILD_ID` of api and web equal
 roll back by itself. A failed build or migration puts the code back before anything was swapped. Rules:
 - **Do not skip rebuilding a service because its sources did not change.** `BUILD_ID` is baked into every image and every
   node of a cluster must run the same build; Docker's layer cache already makes the unchanged parts cheap.
+- **Build once, pull everywhere (`IMAGE_REGISTRY`, 2026-10-24)**: with `IMAGE_REGISTRY=<prefix>` (`.env` or environment; the prefix
+  `scripts/release.sh --push` publishes to, images `<prefix>-api|web|monitor:<build id>`) `upgrade.sh` PULLS the target's three images
+  instead of building (`pull_images`/`get_images`), and `upgrade-cluster.sh` looks them up first (`docker manifest inspect`) and stops
+  before touching a node if they are not all there (`--publish` builds and pushes the target from this checkout, which must be on it
+  and clean; `--build` = every node builds). Rules: (1) **the tag is the build id, which is the commit, so a dirty or untracked tree can
+  neither push (`release.sh` refuses) nor pull** (`pull_images` refuses ids with a `-`). (2) A tag is only a name: every pulled image's
+  baked-in `BUILD_ID` must equal the id asked for, else it is not used. (3) **All or nothing**: nothing is tagged until all three are
+  here and verified; then each is `docker tag`ged with the name compose already uses (`image_of`, from `compose config`:
+  `church-prod-api` ...), so `up --no-build`, a later plain `compose up` and `--rollback` find it where a local build would have left it
+  and `.env` is never edited. (4) A failed pull FALLS BACK to building on the node with a warning (`--pull` makes it an error); the
+  automatic rollback and `--rollback` go through the same `get_images`, pulling the older id when it is still published. (5)
+  `IMAGE_REGISTRY` together with `API_IMAGE`/`WEB_IMAGE`/`MONITOR_IMAGE` is refused (two ways to choose images). (6) Registry credentials
+  are `docker login` on each node, never stored by these scripts. Tests: `tests/upgrade/upgrade.sh` (a fake registry in the fake
+  `docker`) and `tests/upgrade/upgrade-cluster.sh` (stub `release.sh`, fake `manifest inspect`).
 - **Migrations are never undone by a rollback**: that is only safe because they are additive (expand/contract), which is the
   existing migration rule; a destructive migration breaks `--rollback` and the automatic one.
 - **`scripts/upgrade-cluster.sh` upgrades all nodes** by running `upgrade.sh` on each in turn (local, or over key-only SSH

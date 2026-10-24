@@ -856,6 +856,7 @@ touch:
 | `NODE_ROLE` | no | `full` (default) or `data`: a [witness](#a-witness-node) runs only the database and object store. |
 | `TRUSTED_PROXIES` | no | Load balancer CIDRs the proxy believes `X-Forwarded-For` from (space-separated). See [multi node requirements](#requirements). |
 | `BUILD_ID` / `API_IMAGE` / `WEB_IMAGE` / `MONITOR_IMAGE` | no | The build's name (default: from git) and pre-built images to run instead of building, for a cluster; `scripts/release.sh` prints them. |
+| `IMAGE_REGISTRY` | no | A registry prefix (`registry.example.org/church`): `scripts/upgrade.sh` pulls the target's images from it instead of building, see [Upgrading](#upgrading-from-a-registry-build-once-pull-everywhere). Not together with the `*_IMAGE` lines. |
 | `BACKUP_MAX_UPLOAD_BYTES` | no | Largest backup file accepted by Admin > Backups > Restore > Upload (default 5 GiB). |
 | `BACKGROUND_JOBS` | no | `off` keeps this node from taking any periodic job (polling, schedulers), for a node that cannot reach the monitored devices. Default `on`. |
 
@@ -1070,6 +1071,36 @@ A browser tab left open across an upgrade may need a reload.
 - Existing two-factor secrets are encrypted the first time each is used.
 - In a cluster, nodes that have not been upgraded yet do not enforce the new sign-out-everywhere
   rule for the minutes the upgrade takes.
+
+### Upgrading from a registry: build once, pull everywhere
+
+By default every node builds its own images from the checkout, which costs minutes of CPU on each node. With
+`IMAGE_REGISTRY` the images are built **once** (on any machine with this checkout), pushed, and each node only
+**pulls** them: the images are layered so that a code change moves a few megabytes (the dependencies, which are
+most of an image, are layers that only a dependency change rewrites).
+
+```bash
+# once, in .env on every node (and on the machine that publishes):
+IMAGE_REGISTRY=registry.example.org/church      # images are <prefix>-api, -web, -monitor, tagged with the build id
+
+docker login registry.example.org               # on every node and on the publisher, if the registry is private
+
+# per release, from a clean checkout on the commit to ship:
+scripts/release.sh --push                        # builds once, pushes church-{api,web,monitor}:<commit>
+scripts/upgrade-cluster.sh                       # each node pulls; or scripts/upgrade.sh on a single node
+# or in one go: scripts/upgrade-cluster.sh --publish   (builds and pushes the target, then upgrades)
+```
+
+The tag is the commit (the build id), so a push from a tree with uncommitted or untracked files is refused: no
+node could ask for such an id. `scripts/upgrade-cluster.sh` looks for the three images before it touches anything
+and stops, saying how to publish, if they are missing (`--build` makes every node build its own instead).
+`scripts/upgrade.sh` checks that each pulled image says it is that build (`BUILD_ID` is baked into the image),
+tags it with the name compose uses, and then runs the same migrate, swap and verify steps; if an image cannot
+be pulled it **falls back to building on the node** and says so (`--pull` makes that an error, `--build` skips the
+registry). `--rollback` pulls the older version's images when they are still published and builds them when not.
+Any registry that speaks the Docker registry protocol works (GitHub Container Registry, a self-hosted
+`registry:2`/`registry:3`, Harbor...). Do not set `API_IMAGE`/`WEB_IMAGE`/`MONITOR_IMAGE` as well: that is the
+older, manual way of choosing images, and the scripts refuse the combination.
 
 ### Upgrading every node of a cluster
 
