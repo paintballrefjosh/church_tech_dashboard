@@ -16,15 +16,18 @@ COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
-FROM base AS build
+# The shared package is built in its own stage so a web-only edit does not recompile it.
+FROM deps AS shared-build
+COPY packages/shared packages/shared
+RUN pnpm --filter @church/shared build
+
+FROM shared-build AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 # Dummy env vars so `next build` can collect page data without trying to connect
 # to a real DB or read a real secret. Both are overridden at runtime by env_file.
 ENV COCKROACH_URL=postgresql://build@127.0.0.1:5432/build?sslmode=disable
 ENV AUTH_SECRET=build-time-placeholder-replaced-at-runtime
 ENV AUTH_TRUST_HOST=true
-COPY --from=deps /app /app
-COPY packages/shared packages/shared
 COPY apps/web apps/web
 # Declared here, after the COPYs, not at the top of the stage: the id changes with every edit
 # (scripts/build-id.sh), and an ARG/ENV invalidates the cache of every instruction below it. Up
@@ -39,15 +42,23 @@ ENV BUILD_ID=$BUILD_ID
 # with a fixed key makes the ids identical in every build, on every node. It is only a
 # salt for the ids and is public (it is in this file); the key that actually encrypts
 # values at run time is a secret derived from AUTH_SECRET by entrypoint.sh.
-RUN export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update("church-dashboard/server-actions/build-salt/v1").digest("base64"))')" \
- && pnpm --filter @church/shared build && pnpm --filter @church/web build
+#
+# .next/cache is Next's own build cache (compiled modules, minified chunks): kept between builds so a small edit
+# recompiles a small part. It holds only things Next re-derives from the source and checks by content, so the
+# output is the same with or without it. `locked` because two builds of the same cache must not write at once.
+RUN --mount=type=cache,id=next-build-cache,target=/app/apps/web/.next/cache,sharing=locked \
+    export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update("church-dashboard/server-actions/build-salt/v1").digest("base64"))')" \
+ && pnpm --filter @church/web build
+# Next traces the packages the server needs into standalone/node_modules. They change only when the dependencies
+# or the imports do, so they ship as a layer of their own, apart from the server code.
+RUN mv apps/web/.next/standalone/node_modules /app/standalone-node_modules
 
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG BUILD_ID=dev
-ENV BUILD_ID=$BUILD_ID
+# Layers run from the one that changes least to the one that changes most (see apps/api/Dockerfile).
 # Next standalone bundles only the files needed to run.
+COPY --from=build /app/standalone-node_modules /app/node_modules
 COPY --from=build /app/apps/web/.next/standalone /app
 COPY --from=build /app/apps/web/.next/static /app/apps/web/.next/static
 COPY --from=build /app/apps/web/public /app/apps/web/public
@@ -55,6 +66,10 @@ COPY apps/web/entrypoint.sh /app/apps/web/entrypoint.sh
 WORKDIR /app/apps/web
 # Not root. Next writes its response cache under .next/cache; everything else stays read-only to the app.
 RUN mkdir -p .next/cache && chown -R node:node .next/cache
+# Declared last, after every RUN: the id changes with every commit, and an ARG invalidates the cache of each RUN
+# that follows it.
+ARG BUILD_ID=dev
+ENV BUILD_ID=$BUILD_ID
 USER node
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/apps/web/entrypoint.sh"]

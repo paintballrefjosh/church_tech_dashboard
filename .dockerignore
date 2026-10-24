@@ -36,3 +36,8 @@ CLAUDE.md
 # scripts/rebuild.sh markers
 .last-rebuild
 .last-migrate
+
+# Tests are not part of any image; keeping them out of the context means editing one rebuilds nothing.
+apps/api/test
+apps/web/**/*.test.ts
+apps/web/**/*.test.tsx

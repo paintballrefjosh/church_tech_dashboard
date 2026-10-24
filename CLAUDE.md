@@ -1369,6 +1369,20 @@ roll back by itself. A failed build or migration puts the code back before anyth
   except the web's `.next/cache`. The IPAM/monitor ping works unprivileged through Docker's default
   `net.ipv4.ping_group_range`; `NET_RAW` stays in compose for runtimes that restrict that. A new feature that
   writes to the container filesystem must use `/tmp`, an S3 key or the database.
+- **Image layers are ordered by how often they change** (reworked 2026-10-24; a one-line api edit used to write a 166 MB layer, web 82 MB,
+  and the monitor reinstalled its dependencies on every build). Rules: (1) production dependencies come from a stage that sees only
+  manifests and the lockfile (api: `proddeps`, `pnpm deploy` of the manifests; monitor: `pnpm install --prod` before any code is copied),
+  so that layer changes only with a dependency. (2) `@church/shared` is built in its own stage (`shared-build`) in all three images, and
+  the api puts the built package over the stub `pnpm deploy` leaves in `node_modules/.pnpm/@church+shared@file+packages+shared/` (a
+  `require.resolve` RUN fails the build if pnpm ever names that directory differently). (3) The web ships `standalone/node_modules` as
+  its own layer, apart from the server code. (4) **`ARG BUILD_ID` goes after the last `RUN` of a runner stage**: the id changes every
+  commit, and an ARG is part of the cache key of every RUN below it. (5) `next build` keeps `.next/cache` in a BuildKit cache mount
+  (`next-build-cache`, `sharing=locked`); the output was compared with and without it and differs only where the build id is embedded.
+  Do NOT cache the api's `dist` or `tsbuildinfo` the same way: tsc's incremental emit would keep stale files from deleted sources, and
+  two nodes would then build different images from one commit. (6) `apps/api/test` and the web `*.test.ts(x)` are in `.dockerignore`, so
+  editing a test rebuilds nothing. A `docker builder prune` empties the Next cache (the next web build is cold, about 3 minutes).
+  What is left in a web build (~2 minutes): compile ~35 s, type check ~26 s, build traces ~25 s, page data ~10 s. Measured with a
+  throwaway compose file; there is no `docker buildx` on the dev host, so `docker build` does not work, only `docker compose build`.
 - **Content-Security-Policy:** `apps/web/src/middleware.ts` gives every page a per-request script nonce
   (`script-src 'nonce-...' 'strict-dynamic'`, no `unsafe-eval`) and Next applies it to its scripts; the layout hands it
   to the theme bootstrap. Caddy sends a looser baseline on every response as well (the browser enforces both). **A new
