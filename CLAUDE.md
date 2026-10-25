@@ -449,7 +449,7 @@ quiet hours, and is then DROPPED, not queued** (`pushAllowed`); **email is held 
 time: due-ness is recomputed from the person's CURRENT `notification_delivery` row (quiet start/end, summary time, `urgent_through`, minutes after
 midnight on the SITE zone `site.timezone`), so changing settings applies to waiting mail. Rows are CLAIMED by deleting them before sending (two nodes
 never double-send; a crash loses at most that email, the bell has it); one held notice goes as itself, two or more as one summary (`HELD_EMAIL_MAX_ITEMS`);
-anything held over 3 days is released regardless. `URGENT_NOTIFICATION_KINDS` (down alerts) skip quiet hours and the summary unless the person turned
+anything held over 3 days is released regardless. `URGENT_NOTIFICATION_KINDS` (down alerts: services, infra thresholds, UniFi/Cisco devices offline, cluster nodes, DNS primary) skip quiet hours and the summary unless the person turned
 `urgent_through` off. **A new kind that means "something is down now" belongs in that list.** *Push* (`notifications/push.service.ts`, `web-push` pinned):
 the VAPID key pair is DERIVED from `AUTH_SECRET` (`vapid.ts`; the derivation strings never change; rotating the secret orphans subscriptions, which are
 removed when the push service answers 404/410), so there is no key storage and every node agrees. **A subscription endpoint is user-supplied and the server

@@ -140,6 +140,10 @@ describe("urgent kinds", () => {
   it("are the down alerts only", () => {
     expect(isUrgentNotificationKind("monitor.incident.opened")).toBe(true);
     expect(isUrgentNotificationKind("monitor.incident.resolved")).toBe(false);
+    expect(isUrgentNotificationKind("infra.alert.opened")).toBe(true);
+    expect(isUrgentNotificationKind("infra.alert.resolved")).toBe(false);
+    expect(isUrgentNotificationKind("unifi.device_offline")).toBe(true);
+    expect(isUrgentNotificationKind("cisco.device_offline")).toBe(true);
     expect(isUrgentNotificationKind("ticket.sla_breached")).toBe(false);
   });
 });

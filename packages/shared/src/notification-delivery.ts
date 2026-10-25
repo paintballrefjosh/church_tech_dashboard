@@ -25,6 +25,10 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export const URGENT_NOTIFICATION_KINDS: ReadonlyArray<string> = [
   "monitor.incident.opened",
   "monitor.incident.escalated",
+  "infra.alert.opened",
+  // UniFi and Cisco send "back online" under the same kind as "offline", so those recoveries get through too.
+  "unifi.device_offline",
+  "cisco.device_offline",
   "cluster.node_down",
   "dns.primary_unreachable",
 ];
