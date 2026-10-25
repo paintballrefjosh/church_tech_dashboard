@@ -1102,6 +1102,66 @@ Any registry that speaks the Docker registry protocol works (GitHub Container Re
 `registry:2`/`registry:3`, Harbor...). Do not set `API_IMAGE`/`WEB_IMAGE`/`MONITOR_IMAGE` as well: that is the
 older, manual way of choosing images, and the scripts refuse the combination.
 
+#### Setting up GitHub Container Registry (ghcr.io)
+
+GHCR needs no extra service. The images are stored as three private packages under your GitHub account (or
+organisation); only the machine that publishes can write, and each node only reads.
+
+1. **Pick the prefix.** It is `ghcr.io/<owner>/<name>` with everything lower case (GHCR refuses capitals), where
+   `<owner>` is the GitHub user or organisation that should own the packages and `<name>` is any short word. For this
+   repository's owner that is, for example, `ghcr.io/paintballrefjosh/church`, which gives the packages
+   `church-api`, `church-web` and `church-monitor`. You do not create them: the first push does, **private** by default.
+   Keep them private; they hold the application's code.
+2. **Make two tokens** (GitHub > Settings > Developer settings > Personal access tokens > **Tokens (classic)**; GHCR does
+   not accept fine-grained tokens, and the built-in `GITHUB_TOKEN` is only for GitHub Actions). Set an expiry and note it
+   down, because an expired token shows up as a failed pull at upgrade time:
+   - a **publish** token with the `write:packages` scope (it includes read), kept on the machine that runs
+     `release.sh --push` / `upgrade-cluster.sh --publish`;
+   - a **pull** token with only `read:packages`, put on every node. Use a separate token so a node that is compromised
+     cannot overwrite an image. (A classic token can read every package its owner can, not only these three; if that
+     matters, create it under a dedicated GitHub account that has been given read access to the three packages only.)
+3. **Log in, once per machine, as the user the upgrade runs as** (for a node reached by `upgrade-cluster.sh` over SSH,
+   that is the SSH user). The token goes in on standard input so it is not left in the shell history:
+
+   ```bash
+   # on the publishing machine (the write token)
+   echo "$TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+   # on every node (the read token)
+   echo "$TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+   ```
+
+   Docker keeps it in `~/.docker/config.json` of that user. The scripts never store or print a registry credential.
+4. **Set the prefix** in `.env` on the publishing machine and on every node:
+
+   ```bash
+   IMAGE_REGISTRY=ghcr.io/<owner>/church
+   ```
+
+5. **Publish and check.** From a clean checkout on the commit to ship:
+
+   ```bash
+   scripts/release.sh --push                    # builds once, pushes the three images tagged with the commit
+   docker manifest inspect ghcr.io/<owner>/church-api:$(scripts/build-id.sh)   # prints JSON when it is there
+   scripts/upgrade-cluster.sh --check           # every node: version, and that its images are published
+   scripts/upgrade-cluster.sh                   # upgrade (or scripts/upgrade.sh on a single node)
+   ```
+
+   The first publish uploads a whole image set (about 250 MB compressed); after that only the changed layers move
+   (a small code change is under 10 MB), and a node that is already on the previous release pulls the same few
+   megabytes.
+
+Things to know:
+
+- **Old versions stay until you delete them.** Every release adds three tags. Delete old ones in GitHub (the package's
+  page > Package settings, or Your profile > Packages > the package > a version > Delete) when the list gets long, but
+  keep the version each node ran before the last upgrade, because `--rollback` pulls it (it rebuilds on the node if it
+  has been deleted). Check GitHub's current storage and transfer limits for private packages.
+- **"denied" or "unauthorized" on a pull** means the node is not logged in, the token expired, or it lacks `read:packages`
+  (and for an organisation that enforces SSO, the token must be authorised for it: Tokens (classic) > Configure SSO).
+  Without `--pull` the upgrade then builds on the node instead and says so, which works but is the slow path.
+- **"name unknown"/404 on `manifest inspect`** means that tag was never pushed: the commit differs from the one
+  published, or the push was from a tree with uncommitted files (refused).
+
 ### Upgrading every node of a cluster
 
 ```bash
