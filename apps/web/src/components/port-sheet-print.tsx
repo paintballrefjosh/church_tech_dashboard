@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
 import type { PortSheet, SwitchModel } from "@church/shared";
 import { useSwitchModels } from "@/lib/use-switch-models";
-import { installedModules, matchSwitchModel, resolveSwitchView } from "@/lib/faceplates/custom";
+import { installedModules, resolveSwitchView } from "@/lib/faceplates/custom";
 import { modelPicture } from "@/lib/rack-pictures";
 import { PRINT_BASE_CSS } from "@/lib/print-css";
 
@@ -23,12 +23,9 @@ function shortPortLabel(name: string): string {
   return m ? m[1]! : name;
 }
 
-/** The model that draws this device: the picture choice made on the Cisco switch page, else the device's model text. */
+/** The profile that draws this device: the picture choice made on the device's page, else the device's model text. */
 function modelFor(sheet: PortSheet, models: readonly SwitchModel[]): SwitchModel | null {
-  if (sheet.kind === "cisco") {
-    return resolveSwitchView(models, { model: sheet.device.model, switchModelId: sheet.device.switchModelId, switchViewOff: sheet.device.switchViewOff }).model;
-  }
-  return matchSwitchModel(models, sheet.device.model);
+  return resolveSwitchView(models, { model: sheet.device.model, switchModelId: sheet.device.switchModelId, switchViewOff: sheet.device.switchViewOff }).model;
 }
 
 /**
@@ -160,8 +157,8 @@ export function PortSheetPrint({ kind, deviceKey, backHref }: { kind: "cisco" | 
               {models === null
                 ? "Loading pictures…"
                 : model
-                  ? `${model.name} has no ${side === "front" ? "front" : "back"} picture. Add one on the Switch models page, or pick the other side.`
-                  : `No switch model matches ${sheet.device.model ? `"${sheet.device.model}"` : "this device"}, so there is no picture to print. The ports are listed below.`}
+                  ? `${model.name} has no ${side === "front" ? "front" : "back"} picture. Add one on the Device profiles page, or pick the other side.`
+                  : `No device profile draws ${sheet.device.model ? `"${sheet.device.model}"` : "this device"}, so there is no picture to print. The ports are listed below.`}
             </p>
           )}
 

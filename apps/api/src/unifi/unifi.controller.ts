@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createUnifiVouchersSchema } from "@church/shared";
+import { PERMISSIONS, createUnifiVouchersSchema, setSwitchViewSchema } from "@church/shared";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
@@ -57,6 +57,16 @@ export class UnifiController {
   @Audited({ action: "unifi.device.unack", resourceType: "unifi_device", resourceIdFromParams: (p) => p.mac ?? null })
   unack(@Param("mac") mac: string) {
     return this.unifi.unackDevice(mac);
+  }
+
+  /** Which device profile draws this device's picture (auto / a profile / none). Display only: nothing reaches the controller. */
+  @Put("devices/:mac/switch-view")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "unifi.device.view", resourceType: "unifi_device", resourceIdFromParams: (p) => p.mac ?? null })
+  setDeviceView(@Param("mac") mac: string, @Body() body: unknown) {
+    const parsed = setSwitchViewSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.unifi.setDeviceView(mac, parsed.data);
   }
 
   /** UniFi Protect cameras (read-only), while `unifi.protect_enabled` is on. */

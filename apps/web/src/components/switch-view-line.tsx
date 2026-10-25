@@ -4,17 +4,17 @@ import Link from "next/link";
 import { switchViewSentence, type SwitchView } from "@/lib/faceplates/custom";
 
 /**
- * Says which switch model draws this switch and why ("matched on C3064PQ"), with a link for an admin to edit that model or
- * set one up. Changing which model a switch uses is in the Edit switch form.
+ * Says which device profile draws this switch and why ("matched on C3064PQ"), with a link for an admin to edit that profile or
+ * set one up. Changing which profile a switch uses is in the Edit switch form.
  */
 export function SwitchViewLine({ view, deviceModel, canWrite }: { view: SwitchView; deviceModel: string | null; canWrite: boolean }) {
   // Where an admin goes next: finish or edit the model in play, or make one for this model text.
   const link = !canWrite
     ? null
     : view.model
-      ? { href: `/monitoring/network-cisco/models/${view.model.id}`, text: view.layout?.source === "custom" ? `Edit ${view.model.name}` : `Finish ${view.model.name}` }
+      ? { href: `/device-profiles/${view.model.id}`, text: view.layout?.source === "custom" ? `Edit ${view.model.name}` : `Finish ${view.model.name}` }
       : deviceModel && view.how === "none"
-        ? { href: `/monitoring/network-cisco/models?create=${encodeURIComponent(deviceModel)}`, text: `Set up a model for ${deviceModel}` }
+        ? { href: `/device-profiles?create=${encodeURIComponent(deviceModel)}`, text: `Set up a profile for ${deviceModel}` }
         : null;
 
   return (

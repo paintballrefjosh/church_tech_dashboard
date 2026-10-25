@@ -42,7 +42,7 @@ async function signInAsTestUser(page: Page) {
 const ROUTES = [
   "/", "/activity", "/notifications", "/notes", "/tickets", "/tickets/new", "/tickets/canned-replies",
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
-  "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/status",
+  "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/device-profiles", "/status",
   "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/reports/monthly", "/assistant",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
@@ -79,7 +79,12 @@ interface Found {
 const found: Found[] = [];
 const scanned: string[] = [];
 
-async function scan(page: Page, where: string, scheme: string, size: string) {
+/**
+ * `menuOpen`: a drop-down is open over the page. A page control that fails target-size ONLY because the open menu covers part
+ * of it is not a problem (the menu is there for a moment and covers the page by design), so those nodes are left out; every
+ * other rule, and target-size for the menu's own items, still counts.
+ */
+async function scan(page: Page, where: string, scheme: string, size: string, opts: { menuOpen?: boolean } = {}) {
   // A colour caught half way through a transition is not what a person sees at rest.
   await page.addStyleTag({ content: "*,*::before,*::after{transition:none!important;animation:none!important}" });
   await page.mouse.move(0, 0);
@@ -87,6 +92,11 @@ async function scan(page: Page, where: string, scheme: string, size: string) {
   scanned.push(`${size} ${scheme} ${where}`);
   for (const v of result.violations) {
     if (v.id in ACCEPTED) continue;
+    if (opts.menuOpen && v.id === "target-size") {
+      const inMenu = await Promise.all(v.nodes.map((n) => page.locator(`[role="menu"] ${n.target.join(" ")}`).count().catch(() => 0)));
+      v.nodes = v.nodes.filter((n, i) => inMenu[i]! > 0 || !/partially obscured/.test(n.failureSummary ?? ""));
+      if (v.nodes.length === 0) continue;
+    }
     found.push({
       where, scheme, size, rule: v.id, impact: v.impact ?? "", help: v.help,
       nodes: v.nodes.slice(0, 4).map((n) => ({ target: n.target.join(" "), html: n.html.slice(0, 200), summary: (n.failureSummary ?? "").replace(/\s+/g, " ").slice(0, 260) })),
@@ -163,7 +173,7 @@ for (const size of SIZES) {
           if (await trigger.count()) {
             await trigger.first().click();
             await expect(page.getByRole("menu")).toBeVisible();
-            await scan(page, `/ with the ${label} menu open`, scheme, size.name);
+            await scan(page, `/ with the ${label} menu open`, scheme, size.name, { menuOpen: true });
             await page.keyboard.press("Escape");
             if (await page.getByRole("menu").count()) await trigger.first().click();
           }

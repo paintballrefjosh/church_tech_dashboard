@@ -107,7 +107,7 @@ export const rackItemLiveSchema = z.object({
   missing: z.boolean(),
   /** The page that shows the device, when there is one. */
   href: z.string().nullable(),
-  /** Cisco only: the picture choice made on the switch's own page. */
+  /** The picture choice made for the device itself (a Cisco switch's page, an infra host's form, the UniFi device list). */
   switchModelId: z.string().uuid().nullable(),
   switchViewOff: z.boolean(),
   /** Cisco only: the names of the switch's ports, which say which add-on modules it has (a module shows while one of its ports exists). */

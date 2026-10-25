@@ -10,7 +10,6 @@ import {
   ciscoMacTable,
   ciscoArpCache,
   ciscoNeighbors,
-  switchModels,
 } from "../db/schema";
 import { encryptSecret } from "../settings/crypto";
 import type {
@@ -36,6 +35,7 @@ import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shar
 import { CiscoVlansService } from "./cisco-vlans.service";
 import { parseVlanScope } from "./vlan-drift";
 import { redactConfig } from "./config-redact";
+import { checkDeviceProfile } from "../switch-models/check-profile";
 import { diffConfigs, type DiffResult } from "./diff";
 
 type SwitchRow = typeof ciscoSwitches.$inferSelect;
@@ -166,16 +166,13 @@ export class CiscoService {
   }
 
   /**
-   * Choose which switch model draws this switch's picture: "auto" lets the model text decide (the web matches it against
+   * Choose which device profile draws this switch's picture: "auto" lets the model text decide (the web matches it against
    * each model's match strings), "model" pins one for this switch, "off" lists the ports with no picture. Touches nothing
    * on the switch itself.
    */
   async setSwitchView(id: string, input: SetSwitchViewInput): Promise<CiscoSwitch> {
     await this.rowById(id);
-    if (input.mode === "model") {
-      const [m] = await this.db.select({ id: switchModels.id }).from(switchModels).where(eq(switchModels.id, input.modelId!)).limit(1);
-      if (!m) throw new BadRequestException("That switch model does not exist");
-    }
+    if (input.mode === "model") await checkDeviceProfile(this.db, input.modelId);
     await this.db
       .update(ciscoSwitches)
       .set({

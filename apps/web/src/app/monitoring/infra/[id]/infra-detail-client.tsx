@@ -21,6 +21,7 @@ import { AcknowledgeButton } from "../../acknowledge-button";
 import { useModal } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
 import { RunbookCard } from "@/components/runbook-link";
+import { DevicePictureCard } from "@/components/device-picture";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -386,6 +387,7 @@ export function InfraDetailClient({
       </header>
 
       <RunbookCard pageId={target.runbookPageId} />
+      <DevicePictureCard modelId={target.switchModelId} deviceName={target.name} />
 
       {!target.enabled ? (
         <div

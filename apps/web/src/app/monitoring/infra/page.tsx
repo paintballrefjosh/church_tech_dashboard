@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, Cpu, Plus } from "lucide-react";
+import { Activity, Images, Plus } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
@@ -33,10 +33,10 @@ export default async function InfraPage() {
           </p>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Link
-              href="/monitoring/infra/models"
+              href="/device-profiles"
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              <Cpu className="h-4 w-4" aria-hidden /> Device models
+              <Images className="h-4 w-4" aria-hidden /> Device profiles
             </Link>
             <Link
               href="/monitoring/infra/new"

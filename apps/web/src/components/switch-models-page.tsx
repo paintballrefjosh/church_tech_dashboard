@@ -22,8 +22,8 @@ function splitMatch(text: string): string[] {
 }
 
 /**
- * The admin's device models: one list shared by the Cisco, UniFi and Infrastructure pages, each of which mounts this under
- * its own `base` (so the links stay inside the section the person came from).
+ * The admin's device profiles (table `switch_models`): one list for Cisco switches, UniFi devices, infra hosts and cabinets,
+ * on its own page in the IT menu. `base` is where the profile pages live, so the links follow it.
  */
 export function SwitchModelsPage({ base: BASE }: { base: string }) {
   const canWrite = useCanWrite();
@@ -35,7 +35,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // "Set up the switch view for this model" on a switch page arrives here with the model text to match.
+  // "Set up a profile for this model" on a switch page arrives here with the model text to match.
   const prefill = params.get("create");
   useEffect(() => {
     if (prefill && canWrite) setForm({ name: prefill, kind: "switch", match: prefill, portSide: "front" });
@@ -81,7 +81,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
   const columns: Column<SwitchModel>[] = [
     {
       key: "name",
-      label: "Model",
+      label: "Profile",
       render: (m) => (
         <Link href={`${BASE}/${m.id}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
           {m.name}
@@ -92,7 +92,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
     {
       key: "kind",
       label: "Type",
-      render: (m) => <span className="text-xs">{m.kind === "module" ? "Add-on module" : "Switch"}</span>,
+      render: (m) => <span className="text-xs">{m.kind === "module" ? "Add-on module" : "Device"}</span>,
       sortValue: (m) => m.kind,
     },
     {
@@ -134,7 +134,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
                 <button
                   type="button"
                   onClick={() => setConfirmDel(m)}
-                  aria-label={`Delete the ${m.kind === "module" ? "module" : "switch model"} ${m.name}`}
+                  aria-label={`Delete the ${m.kind === "module" ? "module" : "device profile"} ${m.name}`}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-300 dark:hover:bg-rose-900/30"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -150,8 +150,8 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start gap-3">
         <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-          A model is a picture of a kind of device (a switch, an access point, a server) with its ports marked on it. A device whose model matches one of the strings below is shown as that picture; a Cisco switch also gets each port as a button on its page, and a cabinet or printed port sheet uses the picture for any device. The same models are listed on the Cisco, UniFi and Infrastructure pages.
-          An add-on module (a network module such as the C3KX-NM-10G) is the same for a plug-in card: you place it on the switch models that take it, and it appears only on switches that report its ports.
+          A device profile is a picture of a kind of device (a switch, an access point, a server) from the front and the back, with its ports marked on it. A Cisco switch or UniFi device whose reported model contains one of a profile&apos;s match strings is drawn with it, unless another profile is chosen on that device&apos;s page; an infrastructure host reports no model, so it uses the profile chosen on its form. A Cisco switch also gets each port as a button on its page, and cabinets and printed port sheets use the pictures for any device.
+          An add-on module (a network module such as the C3KX-NM-10G) is the same for a plug-in card: you place it on the profiles that take it, and it appears only on switches that report its ports.
         </p>
         {canWrite ? (
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -174,7 +174,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
               onClick={() => setForm({ name: "", kind: "switch", match: "", portSide: "front" })}
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
             >
-              <Plus className="h-4 w-4" aria-hidden /> New switch model
+              <Plus className="h-4 w-4" aria-hidden /> New device profile
             </button>
           </div>
         ) : null}
@@ -186,8 +186,8 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
         columns={columns}
         getKey={(m) => m.id}
         initialSort={{ key: "name", dir: "asc" }}
-        filterPlaceholder="Filter models…"
-        emptyText={models === null ? "Loading…" : "No switch models yet. Switches of a model without one are shown as a list of ports (or a rough built-in drawing for a few Cisco models)."}
+        filterPlaceholder="Filter profiles…"
+        emptyText={models === null ? "Loading…" : "No device profiles yet. A switch without one is shown as a list of ports (or a rough built-in drawing for a few Cisco models), and other devices without a picture."}
       />
 
       {importing ? (
@@ -201,22 +201,22 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
       ) : null}
 
       {form ? (
-        <Modal title={form.kind === "module" ? "New add-on module" : "New switch model"} onClose={() => setForm(null)}>
+        <Modal title={form.kind === "module" ? "New add-on module" : "New device profile"} onClose={() => setForm(null)}>
           <form onSubmit={create} className="space-y-3 text-sm">
             <Field label="Name *">
               <input required autoFocus maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.kind === "module" ? "C3KX-NM-10G" : "Catalyst 3850, 48 port PoE+"} className={`w-full ${inputCls}`} />
             </Field>
             {form.kind === "module" ? (
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Add the module's picture and mark its ports with the names the switch gives them (<span className="font-mono">Te1/1/1</span> ...). Then open a switch model and add the module to it.
+                Add the module's picture and mark its ports with the names the switch gives them (<span className="font-mono">Te1/1/1</span> ...). Then open a device profile and add the module to it.
               </p>
             ) : (
               <>
-                <Field label="Matches (the model text the switch reports, comma separated)">
+                <Field label="Matches (the model text the device reports, comma separated)">
                   <input value={form.match} onChange={(e) => setForm({ ...form, match: e.target.value })} placeholder="C3850-48" className={`w-full font-mono text-xs ${inputCls}`} />
                 </Field>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  A switch uses this model when its reported model contains one of these strings, in any case: <span className="font-mono">C3850-48</span> matches WS-C3850-48F-E and WS-C3850-48P-L. If several match, the longest string wins.
+                  A device uses this profile when its reported model contains one of these strings, in any case: <span className="font-mono">C3850-48</span> matches WS-C3850-48F-E and WS-C3850-48P-L. If several match, the longest string wins. Leave it empty for a profile that is only ever chosen by hand (a server).
                 </p>
               </>
             )}
@@ -236,10 +236,10 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
       ) : null}
 
       {confirmDel ? (
-        <Modal title="Delete switch model" onClose={() => setConfirmDel(null)}>
+        <Modal title={confirmDel.kind === "module" ? "Delete add-on module" : "Delete device profile"} onClose={() => setConfirmDel(null)}>
           <p className="text-sm">
             Delete <span className="font-medium">{confirmDel.name}</span>, its pictures and its port layout?{" "}
-            {confirmDel.kind === "module" ? "A module that is placed on a switch model has to be removed from it first." : "Switches that used it go back to a list of ports."}
+            {confirmDel.kind === "module" ? "A module that is placed on a device profile has to be removed from it first." : "Devices that used it lose their picture; a switch goes back to a list of ports."}
           </p>
           <div className="mt-4 flex items-center justify-end gap-2">
             <button type="button" onClick={() => setConfirmDel(null)} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700">Cancel</button>

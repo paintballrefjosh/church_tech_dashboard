@@ -15,11 +15,13 @@ faceplate gets the table and no toggle. The UniFi page is meant to use the same 
 | `apps/web/src/components/port-view-toggle.tsx` | `usePortView` and `PortViewToggle`. |
 | `.../switches/[id]/page.tsx` | Builds the items (`faceItems`, `faceState`) and the popover body (`PortDetails`). Edit/Delete reuse the list's form and confirm dialog. |
 
-## Switch models (admin, in the app)
+## Device profiles (admin, in the app)
 
-The normal way to add a model: **Monitoring > Network (Cisco) > Switch models** (`/monitoring/network-cisco/models`). The same list and editor are reachable from the UniFi and Infrastructure pages ("Device models" in their headers, `/monitoring/network/models`, `/monitoring/infra/models`). Reads need
+The code and the database call them switch models (`switch_models`, `SwitchModel`); the UI calls them **device profiles** since 2026-10-25,
+because they also draw UniFi devices, infra hosts and cabinet items. The normal way to add one: **IT > Device profiles** (`/device-profiles`;
+the UniFi and Infrastructure pages link to it, and the old `/monitoring/*/models` addresses redirect there). Reads need
 `monitors:read:any`, changes `monitors:write:any` (the monitoring admin tier). On a switch's page an admin also gets a link:
-"Set up a switch view for this model" (opens the create form with the model text filled in) or "Edit this switch view".
+"Set up a profile for this model" (opens the create form with the model text filled in) or "Edit <profile>".
 
 - A model (`switch_models`, migration 0070; shared schema `packages/shared/src/schemas/switch-model.ts`) has a name, **match
   strings** (a switch whose reported model contains one, in any case, uses it; the longest string wins, then the first by
@@ -65,7 +67,7 @@ bottom left on the pagination row (`DataTable rowsSelector="footer"`; other tabl
 
 ### Importing pictures from a stencil, a PowerPoint file or a picture
 
-**Import from a file** (on the Switch models page, and on a model's own page for that model) reads a file in the browser and
+**Import from a file** (on the Device profiles page, and on a model's own page for that model) reads a file in the browser and
 lets the admin pick which picture is the front and which the back. Nothing is uploaded until they choose; then the chosen
 pictures (re-drawn as trimmed PNGs, or a ready PNG/JPEG/WebP kept as it is) go through the ordinary
 `POST /switch-models/:id/images/:side`, so **the server has no new code and no new attack surface**: it still takes only
@@ -114,7 +116,7 @@ Some switches take a plug-in network module with extra, usually faster, ports (a
 C3850-NM-4-10G). A module is **a second kind of switch model**: `switch_models.kind` is `switch` (the default, matched to devices
 by its model text) or `module` (never matched, no match strings, cannot hold modules itself; the kind is fixed at creation).
 A module has its own picture and port boxes, made with the same editor, Auto and importer (the importer's "This is an add-on
-module" box, or "New add-on module" on the Switch models page), and its ports are named as the switch names them for the slot
+module" box, or "New add-on module" on the Device profiles page), and its ports are named as the switch names them for the slot
 (`Te1/1/1` ..., with `Gi1/1/1` as an alias when the same cage has another name in another mode).
 
 A switch model lists the modules placed on it in `switch_models.modules` (`[{ id, moduleId, x, y, w, h }]`, fractions of the
@@ -196,8 +198,9 @@ A model with a layout but no photo is drawn as a plain chassis, so layouts can b
 Same component and the same switch models (they are not Cisco-specific: a box is named for whatever the device calls its
 port). UniFi devices report `model` (the code, e.g. `US48PRO`) and a `port_table` with a `port_idx` per port, so a model
 matching `US48PRO` with ports named "1" to "52" is all that is needed, plus the popover body (name, profile/VLAN, PoE, link
-speed, the client on the port). UniFi ports have no desired config, so its popover has no Edit/Delete. The Switch models page
-lives under the Cisco tabs for now; UniFi's page should link to it.
+speed, the client on the port). UniFi ports have no desired config, so its popover has no Edit/Delete. Which profile a UniFi
+device uses can already be chosen (the "Picture" column of the devices table; see [cabinets.md](cabinets.md)), and the
+cabinets and port sheets draw it; the live switch view on a UniFi page is still to do.
 
 ## Tests
 

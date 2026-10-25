@@ -79,14 +79,15 @@ export class PortSheetsService {
     if (!Array.isArray(dev.port_table) || dev.port_table.length === 0) {
       throw new BadRequestException("That device has no switch ports to list (it is not a switch or gateway with a port table)");
     }
-    const [profiles, networks] = await Promise.all([this.unifi.portProfiles(), this.unifi.networkConfs()]);
+    const [profiles, networks, views] = await Promise.all([this.unifi.portProfiles(), this.unifi.networkConfs(), this.unifi.deviceViews()]);
+    const view = views.get(mac);
     const notes: string[] = [];
     if (profiles === null || networks === null) {
       notes.push("The controller's port profiles or networks could not be read, so VLANs and subnets are left blank.");
     }
     return {
       kind: "unifi",
-      device: { id: mac, name: dev.name?.trim() || mac, ip: dev.ip ?? null, model: dev.model ?? null, location: null },
+      device: { id: mac, name: dev.name?.trim() || mac, ip: dev.ip ?? null, model: dev.model ?? null, location: null, switchModelId: view?.switchModelId ?? null, switchViewOff: view?.switchViewOff ?? false },
       generatedAt: new Date().toISOString(),
       ports: unifiSheetRows(dev, profiles ?? [], networks ?? []),
       notes,

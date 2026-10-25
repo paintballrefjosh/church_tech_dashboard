@@ -188,9 +188,9 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
     return (
       <div className="space-y-3">
         <Link href={BASE} className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline dark:text-brand-400">
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All models
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All device profiles
         </Link>
-        <p className="text-sm">That switch model does not exist (it may have been deleted).</p>
+        <p className="text-sm">That device profile does not exist (it may have been deleted).</p>
       </div>
     );
   }
@@ -260,14 +260,14 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
   return (
     <div className="space-y-5">
       <Link href={BASE} className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline dark:text-brand-400">
-        <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All models
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All device profiles
       </Link>
       <h2 className="text-lg font-semibold">
         {model.name}
         {isModule ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 align-middle text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">Add-on module</span> : null}
       </h2>
       <StatusLine status={status} />
-      {!canWrite ? <p className="text-sm text-slate-600 dark:text-slate-400">You can look at this model. Changing it needs the monitoring admin tier.</p> : null}
+      {!canWrite ? <p className="text-sm text-slate-600 dark:text-slate-400">You can look at this profile. Changing it needs the monitoring admin tier.</p> : null}
 
       <form onSubmit={saveDetails} className={`grid items-end gap-3 ${isModule ? "sm:grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_1fr_auto]"}`}>
         <Field label="Name">
@@ -351,7 +351,7 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
       {isModule ? (
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Name each port as the switch does, for the slot it plugs into (for a module in the first switch: <span className="font-mono">Te1/1/1</span>, <span className="font-mono">Te1/1/2</span> ...). If the same cage is called one thing with one setting and another with a different one (<span className="font-mono">Gi1/1/1</span> and <span className="font-mono">Te1/1/1</span>), give the second as an alias.
-          Then open a switch model and add this module to it.
+          Then open a device profile and add this module to it.
         </p>
       ) : (
         <section aria-label="Add-on modules" className="space-y-2">

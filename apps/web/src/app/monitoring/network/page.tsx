@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, Cpu, Settings as SettingsIcon, Ticket } from "lucide-react";
+import { Activity, Images, Settings as SettingsIcon, Ticket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
@@ -33,11 +33,11 @@ export default async function NetworkPage() {
               Guest vouchers
             </Link>
             <Link
-              href="/monitoring/network/models"
+              href="/device-profiles"
               className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
             >
-              <Cpu className="h-4 w-4" aria-hidden />
-              Device models
+              <Images className="h-4 w-4" aria-hidden />
+              Device profiles
             </Link>
             <Link
               href="/admin/settings/monitoring"

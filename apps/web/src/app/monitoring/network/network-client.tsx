@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import type { SwitchModel } from "@church/shared";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CircleCheck, CircleHelp, Printer, RefreshCw } from "lucide-react";
+import { AlertTriangle, CircleCheck, CircleHelp, Images, Printer, RefreshCw } from "lucide-react";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { DataTable, type Column } from "@/components/data-table";
 import { clientTraffic } from "@/lib/unifi-traffic";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { usePoll } from "@/lib/use-poll";
+import { useSwitchModels } from "@/lib/use-switch-models";
+import { useCanWrite } from "../network-cisco/cisco-ui";
+import { pictureSummary, UnifiPictureDialog, type PictureDevice } from "./unifi-picture-dialog";
 
 interface Health {
   configured: boolean;
@@ -31,6 +35,9 @@ interface UDevice {
   // Server-annotated: operator has acknowledged this device's current outage,
   // so it's suppressed from the Network tab problem badge until it recovers.
   acked?: boolean;
+  // Server-annotated: the picture choice made for this device (no row = automatic, matched on `model`).
+  switchModelId?: string | null;
+  switchViewOff?: boolean;
 }
 interface UClient {
   name?: string;
@@ -85,6 +92,10 @@ export function NetworkClient() {
     setLoading(false);
     setRefreshing(false);
   }, []);
+
+  const { models } = useSwitchModels();
+  const canWrite = useCanWrite();
+  const [picturing, setPicturing] = useState<PictureDevice | null>(null);
 
   // Acknowledge / clear an offline device. Optimistic; reverts on failure.
   const toggleAck = useCallback(
@@ -178,10 +189,27 @@ export function NetworkClient() {
       ) : null}
 
       {tab === "devices" ? (
-        <DevicesTable items={devices} onToggleAck={toggleAck} />
+        <DevicesTable
+          items={devices}
+          onToggleAck={toggleAck}
+          models={models}
+          onPicture={canWrite ? setPicturing : null}
+        />
       ) : (
         <ClientsTable items={clients} />
       )}
+
+      {picturing && models ? (
+        <UnifiPictureDialog
+          device={picturing}
+          models={models}
+          onClose={() => setPicturing(null)}
+          onSaved={() => {
+            setPicturing(null);
+            void load(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -213,9 +241,14 @@ function TabButton({
 function DevicesTable({
   items,
   onToggleAck,
+  models,
+  onPicture,
 }: {
   items: UDevice[];
   onToggleAck: (mac: string, currentlyAcked: boolean) => void;
+  models: SwitchModel[] | null;
+  // Only for people who may change the choice; others see no picture column.
+  onPicture: ((d: PictureDevice) => void) | null;
 }) {
   const columns: Column<UDevice>[] = [
     {
@@ -274,6 +307,29 @@ function DevicesTable({
           </Link>
         ) : null,
     },
+    ...(onPicture && models
+      ? [
+          {
+            key: "picture",
+            label: "Picture",
+            render: (d: UDevice) => {
+              if (!d.mac) return null;
+              const dev: PictureDevice = { mac: d.mac, name: d.name ?? d.mac, model: d.model ?? null, switchModelId: d.switchModelId, switchViewOff: d.switchViewOff };
+              return (
+                <button
+                  type="button"
+                  onClick={() => onPicture(dev)}
+                  aria-label={`Choose the picture of ${dev.name}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <Images className="h-3.5 w-3.5" aria-hidden /> {pictureSummary(models, dev)}
+                </button>
+              );
+            },
+            sortValue: (d: UDevice) => (d.mac ? pictureSummary(models, { mac: d.mac, name: "", model: d.model ?? null, switchModelId: d.switchModelId, switchViewOff: d.switchViewOff }) : ""),
+          } satisfies Column<UDevice>,
+        ]
+      : []),
     {
       key: "ack",
       label: "",

@@ -333,7 +333,8 @@ export class RacksService {
       status: h.status === "up" || h.status === "degraded" ? "up" : h.status === "down" ? "down" : "unknown",
       href: `/monitoring/infra/${h.id}`,
       style: "server",
-      switchModelId: null,
+      // A host has no model text to match, so its picture is the profile chosen for it, or none.
+      switchModelId: h.switchModelId ?? null,
       switchViewOff: false,
       portNames: [],
     };
@@ -377,6 +378,8 @@ export class RacksService {
       for (const h of await this.db.select().from(infraTargets).where(inArray(infraTargets.id, valid))) out.set(h.id, this.infraKnown(h));
     } else if (kind === "unifi") {
       let devices: UDev[];
+      // The picture choices are read live (the device list is cached for a few seconds; a choice just made must show).
+      const views = await this.unifi.deviceViews();
       try {
         devices = await this.unifiDevices();
       } catch (err) {
@@ -395,8 +398,8 @@ export class RacksService {
           status: d.state === 1 ? "up" : "down",
           href: "/monitoring/network",
           style: unifiStyle(d.type),
-          switchModelId: null,
-          switchViewOff: false,
+          switchModelId: views.get(mac)?.switchModelId ?? null,
+          switchViewOff: views.get(mac)?.switchViewOff ?? false,
           portNames: [],
         });
       }

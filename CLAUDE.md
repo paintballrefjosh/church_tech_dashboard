@@ -207,8 +207,9 @@ clears the pin. Writes to a switch (`pushToSwitch`, manual backup) refuse to run
 (`pinnedConn`). Test: `apps/api/test/cisco-host-key.test.ts` runs a real in-process ssh2 server.
 
 **Switch view** (Cisco switch page): the ports open as a picture of the switch from the front with a hover popover per port, and a
-"Switch view | List view" toggle (remembered in this browser) beside the Rows selector. **Switch models** are admin data
-(`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; page `/monitoring/network-cisco/models`, also mounted at `/monitoring/network/models` (UniFi) and `/monitoring/infra/models` (Infrastructure) from the shared `components/switch-models-page.tsx` and `switch-model-editor.tsx`, which take a `base` so links stay in the section; reads
+"Switch view | List view" toggle (remembered in this browser) beside the Rows selector. **Device profiles** (called switch models in the
+code and database, and "switch models" in the UI until 2026-10-25) are admin data
+(`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; their own page **`/device-profiles`** in the IT menu, from the shared `components/switch-models-page.tsx` and `switch-model-editor.tsx`; the old `/monitoring/{network-cisco,network,infra}/models*` addresses redirect there in `next.config.mjs`; reads
 `monitors:read:any`, writes `monitors:write:any`): a front and back picture (stored as `attachments`, parent type `switch_model`, size read
 from the file's own bytes), match strings, which side has the ports, and a box per port as a fraction of that picture, placed in a drag
 editor with an Auto option (find sockets / even grid / rename in order). **Import from a file** (`apps/web/src/lib/stencils/`,
@@ -471,7 +472,7 @@ wait for it); the dialog wrapper itself has no size, so assert on the search box
 
 **Accessibility** (Part 2 item 10; sweep and keyboard tests in `tests/e2e/tests/zz-accessibility.spec.ts`, `@axe-core/playwright` pinned). The spec runs axe
 (WCAG 2.2 AA + best practice) over every screen, a detail screen of each kind and the open menus/palette, in light and dark, desktop and 390 px, and **fails on any
-violation**: a new screen cannot add one, and an exception goes in `ACCEPTED` with a reason. Rules the code now follows: (1) *text colour pairs*: muted text is
+violation**: a new screen cannot add one, and an exception goes in `ACCEPTED` with a reason. With a drop-down open, a page control flagged by target-size only because the menu partly covers it is left out (`menuOpen` in `scan`); nothing else is. Rules the code now follows: (1) *text colour pairs*: muted text is
 `text-slate-500 dark:text-slate-400` (never `slate-400` alone on a light page, never `slate-500` alone on a dark one); links `text-brand-600 dark:text-brand-400`;
 status colours `-700` in light with a `dark:` partner (`-600` on white fails); text on a `brand-50/100` tint uses `slate-600`; never dim text with `opacity-*`.
 (2) *Every control has a name*: an icon-only button needs `aria-label` (say what it acts on: `Remove <thing>`), a blank table heading needs `sr-only` text (`Column.srLabel`
@@ -500,8 +501,13 @@ design and the planned follow-up in [docs/cabinets.md](docs/cabinets.md)). A cab
 an infra host, a UniFi device (by MAC) or are custom; **U1 is the bottom**, and all placement arithmetic is the pure `rack-layout.ts` in shared. Rules:
 (1) **an item stores a pointer plus a snapshot, never a foreign key to the device**, and the page shows the device's own name/IP/status (`withLive`); a
 UniFi controller that is down is not "device missing". (2) Placement checks and writes run in one transaction that first updates the cabinet row, so two
-nodes cannot both pass the overlap check. (3) A device sits in one cabinet only. (4) Pictures are **switch models** (`pictureModelFor`): any model can be
-picked for any item; a new kind of device that gets pictures goes through that function. (5) The printable pages carry no top bar, stay white in dark
+nodes cannot both pass the overlap check. (3) A device sits in one cabinet only. (4) Pictures are **device profiles** (`pictureModelFor`): any profile can be
+picked for any item, else the device's own choice applies (`resolveSwitchView` for every kind); a new kind of device that gets pictures goes through that function.
+**Each device chooses its own picture** (migration 0081): a Cisco switch on `cisco_switches` (0071), an infra host on `infra_targets.switch_model_id`
+(the host form; a host reports no model text, so a profile or none, never "automatic"), a UniFi device in `unifi_device_views` keyed by MAC (auto = no
+row; `PUT /unifi/devices/:mac/switch-view`, `monitors:write:any`, audited `unifi.device.view`, MCP-excluded, works without the controller), all through
+`checkDeviceProfile` (exists, not a module); deleting a profile clears every choice (ON DELETE SET NULL). `UnifiService.devices()`/`snapshot()` carry
+`switchModelId`/`switchViewOff` on each device; cabinets and the UniFi port sheet read `deviceViews()` live, not through the cached device list. (5) The printable pages carry no top bar, stay white in dark
 mode, and the cabinet table's rows share the cabinet's grid so they line up (tested). (6) **Subnets on the Cisco sheet come from IPAM by VLAN number**, UniFi's
 from `rest/networkconf` + `rest/portconf` (read-only, `null` when unreachable: say so, never guess). Reads gate on `monitors:read:any`, writes on
 `monitors:write:any` (like IPAM/DNS/UPS); MCP has read tools only (`racks_list`, `racks_get`, `port_sheet_*`). Tests: `rack-layout.test.ts`, `port-sheet.test.ts`,

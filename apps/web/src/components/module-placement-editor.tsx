@@ -11,7 +11,7 @@ const field =
   "rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
 
 /**
- * Where each add-on module sits on a switch model's picture. A box per module, dragged (or moved with the arrow keys, or
+ * Where each add-on module sits on a device profile's picture. A box per module, dragged (or moved with the arrow keys, or
  * typed in below) over the picture, with the module's own picture inside it; the module's ports follow it. The box keeps
  * the module picture's proportions, so only its width is set.
  */
@@ -135,14 +135,14 @@ export function ModulePlacementEditor({
             <Plus className="h-3.5 w-3.5" aria-hidden /> Add to {host.name}
           </button>
           <Link href={MODELS} className="text-xs text-brand-600 hover:underline dark:text-brand-400">
-            Create or import a module on the Switch models page
+            Create or import a module on the Device profiles page
           </Link>
         </div>
       ) : null}
 
       {placements.length === 0 ? (
         <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          No modules on this switch model. A module is drawn on a switch's page only when that switch reports one of its ports.
+          No modules on this device profile. A module is drawn on a switch's page only when that switch reports one of its ports.
         </p>
       ) : (
         <>
@@ -193,7 +193,7 @@ export function ModulePlacementEditor({
             </div>
           </div>
 
-          <ul className="space-y-1.5" aria-label="Modules on this switch model">
+          <ul className="space-y-1.5" aria-label="Modules on this device profile">
             {placements.map((p) => {
               const m = byId.get(p.moduleId);
               return (

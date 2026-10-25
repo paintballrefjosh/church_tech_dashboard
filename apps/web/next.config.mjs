@@ -27,6 +27,13 @@ const nextConfig = {
       { source: "/monitoring/ipam/:path*", destination: "/ipam/:path*", permanent: false },
       { source: "/monitoring/dns", destination: "/dns", permanent: false },
       { source: "/monitoring/dns/:path*", destination: "/dns/:path*", permanent: false },
+      // The switch models pages became Device profiles, its own page in the IT menu (2026-10-25).
+      { source: "/monitoring/network-cisco/models", destination: "/device-profiles", permanent: false },
+      { source: "/monitoring/network-cisco/models/:path*", destination: "/device-profiles/:path*", permanent: false },
+      { source: "/monitoring/network/models", destination: "/device-profiles", permanent: false },
+      { source: "/monitoring/network/models/:path*", destination: "/device-profiles/:path*", permanent: false },
+      { source: "/monitoring/infra/models", destination: "/device-profiles", permanent: false },
+      { source: "/monitoring/infra/models/:path*", destination: "/device-profiles/:path*", permanent: false },
     ];
   },
   experimental: {

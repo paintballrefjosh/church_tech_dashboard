@@ -159,7 +159,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
     policy: "data", group: MONITORING, title: "Cisco ports", label: ["port_id", "description"],
     volatile: ["neighbor_hostname", "neighbor_ip", "neighbor_port"],
   },
-  switch_models: { policy: "data", group: MONITORING, title: "Switch models (pictures and port layouts)", label: ["name"] },
+  switch_models: { policy: "data", group: MONITORING, title: "Device profiles (pictures and port layouts)", label: ["name"] },
   cisco_vlans: { policy: "data", group: MONITORING, title: "Cisco VLANs (desired)", label: ["vlan_id", "name"] },
   racks: { policy: "data", group: MONITORING, title: "Cabinets (racks)", label: ["name"] },
   renewals: { policy: "data", group: MONITORING, title: "Renewals", label: ["name", "renews_on"], volatile: ["reminded_for"] },
@@ -188,6 +188,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
     volatile: ["is_up", "responded_via", "open_ports", "last_seen_at", "last_scan_at", "hostname", "netbios_name", "unifi_name"],
   },
   unifi_device_acks: { policy: "data", group: MONITORING, title: "Acknowledged UniFi devices", label: ["device_name", "mac"] },
+  unifi_device_views: { policy: "data", group: MONITORING, title: "UniFi device pictures", label: ["mac"] },
   dns_managed_records: { policy: "skip", group: MONITORING, title: "DNS sync ledger", reason: "Rebuilt on every DNS sync; the records themselves live in Technitium." },
   dns_sync_runs: { policy: "skip", group: MONITORING, title: "DNS sync runs", reason: "A history of background runs." },
 

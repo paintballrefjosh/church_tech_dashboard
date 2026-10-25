@@ -174,7 +174,7 @@ test.describe("Cisco switch page: switch view", () => {
     });
     await page.goto(`/monitoring/network-cisco/switches/${SW_ID}`);
     const line = page.getByTestId("switch-view-line");
-    await expect(line).toContainText('No switch model matches "WS-C2960-24TT-L"');
+    await expect(line).toContainText('No device profile matches "WS-C2960-24TT-L"');
     // the match is not chosen on the page itself, only in the form
     await expect(page.getByRole("combobox", { name: /Switch view/ })).toHaveCount(0);
 

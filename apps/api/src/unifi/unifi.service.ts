@@ -9,14 +9,23 @@ import {
 import { Agent } from "undici";
 import { eq, inArray } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { unifiDeviceAcks } from "../db/schema";
-import type { CreateUnifiVouchersInput, UnifiCamera, UnifiCamerasReply, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
+import { unifiDeviceAcks, unifiDeviceViews } from "../db/schema";
+import { checkDeviceProfile } from "../switch-models/check-profile";
+import type { SetSwitchViewInput, CreateUnifiVouchersInput, UnifiCamera, UnifiCamerasReply, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
 import { SettingsService } from "../settings/settings.service";
 
 /** Normalise a MAC for storage/comparison — controllers report lowercase, but
  * be defensive about whatever the client echoes back into the ack URL. */
 function normMac(mac: string): string {
   return mac.trim().toLowerCase();
+}
+
+const MAC_RE = /^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/;
+
+/** A UniFi device's picture choice (see setDeviceView). */
+export interface DeviceView {
+  switchModelId: string | null;
+  switchViewOff: boolean;
 }
 
 interface UnifiConfig {
@@ -139,12 +148,49 @@ export class UnifiService {
     return ackedMacs;
   }
 
-  /** Tag each raw device with an `acked` flag for the table UI. */
-  private annotate(devices: unknown[], ackedMacs: Set<string>): unknown[] {
+  /** Tag each raw device with an `acked` flag and its picture choice (`switchModelId`, `switchViewOff`) for the UI. */
+  private async annotate(devices: unknown[], ackedMacs: Set<string>): Promise<unknown[]> {
+    const views = devices.length > 0 ? await this.deviceViews() : new Map<string, DeviceView>();
     return devices.map((raw) => {
       const d = raw as UDevice;
-      return { ...(raw as object), acked: !!(d.mac && ackedMacs.has(normMac(d.mac))) };
+      const mac = d.mac ? normMac(d.mac) : "";
+      const view = views.get(mac);
+      return {
+        ...(raw as object),
+        acked: !!(mac && ackedMacs.has(mac)),
+        switchModelId: view?.switchModelId ?? null,
+        switchViewOff: view?.switchViewOff ?? false,
+      };
     });
+  }
+
+  /** Every saved picture choice, by normalised MAC. A device with no row is "automatic" (matched on its model text). */
+  async deviceViews(): Promise<Map<string, DeviceView>> {
+    const rows = await this.db
+      .select({ mac: unifiDeviceViews.mac, switchModelId: unifiDeviceViews.switchModelId, switchViewOff: unifiDeviceViews.switchViewOff })
+      .from(unifiDeviceViews);
+    return new Map(rows.map((r) => [r.mac, { switchModelId: r.switchModelId ?? null, switchViewOff: r.switchViewOff }]));
+  }
+
+  /**
+   * Choose which device profile draws a UniFi device's picture: "auto" (matched on the model text; the row is removed), a
+   * profile, or "off". Kept by MAC because the device is not a row here; the controller need not be reachable, and nothing is
+   * sent to it.
+   */
+  async setDeviceView(mac: string, input: SetSwitchViewInput): Promise<{ mac: string } & DeviceView> {
+    const normalized = normMac(mac);
+    if (!MAC_RE.test(normalized)) throw new BadRequestException("That is not a MAC address");
+    if (input.mode === "auto") {
+      await this.db.delete(unifiDeviceViews).where(eq(unifiDeviceViews.mac, normalized));
+      return { mac: normalized, switchModelId: null, switchViewOff: false };
+    }
+    if (input.mode === "model") await checkDeviceProfile(this.db, input.modelId);
+    const view: DeviceView = { switchModelId: input.mode === "model" ? input.modelId! : null, switchViewOff: input.mode === "off" };
+    await this.db
+      .insert(unifiDeviceViews)
+      .values({ mac: normalized, ...view, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: unifiDeviceViews.mac, set: { ...view, updatedAt: new Date() } });
+    return { mac: normalized, ...view };
   }
 
   private async config(): Promise<UnifiConfig | null> {
@@ -304,7 +350,7 @@ export class UnifiService {
     const data = await this.apiGet(`s/${encodeURIComponent(cfg.siteId)}/stat/device`);
     const raw = Array.isArray(data) ? data : [];
     const ackedMacs = await this.reconcileAcks(raw as UDevice[]);
-    return this.annotate(raw, ackedMacs);
+    return await this.annotate(raw, ackedMacs);
   }
 
   async clients(): Promise<unknown[]> {
@@ -402,7 +448,7 @@ export class UnifiService {
       const ackedMacs = await this.reconcileAcks(devices as UDevice[]);
       return {
         health: { configured: true, reachable: true, error: null },
-        devices: this.annotate(devices, ackedMacs),
+        devices: await this.annotate(devices, ackedMacs),
         clients: Array.isArray(rawClients) ? rawClients : [],
       };
     } catch (err) {

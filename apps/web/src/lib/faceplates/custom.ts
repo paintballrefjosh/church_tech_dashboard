@@ -83,8 +83,8 @@ export function switchViewSentence(view: SwitchView, deviceModel: string | null)
     default:
       if (!text) return "This switch has not reported its model yet, so its ports are listed only.";
       return built
-        ? `Switch view: the built-in drawing for ${text} (approximate). No switch model matches "${text}".`
-        : `No switch model matches "${text}", so this switch's ports are listed only.`;
+        ? `Switch view: the built-in drawing for ${text} (approximate). No device profile matches "${text}".`
+        : `No device profile matches "${text}", so this switch's ports are listed only.`;
   }
 }
 

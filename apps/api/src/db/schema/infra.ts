@@ -12,6 +12,7 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { wikiPages } from "./wiki";
+import { switchModels } from "./switch-models";
 import { users } from "./users";
 
 /**
@@ -52,6 +53,9 @@ export const infraTargets = pgTable(
     alertState: jsonb("alert_state").notNull().default({}), // ruleId -> { breachingSince, open, incidentId }
     // The wiki page that says what to do when it misbehaves (see monitors.runbook_page_id).
     runbookPageId: uuid("runbook_page_id").references(() => wikiPages.id, { onDelete: "set null" }),
+    // The device profile whose front and back pictures show this host (its page, cabinets). Hosts report no model
+    // text to match, so there is no "automatic": a profile, or none.
+    switchModelId: uuid("switch_model_id").references(() => switchModels.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

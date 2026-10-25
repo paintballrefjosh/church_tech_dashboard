@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// The switch model pages are driven by fake API answers (page.route), so nothing here writes to the real database or store.
+// The device profile pages are driven by fake API answers (page.route), so nothing here writes to the real database or store.
 const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
@@ -94,20 +94,27 @@ async function fakeApi(page: Page) {
   return model;
 }
 
-test.describe("Switch models", () => {
+test.describe("Device profiles", () => {
   test("lists models and links to the editor", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page);
-    await page.goto("/monitoring/network-cisco/models");
-    await expect(page.getByRole("link", { name: "Switch models" })).toBeVisible();
+    await page.goto("/device-profiles");
+    await expect(page.getByRole("heading", { name: "Device profiles" })).toBeVisible();
     await expect(page.getByRole("link", { name: "E2E Model" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "New switch model" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "New device profile" })).toBeVisible();
+  });
+
+  test("the old switch models address leads to the device profiles page", async ({ page }) => {
+    await signInAsTestUser(page);
+    await fakeApi(page);
+    await page.goto(`/monitoring/network-cisco/models/${MODEL_ID}`);
+    await expect(page).toHaveURL(new RegExp(`/device-profiles/${MODEL_ID}$`));
   });
 
   test("uploads a picture, finds the sockets automatically, numbers them, and saves", async ({ page }) => {
     await signInAsTestUser(page);
     const model = await fakeApi(page);
-    await page.goto(`/monitoring/network-cisco/models/${MODEL_ID}`);
+    await page.goto(`/device-profiles/${MODEL_ID}`);
     const photo = await makePhoto(page);
 
     await page.getByLabel("Upload the front picture").setInputFiles({ name: "front.png", mimeType: "image/png", buffer: photo });

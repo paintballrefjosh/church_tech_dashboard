@@ -40,6 +40,7 @@ import {
   type LucideIcon,
   CalendarClock,
   Bot,
+  Images,
 } from "lucide-react";
 
 /**
@@ -143,6 +144,7 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "monitoring", cmd: go("go:ipam", "Go to", "IPAM", "/ipam", Boxes, "ip addresses subnets") },
   { module: "monitoring", cmd: go("go:dns", "Go to", "DNS", "/dns", Globe, "records zones") },
   { module: "monitoring", cmd: go("go:cabinets", "Go to", "Cabinets", "/cabinets", Server, "racks elevation rack u server room") },
+  { module: "monitoring", cmd: go("go:device-profiles", "Go to", "Device profiles", "/device-profiles", Images, "switch models pictures faceplate stencil port layout") },
   { module: "monitoring", cmd: go("go:renewals", "Go to", "Renewals", "/renewals", CalendarClock, "licence license domain warranty subscription ccli expiry") },
   { module: "monitoring", cmd: go("go:alert-channels", "Go to", "Alert channels", "/monitoring/alert-channels", Activity, "slack teams discord ntfy pushover sms webhook") },
   { module: "assistant", cmd: go("go:assistant", "Go to", "Assistant", "/assistant", Bot, "ask question chat ai help") },

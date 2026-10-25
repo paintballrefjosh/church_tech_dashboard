@@ -11,7 +11,7 @@ export function normaliseModel(m: SwitchModel): SwitchModel {
   return { ...m, kind: m.kind === "module" ? "module" : "switch", modules: Array.isArray(m.modules) ? m.modules : [] };
 }
 
-/** The admin's switch models (null while loading or when they cannot be read: callers fall back to the built-in layouts). */
+/** The admin's device profiles (null while loading or when they cannot be read: callers fall back to the built-in layouts). */
 export function useSwitchModels(): { models: SwitchModel[] | null; reload: () => Promise<void> } {
   const [models, setModels] = useState<SwitchModel[] | null>(null);
 

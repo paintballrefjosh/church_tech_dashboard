@@ -98,7 +98,7 @@ function splitMatch(text: string): string[] {
 type Phase = { kind: "pick" } | { kind: "reading"; text: string } | { kind: "choose" } | { kind: "importing"; text: string };
 
 /**
- * Brings pictures into a switch model from a file the admin has: a Visio stencil (.vss, .vssx, .vsd, .vsdx), a PowerPoint
+ * Brings pictures into a device profile from a file the admin has: a Visio stencil (.vss, .vssx, .vsd, .vsdx), a PowerPoint
  * file, a zip of those (a vendor's stencil download as it comes), or a plain picture. The file is read in this browser;
  * only the pictures chosen are uploaded. Used from the models list (it makes the model) and from a model's own page
  * (`fixedModel`: the pictures go to that model).
@@ -248,7 +248,7 @@ export function StencilImporter({
   return (
     <BigModal
       title="Import pictures from a file"
-      subtitle={fixedModel ? `Into ${fixedModel.name}` : "Into a new or an existing switch model"}
+      subtitle={fixedModel ? `Into ${fixedModel.name}` : "Into a new or an existing device profile"}
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -388,7 +388,7 @@ export function StencilImporter({
                         <input value={name} maxLength={80} disabled={busy} onChange={(e) => { nameTouched.current = true; setName(e.target.value); }} className={`w-full ${field}`} />
                       </label>
                       {asModule ? (
-                        <p className="self-end text-xs text-slate-600 dark:text-slate-400">A module is placed on a switch model afterwards; it is never matched to a switch itself.</p>
+                        <p className="self-end text-xs text-slate-600 dark:text-slate-400">A module is placed on a device profile afterwards; it is never matched to a switch itself.</p>
                       ) : (
                         <label className="block">
                           <span className="text-xs text-slate-600 dark:text-slate-400">Matches (model text, comma separated)</span>

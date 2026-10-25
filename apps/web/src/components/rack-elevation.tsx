@@ -6,7 +6,7 @@ import { rackItemPicture, type RackPicture, type RackSide } from "@/lib/rack-pic
 
 /**
  * A cabinet drawn as an elevation: U numbers down both rails, U1 at the bottom, each item filling the U it occupies,
- * with its picture (front or rear) when its switch model has one and a drawn stand-in when it has not.
+ * with its picture (front or rear) when its device profile has one and a drawn stand-in when it has not.
  *
  * One component for the working page (`variant="screen"`: items and empty slots are buttons) and the sheet that is
  * printed (`variant="print"`: plain boxes, light colours, no names on the faces because the table beside the cabinet has

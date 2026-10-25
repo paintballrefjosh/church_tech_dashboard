@@ -84,11 +84,11 @@ async function fakeApi(page: Page) {
   return { model, uploads };
 }
 
-test.describe("Switch models: import from a file", () => {
+test.describe("Device profiles: import from a file", () => {
   test("a picture file becomes the front of a new model, with its margin cut off", async ({ page }) => {
     await signInAsTestUser(page);
     const { model, uploads } = await fakeApi(page);
-    await page.goto("/monitoring/network-cisco/models");
+    await page.goto("/device-profiles");
     const png = await makePng(page);
 
     await page.getByRole("button", { name: "Import from a file" }).click();
@@ -110,7 +110,7 @@ test.describe("Switch models: import from a file", () => {
   test("a file that is not a picture or a stencil says so", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page);
-    await page.goto("/monitoring/network-cisco/models");
+    await page.goto("/device-profiles");
     await page.getByRole("button", { name: "Import from a file" }).click();
     await page.getByLabel("Choose a stencil or picture file").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a picture") });
     // Next adds its own role=alert route announcer, so pick the importer's message by its text.

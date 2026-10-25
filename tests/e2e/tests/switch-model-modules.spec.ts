@@ -149,7 +149,7 @@ async function fakeApi(page: Page, ports: string[], models: unknown[]) {
   await page.route(`**/api/cisco/switches/${SW_ID}/vlans`, (route) => route.fulfill({ json: [{ vlanId: 10, name: "staff" }] }));
 }
 
-test.describe("Switch models: add-on modules", () => {
+test.describe("Device profiles: add-on modules", () => {
   test("a switch that reports the module's ports shows the module and its ports", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page, ["Gi1/0/1", "Gi1/0/2", "Te1/1/1", "Te1/1/2"], [host([placed]), moduleModel]);
@@ -183,7 +183,7 @@ test.describe("Switch models: add-on modules", () => {
     await expect(plate.getByRole("img", { name: "C3KX-NM-10G" })).toHaveCount(0);
   });
 
-  test("a module is added to a switch model from its page and saved", async ({ page }) => {
+  test("a module is added to a device profile from its page and saved", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page, [], [host([]), moduleModel]);
     let body: { modules?: Array<{ moduleId: string; x: number; w: number; h: number }> } | null = null;
@@ -192,13 +192,13 @@ test.describe("Switch models: add-on modules", () => {
       body = route.request().postDataJSON();
       return route.fulfill({ json: host(body?.modules ?? []) });
     });
-    await page.goto(`/monitoring/network-cisco/models/${HOST_ID}`);
+    await page.goto(`/device-profiles/${HOST_ID}`);
     const section = page.getByRole("region", { name: "Add-on modules" });
-    await expect(section.getByText("No modules on this switch model.")).toBeVisible();
+    await expect(section.getByText("No modules on this device profile.")).toBeVisible();
 
     await section.getByRole("combobox", { name: "Add-on module" }).selectOption({ label: "C3KX-NM-10G" });
     await section.getByRole("button", { name: /^Add to Catalyst 3750-X 24/ }).click();
-    await expect(section.getByRole("list", { name: "Modules on this switch model" })).toContainText("C3KX-NM-10G");
+    await expect(section.getByRole("list", { name: "Modules on this device profile" })).toContainText("C3KX-NM-10G");
 
     // it can be moved from the keyboard: the new box takes focus on click, and Arrow keys nudge it
     const handle = section.getByRole("button", { name: /^C3KX-NM-10G, / });
@@ -216,7 +216,7 @@ test.describe("Switch models: add-on modules", () => {
   test("a module's own page has no match box and no module section", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page, [], [host([placed]), moduleModel]);
-    await page.goto(`/monitoring/network-cisco/models/${MOD_ID}`);
+    await page.goto(`/device-profiles/${MOD_ID}`);
     await expect(page.getByRole("heading", { name: /C3KX-NM-10G/ })).toBeVisible();
     await expect(page.getByText("Add-on module", { exact: true }).first()).toBeVisible();
     await expect(page.getByLabel(/^Matches/)).toHaveCount(0);

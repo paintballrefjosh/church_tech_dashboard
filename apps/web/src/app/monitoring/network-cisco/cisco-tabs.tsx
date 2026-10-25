@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Archive, GitCompareArrows, Search, Network, Share2, Cpu } from "lucide-react";
+import { LayoutDashboard, Archive, GitCompareArrows, Search, Network, Share2 } from "lucide-react";
 
 const BASE = "/monitoring/network-cisco";
 
@@ -13,7 +13,6 @@ const TABS = [
   { href: `${BASE}/drift`, label: "Drift log", Icon: GitCompareArrows, exact: false },
   { href: `${BASE}/lookup`, label: "MAC / ARP", Icon: Search, exact: false },
   { href: `${BASE}/vlans`, label: "VLANs", Icon: Network, exact: false },
-  { href: `${BASE}/models`, label: "Switch models", Icon: Cpu, exact: false },
 ] as const;
 
 export function CiscoTabs() {

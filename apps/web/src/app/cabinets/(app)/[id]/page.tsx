@@ -170,7 +170,7 @@ export default function CabinetPage() {
           />
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             {canWrite ? "Click an empty slot to place something there, or an item to change it. " : ""}
-            U1 is the bottom. Pictures come from the switch models; an item with none is drawn as a plain face.
+            U1 is the bottom. Pictures come from the device profiles; an item with none is drawn as a plain face.
           </p>
         </div>
 
@@ -540,7 +540,7 @@ function ItemDialog({
 
         <Field label="Pictures">
           <select value={modelId} onChange={(e) => setModelId(e.target.value)} className={`w-full ${inputCls}`}>
-            <option value="">Automatic (the device&apos;s own switch model, if it has one)</option>
+            <option value="">Automatic (the picture chosen on the device&apos;s own page, if any)</option>
             {modelList.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -549,7 +549,7 @@ function ItemDialog({
           </select>
         </Field>
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Front and rear pictures come from <Link href="/monitoring/network-cisco/models" className="text-brand-600 hover:underline dark:text-brand-400">Device models</Link>. Any model can be used for any item.
+          Front and rear pictures come from <Link href="/device-profiles" className="text-brand-600 hover:underline dark:text-brand-400">Device profiles</Link>. Any profile can be used for any item.
         </p>
 
         <Field label="Notes">

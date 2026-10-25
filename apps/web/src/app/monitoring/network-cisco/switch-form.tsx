@@ -61,7 +61,7 @@ export function formFromSwitch(s: CiscoSwitch): SwitchFormState {
 
 /**
  * Add or edit a switch. Used by the switches list and by a switch's own page. Editing also holds the switch view: which
- * switch model draws this switch (matched on the model text, a model picked for this switch, or none), with what the
+ * device profile draws this switch (matched on the model text, a model picked for this switch, or none), with what the
  * current model text would match shown as you type.
  */
 export function SwitchFormModal({

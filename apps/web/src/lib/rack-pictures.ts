@@ -1,5 +1,5 @@
 import type { RackItemView, SwitchModel } from "@church/shared";
-import { installedModules, matchSwitchModel, resolveSwitchView, switchModelImageUrl, type InstalledModule } from "@/lib/faceplates/custom";
+import { installedModules, resolveSwitchView, switchModelImageUrl, type InstalledModule } from "./faceplates/custom";
 
 export type RackSide = "front" | "rear";
 
@@ -13,20 +13,18 @@ export interface RackPicture {
 }
 
 /**
- * Which switch model supplies an item's pictures: the one picked for the item, else (a Cisco switch) the one its own page
- * resolves to, else a model whose match text appears in the device's model. An admin who turned the picture off on the
- * switch page gets none from there, but a model picked on the item itself always wins.
+ * Which device profile supplies an item's pictures: the one picked for the item, else the one the device's own page
+ * resolves to (the profile chosen for that switch, host or UniFi device, else one whose match text appears in its model;
+ * an infra host reports no model, so only a chosen profile counts). A picture turned off on the device's page gives none
+ * from there, but a profile picked on the item itself always wins.
  */
 export function pictureModelFor(item: Pick<RackItemView, "modelId" | "sourceKind" | "live">, models: readonly SwitchModel[]): SwitchModel | null {
   if (item.modelId) {
     const picked = models.find((m) => m.id === item.modelId && m.kind !== "module");
     if (picked) return picked;
   }
-  if (item.sourceKind === "cisco") {
-    return resolveSwitchView(models, { model: item.live.model, switchModelId: item.live.switchModelId, switchViewOff: item.live.switchViewOff }).model;
-  }
   if (item.sourceKind === "custom") return null;
-  return matchSwitchModel(models, item.live.model);
+  return resolveSwitchView(models, { model: item.live.model, switchModelId: item.live.switchModelId, switchViewOff: item.live.switchViewOff }).model;
 }
 
 /** The picture for one side of an item, or null when its model has none for that side (the elevation then draws one). */

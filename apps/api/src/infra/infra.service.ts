@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { and, asc, desc, eq, gte, lte, isNull, or, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { checkRunbookPage } from "../wiki/runbook";
+import { checkDeviceProfile } from "../switch-models/check-profile";
 import {
   infraTargets,
   infraTargetCredentials,
@@ -66,6 +67,7 @@ export class InfraService {
   async create(input: CreateInfraTargetInput): Promise<InfraTarget> {
     const capabilities = input.capabilities ?? [];
     const runbookPageId = await checkRunbookPage(this.db, input.runbookPageId);
+    const switchModelId = await checkDeviceProfile(this.db, input.switchModelId);
     const [row] = await this.db
       .insert(infraTargets)
       .values({
@@ -79,6 +81,7 @@ export class InfraService {
         options: input.options ?? {},
         thresholds: input.thresholds ?? [],
         runbookPageId: runbookPageId ?? null,
+        switchModelId: switchModelId ?? null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -112,6 +115,7 @@ export class InfraService {
     if (input.options !== undefined) patch.options = input.options;
     if (input.thresholds !== undefined) patch.thresholds = input.thresholds;
     if (input.runbookPageId !== undefined) patch.runbookPageId = await checkRunbookPage(this.db, input.runbookPageId);
+    if (input.switchModelId !== undefined) patch.switchModelId = await checkDeviceProfile(this.db, input.switchModelId);
     await this.db.update(infraTargets).set(patch).where(eq(infraTargets.id, id));
     if (input.credential) await this.upsertCredential(id, input.credential);
     return this.getById(id);
@@ -451,6 +455,7 @@ function toTarget(row: typeof infraTargets.$inferSelect, authType: string | null
     hasCredential: authType !== null,
     authType: (authType as InfraAuthType | null) ?? null,
     runbookPageId: row.runbookPageId ?? null,
+    switchModelId: row.switchModelId ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

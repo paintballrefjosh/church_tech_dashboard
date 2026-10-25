@@ -1,5 +1,6 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { switchModels } from "./switch-models";
 
 /**
  * Operator acknowledgements of offline UniFi devices, keyed by device MAC.
@@ -18,4 +19,16 @@ export const unifiDeviceAcks = pgTable("unifi_device_acks", {
   ackedAt: timestamp("acked_at").notNull().defaultNow(),
   // Null if the acking user is later hard-deleted.
   ackedByUserId: uuid("acked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+});
+
+/**
+ * Which device profile draws a UniFi device (its picture choice), keyed by MAC because UniFi devices are not rows here.
+ * No row = automatic (the profile whose match text is in the device's model); `switch_view_off` = no picture at all.
+ * A row may outlive the device: it is only read for MACs the controller reports.
+ */
+export const unifiDeviceViews = pgTable("unifi_device_views", {
+  mac: text("mac").primaryKey(),
+  switchModelId: uuid("switch_model_id").references(() => switchModels.id, { onDelete: "set null" }),
+  switchViewOff: boolean("switch_view_off").notNull().default(false),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

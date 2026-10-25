@@ -29,10 +29,12 @@ Nothing here talks to a device: placing an item only changes this dashboard's re
 
 ## Pictures
 
-A cabinet item's picture is a **switch model** (the same admin data as the Cisco switch view: a front and a back picture,
-`switch_models`). Which model: the one picked on the item ("Pictures" in the form: any model for any item), else for a Cisco
-switch the one its own page resolves to (`resolveSwitchView`), else a model whose match text appears in the device's model
-(UniFi `US48PRO`, infra has none). `apps/web/src/lib/rack-pictures.ts`. The rear view uses the model's back picture. No picture
+A cabinet item's picture is a **device profile** (the same admin data as the Cisco switch view: a front and a back picture,
+`switch_models`, on the Device profiles page, `/device-profiles`). Which profile: the one picked on the item ("Pictures" in the
+form: any profile for any item), else the one the device itself resolves to (`resolveSwitchView`): the profile chosen for it (a
+Cisco switch in its Edit form, an infra host in its form, a UniFi device with the "Picture" button in Monitoring > Network
+(UniFi)), else a profile whose match text appears in the device's model (UniFi `US48PRO`; an infra host has no model text, so only a
+chosen profile counts), unless the device's picture was turned off. `apps/web/src/lib/rack-pictures.ts`. The rear view uses the model's back picture. No picture
 = a drawn stand-in by `style` (CSS only: nothing to print but ink). The height in the form is suggested from the picture's
 proportions (a 19" panel is 482.6 x 44.45 mm per U) and is only a suggestion.
 
@@ -68,14 +70,17 @@ PDFs: a 42U cabinet is one page (front, or front and rear); a 48-port sheet is t
 - Entry points: "Printable page" on the Cisco switch page header, "Print ports" on each UniFi device that has a port table
   (Monitoring > Network (UniFi)), "Printable page" on a cabinet.
 
-## Planned (asked for 2026-10-25, not built)
+## Pictures for infrastructure hosts and UniFi devices (built 2026-10-25, migration 0081)
 
-Let people attach a front and back picture to **infrastructure hosts and UniFi devices** the way the Cisco switch page does
-(a "Picture" choice in each device's edit form: automatic, a switch model, or none). The seams are in place: everything that
-draws a device goes through `pictureModelFor` (`rack-pictures.ts`), and a cabinet item can already point at any model. What is
-missing is a place to store the choice for those two kinds (a `switch_model_id` / `switch_view_off` pair on `infra_targets`, as
-on `cisco_switches`, migration 0071; a small table keyed by MAC for UniFi, whose devices are not rows) and the picker in their
-forms. The UniFi print sheet matches the model text only until then.
+- **Infra host:** `infra_targets.switch_model_id` (no "off" column: a host has no model text, so no picture = no profile). Chosen
+  in the host form ("Picture"), shown as a card with the front and back on the host page (`components/device-picture.tsx`).
+- **UniFi device:** `unifi_device_views (mac, switch_model_id, switch_view_off)`, because the devices are not rows here; "automatic"
+  is no row. `PUT /unifi/devices/:mac/switch-view` with the same body as Cisco (`setSwitchViewSchema`), from the "Picture" column of
+  the devices table (writers only; `unifi-picture-dialog.tsx`, with a preview). It works while the controller is down and sends
+  nothing to it.
+- Both go through `checkDeviceProfile` (`apps/api/src/switch-models/check-profile.ts`: the profile exists and is not an add-on
+  module), and deleting a profile clears the choice (foreign key, ON DELETE SET NULL). The cabinet and the UniFi port sheet read
+  the UniFi choices live (`UnifiService.deviceViews()`), not through the few seconds' cached device list, so a choice shows at once.
 
 ## Tests
 

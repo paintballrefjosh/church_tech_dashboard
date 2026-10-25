@@ -2235,6 +2235,10 @@ async function main() {
   const { cabinetTests } = await import("./cabinets.mjs");
   await cabinetTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- device pictures: infra hosts and UniFi devices choose a device profile (tests/smoke/device-pictures.mjs) ----
+  const { devicePictureTests } = await import("./device-pictures.mjs");
+  await devicePictureTests({ test, assert, fetchWithCookies, jar });
+
   // ---- notification delivery: quiet hours, summary, push (tests/smoke/notification-delivery.mjs) ----
   const { notificationDeliveryTests } = await import("./notification-delivery.mjs");
   await notificationDeliveryTests({ test, assert, fetchWithCookies, jar });

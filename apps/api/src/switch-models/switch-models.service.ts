@@ -60,7 +60,7 @@ export class SwitchModelsService {
 
   async get(id: string): Promise<SwitchModel> {
     const [row] = await this.db.select().from(switchModels).where(eq(switchModels.id, id)).limit(1);
-    if (!row) throw new NotFoundException("Switch model not found");
+    if (!row) throw new NotFoundException("Device profile not found");
     return toModel(row);
   }
 
@@ -86,7 +86,7 @@ export class SwitchModelsService {
     if (input.ports !== undefined) set.ports = input.ports;
     if (input.modules !== undefined) set.modules = input.modules;
     const [row] = await this.db.update(switchModels).set(set).where(eq(switchModels.id, id)).returning();
-    if (!row) throw new NotFoundException("Switch model not found");
+    if (!row) throw new NotFoundException("Device profile not found");
     return toModel(row);
   }
 
@@ -128,7 +128,7 @@ export class SwitchModelsService {
         ? { frontImageId: stored.id, frontWidth: size.width, frontHeight: size.height, updatedAt: new Date() }
         : { backImageId: stored.id, backWidth: size.width, backHeight: size.height, updatedAt: new Date() };
     const [row] = await this.db.update(switchModels).set(set).where(eq(switchModels.id, id)).returning();
-    if (!row) throw new NotFoundException("Switch model not found");
+    if (!row) throw new NotFoundException("Device profile not found");
     if (old) await this.attachments.delete("switch_model", id, old).catch(() => undefined);
     return toModel(row);
   }
@@ -142,7 +142,7 @@ export class SwitchModelsService {
         ? { frontImageId: null, frontWidth: null, frontHeight: null, updatedAt: new Date() }
         : { backImageId: null, backWidth: null, backHeight: null, updatedAt: new Date() };
     const [row] = await this.db.update(switchModels).set(set).where(eq(switchModels.id, id)).returning();
-    if (!row) throw new NotFoundException("Switch model not found");
+    if (!row) throw new NotFoundException("Device profile not found");
     await this.attachments.delete("switch_model", id, old).catch(() => undefined);
     return toModel(row);
   }
@@ -170,6 +170,6 @@ export class SwitchModelsService {
   private async assertNameFree(name: string, exceptId?: string): Promise<void> {
     const rows = await this.db.select({ id: switchModels.id, name: switchModels.name }).from(switchModels);
     const clash = rows.find((r) => r.id !== exceptId && r.name.toLowerCase() === name.toLowerCase());
-    if (clash) throw new ConflictException(`A switch model called "${clash.name}" already exists.`);
+    if (clash) throw new ConflictException(`A device profile called "${clash.name}" already exists.`);
   }
 }

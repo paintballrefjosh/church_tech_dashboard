@@ -28,7 +28,7 @@ export interface PortSheet {
     ip: string | null;
     model: string | null;
     location: string | null;
-    /** Cisco only: the picture choice made on the switch's own page (the sheet uses the same picture). */
+    /** The picture choice made for the device (Cisco: its page; UniFi: the device list), so the sheet uses the same picture. */
     switchModelId?: string | null;
     switchViewOff?: boolean;
   };

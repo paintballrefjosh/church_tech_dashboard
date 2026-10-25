@@ -123,10 +123,10 @@ describe("currentChoice and switchViewSentence", () => {
     expect(text([model()], { model: "WS-C3850-48F-E" })).toBe('Switch view: Catalyst 3850-48, matched on "C3850-48" in the model text WS-C3850-48F-E.');
     expect(text([model()], { model: "X", switchModelId: ID })).toBe("Switch view: Catalyst 3850-48, chosen for this switch.");
     expect(text([model()], { model: "X", switchViewOff: true })).toContain("turned off");
-    expect(text([], { model: "N3K-C9999" })).toBe('No switch model matches "N3K-C9999", so this switch\'s ports are listed only.');
+    expect(text([], { model: "N3K-C9999" })).toBe('No device profile matches "N3K-C9999", so this switch\'s ports are listed only.');
     expect(text([], { model: null })).toContain("has not reported its model");
     expect(text([model({ ports: [] })], { model: "WS-C3850-48F-E" })).toContain("has no port layout yet, so the built-in drawing");
-    expect(text([], { model: "WS-C3850-48F-E" })).toContain("No switch model matches");
+    expect(text([], { model: "WS-C3850-48F-E" })).toContain("No device profile matches");
   });
 });
 
