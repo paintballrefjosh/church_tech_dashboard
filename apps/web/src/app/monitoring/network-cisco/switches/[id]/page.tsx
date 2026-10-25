@@ -18,10 +18,10 @@ import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
 import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 import { PortViewToggle, usePortView } from "@/components/port-view-toggle";
-import { SwitchFaceplate, type FaceItem } from "@/components/switch-faceplate";
-import { slotForPort, type FaceplateLayout } from "@/lib/faceplates/layouts";
+import { SwitchFaceplate } from "@/components/switch-faceplate";
 import { resolveSwitchView } from "@/lib/faceplates/custom";
 import { faceState } from "@/lib/faceplates/face-state";
+import { ciscoFaceItems } from "@/lib/faceplates/cisco-items";
 import { poeInUse, poeProviding, poeRows, poeSummary } from "@/lib/poe";
 import { SwitchViewLine } from "@/components/switch-view-line";
 import { GoneNotice } from "@/components/gone-notice";
@@ -147,34 +147,6 @@ function PortDetails({
       ) : null}
     </div>
   );
-}
-
-/**
- * One FaceItem per port, each physical slot used once: an uplink cage can be in the desired config under two names
- * (Gi1/1/1 and Te1/1/1, from whichever module was fitted before), and the one the switch has reported on is the
- * one that is really there. The other joins the "other interfaces" strip, so nothing is hidden.
- */
-function faceItems(ports: CiscoPortRow[], layout: FaceplateLayout): FaceItem[] {
-  const sorted = [...ports].sort((a, b) => a.portId.localeCompare(b.portId, undefined, { numeric: true }));
-  const claimed = new Map<string, CiscoPortRow>();
-  for (const p of sorted) {
-    const slot = slotForPort(p.portId, layout);
-    if (slot === null) continue;
-    const cur = claimed.get(slot);
-    if (!cur || (cur.operStatus === null && p.operStatus !== null)) claimed.set(slot, p);
-  }
-  return sorted.map((p) => {
-    const slot = slotForPort(p.portId, layout);
-    const fs = faceState(p);
-    return {
-      id: p.id,
-      slot: slot !== null && claimed.get(slot)?.id === p.id ? slot : null,
-      label: p.portId,
-      state: fs.state,
-      stateText: fs.text,
-      poe: p.poe && poeProviding(p.poe) ? poeSummary(p.poe) : undefined,
-    };
-  });
 }
 
 export default function CiscoSwitchDetailPage() {
@@ -525,7 +497,7 @@ export default function CiscoSwitchDetailPage() {
           </div>
           <SwitchFaceplate
             layout={layout}
-            items={faceItems(ports, layout)}
+            items={ciscoFaceItems(ports, layout)}
             renderDetails={(portRowId, close) => {
               const p = ports.find((x) => x.id === portRowId);
               if (!p) return null;

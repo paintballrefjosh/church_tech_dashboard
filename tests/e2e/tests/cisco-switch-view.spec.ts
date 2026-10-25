@@ -187,4 +187,38 @@ test.describe("Cisco switch page: switch view", () => {
     await expect(line).toContainText("turned off for this switch");
     expect(saved).toEqual({ mode: "off" });
   });
+
+  test("the switch list shows a switch's ports in a card that follows the mouse over its row", async ({ page }) => {
+    await signInAsTestUser(page);
+    await fakeApi(page, "WS-C3850-48F-E");
+    // Two switches: one the built-in layouts draw, one with no picture (which gets no card).
+    const other = { ...fakeSwitch("NO-SUCH-MODEL"), id: "66666666-6666-4666-8666-666666666666", hostname: "Fake-SW02" };
+    await page.route("**/api/cisco/switches", (route) => route.fulfill({ json: [fakeSwitch("WS-C3850-48F-E"), other] }));
+    await page.goto("/monitoring/network-cisco");
+    const row = page.getByRole("row").filter({ hasText: "Fake-SW01" });
+    const card = page.getByTestId("switch-hover-preview");
+    await expect(card).toHaveCount(0);
+
+    const box = (await row.boundingBox())!;
+    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("Fake-SW01");
+    // Three ports on the picture: up, no link, shut down (the cage drawn once, the port channel not drawn).
+    await expect(card).toContainText("2 up, 1 enabled, no link, 1 shut down");
+    await expect(card.locator('[data-state="shut"]')).toHaveCount(1);
+
+    // It follows the pointer.
+    const before = (await card.boundingBox())!;
+    await page.mouse.move(box.x + 240, box.y + box.height / 2);
+    await expect.poll(async () => (await card.boundingBox())!.x).toBeGreaterThan(before.x + 150);
+
+    // A switch with no picture gets no card, and leaving the rows hides it.
+    const plain = (await page.getByRole("row").filter({ hasText: "Fake-SW02" }).boundingBox())!;
+    await page.mouse.move(plain.x + 40, plain.y + plain.height / 2);
+    await expect(card).toHaveCount(0);
+    await page.mouse.move(box.x + 40, box.y + box.height / 2);
+    await expect(card).toBeVisible();
+    await page.mouse.move(5, 5);
+    await expect(card).toHaveCount(0);
+  });
 });

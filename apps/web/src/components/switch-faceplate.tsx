@@ -407,3 +407,61 @@ function Popover({
     document.body,
   );
 }
+
+/**
+ * The picture with each port coloured by its state, and nothing to press: for a glance (the hover card on the switch list).
+ * Decorative (aria-hidden): what it shows is in words on the row and on the switch's own page. Ports with no slot are left
+ * out; add-on modules show while the device reports one of their ports, as on the full view.
+ */
+export function FacePreview({ layout, items }: { layout: FaceplateLayout; items: FaceItem[] }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const bySlot = new Map(items.filter((i) => i.slot !== null).map((i) => [i.slot as string, i]));
+  const activeGroups = new Set(layout.ports.filter((p) => p.group && bySlot.has(p.key)).map((p) => p.group as string));
+  const shownPorts = layout.ports.filter((p) => !p.group || activeGroups.has(p.group));
+  const shownOverlays = (layout.overlays ?? []).filter((o) => activeGroups.has(o.id));
+  const photo = layout.image && !imageFailed ? layout.image : null;
+  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  return (
+    <div aria-hidden className="relative w-full" style={{ aspectRatio: `${layout.width} / ${layout.height}` }}>
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- the admin's own picture, sized by the layout
+        <img src={photo} alt="" onError={() => setImageFailed(true)} className="absolute inset-0 h-full w-full select-none" draggable={false} />
+      ) : (
+        <DrawnChassis layout={layout} ports={shownPorts} />
+      )}
+      {shownOverlays.map((o) => (
+        // eslint-disable-next-line @next/next/no-img-element -- the admin's own picture of the module
+        <img
+          key={o.id}
+          src={o.url}
+          alt=""
+          draggable={false}
+          className="absolute select-none"
+          style={{ left: pct(o.x, layout.width), top: pct(o.y, layout.height), width: pct(o.w, layout.width), height: pct(o.h, layout.height) }}
+        />
+      ))}
+      {shownPorts.map((spec) => {
+        const item = bySlot.get(spec.key);
+        const pos: CSSProperties = { left: pct(spec.x, layout.width), top: pct(spec.y, layout.height), width: pct(spec.w, layout.width), height: pct(spec.h, layout.height) };
+        return item ? (
+          <span key={spec.key} data-state={item.state} className="absolute flex items-center justify-center overflow-hidden rounded-[2px] border-2" style={{ ...pos, ...ringStyle(item.state) }}>
+            {item.poe ? <PoeBolt className="h-full max-h-3 w-auto max-w-full" /> : null}
+          </span>
+        ) : (
+          <span key={spec.key} className="absolute rounded-[2px] border border-dashed border-slate-500/60" style={pos} />
+        );
+      })}
+    </div>
+  );
+}
+
+/** "40 up, 6 no link, 2 shut down": the colours of a preview, in words and in legend order. */
+export function faceSummary(items: FaceItem[]): string {
+  const placed = items.filter((i) => i.slot !== null);
+  const parts: string[] = [];
+  for (const { state, label } of FACE_LEGEND) {
+    const n = placed.filter((i) => i.state === state).length;
+    if (n > 0) parts.push(`${n} ${label.toLowerCase()}`);
+  }
+  return parts.join(", ");
+}

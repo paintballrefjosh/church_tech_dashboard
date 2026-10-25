@@ -4,7 +4,12 @@ The Cisco switch page (`/monitoring/network-cisco/switches/<id>`) opens on a pic
 with a button over every port. Hovering a port (or focusing it, or tapping it) shows its details with Edit, Delete and
 Shut down / Enable. A "Switch view | List view" toggle at the top right, beside the Rows selector, goes back to the
 table; the choice is remembered per browser (`church.portView` in localStorage, `usePortView`). A model with no
-faceplate gets the table and no toggle. The UniFi device page uses the same pieces (see the end).
+faceplate gets the table and no toggle. On the switch list, hovering a row with the mouse shows a card beside the
+pointer with that switch's picture and its ports coloured by state, plus the colours in words ("12 up, 35 enabled, no link, 5 shut
+down"); it follows the pointer and flips to stay in the window (`network-cisco/switch-hover-preview.tsx`, `FacePreview` and
+`faceSummary` in `switch-faceplate.tsx`). Nothing on it can be pressed and it is hidden from screen readers: the row already says the
+port counts in words, and the switch's page has the full, keyboard-usable view. Ports are read on the first hover of a switch and reused
+for 30 s; a switch with no picture gets no card. The UniFi device page uses the same pieces (see the end).
 
 ## Pieces
 

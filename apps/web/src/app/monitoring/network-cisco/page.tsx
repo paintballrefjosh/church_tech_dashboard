@@ -16,6 +16,8 @@ import {
 } from "./cisco-ui";
 import { EMPTY_SWITCH_FORM, SwitchFormModal, formFromSwitch, type SwitchFormState } from "./switch-form";
 import { usePoll } from "@/lib/use-poll";
+import { useSwitchModels } from "@/lib/use-switch-models";
+import { useSwitchHoverPreview } from "./switch-hover-preview";
 
 export default function CiscoDashboardPage() {
   const canWrite = useCanWrite();
@@ -25,6 +27,9 @@ export default function CiscoDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [polling, setPolling] = useState<string | null>(null);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  // Hovering a row shows the switch's picture with its ports coloured by state, following the mouse.
+  const { models } = useSwitchModels();
+  const { rowProps, card: hoverCard } = useSwitchHoverPreview(models);
 
   const load = useCallback(async () => {
     try {
@@ -133,7 +138,7 @@ export default function CiscoDashboardPage() {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {switches.map((s) => (
-                <tr key={s.id} className="align-middle hover:bg-slate-50 dark:hover:bg-slate-900">
+                <tr key={s.id} {...rowProps(s)} className="align-middle hover:bg-slate-50 dark:hover:bg-slate-900">
                   <td className="px-3 py-2">
                     {computeStatus(s) === "yellow" ? (
                       // "Port down" links straight to the switch's port page.
@@ -218,7 +223,8 @@ export default function CiscoDashboardPage() {
           </table>
         </div>
       )}
-      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s.</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s. Hover a switch to see its ports.</p>
+      {hoverCard}
 
       {form ? (
         <SwitchFormModal
