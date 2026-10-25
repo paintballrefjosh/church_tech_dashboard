@@ -47,12 +47,14 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [shureChannels, setShureChannels] = useState(optNum(o, "channels", 4));
   const [shureMinBars, setShureMinBars] = useState(optNum(o, "minBars", 1));
   const [schedule, setSchedule] = useState(optStr(o, "schedule"));
+  const [alerts, setAlerts] = useState(o.alerts !== false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   function buildOptions(): Rec {
     const opts = kindOptions();
     if (schedule.trim()) opts.schedule = schedule.trim();
+    if (!alerts) opts.alerts = false;
     return opts;
   }
 
@@ -402,6 +404,21 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           className="h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
         />
         <span>Enabled</span>
+      </label>
+
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={alerts}
+          onChange={(e) => setAlerts(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
+        />
+        <span>
+          Send alerts
+          <span className="block text-xs text-slate-500 dark:text-slate-400">
+            Tell people when it goes down and comes back. Off: its incidents are still recorded and shown, but nobody is notified.
+          </span>
+        </span>
       </label>
 
       <fieldset className="space-y-2 rounded-md border border-slate-300 p-3 dark:border-slate-700">

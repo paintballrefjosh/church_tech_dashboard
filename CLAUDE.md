@@ -356,7 +356,11 @@ day ranges, windows across midnight, on `site.timezone`). Outside every window t
 (`MONITOR_SECRET_OPTION_KEYS`: the HTTP probe's `authorization`, the `password` of PJLink/OBS) are stored for the worker but every monitor the API
 returns carries `[saved]` instead (`redactMonitorOptions`; the Monitoring USER tier, every volunteer, reads monitors, and so do MCP tools); on an
 update the placeholder, or a secret key left out, keeps the saved value and `""` removes it (`mergeMonitorSecretOptions`). Until 2026-10-25 the
-Authorization header was returned to every reader, and editing the monitor in the form silently dropped it.
+Authorization header was returned to every reader, and editing the monitor in the form silently dropped it. (4) **`options.alerts: false`
+mutes a monitor** (`monitorAlertsOff`, the form's "Send alerts" box, "Alerts off" on its page): incidents, activity and the status page are
+unchanged, but the worker sends no down/up/flapping notice and `alert-escalation` skips its incidents. **A test monitor that goes down on
+purpose must set it** (smoke `alerts.mjs`, e2e `status.spec.ts`): until 2026-10-25 every run told the real monitoring recipients, and the
+notices then linked to a deleted monitor. A link to a deleted monitor, host or switch shows `GoneNotice` ("no longer exists"), not a bare 404.
 
 **Alert channels, the alert outbox, runbooks, the public status page** (migrations 0077, 0078; rules in
 `packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,
@@ -380,7 +384,7 @@ recipients sends nothing to the channels either. (3) *Runbooks*: `monitors.runbo
 `publicStatusPage` drops monitor ids, 15 s cache because anyone can ask). It shows exactly what the signed-in page does; the rule
 "never a target, address, error text or threshold" applies doubly. The Security overview shows it as `info`. Tests:
 `alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
-bell/runbook/public-status cases in `tests/smoke/alerts.mjs`.
+alerts-off/runbook/public-status cases in `tests/smoke/alerts.mjs`.
 
 **Renewals** (`apps/api/src/renewals/`, page `/renewals` in the IT menu, migration 0079; rules in `packages/shared/src/schemas/renewal.ts`,
 unit-tested in `apps/api/test/renewals.test.ts`): licences, domains, warranties, subscriptions and certificates that lapse on a date. Monitoring

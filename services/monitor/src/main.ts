@@ -12,6 +12,7 @@ import {
   flapSettled,
   isFlapping,
   maintenanceState,
+  monitorAlertsOff,
   monitorScheduleActive,
   parseMonitorSchedule,
   type FlapConfig,
@@ -193,6 +194,8 @@ async function applyResult(
   let flappingNow = monitor.flappingSince !== null;
   let announcedNow = false;
   const link = `/monitoring/${monitor.id}`;
+  // A monitor with alerts off (`options.alerts: false`) records everything below but tells nobody.
+  const notify = monitorAlertsOff(monitor.options as Record<string, unknown> | null) ? async () => undefined : notifyAll;
 
   if (crossedDown) {
     const [opened] = await db
@@ -227,11 +230,11 @@ async function applyResult(
         announcedNow = true;
         const title = `${monitor.name} is unstable`;
         const body = `It went down ${flapNotice.opens} times in ${describeMinutes(flapNotice.config.windowMin * 60_000)}. Down and up notices for it are paused until it has stayed the same for that long.`;
-        await notifyAll("monitor.flapping", title, body, link);
+        await notify("monitor.flapping", title, body, link);
         await activity(monitor, "monitor.flapping", title, body, now);
       } else if (!flappingNow) {
         const summary = `${monitor.kind.toUpperCase()} check failed: ${result.info}`;
-        await notifyAll("monitor.incident.opened", `${monitor.name} is down`, summary, link);
+        await notify("monitor.incident.opened", `${monitor.name} is down`, summary, link);
         await activity(monitor, "monitor.incident.opened", `${monitor.name} is down`, summary, now);
       }
     }
@@ -253,7 +256,7 @@ async function applyResult(
       if (!flappingNow && result.info !== OUTSIDE_HOURS) {
         const downSecs = Math.round((now.getTime() - new Date(open.startedAt).getTime()) / 1000);
         const summary = `${monitor.kind.toUpperCase()} recovered after ${downSecs}s`;
-        await notifyAll("monitor.incident.resolved", `${monitor.name} is back up`, summary, link);
+        await notify("monitor.incident.resolved", `${monitor.name} is back up`, summary, link);
         await activity(monitor, "monitor.incident.resolved", `${monitor.name} is back up`, summary, now);
       }
     }
@@ -281,11 +284,11 @@ async function applyResult(
         if (cleared.length > 0) {
           if (nextStatus === "down") {
             const summary = `${monitor.kind.toUpperCase()} check keeps failing: ${result.info}`;
-            await notifyAll("monitor.incident.opened", `${monitor.name} is down`, summary, link);
+            await notify("monitor.incident.opened", `${monitor.name} is down`, summary, link);
             await activity(monitor, "monitor.incident.opened", `${monitor.name} is down`, summary, now);
           } else if (nextStatus === "up") {
             const summary = `It has stayed up for ${describeMinutes(config.windowMin * 60_000)}. Down and up notices are back on.`;
-            await notifyAll("monitor.flapping", `${monitor.name} is stable again`, summary, link);
+            await notify("monitor.flapping", `${monitor.name} is stable again`, summary, link);
             await activity(monitor, "monitor.flapping", `${monitor.name} is stable again`, summary, now);
           }
         }

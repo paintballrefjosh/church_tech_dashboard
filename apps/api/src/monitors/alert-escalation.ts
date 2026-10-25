@@ -6,6 +6,7 @@ import {
   describeMinutes,
   escalationConfig,
   escalationDue,
+  monitorAlertsOff,
   type EscalationConfig,
   type EscalationLevel,
 } from "@church/shared";
@@ -94,6 +95,7 @@ export class AlertEscalation implements OnModuleInit {
         monitorId: monitorIncidents.monitorId,
         targetId: monitorIncidents.targetId,
         monitorName: monitors.name,
+        monitorOptions: monitors.options,
         targetName: infraTargets.name,
       })
       .from(monitorIncidents)
@@ -110,6 +112,8 @@ export class AlertEscalation implements OnModuleInit {
 
     let usual: string[] | null = null;
     for (const inc of open) {
+      // A monitor with alerts off never sent the first notice, so there is nothing to remind anyone about.
+      if (monitorAlertsOff(inc.monitorOptions as Record<string, unknown> | null)) continue;
       const level = escalationDue(inc, config, now);
       if (!level) continue;
       if (!(await this.claim(inc.id, level, now))) continue;

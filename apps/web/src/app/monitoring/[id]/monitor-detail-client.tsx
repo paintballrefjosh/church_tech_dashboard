@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { Trash2, Power, AlertTriangle, CircleCheck, CircleHelp } from "lucide-react";
-import type { Monitor, MonitorCheck, MonitorIncident } from "@church/shared";
+import { Trash2, Power, AlertTriangle, BellOff, CircleCheck, CircleHelp } from "lucide-react";
+import { monitorAlertsOff, type Monitor, type MonitorCheck, type MonitorIncident } from "@church/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "../use-monitor-workers";
 import { AcknowledgeButton } from "../acknowledge-button";
@@ -89,7 +89,16 @@ export function MonitorDetailClient({
       <section className={`grid gap-3 ${clustered ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
         <Stat
           label="Status"
-          value={<StatusBadge status={monitor.status} enabled={monitor.enabled} />}
+          value={
+            <span className="flex flex-col gap-0.5">
+              <StatusBadge status={monitor.status} enabled={monitor.enabled} />
+              {monitorAlertsOff(monitor.options) ? (
+                <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                  <BellOff className="h-3.5 w-3.5" aria-hidden /> Alerts off
+                </span>
+              ) : null}
+            </span>
+          }
         />
         <Stat
           label="Last check"

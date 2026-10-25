@@ -24,6 +24,7 @@ import { resolveSwitchView } from "@/lib/faceplates/custom";
 import { faceState } from "@/lib/faceplates/face-state";
 import { poeInUse, poeProviding, poeRows, poeSummary } from "@/lib/poe";
 import { SwitchViewLine } from "@/components/switch-view-line";
+import { GoneNotice } from "@/components/gone-notice";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { SwitchFormModal, formFromSwitch, type SwitchFormState } from "../../switch-form";
 
@@ -180,6 +181,8 @@ export default function CiscoSwitchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const canWrite = useCanWrite();
   const [sw, setSw] = useState<CiscoSwitch | null>(null);
+  // The switch was deleted (an old notification can still link here).
+  const [gone, setGone] = useState(false);
   const [ports, setPorts] = useState<CiscoPortRow[]>([]);
   const [vlans, setVlans] = useState<CiscoSwitchVlan[]>([{ vlanId: 1, name: "default" }]);
   const [form, setForm] = useState<PortForm | null>(null);
@@ -201,6 +204,7 @@ export default function CiscoSwitchDetailPage() {
       fetch(`/api/cisco/switches/${id}/vlans`, { credentials: "same-origin", cache: "no-store" }),
     ]);
     if (s.ok) setSw((await s.json()) as CiscoSwitch);
+    setGone(s.status === 404);
     if (p.ok) setPorts((await p.json()) as CiscoPortRow[]);
     if (v.ok) setVlans((await v.json()) as CiscoSwitchVlan[]);
   }, [id]);
@@ -412,6 +416,8 @@ export default function CiscoSwitchDetailPage() {
   const layout = switchView.layout;
   const showFaceplate = view === "switch" && layout !== null && ports.length > 0;
   const toggle = layout ? <PortViewToggle value={view} onChange={setView} /> : null;
+
+  if (gone) return <GoneNotice what="switch" backHref="/monitoring/network-cisco" backLabel="All switches" />;
 
   return (
     <div className="space-y-4">

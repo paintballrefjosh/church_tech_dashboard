@@ -3,6 +3,7 @@ import {
   describeMinutes,
   escalationConfig,
   escalationDue,
+  monitorAlertsOff,
   flapConfig,
   flapSettled,
   isFlapping,
@@ -117,5 +118,15 @@ describe("alert settings validation", () => {
     expect(validateSettingValue(ALERT_KEYS.escalationGroup, "Pastors")).toBeNull();
     expect(validateSettingValue(ALERT_KEYS.statusNotice, "x".repeat(501))).not.toBeNull();
     expect(validateSettingValue(ALERT_KEYS.statusNotice, "Wi-Fi work Saturday")).toBeNull();
+  });
+});
+
+describe("monitorAlertsOff", () => {
+  it("is off only for an explicit false", () => {
+    expect(monitorAlertsOff({ alerts: false })).toBe(true);
+    expect(monitorAlertsOff({ alerts: true })).toBe(false);
+    expect(monitorAlertsOff({})).toBe(false);
+    expect(monitorAlertsOff(null)).toBe(false);
+    expect(monitorAlertsOff({ alerts: "false" })).toBe(false);
   });
 });

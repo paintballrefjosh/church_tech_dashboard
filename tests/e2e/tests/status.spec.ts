@@ -65,6 +65,8 @@ test.describe("Status page and acknowledging an incident", () => {
         recoverThreshold: 1,
         showOnStatus: true,
         statusName: plainName,
+        // It goes down on purpose: alerts off, or every run would notify the real monitoring recipients.
+        options: { alerts: false },
       },
     });
     expect(created.ok()).toBe(true);

@@ -69,6 +69,15 @@ export const monitorDnsOptionsSchema = z.object({
 export type MonitorDnsOptions = z.infer<typeof monitorDnsOptionsSchema>;
 
 /**
+ * `options.alerts === false` keeps a monitor quiet: its incidents are still recorded (and it still shows on the status page),
+ * but the probe worker sends no down/up/flapping notice and the escalation job never reminds anyone about it. For a check
+ * that is only informational, and for test monitors that go down on purpose. Anything else (absent, true) = alerts on.
+ */
+export function monitorAlertsOff(options: Record<string, unknown> | null | undefined): boolean {
+  return options?.alerts === false;
+}
+
+/**
  * Monitor options that are credentials: the HTTP probe's Authorization header, the password of a projector (PJLink) or
  * of OBS. They are stored for the probe worker but never returned by the API: the reply carries
  * `MONITOR_SECRET_PLACEHOLDER` instead (the Monitoring USER tier, every volunteer, reads monitors). On an update a

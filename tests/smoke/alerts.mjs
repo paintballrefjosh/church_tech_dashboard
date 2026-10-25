@@ -43,9 +43,11 @@ export async function alertTests({ test, assert, fetchWithCookies, jar }) {
         recoverThreshold: 1,
         showOnStatus: true,
         statusName: "Smoke Plain Name",
+        // It goes down on purpose: alerts off, or every run would notify the real monitoring recipients.
+        options: { alerts: false },
       });
       assert(listed.showOnStatus === true && listed.statusName === "Smoke Plain Name", `monitor: ${JSON.stringify(listed)}`);
-      await makeMonitor({ name: "[smoke] alerts hidden", kind: "tcp", target: "127.0.0.1:9", intervalSec: 3600 });
+      await makeMonitor({ name: "[smoke] alerts hidden", kind: "tcp", target: "127.0.0.1:9", intervalSec: 3600, options: { alerts: false } });
       const page = await readStatus();
       const names = page.items.map((i) => i.name);
       assert(names.includes("Smoke Plain Name"), `names: ${names.join(", ")}`);
@@ -101,20 +103,17 @@ export async function alertTests({ test, assert, fetchWithCookies, jar }) {
       assert((await second.res.json()).acknowledgedAt === body.acknowledgedAt, "a second ack changed the time");
     });
 
-    await test("incidents: the probe worker's down alert reaches the bell (through the alert outbox)", async () => {
-      // The worker queues its alerts in alert_outbox and the API's alert-dispatch job tells people through the ordinary
-      // notification path. Until 2026-10-25 the worker wrote bell rows itself, so these never sent an email or a push.
-      const maint = await (await session("/api/v1/monitors/maintenance")).res.json();
-      if (maint.enabled) return; // alerts are paused on this stack: nothing to see
-      const deadline = Date.now() + 30_000;
-      for (;;) {
-        const { res } = await session("/api/v1/notifications?limit=50");
-        assert(res.status === 200, `notifications status ${res.status}`);
-        const rows = await res.json();
-        if (rows.some((n) => n.kind === "monitor.incident.opened" && n.title === `${listed.name} is down`)) break;
-        assert(Date.now() < deadline, "the down alert did not reach the bell within 30 s");
-        await sleep(2000);
-      }
+    await test("incidents: a monitor with alerts off records its outage but notifies nobody", async () => {
+      // The worker queues alerts in alert_outbox and the API's alert-dispatch job (every 5 s) tells the monitoring
+      // recipients, this account included. A test monitor that goes down on purpose has alerts off, so after a couple of
+      // dispatch rounds the bell must still have nothing about it. (The outbox -> bell path itself is covered by
+      // alert-dispatch.integration.test.ts, without notifying real people.)
+      await sleep(12_000);
+      const { res } = await session("/api/v1/notifications?limit=100");
+      assert(res.status === 200, `notifications status ${res.status}`);
+      const rows = await res.json();
+      const leaked = rows.filter((n) => n.title?.startsWith(listed.name));
+      assert(leaked.length === 0, `alerts-off monitor notified: ${JSON.stringify(leaked.map((n) => n.title))}`);
     });
 
     await test("status: the acknowledged outage is shown as down with somebody on it", async () => {
