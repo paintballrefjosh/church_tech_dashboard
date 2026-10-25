@@ -879,6 +879,10 @@ the original concepts: `docs/dashboard-concepts/`): `tiles` (the original dragga
 - **Availability history:** `AvailabilitySampler` (`apps/api/src/availability/`, `ClusterJobs` jobs `availability-sample` every
   minute and `availability-prune`, 8 days) adds one up/down sample per system to `availability_hourly`; Glass's window and Toward
   Sunday's health strips read it. A source that is unconfigured or unreachable records nothing ("no data"), never "down".
+- **Picker thumbnails show a generic person and generic device names** (`apps/web/public/home-looks/<id>-light|dark.png`, 720x450, shot at
+  1280x800 and downscaled with LANCZOS: Chromium's fractional device scale factor kerns text badly). Re-shoot them signed in as the
+  regression user with `?theme=<id>`, and before each shot rewrite the page's text: the person is "Alex" / `alex.morgan@example.org`, real
+  device and host names become `Office AP`, `Main UDM Pro`, `*.example.org`. Never commit a thumbnail that shows a real name or host.
 - **Adding a look:** a `LOOK_IDS` entry and `DASHBOARD_LOOKS` definition (requires, includes, optionalSections, thumbnails
   `apps/web/public/home-looks/<id>-light|dark.png`), a folder under `looks/` whose root carries `data-look="<id>"`, an entry in
   `home-root.tsx`, and an e2e spec `tests/e2e/tests/home-<id>.spec.ts` that never performs a real action.
