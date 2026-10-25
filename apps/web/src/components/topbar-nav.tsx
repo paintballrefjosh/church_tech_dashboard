@@ -23,6 +23,7 @@ import {
   ScrollText,
   Folder,
   Boxes,
+  CalendarClock,
 } from "lucide-react";
 import { NavDropdown, type NavDropdownItem, type NavDropdownEntry } from "./nav-dropdown";
 
@@ -53,6 +54,7 @@ const IT_ITEMS: Item[] = [
   { href: "/ipam", label: "IPAM", Icon: Boxes, module: "monitoring" },
   { href: "/dns", label: "DNS", Icon: Globe, module: "monitoring" },
   { href: "/cabinets", label: "Cabinets", Icon: Server, module: "monitoring" },
+  { href: "/renewals", label: "Renewals", Icon: CalendarClock, module: "monitoring" },
 ];
 
 const DOCS_ITEMS: Item[] = [

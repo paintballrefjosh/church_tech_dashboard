@@ -43,7 +43,7 @@ const ROUTES = [
   "/", "/activity", "/notifications", "/notes", "/tickets", "/tickets/new", "/tickets/canned-replies",
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
   "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/status",
-  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels",
+  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
   "/me", "/me/security", "/me/api-tokens",

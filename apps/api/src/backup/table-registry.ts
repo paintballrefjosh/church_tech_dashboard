@@ -162,6 +162,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   switch_models: { policy: "data", group: MONITORING, title: "Switch models (pictures and port layouts)", label: ["name"] },
   cisco_vlans: { policy: "data", group: MONITORING, title: "Cisco VLANs (desired)", label: ["vlan_id", "name"] },
   racks: { policy: "data", group: MONITORING, title: "Cabinets (racks)", label: ["name"] },
+  renewals: { policy: "data", group: MONITORING, title: "Renewals", label: ["name", "renews_on"], volatile: ["reminded_for"] },
   alert_channels: {
     policy: "data",
     group: MONITORING,

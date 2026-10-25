@@ -40,6 +40,7 @@ import { CiscoModule } from "./cisco/cisco.module";
 import { SwitchModelsModule } from "./switch-models/switch-models.module";
 import { RacksModule } from "./racks/racks.module";
 import { AlertsModule } from "./alerts/alerts.module";
+import { RenewalsModule } from "./renewals/renewals.module";
 import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
 import { DnsModule } from "./dns/dns.module";
@@ -101,6 +102,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     SwitchModelsModule,
     RacksModule,
     AlertsModule,
+    RenewalsModule,
     IpamModule,
     UpsModule,
     DnsModule,

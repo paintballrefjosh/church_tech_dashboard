@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DNS_STATS_RANGES, PERMISSIONS, dnsHealthMonitorsSchema } from "@church/shared";
+import { DNS_STATS_RANGES, PERMISSIONS, createRenewalSchema, dnsHealthMonitorsSchema, updateRenewalSchema } from "@church/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();
@@ -323,6 +323,51 @@ export const NETWORK_TOOLS = [
     path: "/cisco/switches/:id/vlans",
     permissions: [READ],
     input: z.object({ id: z.string().uuid() }),
+  }),
+
+  // ---- Renewals ----
+  defineTool({
+    name: "renewals_list",
+    title: "Renewals",
+    description:
+      "Things that lapse on a date unless someone acts: licences (CCLI, ProPresenter seats), domains, warranties, subscriptions, certificates. Each has renewsOn (YYYY-MM-DD on the site's calendar), cost, whether it renews automatically, its owner and how many days before it reminders are sent. Sorted by date, soonest first.",
+    cls: "read",
+    method: "GET",
+    path: "/renewals",
+    permissions: [READ],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "renewals_get",
+    title: "Read a renewal",
+    description: "One renewal (licence, domain, warranty, subscription) with its date, cost, owner, reminders and notes.",
+    cls: "read",
+    method: "GET",
+    path: "/renewals/:id",
+    permissions: [READ],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "renewals_create",
+    title: "Record a renewal",
+    description:
+      "Add something that renews on a date (a licence, domain, warranty, subscription or certificate). The owner (a user id) is reminded remindDays before (default 30 and 7); with no owner the admin group is. Check renewals_list first so it is not recorded twice.",
+    cls: "write",
+    method: "POST",
+    path: "/renewals",
+    permissions: [WRITE],
+    input: z.object(createRenewalSchema.shape),
+  }),
+  defineTool({
+    name: "renewals_update",
+    title: "Change a renewal",
+    description: "Change any field of a renewal, for example the new renewsOn after it has been renewed. Moving the date starts its reminders again.",
+    cls: "write",
+    method: "PATCH",
+    path: "/renewals/:id",
+    permissions: [WRITE],
+    idempotent: true,
+    input: z.object({ id, ...updateRenewalSchema.shape }),
   }),
 
   // ---- Cabinets and port sheets ----

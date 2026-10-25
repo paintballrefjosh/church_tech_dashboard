@@ -365,6 +365,15 @@ recipients sends nothing to the channels either. (3) *Runbooks*: `monitors.runbo
 `alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
 bell/runbook/public-status cases in `tests/smoke/alerts.mjs`.
 
+**Renewals** (`apps/api/src/renewals/`, page `/renewals` in the IT menu, migration 0079; rules in `packages/shared/src/schemas/renewal.ts`,
+unit-tested in `apps/api/test/renewals.test.ts`): licences, domains, warranties, subscriptions and certificates that lapse on a date. Monitoring
+tiers like cabinets (reads `monitors:read:any`, writes `monitors:write:any`); MCP has list/get/create/update, no delete. `renews_on` is a
+DATE-ONLY string on the site's calendar (never an instant; `siteToday` from `site.timezone`). The hourly `renewal-reminders` job asks
+`renewalReminderDue` for the marker of the nearest reminder that has come due (`<date>:<days>` or `<date>:overdue`, the lapse once, and
+nothing more than `RENEWAL_OVERDUE_NOTICE_DAYS` past), CLAIMS it with a conditional UPDATE of `reminded_for` and tells the owner, else the
+admin group (kind `renewal.due`). Moving the date gives new markers, so the reminders start again; never an earlier reminder after a nearer
+one. `remind_days` is jsonb because the backup codec writes back jsonb, not `integer[]`.
+
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and
 `waited_ms` for finished waits: **SLA elapsed time is always `ticketSlaElapsedMs`** (creation to now minus the waits), never a bare

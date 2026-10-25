@@ -103,6 +103,7 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "DELETE /cisco/switches/*/backups/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /cisco/switches/*/ports/*", status: "excluded", reason: NO_DELETE },
   { pattern: "DELETE /cisco/vlans/*", status: "excluded", reason: `${NO_DELETE}; cisco_set_vlan leaves a VLAN off the switches it is not listed for` },
+  { pattern: "DELETE /renewals/:id", status: "excluded", reason: "no delete tools for records people keep; a renewal that is no longer wanted is removed in the web app" },
   { pattern: "POST|PATCH|DELETE /racks/**", status: "excluded", reason: "where a device physically sits is recorded by a person standing at the cabinet, in the web app; an agent can read the cabinets (racks_get)" },
   { pattern: "GET /racks/candidates", status: "excluded", reason: "the placement picker in the web app; the same devices are listed by cisco_list_switches, infra_list_targets and unifi_list_devices" },
   { pattern: "* /switch-models/**", status: "excluded", reason: "picture-and-layout curation for the web app's switch view (drawing boxes on a photo); there is nothing here for an agent to read or decide" },

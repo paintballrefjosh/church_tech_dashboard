@@ -21,6 +21,7 @@ export * from "./schemas/cisco";
 export * from "./schemas/switch-model";
 export * from "./schemas/rack";
 export * from "./schemas/alert-channel";
+export * from "./schemas/renewal";
 export * from "./schemas/ipam";
 export * from "./schemas/ups";
 export * from "./schemas/dns";
