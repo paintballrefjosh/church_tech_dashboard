@@ -36,6 +36,13 @@ switch the one its own page resolves to (`resolveSwitchView`), else a model whos
 = a drawn stand-in by `style` (CSS only: nothing to print but ink). The height in the form is suggested from the picture's
 proportions (a 19" panel is 482.6 x 44.45 mm per U) and is only a suggestion.
 
+**Add-on modules** (the C3KX-NM-10G in a 3750-X, see [switch-faceplates.md](switch-faceplates.md#add-on-modules-migration-0072)) are
+drawn on the cabinet picture and the port sheet picture the way the switch page draws them: a placement is drawn while the
+switch reports one of the module's ports, and only on the side the model keeps its ports on (that is the picture the module was
+placed on). The cabinet reads the switch's port names from the API (`live.portNames`, Cisco only; the names in `cisco_ports`),
+`installedModules` (`lib/faceplates/custom.ts`, unit-tested) decides which placements count, and `RackElevation` draws them in
+an SVG with the picture so the module stays on its bay whether the picture is stretched or fitted to the slot.
+
 ## Printable pages
 
 All three are plain `<article>` sheets with no top bar (`A4 portrait`, `@page` margin 10 mm, `print-color-adjust: exact`, shared

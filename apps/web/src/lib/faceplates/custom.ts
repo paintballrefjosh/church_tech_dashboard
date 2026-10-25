@@ -168,6 +168,45 @@ function placeModules(
   return { ports, overlays };
 }
 
+/** An add-on module that a switch really has, placed on its host's port-side picture (all four numbers are fractions of that picture). */
+export interface InstalledModule {
+  id: string;
+  label: string;
+  url: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** The module's port boxes, already scaled into the host's picture (fractions of it). */
+  ports: { name: string; x: number; y: number; w: number; h: number }[];
+}
+
+/**
+ * The modules placed on `host` that the device has: a placement counts while the device reports one of the module's
+ * ports (by name or alias, any case), the same rule the switch page uses to draw them. A module that cannot be drawn
+ * (deleted, no picture) is left out.
+ */
+export function installedModules(host: SwitchModel, all: readonly SwitchModel[], portNames: readonly string[]): InstalledModule[] {
+  if (host.modules.length === 0 || portNames.length === 0) return [];
+  const have = new Set(portNames.map((n) => n.toLowerCase()));
+  const out: InstalledModule[] = [];
+  for (const pl of host.modules) {
+    const mod = all.find((x) => x.id === pl.moduleId && x.kind === "module");
+    if (!mod) continue;
+    const imageId = mod.portSide === "front" ? mod.frontImageId : mod.backImageId;
+    if (!imageId) continue;
+    if (!mod.ports.some((p) => [p.name, ...p.aliases].some((n) => have.has(n.toLowerCase())))) continue;
+    out.push({ id: pl.id, label: mod.name, url: switchModelImageUrl(mod.id, mod.portSide, imageId),
+      x: pl.x,
+      y: pl.y,
+      w: pl.w,
+      h: pl.h,
+      ports: mod.ports.map((p) => ({ name: p.name, x: pl.x + p.x * pl.w, y: pl.y + p.y * pl.h, w: p.w * pl.w, h: p.h * pl.h })),
+    });
+  }
+  return out;
+}
+
 /**
  * A model as a layout the faceplate can draw, or null while it cannot be drawn yet (no picture on the port side, or no
  * ports on it). A model with no ports is still editable; it just has no switch view to show. `all` is every model, for

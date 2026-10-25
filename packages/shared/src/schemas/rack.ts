@@ -110,6 +110,8 @@ export const rackItemLiveSchema = z.object({
   /** Cisco only: the picture choice made on the switch's own page. */
   switchModelId: z.string().uuid().nullable(),
   switchViewOff: z.boolean(),
+  /** Cisco only: the names of the switch's ports, which say which add-on modules it has (a module shows while one of its ports exists). */
+  portNames: z.array(z.string()).default([]),
 });
 export type RackItemLive = z.infer<typeof rackItemLiveSchema>;
 

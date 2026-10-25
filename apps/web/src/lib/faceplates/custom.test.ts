@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SwitchModel } from "@church/shared";
-import { choiceToDevice, choiceToInput, currentChoice, layoutFromSwitchModel, matchSwitchModel, matchSwitchModelDetail, resolveSwitchView, switchViewSentence } from "./custom";
+import { choiceToDevice, choiceToInput, currentChoice, installedModules, layoutFromSwitchModel, matchSwitchModel, matchSwitchModelDetail, resolveSwitchView, switchViewSentence } from "./custom";
 import { slotForPort } from "./layouts";
 
 const ID = "3f2b8c1e-0a4d-4e57-9b1c-5d6e7f8a9b0c";
@@ -244,6 +244,27 @@ describe("add-on modules", () => {
     expect(matchSwitchModel([m], "C3KX-NM-10G")).toBeNull();
     expect(currentChoice([m], { switchModelId: MOD_ID })).toBe("auto");
     expect(resolveSwitchView([m], { model: "C3KX-NM-10G", switchModelId: MOD_ID }).how).toBe("none");
+  });
+
+  it("installedModules: a module counts while the switch reports one of its ports, by name or alias", () => {
+    const all = [host(), module10g()];
+    const got = installedModules(host(), all, ["Gi1/0/1", "gi1/1/1"]);
+    expect(got).toHaveLength(1);
+    expect(got[0]).toMatchObject({ id: "m1", label: "C3KX-NM-10G", x: 0.8, y: 0.25, w: 0.2, h: 0.5 });
+    // the module's port boxes are fractions of the host's picture: 0.8 + 0.1 * 0.2
+    expect(got[0]!.ports[0]).toMatchObject({ name: "Te1/1/1" });
+    expect(got[0]!.ports[0]!.x).toBeCloseTo(0.82);
+    expect(got[0]!.ports[0]!.w).toBeCloseTo(0.04);
+    expect(installedModules(host(), all, ["Te1/1/2"])).toHaveLength(1);
+  });
+
+  it("installedModules: none when the switch lacks the module's ports, has no ports, or the module cannot be drawn", () => {
+    const all = [host(), module10g()];
+    expect(installedModules(host(), all, ["Gi1/0/1", "Gi1/0/2"])).toEqual([]);
+    expect(installedModules(host(), all, [])).toEqual([]);
+    expect(installedModules(host(), [host()], ["Te1/1/1"])).toEqual([]);
+    expect(installedModules(host(), [host(), module10g({ frontImageId: null })], ["Te1/1/1"])).toEqual([]);
+    expect(installedModules(model(), [model(), module10g()], ["Te1/1/1"])).toEqual([]);
   });
 
   it("a layout with no modules has none of the extras", () => {

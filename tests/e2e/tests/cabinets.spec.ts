@@ -159,6 +159,46 @@ test.describe("Cabinets", () => {
     await shot(page, "cabinet-rear");
   });
 
+  test("a switch's add-on module is drawn on its picture while the switch has the module's ports, on the side that has the ports", async ({ page }) => {
+    const MOD_ID = "99999999-9999-4999-8999-999999999991";
+    const MOD_IMG = "88888888-8888-4888-8888-888888888883";
+    await signInAsTestUser(page);
+    await fakeApi(page);
+    const moduleModel = {
+      ...model, id: MOD_ID, name: "C3KX-NM-10G", kind: "module", match: [], frontImageId: MOD_IMG, backImageId: null, frontWidth: 400, frontHeight: 150, backWidth: null, backHeight: null,
+      ports: [{ name: "Te1/1/1", aliases: ["Gi1/1/1"], kind: "sfp", x: 0.1, y: 0.25, w: 0.2, h: 0.5 }],
+    };
+    const host = { ...model, modules: [{ id: "m1", moduleId: MOD_ID, x: 0.8, y: 0.2, w: 0.18, h: 0.6 }] };
+    const withPorts = (portNames: string[]) => ({
+      ...rack,
+      items: rack.items.map((it) => (it.sourceKind === "cisco" ? { ...it, live: { ...it.live, portNames } } : it)),
+    });
+    const png = await faceImage(page, "MODULE");
+    await page.route("**/api/switch-models", (route) => route.fulfill({ json: [host, moduleModel] }));
+    await page.route(`**/api/switch-models/${MOD_ID}/images/front*`, (route) => route.fulfill({ body: png, contentType: "image/png" }));
+
+    // The switch reports the module's port (by its alias): the module is drawn over the front.
+    await page.route(`**/api/racks/${RACK_ID}`, (route) => route.fulfill({ json: withPorts(["Gi1/0/1", "Gi1/1/1"]) }));
+    await page.goto(`/cabinets/${RACK_ID}`);
+    const elevation = page.getByRole("group", { name: /front view/ });
+    await expect(elevation.locator(`image[href*="${MODEL_ID}/images/front"]`)).toHaveCount(1);
+    await expect(elevation.locator(`image[href*="${MOD_ID}/images/front"]`)).toHaveCount(1);
+    await shot(page, "cabinet-front-module");
+    await axeClean(page, "cabinet front with a module");
+
+    // The module sits on the front picture only: the rear shows the plain back.
+    await page.getByRole("button", { name: "Rear" }).click();
+    await expect(page.getByRole("group", { name: /rear view/ })).toBeVisible();
+    await expect(page.locator(`image[href*="${MOD_ID}/images/front"]`)).toHaveCount(0);
+    await expect(page.locator('img[src*="images/back"]')).toHaveCount(1);
+
+    // A switch without the module's ports is drawn as before.
+    await page.route(`**/api/racks/${RACK_ID}`, (route) => route.fulfill({ json: withPorts(["Gi1/0/1", "Gi1/0/2"]) }));
+    await page.goto(`/cabinets/${RACK_ID}`);
+    await expect(page.getByRole("group", { name: /front view/ }).locator('img[src*="images/front"]')).toHaveCount(1);
+    await expect(page.locator(`image[href*="${MOD_ID}/images/front"]`)).toHaveCount(0);
+  });
+
   test("an empty slot opens the placement form with that U filled in; a device already in a cabinet cannot be picked", async ({ page }) => {
     await signInAsTestUser(page);
     await fakeApi(page);

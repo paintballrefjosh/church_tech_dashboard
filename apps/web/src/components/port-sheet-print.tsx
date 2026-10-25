@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
 import type { PortSheet, SwitchModel } from "@church/shared";
 import { useSwitchModels } from "@/lib/use-switch-models";
-import { matchSwitchModel, resolveSwitchView } from "@/lib/faceplates/custom";
+import { installedModules, matchSwitchModel, resolveSwitchView } from "@/lib/faceplates/custom";
 import { modelPicture } from "@/lib/rack-pictures";
 import { PRINT_BASE_CSS } from "@/lib/print-css";
 
@@ -62,7 +62,7 @@ export function PortSheetPrint({ kind, deviceKey, backHref }: { kind: "cisco" | 
     if (!sideChosen && model) setSide(model.portSide);
   }, [model, sideChosen]);
 
-  const picture = modelPicture(model, side === "front" ? "front" : "rear");
+  const picture = modelPicture(model, side === "front" ? "front" : "rear", model && models ? installedModules(model, models, sheet?.ports.map((p) => p.port) ?? []) : []);
   const boxes = model && side === model.portSide ? model.ports : [];
 
   return (
@@ -122,8 +122,18 @@ export function PortSheetPrint({ kind, deviceKey, backHref }: { kind: "cisco" | 
               <div className="relative mx-auto w-full" style={{ aspectRatio: `${picture.width} / ${picture.height}` }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={picture.url} alt={`${side === "front" ? "Front" : "Back"} of ${sheet.device.name}`} className="h-full w-full object-contain" />
+                {picture.modules.map((m) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={m.id}
+                    src={m.url}
+                    alt=""
+                    className="absolute"
+                    style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, width: `${m.w * 100}%`, height: `${m.h * 100}%` }}
+                  />
+                ))}
                 {labels
-                  ? boxes.map((p) => (
+                  ? [...boxes, ...picture.modules.flatMap((m) => m.ports)].map((p) => (
                       <span
                         key={p.name}
                         aria-hidden

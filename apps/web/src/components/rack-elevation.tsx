@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { RACK_ITEM_STYLE_LABELS, pictureFitsSlot, topU, type RackItemStyle, type RackItemView, type SwitchModel } from "@church/shared";
-import { rackItemPicture, type RackSide } from "@/lib/rack-pictures";
+import { rackItemPicture, type RackPicture, type RackSide } from "@/lib/rack-pictures";
 
 /**
  * A cabinet drawn as an elevation: U numbers down both rails, U1 at the bottom, each item filling the U it occupies,
@@ -109,13 +109,37 @@ function GeneratedFace({ item, side, print }: { item: RackItemView; side: RackSi
   );
 }
 
-function PictureFace({ url, width, height, heightU, print, name }: { url: string; width: number; height: number; heightU: number; print: boolean; name: string }) {
+function PictureFace({ pic, heightU, print, name }: { pic: RackPicture; heightU: number; print: boolean; name: string }) {
   // Stretch a picture whose proportions are about the slot's; otherwise fit it inside so it is not distorted.
-  const fill = pictureFitsSlot(width, height, heightU);
+  const fill = pictureFitsSlot(pic.width, pic.height, heightU);
   return (
     <div className={`relative h-full w-full ${print ? "bg-white" : "bg-slate-900"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: fill ? "fill" : "contain" }} />
+      {pic.modules.length > 0 ? (
+        // Add-on modules sit at fractions of the switch's picture, so both are drawn in the picture's own box: the SVG
+        // stretches or fits that box the way the plain picture would, and the modules stay on their bays.
+        <svg
+          aria-hidden
+          viewBox={`0 0 ${pic.width} ${pic.height}`}
+          preserveAspectRatio={fill ? "none" : "xMidYMid meet"}
+          className="h-full w-full"
+        >
+          <image href={pic.url} x={0} y={0} width={pic.width} height={pic.height} preserveAspectRatio="none" />
+          {pic.modules.map((m) => (
+            <image
+              key={m.id}
+              href={m.url}
+              x={m.x * pic.width}
+              y={m.y * pic.height}
+              width={m.w * pic.width}
+              height={m.h * pic.height}
+              preserveAspectRatio="none"
+            />
+          ))}
+        </svg>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={pic.url} alt="" loading="lazy" className="h-full w-full" style={{ objectFit: fill ? "fill" : "contain" }} />
+      )}
       {print ? null : (
         <span className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 max-w-[70%] truncate rounded bg-slate-950/75 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white">
           {name}
@@ -192,7 +216,7 @@ export function RackElevation({ units, items, models, side, variant, pictures = 
         const cell: CSSProperties = { gridColumn: 2, gridRow: `${rowOf(topU(item))} / span ${item.heightU}` };
         const span = item.heightU > 1 ? `U${item.startU}-U${topU(item)}` : `U${item.startU}`;
         const face = pic ? (
-          <PictureFace url={pic.url} width={pic.width} height={pic.height} heightU={item.heightU} print={print} name={shownName(item)} />
+          <PictureFace pic={pic} heightU={item.heightU} print={print} name={shownName(item)} />
         ) : (
           <GeneratedFace item={item} side={side} print={print} />
         );

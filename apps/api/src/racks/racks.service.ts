@@ -21,7 +21,7 @@ import {
   type UpdateRackItemInput,
 } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
-import { ciscoSwitches, infraTargets, rackItems, racks, switchModels } from "../db/schema";
+import { ciscoPorts, ciscoSwitches, infraTargets, rackItems, racks, switchModels } from "../db/schema";
 import { UnifiService } from "../unifi/unifi.service";
 import { TtlCache } from "../dashboard/home/cache";
 
@@ -49,6 +49,7 @@ interface Known {
   style: RackItemStyle;
   switchModelId: string | null;
   switchViewOff: boolean;
+  portNames: string[];
 }
 
 const UNIFI_READ_TTL_MS = 15_000;
@@ -107,6 +108,7 @@ function ownLive(item: RackItemRow, missing: boolean): RackItemLive {
     href: null,
     switchModelId: null,
     switchViewOff: false,
+    portNames: [],
   };
 }
 
@@ -333,6 +335,7 @@ export class RacksService {
       style: "server",
       switchModelId: null,
       switchViewOff: false,
+      portNames: [],
     };
   }
 
@@ -348,6 +351,12 @@ export class RacksService {
     if (kind === "cisco") {
       const valid = ids.filter((i) => /^[0-9a-f-]{36}$/i.test(i));
       if (valid.length === 0) return out;
+      const portNames = new Map<string, string[]>();
+      for (const p of await this.db.select({ switchId: ciscoPorts.switchId, portId: ciscoPorts.portId }).from(ciscoPorts).where(inArray(ciscoPorts.switchId, valid))) {
+        const list = portNames.get(p.switchId);
+        if (list) list.push(p.portId);
+        else portNames.set(p.switchId, [p.portId]);
+      }
       for (const s of await this.db.select().from(ciscoSwitches).where(inArray(ciscoSwitches.id, valid))) {
         out.set(s.id, {
           name: s.hostname,
@@ -359,6 +368,7 @@ export class RacksService {
           style: "switch",
           switchModelId: s.switchModelId,
           switchViewOff: s.switchViewOff,
+          portNames: portNames.get(s.id) ?? [],
         });
       }
     } else if (kind === "infra") {
@@ -387,6 +397,7 @@ export class RacksService {
           style: unifiStyle(d.type),
           switchModelId: null,
           switchViewOff: false,
+          portNames: [],
         });
       }
     }
@@ -419,6 +430,7 @@ export class RacksService {
           href: k.href,
           switchModelId: k.switchModelId,
           switchViewOff: k.switchViewOff,
+          portNames: k.portNames,
         },
       };
     });
