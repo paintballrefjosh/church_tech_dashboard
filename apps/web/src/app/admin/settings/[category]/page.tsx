@@ -18,6 +18,7 @@ import { headers } from "next/headers";
 import { SettingsForm } from "../settings-form";
 import { findCategory } from "../categories";
 import { OAuthCallbackHint } from "./oauth-callback-hint";
+import { AssistantPanel } from "./assistant-panel";
 import { HomePageSettings } from "./home-page-settings";
 import { AttachmentSettings } from "./attachment-settings";
 import { HelpdeskEmailPanel, type InboundStatus } from "./helpdesk-email-panel";
@@ -157,6 +158,7 @@ export default async function AdminSettingsCategoryPage({
         ) : null}
 
         {slug === "helpdesk" ? <HelpdeskEmailPanel initial={inboundStatus} /> : null}
+        {slug === "assistant" ? <AssistantPanel /> : null}
 
         {scoped.length === 0 && slug === "site" ? null : scoped.length === 0 ? (
           <p className="mt-6 rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">

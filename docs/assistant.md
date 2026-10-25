@@ -1,7 +1,10 @@
 # Assistant (chatbot): design
 
-Status: **designed, not built** (written 2026-10-10). Nothing in this document exists in the code yet. It records the
-decisions made, the requirements, and the approach, so that it can be implemented later without re-deriving them.
+Status: **phase 1 built (2026-10-25)**; designed 2026-10-10. Built: both providers, the readiness checklist and its
+enforcement, Test connection, the privacy notice, limits and budget, read-only lookups through the MCP catalogue's read tools
+acting as the person, the `/assistant` chat page with history, retention and usage figures. Not built: everything from phase 2
+on (section 15): the evaluation set, feedback, the slide-over panel, budget notifications, the platform status card and
+proposed actions. The rules as built are in CLAUDE.md "## Assistant".
 
 A single place in the dashboard where a signed-in user asks a question in plain English and gets an answer built from
 what the site knows: wiki pages, tickets, and the live data the pollers collect from switches, hosts, services and the

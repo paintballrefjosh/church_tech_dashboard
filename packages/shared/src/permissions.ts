@@ -120,6 +120,13 @@ export const PERMISSIONS = {
   CHECKLISTS_READ_ANY: "checklists:read:any",
   CHECKLISTS_COMPLETE_ANY: "checklists:complete:any",
   CHECKLISTS_ADMIN: "checklists:admin",
+
+  // Assistant (docs/assistant.md). USE = ask questions. USAGE = see usage and feedback across people (no conversation
+  // text). HISTORY = read other people's conversations, only while assistant.admins_can_read_history allows it (not built).
+  // Configuration is site administration (the `assistant` settings category), not this module.
+  ASSISTANT_USE: "assistant:use",
+  ASSISTANT_USAGE: "assistant:usage",
+  ASSISTANT_HISTORY: "assistant:history",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

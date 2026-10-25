@@ -42,6 +42,7 @@ import { RacksModule } from "./racks/racks.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { RenewalsModule } from "./renewals/renewals.module";
 import { ReportsModule } from "./reports/reports.module";
+import { AssistantModule } from "./assistant/assistant.module";
 import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
 import { DnsModule } from "./dns/dns.module";
@@ -105,6 +106,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     AlertsModule,
     RenewalsModule,
     ReportsModule,
+    AssistantModule,
     IpamModule,
     UpsModule,
     DnsModule,

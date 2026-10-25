@@ -771,6 +771,27 @@ Files on tickets, notes and wiki pages are tools too (`catalogue/attachments.too
 content blocks (an image as an image, text as text, other types described only) and `binary: "upload"` sends `text` or `contentBase64` (1 MiB) to the route as
 multipart. No delete tool.
 
+## Assistant
+
+`/assistant` (`apps/api/src/assistant/`, rules in `packages/shared/src/assistant.ts`, unit-tested in `apps/api/test/assistant.test.ts`; design
+[docs/assistant.md](docs/assistant.md)): a chat answered by an EXTERNAL model the site admin chooses (`assistant.provider` `anthropic` through
+`@anthropic-ai/sdk`, or `openai_compatible` for any `/v1/chat/completions` server), settings category `assistant`, migration 0080. Rules:
+(1) **Off until ready**: `SettingsService` refuses `assistant.enabled = true` unless `assistantReadiness` is all green (provider + model, a
+passing Test connection whose `assistantFingerprint` matches the CURRENT provider/URL/key/model, a group with the `assistant` module, a budget or
+both prices 0, the privacy notice acknowledged for the current destination). Test results and the acknowledgement live in `job_state`
+(`ASSISTANT_STATE`), never in settings. (2) **It acts as the person, read-only**: its lookups are the MCP catalogue's READ tools (`BRIDGE_TOOLS`)
+called through `ApiBridge` with the person's own session cookie, filtered by `assistantMayUseRoute` (no admin, audit, settings, backups, accounts,
+tokens, sessions, alert channels, Cisco config backups, Planning Center) and by their permissions, plus `search`. Never give it a write tool or a
+service call that skips the route. (3) Lookup results go to the model wrapped as untrusted data and cut at 12000 characters; the web renders
+answers as Markdown with images dropped and outside links labelled with their host. (4) Limits: per person per minute/day, a monthly budget from the
+admin's prices (`assistant_usage_daily`, one row per day and person), and site-wide slots (`assistant-slot-N` leases, `assistant.max_concurrent`).
+(5) The whole controller is `@SessionOnly` (an API token cannot spend the budget) and MCP-excluded; `POST /assistant/chat` answers with SSE over a
+hijacked reply (Caddy has `flush_interval -1` for it), audited per question through `startDynamicAudit` (`assistant.chat`, counts only, never the
+text). (6) Conversations are private to their owner (another person's id answers 404), kept `assistant.history_retention_days` (0 = deleted once
+answered) by the `assistant-retention` job; the three tables are `skip` in the backup registry. Tests: `assistant.test.ts`,
+`assistant.integration.test.ts` (CockroachDB and YugabyteDB, a fake OpenAI-compatible server), smoke `tests/smoke/assistant.mjs` (closed doors
+only: no model is called).
+
 ## Activity feed
 
 `GET /activity` and the home page's activity section go through `ActivityService.list(user, limit)`, which holds
@@ -1619,7 +1640,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 1 — done** — helpdesk/tickets (+SLAs), notes, wiki (+attachments/ACLs), modular dashboard tiles, notification centre + SMTP (per-category in-app/email)
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
-- **Assistant (chatbot) — designed, not built** — an in-app chat over wiki, tickets and live data, using an *external* LLM (Claude API or any OpenAI-compatible endpoint the admin supplies), disabled by default until an admin configures and enables it. Full design, requirements and phasing in [docs/assistant.md](docs/assistant.md); do not start building without an explicit ask.
+- **Assistant (chatbot) — phase 1 built (2026-10-25)** — see ## Assistant; phases 2-4 of [docs/assistant.md](docs/assistant.md) (wider catalogue, evaluation set, feedback, slide-over panel, proposed actions) are not built; do not start them without an explicit ask.
 - **Service monitoring templates — designed, not built** — in-depth per-service monitoring on infra hosts (HAProxy, databases, Kea, Technitium ...) driven by a declarative, GUI-editable template engine. Design, proposed decisions and phasing in [docs/service-monitoring.md](docs/service-monitoring.md); do not start building without an explicit ask.
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 

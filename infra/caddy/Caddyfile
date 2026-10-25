@@ -102,6 +102,15 @@
 		respond "Not found" 404
 	}
 
+	# The assistant's answers are server-sent events: pass each chunk on at once (flush_interval -1), never buffered.
+	handle /api/v1/assistant/chat {
+		reverse_proxy api:3001 {
+			header_up Host {host}
+			header_up X-Forwarded-For {client_ip}
+			flush_interval -1
+		}
+	}
+
 	handle /api/v1/* {
 		reverse_proxy api:3001 {
 			header_up Host {host}

@@ -8,5 +8,7 @@ import { ApiBridge } from "./bridge/api-bridge.service";
   imports: [WikiModule],
   controllers: [McpController],
   providers: [McpToolsService, ApiBridge],
+  // The assistant runs its lookups through the same bridge, as the signed-in person.
+  exports: [ApiBridge],
 })
 export class McpModule {}

@@ -39,6 +39,7 @@ import {
   Zap,
   type LucideIcon,
   CalendarClock,
+  Bot,
 } from "lucide-react";
 
 /**
@@ -144,6 +145,7 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "monitoring", cmd: go("go:cabinets", "Go to", "Cabinets", "/cabinets", Server, "racks elevation rack u server room") },
   { module: "monitoring", cmd: go("go:renewals", "Go to", "Renewals", "/renewals", CalendarClock, "licence license domain warranty subscription ccli expiry") },
   { module: "monitoring", cmd: go("go:alert-channels", "Go to", "Alert channels", "/monitoring/alert-channels", Activity, "slack teams discord ntfy pushover sms webhook") },
+  { module: "assistant", cmd: go("go:assistant", "Go to", "Assistant", "/assistant", Bot, "ask question chat ai help") },
   { module: "printers", cmd: go("go:printers", "Go to", "Printers", "/printers", Printer, "toner") },
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },

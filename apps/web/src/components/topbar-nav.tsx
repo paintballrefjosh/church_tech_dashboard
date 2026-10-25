@@ -24,6 +24,7 @@ import {
   Folder,
   Boxes,
   CalendarClock,
+  Bot,
 } from "lucide-react";
 import { NavDropdown, type NavDropdownItem, type NavDropdownEntry } from "./nav-dropdown";
 
@@ -60,6 +61,7 @@ const IT_ITEMS: Item[] = [
 const DOCS_ITEMS: Item[] = [
   { href: "/notes", label: "Notes", Icon: StickyNote, module: "notes" },
   { href: "/wiki", label: "Wiki", Icon: BookOpen, module: "wiki" },
+  { href: "/assistant", label: "Assistant", Icon: Bot, module: "assistant" },
 ];
 
 const CHURCH_APPS_ITEMS: Item[] = [

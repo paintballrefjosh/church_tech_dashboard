@@ -1487,6 +1487,26 @@ history, and there is no delete tool. To keep an agent inside one area, give its
 edit rights only on pages in that area (page ACLs). Each change is audited as the agent's
 user; reads aren't.
 
+## The assistant (optional, off by default)
+
+An in-app chat (`/assistant`) that answers questions from the wiki, tickets and the monitoring data, using a model YOU
+choose: the Claude API, or a server you run (Ollama, llama.cpp, vLLM, LM Studio or anything with an OpenAI-compatible
+`/v1/chat/completions`). Nothing is sent anywhere until a site admin has set it up and switched it on.
+
+1. **Site settings > Assistant**: pick the provider, the model (for Claude, a model id such as `claude-opus-5-5`; for your own
+   server, its address ending in `/v1` and the model name) and, for Claude, the API key.
+2. Press **Test connection**. Changing the provider, address, key or model later needs the test again.
+3. Set the **prices per million tokens** and a **monthly budget** (or both prices 0 for a model you run yourself), and the
+   per-person limits if the defaults (6 a minute, 100 a day) do not suit.
+4. Give the groups who should use it the **Assistant** module (Admin > Groups). The admin group always has it.
+5. Read the **privacy notice** on the same page and acknowledge it: the question, earlier turns of the conversation and what the
+   lookups return go to that provider.
+6. Only then can **Enabled** be switched on; the checklist on the page says what is still missing.
+
+The assistant can only read, and only what the person asking can see; it never sees admin pages, settings, the audit log,
+backups, accounts or tokens. Conversations are kept 30 days by default (`Keep conversations`, 0 = not kept), and the page shows
+this month's questions, tokens and cost. Behind your own reverse proxy, do not buffer `/api/v1/assistant/chat` (it streams).
+
 ## Dockerized commands (no Node on host)
 
 Every `make` target below can also be run via a one-off node container:

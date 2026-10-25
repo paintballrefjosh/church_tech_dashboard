@@ -2210,6 +2210,9 @@ async function main() {
   const { renewalTests } = await import("./renewals.mjs");
   await renewalTests({ test, assert, fetchWithCookies, jar });
 
+  const { assistantTests } = await import("./assistant.mjs");
+  await assistantTests({ test, assert, fetchWithCookies, jar });
+
   const { alertChannelTests } = await import("./alert-channels.mjs");
   await alertChannelTests({ test, assert, fetchWithCookies, jar });
 

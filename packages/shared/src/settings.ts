@@ -20,6 +20,8 @@ import {
 } from "./schemas/attachment";
 import { OFFSITE_KEYS, OFFSITE_MAX_KEEP, normaliseOffsitePrefix } from "./backup-offsite";
 import { REPORT_KEYS } from "./monthly-report";
+import { ASSISTANT_KEYS, ASSISTANT_PROVIDERS } from "./assistant";
+import { isForbiddenAlertAddress } from "./alert-channels";
 import {
   ALERT_KEYS,
   ESCALATION_MAX_MIN,
@@ -49,10 +51,71 @@ export interface KnownSetting<T = unknown> {
     | "monitoring"
     | "backup"
     | "helpdesk"
+    | "assistant"
     | "experimental";
 }
 
 export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
+  // Assistant (docs/assistant.md). Site admin only. Turning it on needs the readiness checklist (assistant.ts) all green.
+  {
+    key: ASSISTANT_KEYS.enabled,
+    type: "boolean",
+    label: "Assistant: switched on",
+    description: "People in a group with the Assistant module can ask questions. Can only be switched on when the checklist on this page is all green; switching it off is always allowed.",
+    defaultValue: false,
+    category: "assistant",
+  },
+  {
+    key: ASSISTANT_KEYS.provider,
+    type: "string",
+    label: "Provider",
+    description: "anthropic (the Claude API) or openai_compatible (Ollama, llama.cpp, vLLM, LM Studio, OpenRouter, any /v1/chat/completions server).",
+    defaultValue: "",
+    category: "assistant",
+  },
+  {
+    key: ASSISTANT_KEYS.baseUrl,
+    type: "string",
+    label: "Server address",
+    description: "Required for an OpenAI-compatible server (e.g. http://gpu-box.lan:11434/v1). Optional for Anthropic (a gateway or proxy).",
+    defaultValue: "",
+    category: "assistant",
+  },
+  {
+    key: ASSISTANT_KEYS.apiKey,
+    type: "secret",
+    label: "API key",
+    description: "Required for Anthropic; optional for a server of your own that has no key.",
+    defaultValue: "",
+    category: "assistant",
+  },
+  {
+    key: ASSISTANT_KEYS.model,
+    type: "string",
+    label: "Model",
+    description: "The model id, e.g. a Claude model id, or qwen3:14b on Ollama. It must support tool calling and streaming.",
+    defaultValue: "",
+    category: "assistant",
+  },
+  {
+    key: ASSISTANT_KEYS.verifyTls,
+    type: "boolean",
+    label: "Check the server's certificate",
+    description: "Leave on. Off only for a server of your own with a self-signed certificate.",
+    defaultValue: true,
+    category: "assistant",
+  },
+  { key: ASSISTANT_KEYS.maxOutputTokens, type: "number", label: "Longest answer (tokens)", description: "Per model turn.", defaultValue: 1500, category: "assistant" },
+  { key: ASSISTANT_KEYS.maxSteps, type: "number", label: "Lookups per question", description: "Model turns (rounds of lookups) per question, 1 to 12.", defaultValue: 6, category: "assistant" },
+  { key: ASSISTANT_KEYS.timeoutSec, type: "number", label: "Time limit per answer (seconds)", description: "The whole answer, lookups included.", defaultValue: 120, category: "assistant" },
+  { key: ASSISTANT_KEYS.priceIn, type: "number", label: "Price per million input tokens", description: "From the provider's price list, in your currency, for the budget. 0 for a model you run yourself.", defaultValue: 0, category: "assistant" },
+  { key: ASSISTANT_KEYS.priceOut, type: "number", label: "Price per million output tokens", description: "As above, for output.", defaultValue: 0, category: "assistant" },
+  { key: ASSISTANT_KEYS.monthlyBudget, type: "number", label: "Monthly budget", description: "Questions stop for the rest of the calendar month once it is spent. 0 = no cap, allowed only when both prices are 0.", defaultValue: 0, category: "assistant" },
+  { key: ASSISTANT_KEYS.userRatePerMin, type: "number", label: "Questions per person per minute", description: "0 = no limit.", defaultValue: 6, category: "assistant" },
+  { key: ASSISTANT_KEYS.userDaily, type: "number", label: "Questions per person per day", description: "0 = no limit.", defaultValue: 100, category: "assistant" },
+  { key: ASSISTANT_KEYS.maxConcurrent, type: "number", label: "Questions at once (whole site)", description: "Across all nodes; matters for a single GPU box.", defaultValue: 2, category: "assistant" },
+  { key: ASSISTANT_KEYS.retentionDays, type: "number", label: "Keep conversations (days)", description: "Older conversations are deleted. 0 keeps nothing once the answer has been given.", defaultValue: 30, category: "assistant" },
+
   // Site
   {
     key: "site.name",
@@ -1287,6 +1350,42 @@ export function validateSettingValue(key: string, value: unknown): string | null
       return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= ESCALATION_MAX_MIN
         ? null
         : `Enter a whole number of minutes from 0 to ${ESCALATION_MAX_MIN}.`;
+    case ASSISTANT_KEYS.provider:
+      return value === "" || (typeof value === "string" && (ASSISTANT_PROVIDERS as readonly string[]).includes(value))
+        ? null
+        : "Choose anthropic or openai_compatible.";
+    case ASSISTANT_KEYS.baseUrl: {
+      if (value === "") return null;
+      if (typeof value !== "string") return "Enter an address.";
+      let u: URL;
+      try {
+        u = new URL(value);
+      } catch {
+        return "Enter a full address, like http://gpu-box.lan:11434/v1.";
+      }
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "Only http and https addresses.";
+      if (u.username || u.password) return "Put the key in the API key field, not in the address.";
+      if (isForbiddenAlertAddress(u.hostname)) return "That address is link-local (where cloud metadata services live) and is not allowed.";
+      return null;
+    }
+    case ASSISTANT_KEYS.model:
+      return typeof value === "string" && value.length <= 200 ? null : "Enter a model id.";
+    case ASSISTANT_KEYS.maxOutputTokens:
+      return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 32_000 ? null : "Enter 100 to 32000.";
+    case ASSISTANT_KEYS.maxSteps:
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 12 ? null : "Enter 1 to 12.";
+    case ASSISTANT_KEYS.timeoutSec:
+      return typeof value === "number" && Number.isInteger(value) && value >= 10 && value <= 600 ? null : "Enter 10 to 600 seconds.";
+    case ASSISTANT_KEYS.priceIn:
+    case ASSISTANT_KEYS.priceOut:
+    case ASSISTANT_KEYS.monthlyBudget:
+      return typeof value === "number" && value >= 0 && value <= 1_000_000 ? null : "Enter a number from 0.";
+    case ASSISTANT_KEYS.userRatePerMin:
+    case ASSISTANT_KEYS.userDaily:
+    case ASSISTANT_KEYS.retentionDays:
+      return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 10_000 ? null : "Enter a whole number from 0.";
+    case ASSISTANT_KEYS.maxConcurrent:
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 20 ? null : "Enter 1 to 20.";
     case ALERT_KEYS.escalationGroup:
     case REPORT_KEYS.group:
       return typeof value === "string" && value.length <= 100 ? null : "Enter a group name.";

@@ -33,3 +33,4 @@ export * from "./sessions";
 export * from "./racks";
 export * from "./alerts";
 export * from "./renewals";
+export * from "./assistant";

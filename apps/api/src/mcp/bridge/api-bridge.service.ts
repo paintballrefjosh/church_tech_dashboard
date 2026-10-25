@@ -9,7 +9,12 @@ import { downloadContent, filenameFromDisposition, multipartFile, uploadBytes, t
 /** The parts of the incoming MCP request the route call must carry on. */
 export interface BridgeCaller {
   /** The `Authorization: Bearer` header, verbatim. The route re-judges the token itself. */
-  authorization: string;
+  authorization?: string;
+  /**
+   * Or the browser's session cookie (`name=value`), for the assistant, which acts as the signed-in person. The route's
+   * SessionGuard judges it exactly as for the web app (session version, revoked sessions, account gates).
+   */
+  sessionCookie?: string;
   /** The client address, so the per-IP rate limit and the audit row see the real one. */
   ip: string | null;
   /** The read-your-writes cookie of a cluster, if the client sent one. */
@@ -111,12 +116,13 @@ export class ApiBridge {
   /** One in-process request to a route, carrying the caller's token, address and read-your-writes cookie. */
   private send(tool: BridgeTool, url: string, payload: string | Buffer | undefined, contentType: string, caller: BridgeCaller) {
     const headers: Record<string, string> = {
-      authorization: caller.authorization,
       accept: tool.binary === "download" ? "*/*" : "application/json",
-      "user-agent": "church-dashboard-mcp",
+      "user-agent": caller.sessionCookie ? "church-dashboard-assistant" : "church-dashboard-mcp",
     };
+    if (caller.authorization) headers.authorization = caller.authorization;
     if (payload !== undefined) headers["content-type"] = contentType;
-    if (caller.readYourWrites) headers.cookie = `church_rv=${caller.readYourWrites}`;
+    const cookies = [caller.sessionCookie, caller.readYourWrites ? `church_rv=${caller.readYourWrites}` : null].filter(Boolean);
+    if (cookies.length) headers.cookie = cookies.join("; ");
     return this.app.inject({
       method: tool.method,
       url,

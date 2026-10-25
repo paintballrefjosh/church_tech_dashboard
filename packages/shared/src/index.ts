@@ -49,3 +49,4 @@ export * from "./request-origin";
 export * from "./alert-channels";
 export * from "./monitor-schedule";
 export * from "./monthly-report";
+export * from "./assistant";

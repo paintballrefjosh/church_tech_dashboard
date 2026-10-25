@@ -17,6 +17,7 @@ import {
   FlaskConical,
   DatabaseBackup,
   Inbox,
+  Bot,
   Settings as SettingsIcon,
 } from "lucide-react";
 
@@ -125,6 +126,14 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Helpdesk email",
     description: "A mailbox that turns email into tickets and ticket replies.",
     Icon: Inbox,
+    section: "core",
+    permission: "site:read",
+  },
+  {
+    slug: "assistant",
+    label: "Assistant",
+    description: "An in-app chat over the wiki, tickets and live systems, answered by a model you choose. Off until set up.",
+    Icon: Bot,
     section: "core",
     permission: "site:read",
   },

@@ -1,7 +1,8 @@
 import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
-import { ALERT_KEYS, REPORT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
+import { ALERT_KEYS, ASSISTANT_KEYS, REPORT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
+import { gatherAssistantReadiness } from "../assistant/readiness";
 import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
 import { groups, settings } from "../db/schema";
 import { encryptSecret, decryptSecret, isEncrypted } from "./crypto";
@@ -114,6 +115,13 @@ export class SettingsService implements OnModuleInit {
     const invalid = validateSettingValue(key, value);
     if (invalid) throw new BadRequestException(invalid);
     await this.assertReferences(key, value);
+    // The assistant sends the site's data to an outside model: it can only be switched on once its checklist is all green.
+    if (key === ASSISTANT_KEYS.enabled && value === true) {
+      const r = await gatherAssistantReadiness(this.db, (k) => this.get(k));
+      if (!r.ready) {
+        throw new BadRequestException(`The assistant cannot be switched on yet: ${r.items.filter((i) => !i.ok).map((i) => i.label.toLowerCase()).join("; ")}.`);
+      }
+    }
     // Secret-typed keys are encrypted at rest with an AUTH_SECRET-derived key.
     // Non-secrets are stored as-is. The cache holds plaintext on both sides
     // so downstream consumers don't see the cipher.
