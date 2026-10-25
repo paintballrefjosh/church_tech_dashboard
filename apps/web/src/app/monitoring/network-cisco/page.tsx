@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pencil, Trash2, RefreshCw, Plus } from "lucide-react";
 import type { CiscoSwitch } from "@church/shared";
 import {
@@ -15,6 +15,7 @@ import {
   type SwStatus,
 } from "./cisco-ui";
 import { EMPTY_SWITCH_FORM, SwitchFormModal, formFromSwitch, type SwitchFormState } from "./switch-form";
+import { usePoll } from "@/lib/use-poll";
 
 export default function CiscoDashboardPage() {
   const canWrite = useCanWrite();
@@ -34,11 +35,7 @@ export default function CiscoDashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 15_000);
-    return () => clearInterval(t);
-  }, [load]);
+  usePoll(load, 15_000);
 
   async function doDelete() {
     if (!confirmDel) return;

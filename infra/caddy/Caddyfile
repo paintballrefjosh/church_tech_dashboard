@@ -91,7 +91,7 @@
 	# directly via api:3001 on the docker bridge — they have no business being
 	# reachable from the public proxy. Defence-in-depth alongside the
 	# X-Internal-Token check on the controller side.
-	@internal_only path /api/v1/auth/providers/internal* /api/v1/users/ensure-default-group* /api/v1/users/oauth-provision*
+	@internal_only path /api/v1/auth/providers/internal* /api/v1/auth/verify-credentials* /api/v1/users/ensure-default-group* /api/v1/users/oauth-provision*
 	handle @internal_only {
 		respond "Not found" 404
 	}

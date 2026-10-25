@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { and, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { acquireLease, restoreInProgress } from "@church/shared/db";
@@ -33,6 +33,8 @@ import { probeHttp, probeTcp, probeIcmp, probeDns, probeTls, type ProbeResult } 
 const POLL_MS = parseInt(process.env.MONITOR_POLL_MS ?? "5000", 10);
 const PRUNE_KEEP_DAYS = parseInt(process.env.MONITOR_PRUNE_DAYS ?? "30", 10);
 const PRUNE_EVERY_MS = parseInt(process.env.MONITOR_PRUNE_MS ?? `${60 * 60_000}`, 10);
+const PRUNE_BATCH = 5000;
+const PRUNE_MAX_BATCHES = 200;
 
 // How long a worker holds a monitor it has taken. Longer than any probe (their own
 // timeouts are well under this), so a monitor is never probed twice at once; if a
@@ -342,8 +344,21 @@ async function prune() {
     const ttlSec = Math.max(60, Math.floor((PRUNE_EVERY_MS / 1000) * 0.9));
     if (!(await acquireLease(pool, "job:monitor-prune", WORKER_ID, ttlSec))) return;
     const cutoff = new Date(Date.now() - PRUNE_KEEP_DAYS * 86_400_000);
-    const r = await db.delete(monitorChecks).where(lt(monitorChecks.ts, cutoff));
-    console.log(`[monitor] pruned checks older than ${PRUNE_KEEP_DAYS}d (${(r as { rowCount?: number }).rowCount ?? "?"} rows)`);
+    // In batches, by primary key through a LIMITed subquery (portable; `DELETE ... LIMIT` is CockroachDB-only): one
+    // unbounded DELETE after a long outage, or after the retention was lowered, held a huge transaction against the
+    // probes' own inserts. A pass stops at PRUNE_MAX_BATCHES; the next hour carries on.
+    let total = 0;
+    for (let i = 0; i < PRUNE_MAX_BATCHES; i++) {
+      const r = await db.execute(sql`
+        DELETE FROM ${monitorChecks}
+        WHERE ${monitorChecks.id} IN (
+          SELECT ${monitorChecks.id} FROM ${monitorChecks} WHERE ${monitorChecks.ts} < ${cutoff} LIMIT ${PRUNE_BATCH}
+        )`);
+      const n = (r as { rowCount?: number | null }).rowCount ?? 0;
+      total += n;
+      if (n < PRUNE_BATCH) break;
+    }
+    if (total > 0) console.log(`[monitor] pruned ${total} checks older than ${PRUNE_KEEP_DAYS}d`);
   } catch (err) {
     console.error("[monitor] prune failed", (err as Error).message);
   }

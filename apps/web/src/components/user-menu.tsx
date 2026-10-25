@@ -42,7 +42,10 @@ export function UserMenu({ email }: { email: string }) {
 
   useEffect(() => {
     void refreshCount();
-    const t = setInterval(() => void refreshCount(), 30_000);
+    // The socket carries new notifications; the poll is the fallback, and a hidden tab skips it (it is on every page).
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void refreshCount();
+    }, 30_000);
 
     let socket: Socket | null = null;
     try {

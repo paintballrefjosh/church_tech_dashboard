@@ -20,7 +20,7 @@ interface Revision {
 }
 
 interface PagePayload {
-  page: { id: string; title: string; body: string };
+  page: { id: string; title: string; body: string; updatedAt: string };
   canEdit: boolean;
 }
 
@@ -58,6 +58,7 @@ export default async function WikiRevisionsPage({ params }: { params: Promise<{ 
             pageId={id}
             currentBody={page.page.body}
             currentTitle={page.page.title}
+            currentUpdatedAt={page.page.updatedAt}
             canEdit={page.canEdit}
             revisions={revisions}
           />

@@ -25,6 +25,7 @@ import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decora
 import { NotesService } from "./notes.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService } from "../attachments/attachments.service";
+import { contentDisposition } from "../attachments/content-disposition";
 
 @Controller("notes")
 export class NotesController {
@@ -141,10 +142,7 @@ export class NotesController {
     void reply
       .header("content-type", row.contentType)
       .header("x-content-type-options", "nosniff")
-      .header(
-        "content-disposition",
-        `${disp}; filename="${encodeURIComponent(row.filename)}"`,
-      )
+      .header("content-disposition", contentDisposition(disp, row.filename))
       .header("cache-control", "private, max-age=3600")
       .send(stream);
   }

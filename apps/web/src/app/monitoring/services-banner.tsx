@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Database,
   HardDrive,
@@ -14,6 +14,7 @@ import {
   CircleHelp,
 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
+import { usePoll } from "@/lib/use-poll";
 
 type Status = "ok" | "degraded" | "down" | "unknown";
 
@@ -60,14 +61,10 @@ export function ServicesBanner() {
     }
   }
 
-  useEffect(() => {
-    void refresh();
-    // 10s ticks the platform banner roughly in step with the monitor list (5s)
-    // without doubling DB / MinIO / Meili probe load — service health changes
-    // on minute-or-longer timescales in practice.
-    const t = setInterval(() => void refresh(), 10_000);
-    return () => clearInterval(t);
-  }, []);
+  // 10s ticks the platform banner roughly in step with the monitor list (5s)
+  // without doubling DB / MinIO / Meili probe load — service health changes
+  // on minute-or-longer timescales in practice.
+  usePoll(refresh, 10_000);
 
   // Implicit services — we got here, so request-path components are up.
   const implicit: ServiceReport[] = [

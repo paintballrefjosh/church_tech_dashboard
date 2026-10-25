@@ -1,6 +1,7 @@
 import { Injectable, type CanActivate, type ExecutionContext, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { decode } from "@auth/core/jwt";
+import { crossOriginWriteRefused, parseOriginList } from "@church/shared";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
 import { OPERATIONAL_ONLY_KEY } from "./operational-only.decorator";
@@ -178,6 +179,15 @@ export class SessionGuard implements CanActivate {
 
     // 2. Auth.js JWT session cookie (decrypted using the shared AUTH_SECRET).
     const cookies: Record<string, string> = req.cookies ?? {};
+    // A browser attaches the cookie wherever the request came from (SameSite=Lax still lets another origin of the same
+    // site post a form), so a cookie write must come from this site's own pages. Bearer requests above carry their
+    // credential deliberately and are not judged on it.
+    if (
+      SESSION_COOKIE_CANDIDATES.some((n) => cookies[n]) &&
+      crossOriginWriteRefused(String(req.method ?? "GET"), (h) => req.headers?.[h], parseOriginList(process.env.APP_URL))
+    ) {
+      throw new ForbiddenException("This change did not come from this site's own pages");
+    }
     const secret = process.env.AUTH_SECRET;
     if (secret) {
       for (const name of SESSION_COOKIE_CANDIDATES) {

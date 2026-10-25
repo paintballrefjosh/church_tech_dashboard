@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Plus, RefreshCw, Trash2, Plug } from "lucide-react";
 import type { Ups, UpsSummary } from "@church/shared";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime } from "../network-cisco/cisco-ui";
+import { usePoll } from "@/lib/use-poll";
 
 const UNKNOWN_CFG = { label: "Unknown", cls: "text-slate-500 dark:text-slate-400", dot: "bg-slate-400" };
 const STATUS_CFG: Record<string, { label: string; cls: string; dot: string }> = {
@@ -54,11 +55,7 @@ export default function UpsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 15_000);
-    return () => clearInterval(t);
-  }, [load]);
+  usePoll(load, 15_000);
 
   const refreshBadges = () => window.dispatchEvent(new Event(MONITORING_HEALTH_REFRESH));
 

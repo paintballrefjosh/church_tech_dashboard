@@ -25,6 +25,25 @@ export class WikiWritesService {
     return page;
   }
 
+  /** Put a page back to an old revision, with the same side effects as an edit (realtime, page-change notices). */
+  async revertPage(user: AuthenticatedUser, id: string, revisionId: string, opts: { expectedUpdatedAt?: Date } = {}) {
+    const page = await this.wiki.revertToRevision(user, id, revisionId, opts);
+    this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
+    const recipients = await this.wiki.recipientsForPageChange(id);
+    void this.notifications.createMany(
+      recipients.map((rid) => ({
+        recipientUserId: rid,
+        kind: "wiki.updated",
+        title: `Wiki page restored to an earlier version: ${page.title}`,
+        body: "",
+        link: `/wiki/${page.id}`,
+        excludeActorId: user.id,
+        email: false,
+      })),
+    );
+    return page;
+  }
+
   async updatePage(
     user: AuthenticatedUser,
     id: string,

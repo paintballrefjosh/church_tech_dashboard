@@ -24,6 +24,7 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { SwitchModelsService, MAX_SWITCH_IMAGE_BYTES } from "./switch-models.service";
+import { contentDisposition } from "../attachments/content-disposition";
 
 /**
  * Switch models for the switch view. Anyone who can see monitoring reads them (the pictures are drawn on the switch
@@ -81,7 +82,7 @@ export class SwitchModelsController {
     void reply
       .header("content-type", img.contentType)
       .header("x-content-type-options", "nosniff")
-      .header("content-disposition", `inline; filename="${encodeURIComponent(img.filename)}"`)
+      .header("content-disposition", contentDisposition("inline", img.filename))
       .header("cache-control", "private, max-age=86400")
       .send(img.stream);
   }

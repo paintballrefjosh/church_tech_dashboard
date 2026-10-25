@@ -68,8 +68,8 @@ export const monitors = pgTable(
 
 /**
  * Append-only per-check log. Kept lean (id, monitor, ts, ok, latency, info)
- * so we can show a sparkline without dragging blobs around. A periodic
- * pruning job can trim rows older than N days — out of scope for v1.
+ * so we can show a sparkline without dragging blobs around. The probe worker
+ * prunes rows older than MONITOR_PRUNE_DAYS in batches, through the `ts` index.
  */
 export const monitorChecks = pgTable(
   "monitor_checks",
@@ -87,6 +87,7 @@ export const monitorChecks = pgTable(
   },
   (t) => ({
     monitorTsIdx: index("monitor_checks_monitor_ts_idx").on(t.monitorId, t.ts),
+    tsIdx: index("monitor_checks_ts_idx").on(t.ts),
   }),
 );
 

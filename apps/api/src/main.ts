@@ -59,12 +59,41 @@ async function bootstrap() {
     },
   });
 
+  // Must be added BEFORE the plugin is registered: @fastify/rate-limit reads `config.rateLimit` in its own onRoute
+  // hook, and hooks run in the order they were added. Added after it (as until 2026-10-25), the plugin had already
+  // passed each route by and these routes only ever had the general per-IP limit.
+  // Stricter bucket for the auth endpoints — sign-in, TOTP verify, password
+  // change, and the public password-reset endpoints (mail-bombing, token flooding). 10/minute/IP is enough for a clumsy user, way too few for online
+  // password / 6-digit brute force (sign-in itself: 60, see below).
+  app.getHttpAdapter().getInstance().addHook("onRoute", (route: { path?: string; config?: Record<string, unknown> }) => {
+    const path = route.path ?? "";
+    if (!route.config) route.config = {};
+    if (
+      path.includes("/auth/verify-credentials") ||
+      path.includes("/auth/totp/") ||
+      path.includes("/auth/tokens/request-reset") ||
+      path.includes("/auth/tokens/consume") ||
+      path.includes("/me/change-password")
+    ) {
+      (route.config as { rateLimit?: { max: number; timeWindow: string; shared: boolean; skipOnError: boolean } }).rateLimit = {
+        // Sign-in is judged mostly on FAILURES (per account and per address, in AuthController); this only caps a
+        // burst, and is wider because a whole church can sign in from one address.
+        max: path.includes("/auth/verify-credentials") ? 60 : 10,
+        timeWindow: "1 minute",
+        shared: true,
+        // These counters are the brute-force defence: if the database cannot
+        // count a hit, refuse the request rather than let it through uncounted.
+        skipOnError: false,
+      };
+    }
+  });
+
   // Global rate limit per IP, from the `auth.rate_limit_per_minute` setting
   // (default 1200), read through SettingsService's cache so admins can change
   // it at /admin/settings without a restart. One page load fans out into ~15
   // API calls plus tab/tile polling, so the old fixed 300 tripped for a
   // fast-clicking user (and the e2e suite). This cap only stops runaway
-  // loops; the /auth/* burst limit below is what deters credential / TOTP
+  // loops; the /auth/* burst limit above is what deters credential / TOTP
   // brute-force.
   const settings = app.get(SettingsService);
   await app.register(fastifyRateLimit as never, {
@@ -80,33 +109,10 @@ async function bootstrap() {
     },
     timeWindow: "1 minute",
     // The general limit counts per node in memory; routes that set `shared` (the
-    // auth ones below) count in the database so the limit holds across nodes.
+    // auth ones above) count in the database so the limit holds across nodes.
     store: app.get(RateLimitService).storeClass(),
     // Allow per-route overrides via @nestjs route config.
     skipOnError: true,
-  });
-  // Stricter bucket for the auth endpoints — sign-in, TOTP verify, password
-  // change, and the public password-reset endpoints (mail-bombing, token flooding). 10/minute/IP is enough for a clumsy user, way too few for online
-  // password / 6-digit brute force.
-  app.getHttpAdapter().getInstance().addHook("onRoute", (route: { path?: string; config?: Record<string, unknown> }) => {
-    const path = route.path ?? "";
-    if (!route.config) route.config = {};
-    if (
-      path.includes("/auth/verify-credentials") ||
-      path.includes("/auth/totp/") ||
-      path.includes("/auth/tokens/request-reset") ||
-      path.includes("/auth/tokens/consume") ||
-      path.includes("/me/change-password")
-    ) {
-      (route.config as { rateLimit?: { max: number; timeWindow: string; shared: boolean; skipOnError: boolean } }).rateLimit = {
-        max: 10,
-        timeWindow: "1 minute",
-        shared: true,
-        // These counters are the brute-force defence: if the database cannot
-        // count a hit, refuse the request rather than let it through uncounted.
-        skipOnError: false,
-      };
-    }
   });
 
   // Socket.IO's default in-process adapter: events for browsers on other nodes

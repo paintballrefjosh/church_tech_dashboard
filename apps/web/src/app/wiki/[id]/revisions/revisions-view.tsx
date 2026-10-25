@@ -35,12 +35,15 @@ export function RevisionsView({
   pageId,
   currentBody,
   currentTitle,
+  currentUpdatedAt,
   canEdit,
   revisions,
 }: {
   pageId: string;
   currentBody: string;
   currentTitle: string;
+  /** The page's updatedAt when this view was loaded: a restore is refused if someone has edited since. */
+  currentUpdatedAt?: string;
   canEdit: boolean;
   revisions: Revision[];
 }) {
@@ -98,7 +101,13 @@ export function RevisionsView({
       const r = await fetch(`/api/v1/wiki/${pageId}/revisions/${rev.id}/revert`, {
         method: "POST",
         credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(currentUpdatedAt ? { expectedUpdatedAt: currentUpdatedAt } : {}),
       });
+      if (r.status === 409) {
+        setError("Someone has edited this page since you opened its history. Reload to see the latest version, then restore again.");
+        return;
+      }
       if (!r.ok) {
         setError(`Restore failed (${r.status})`);
         return;

@@ -43,6 +43,30 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+/**
+ * Sign in through the web's Credentials provider (the only way to reach the API's password check). Returns whether a
+ * session cookie was set and the error code Auth.js put in the redirect: "credentials" for a plain refusal, or the
+ * provider's own code (account_deleted, too_many_attempts).
+ */
+async function webSignIn(email, password, jar = new Map()) {
+  const csrf = await fetchWithCookies("/api/auth/csrf", {}, jar);
+  const { csrfToken } = await csrf.res.json();
+  const form = new URLSearchParams({ csrfToken, email, password, callbackUrl: BASE + "/" });
+  const { res } = await fetchWithCookies(
+    "/api/auth/callback/credentials",
+    { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: form.toString() },
+    jar,
+  );
+  const session = [...jar.keys()].some((k) => k.includes("session-token"));
+  const location = res.headers.get("location") ?? "";
+  let code = null;
+  if (!session && location) {
+    const u = new URL(location, BASE);
+    code = u.searchParams.get("code") ?? (u.searchParams.get("error") ? "credentials" : null);
+  }
+  return { session, code, status: res.status, jar };
+}
+
 async function fetchWithCookies(path, init = {}, jar = new Map()) {
   const url = path.startsWith("http") ? path : `${BASE}${path}`;
   const cookieHeader = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -94,11 +118,9 @@ async function main() {
     assert(body.checks?.db === "ok", `db check: ${JSON.stringify(body)}`);
   });
 
-  await test("GET /api/v1/metrics returns prometheus output", async () => {
+  await test("GET /api/v1/metrics is not public", async () => {
     const { res } = await fetchWithCookies("/api/v1/metrics");
-    assert(res.status === 200, `status ${res.status}`);
-    const text = await res.text();
-    assert(text.includes("process_cpu_user_seconds_total"), "expected default metric not found");
+    assert(res.status === 401, `expected 401 without a session, got ${res.status}`);
   });
 
   await test("GET /api/health (web) returns ok", async () => {
@@ -168,33 +190,21 @@ async function main() {
     assert(res.status === 401, `status ${res.status}`);
   });
 
-  // ---- direct API verify-credentials: username + email forms ----
-  await test("verify-credentials accepts the test user's email", async () => {
+  // ---- password check: internal only, reached through the web's sign-in ----
+  await test("verify-credentials is not reachable through the proxy", async () => {
     const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: TEST_USER_EMAIL, password: TEST_USER_PASSWORD }),
     });
-    assert(res.status === 200 || res.status === 201, `status ${res.status}`);
-    const body = await res.json();
-    assert(body.ok === true, `expected ok=true`);
-    assert(body.user.email === TEST_USER_EMAIL, `expected ${TEST_USER_EMAIL}, got ${body.user.email}`);
-    assert(
-      body.user.mustChangePassword === true,
-      `regression-test user should have mustChangePassword=true after reset-test-user`,
-    );
+    assert(res.status === 404, `expected 404 at the proxy, got ${res.status}`);
   });
 
-  await test("verify-credentials normalises 'admin' username form (using bootstrap admin)", async () => {
-    // We can't test the bootstrap admin's password here without knowing what
-    // the operator set it to. Just confirm the input shape is accepted: an
-    // unknown-password should 401, never 400.
-    const { res } = await fetchWithCookies("/api/v1/auth/verify-credentials", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "admin", password: "this-is-definitely-not-the-real-password" }),
-    });
-    assert(res.status === 401, `expected 401 (bad password), got ${res.status}`);
+  await test("signing in as 'admin' with a wrong password gives no session", async () => {
+    // The bootstrap admin's password is the operator's: only prove a wrong one is refused.
+    const r = await webSignIn("admin", "this-is-definitely-not-the-real-password");
+    assert(!r.session, "a wrong password must not sign in");
+    assert(r.code === "credentials", `expected a plain credentials error, got ${r.code}`);
   });
 
   // ---- authenticated browser-like flow ----
@@ -378,6 +388,13 @@ async function main() {
   await test("sessions endpoints are not reachable with an API token alone", async () => {
     const { res } = await fetchWithCookies("/api/v1/me/sessions", { headers: { authorization: "Bearer cdt_not-a-real-token" } });
     assert(res.status === 401, `status ${res.status}`);
+  });
+
+  await test("GET /api/v1/metrics returns prometheus output to an admin", async () => {
+    const { res } = await fetchWithCookies("/api/v1/metrics", {}, jar);
+    assert(res.status === 200, `status ${res.status}`);
+    const text = await res.text();
+    assert(text.includes("process_cpu_user_seconds_total"), "expected default metric not found");
   });
 
   await test("GET /api/v1/admin/security-posture returns ordered checks", async () => {
@@ -581,26 +598,16 @@ async function main() {
       `conflict message should mention deleted account: ${JSON.stringify(conflict)}`,
     );
 
-    // Deleted user cannot sign in via credentials (specific coded error).
-    const login = await fetchWithCookies("/api/v1/auth/verify-credentials", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password: "smoke-password-1234" }),
-    });
-    assert(login.res.status === 401, `deleted user login should 401, got ${login.res.status}`);
-    const loginBody = await login.res.json();
-    assert(loginBody.code === "account_deleted", `expected account_deleted code, got ${JSON.stringify(loginBody)}`);
+    // Deleted user cannot sign in (specific coded error, carried by the web's sign-in redirect).
+    const login = await webSignIn(email, "smoke-password-1234");
+    assert(!login.session, "a deleted user must not sign in");
+    assert(login.code === "account_deleted", `expected account_deleted code, got ${login.code}`);
 
     // Without the password the answer is the same as for any wrong login: whether an account is deleted is not
     // something to tell a stranger.
-    const stranger = await fetchWithCookies("/api/v1/auth/verify-credentials", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password: "not-the-password-0000" }),
-    });
-    assert(stranger.res.status === 401, `wrong password for a deleted user should 401, got ${stranger.res.status}`);
-    const strangerBody = await stranger.res.json();
-    assert(strangerBody.code === undefined && /invalid credentials/i.test(strangerBody.message ?? ""), `should look like any bad login: ${JSON.stringify(strangerBody)}`);
+    const stranger = await webSignIn(email, "not-the-password-0000");
+    assert(!stranger.session, "a wrong password must not sign in");
+    assert(stranger.code === "credentials", `should look like any bad login: ${stranger.code}`);
 
     // Restore re-enables the account.
     const restore = await fetchWithCookies(`/api/v1/users/${user.id}/restore`, { method: "POST" }, jar);
@@ -2239,6 +2246,23 @@ async function main() {
   // ---- cluster page (tests/smoke/cluster.mjs) ----
   const { clusterTests } = await import("./cluster.mjs");
   await clusterTests({ test, assert, fetchWithCookies, jar });
+
+  // ---- the strict auth limits really apply (last: it spends this address's bucket for a minute) ----
+  await test("the password-reset link check refuses an 11th try within a minute (strict auth limit)", async () => {
+    // Until 2026-10-25 the 10/minute rule for sign-in, 2FA, password change and reset was set after the rate-limit plugin
+    // had already read each route, so only the general limit applied. Bogus tokens: nothing is consumed.
+    const url = `${BASE}/api/v1/auth/tokens/consume`;
+    const statuses = [];
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: `not-a-real-token-${i}`, password: "irrelevant-password-123" }),
+      });
+      statuses.push(r.status);
+    }
+    assert(statuses.includes(429), `expected a 429 within 12 tries, got ${statuses.join(",")}`);
+  });
 
   // ---- summary ----
   log("");

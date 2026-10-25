@@ -30,7 +30,15 @@ export const WIKI_TOOLS = [
     path: "/wiki/:id/revisions/:revId/revert",
     permissions: [PERMISSIONS.WIKI_READ_OWN],
     destructive: true,
-    input: z.object({ id, revId: id }),
+    input: z.object({
+      id,
+      revId: id,
+      expectedUpdatedAt: z
+        .string()
+        .datetime()
+        .optional()
+        .describe("The page's updatedAt from when you read it: the revert is refused (409) if it has been edited since."),
+    }),
   }),
   defineTool({
     name: "wiki_set_page_access",

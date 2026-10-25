@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { crossOriginWriteRefused, parseOriginList } from "@church/shared";
 
 const SESSION_COOKIE_CANDIDATES = [
   "authjs.session-token",
@@ -58,6 +59,12 @@ export function middleware(req: NextRequest) {
     res.headers.set("content-security-policy", csp);
     return res;
   };
+  // A change must come from this site's own pages. The route handlers forward to the API server-side, where the
+  // browser's Origin no longer reaches the API's own check, so it is judged here (Auth.js guards its routes with its
+  // own CSRF token; Next checks Server Actions' origin as well).
+  if (!pathname.startsWith("/api/auth/") && crossOriginWriteRefused(req.method, (h) => req.headers.get(h), parseOriginList(process.env.APP_URL))) {
+    return new NextResponse("This change did not come from this site's own pages", { status: 403 });
+  }
   if (PUBLIC_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return proceed();
   }

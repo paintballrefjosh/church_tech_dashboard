@@ -22,6 +22,7 @@ import {
   type DnsZone,
 } from "@church/shared";
 import { useCanWrite, inputCls, cardCls, fmtTime, StatusLine, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
+import { usePoll } from "@/lib/use-poll";
 
 type View = "overview" | "records" | "sync";
 
@@ -75,11 +76,7 @@ function DnsPageInner() {
     if (r.ok) setSummary(r.data);
   }, []);
 
-  useEffect(() => {
-    void loadSummary();
-    const t = setInterval(() => void loadSummary(), 30_000);
-    return () => clearInterval(t);
-  }, [loadSummary]);
+  usePoll(loadSummary, 30_000);
 
   if (!summary) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
@@ -202,11 +199,7 @@ function Overview({ summary, canWrite }: { summary: DnsSummary; canWrite: boolea
     }
   }, [range]);
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 60_000);
-    return () => clearInterval(t);
-  }, [load]);
+  usePoll(load, 60_000);
 
   const t = stats?.totals;
   const tiles = t

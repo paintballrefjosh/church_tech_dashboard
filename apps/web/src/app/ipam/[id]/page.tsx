@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, RefreshCw, Pencil, Check, X } from "lucide-react";
 import type { IpamSubnet, IpamHost, DnsSyncStatus, DnsSyncHostState } from "@church/shared";
 import { useCanWrite, cardCls, fmtTime, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
+import { usePoll } from "@/lib/use-poll";
 
 const DNS_STATE: Record<DnsSyncHostState, { label: string; dot: string }> = {
   ok: { label: "Published", dot: "bg-emerald-500" },
@@ -81,11 +82,7 @@ export default function IpamSubnetPage() {
     await load();
   };
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 10_000);
-    return () => clearInterval(t);
-  }, [load]);
+  usePoll(load, 10_000);
 
   const scanNow = async () => {
     setScanning(true);

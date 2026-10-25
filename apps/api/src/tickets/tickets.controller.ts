@@ -26,6 +26,7 @@ import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decora
 import { TicketsService } from "./tickets.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService, type StoredAttachment } from "../attachments/attachments.service";
+import { contentDisposition } from "../attachments/content-disposition";
 import { NotificationsService } from "../notifications/notifications.service";
 import { TicketEvents } from "./ticket-events";
 
@@ -81,7 +82,8 @@ export class TicketsController {
     const prior = await this.tickets.getById(user, id);
     const ticket = await this.tickets.update(user, id, parsed.data);
 
-    // Realtime fan-out (unchanged from before).
+    // Realtime fan-out: open pages of this ticket refetch, and the people it belongs to hear of it.
+    this.events.changed(ticket.id);
     this.realtime.toUser(ticket.createdByUserId, "ticket:updated", ticket);
     if (ticket.assignedUserId && ticket.assignedUserId !== ticket.createdByUserId) {
       this.realtime.toUser(ticket.assignedUserId, "ticket:updated", ticket);
@@ -129,6 +131,7 @@ export class TicketsController {
   async remove(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     const ticket = await this.tickets.delete(user, id);
     this.realtime.toUser(ticket.createdByUserId, "ticket:deleted", { id });
+    this.events.changed(id);
     return ticket;
   }
 
@@ -210,12 +213,14 @@ export class TicketsController {
     resourceType: "ticket",
     resourceIdFromParams: (p) => p.id ?? null,
   })
-  removeComment(
+  async removeComment(
     @CurrentUser() user: AuthenticatedUser,
     @Param("id") id: string,
     @Param("cid") cid: string,
   ) {
-    return this.tickets.deleteComment(user, id, cid);
+    const out = await this.tickets.deleteComment(user, id, cid);
+    this.events.changed(id);
+    return out;
   }
 
   // ---- attachments (Phase 1.5.1) ----
@@ -263,11 +268,11 @@ export class TicketsController {
     // sees staff uploads and vice versa. Failure here is non-fatal — the
     // attachment is already stored and we don't want a retry to duplicate it.
     try {
-      const comment = await this.tickets.addComment(user, id, {
+      await this.tickets.addComment(user, id, {
         body: `Added attachment: ${uploaded.filename}`,
         isInternal: false,
       });
-      this.realtime.toRoom(`ticket:${id}`, "ticket:comment", comment);
+      this.events.changed(id);
     } catch {
       // courtesy comment; swallow
     }
@@ -290,10 +295,7 @@ export class TicketsController {
     void reply
       .header("content-type", row.contentType)
       .header("x-content-type-options", "nosniff")
-      .header(
-        "content-disposition",
-        `${disp}; filename="${encodeURIComponent(row.filename)}"`,
-      )
+      .header("content-disposition", contentDisposition(disp, row.filename))
       .header("cache-control", "private, max-age=3600")
       .send(stream);
   }
@@ -312,6 +314,7 @@ export class TicketsController {
   ) {
     await this.tickets.assertWritable(user, id);
     await this.attachments.delete("ticket", id, aid);
+    this.events.changed(id);
     return { ok: true };
   }
 }

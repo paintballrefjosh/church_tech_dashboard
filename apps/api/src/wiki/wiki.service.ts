@@ -137,6 +137,15 @@ export class WikiService {
     return aclHit.length > 0;
   }
 
+  /**
+   * A mention carries the page's title and opening text, so only someone who could open the page is told: the Wiki
+   * module at all, then the page's own visibility and access list.
+   */
+  private async mayReadForMention(user: AuthenticatedUser, pageId: string): Promise<boolean> {
+    if (!user.permissions.includes(PERMISSIONS.WIKI_READ_OWN)) return false;
+    return this.canReadPage(user, pageId);
+  }
+
   async canWritePage(user: AuthenticatedUser, pageId: string): Promise<boolean> {
     if (this.canWriteAny(user)) return true;
     const [pageRows, aclHit] = await Promise.all([
@@ -194,6 +203,18 @@ export class WikiService {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(wikiPages.updatedAt))
       .limit(query.limit);
+  }
+
+  /** Which of `ids` this person may read: one query on the ids asked about, no page bodies. */
+  async readableIds(user: AuthenticatedUser, ids: readonly string[]): Promise<Set<string>> {
+    const want = [...new Set(ids)].filter(Boolean);
+    if (want.length === 0) return new Set();
+    const acl = this.readablePredicate(user);
+    const rows = await this.db
+      .select({ id: wikiPages.id })
+      .from(wikiPages)
+      .where(acl ? and(inArray(wikiPages.id, want), acl) : inArray(wikiPages.id, want));
+    return new Set(rows.map((r) => r.id));
   }
 
   async getWithAcl(user: AuthenticatedUser, id: string) {
@@ -386,6 +407,7 @@ export class WikiService {
       title: `Mentioned in wiki: ${page.title}`,
       summary: page.body,
       link: `/wiki/${page.id}`,
+      canSee: (u) => this.mayReadForMention(u, page.id),
     });
     return page;
   }
@@ -480,6 +502,7 @@ export class WikiService {
         title: `Mentioned in wiki: ${page.title}`,
         summary: page.body,
         link: `/wiki/${page.id}`,
+        canSee: (u) => this.mayReadForMention(u, page.id),
       });
     }
     return page;
@@ -608,7 +631,12 @@ export class WikiService {
    * page and records a new revision row pointing at the restore action. The
    * old revision row is preserved — restore is additive, never destructive.
    */
-  async revertToRevision(user: AuthenticatedUser, pageId: string, revisionId: string) {
+  async revertToRevision(
+    user: AuthenticatedUser,
+    pageId: string,
+    revisionId: string,
+    opts: { expectedUpdatedAt?: Date } = {},
+  ) {
     const ok = await this.canWritePage(user, pageId);
     if (!ok) throw new ForbiddenException("Cannot edit this page");
     const [rev] = await this.db
@@ -617,23 +645,14 @@ export class WikiService {
       .where(and(eq(wikiRevisions.pageId, pageId), eq(wikiRevisions.id, revisionId)))
       .limit(1);
     if (!rev) throw new NotFoundException("Revision not found");
-
-    const [page] = await this.db
-      .update(wikiPages)
-      .set({ title: rev.title, body: rev.body, updatedAt: new Date() })
-      .where(eq(wikiPages.id, pageId))
-      .returning();
-    if (!page) throw new NotFoundException("Wiki page not found");
-
-    await this.db.insert(wikiRevisions).values({
+    // Through the ordinary edit: the same conflict guard (a revert must not silently throw away an edit made while
+    // the history was open), revision row, search index and @mentions.
+    return this.update(
+      user,
       pageId,
-      title: rev.title,
-      body: rev.body,
-      editorUserId: user.id,
-      summary: `Reverted to revision from ${rev.createdAt.toISOString()}`,
-    });
-    void this.indexPage(page);
-    return page;
+      { title: rev.title, body: rev.body, summary: `Reverted to revision from ${rev.createdAt.toISOString()}` },
+      opts,
+    );
   }
 
   /**

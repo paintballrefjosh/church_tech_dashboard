@@ -3,6 +3,11 @@ import { and, inArray, isNull, or, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { users } from "../db/schema";
 import { NotificationsService } from "../notifications/notifications.service";
+import { AuthService } from "../auth/auth.service";
+import type { AuthenticatedUser } from "../auth/current-user.decorator";
+
+/** At most this many distinct handles are looked up per body: one comment must not be able to email everyone. */
+export const MAX_MENTIONS = 20;
 
 /**
  * @mention parser + notifier. Two recognised syntaxes:
@@ -19,6 +24,7 @@ export class MentionsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly notifications: NotificationsService,
+    private readonly auth: AuthService,
   ) {}
 
   /**
@@ -37,7 +43,7 @@ export class MentionsService {
     for (const m of text.matchAll(/(?:^|\s)@([A-Za-z0-9._-]{1,64})/g)) {
       if (m[1]) out.add(m[1]);
     }
-    return [...out];
+    return [...out].slice(0, MAX_MENTIONS);
   }
 
   /**
@@ -88,6 +94,10 @@ export class MentionsService {
   /**
    * Parse the body, resolve mentions, fan out notifications. excludeUserId
    * is the actor (usually @CurrentUser.id) so authors don't notify themselves.
+   *
+   * `canSee` decides, per mentioned person, whether they may read what the text is in: the notification carries the
+   * text itself (in-app and by email), so a mention in an internal ticket note or on a restricted wiki page must never
+   * reach someone who could not open it. Disabled, deleted and pending accounts are never notified.
    */
   async notify(opts: {
     body: string;
@@ -95,6 +105,7 @@ export class MentionsService {
     title: string;
     summary: string;
     link: string;
+    canSee: (user: AuthenticatedUser) => boolean | Promise<boolean>;
   }): Promise<void> {
     const handles = MentionsService.parse(opts.body);
     if (handles.length === 0) return;
@@ -105,19 +116,35 @@ export class MentionsService {
       this.logger.warn(`mention resolve failed: ${(err as Error).message}`);
       return;
     }
+    const allowed: string[] = [];
+    for (const u of users) {
+      if (u.id === opts.excludeUserId) continue;
+      try {
+        const loaded = await this.auth.loadUserById(u.id);
+        if (!loaded || loaded.approvalStatus === "pending") continue;
+        if (await opts.canSee(loaded)) allowed.push(u.id);
+      } catch (err) {
+        this.logger.warn(`mention access check failed: ${(err as Error).message}`);
+      }
+    }
+    if (allowed.length === 0) return;
     // Fan out in one batch: createMany does a single recipient lookup + one
-    // INSERT instead of N×(lookup+insert). Self-notify is filtered inside it
-    // via excludeActorId, so we don't pre-filter the actor here.
+    // INSERT instead of N×(lookup+insert).
     const body = opts.summary.slice(0, 280);
-    await this.notifications.createMany(
-      users.map((u) => ({
-        recipientUserId: u.id,
-        kind: "mention" as const,
-        title: opts.title,
-        body,
-        link: opts.link,
-        excludeActorId: opts.excludeUserId,
-      })),
-    );
+    try {
+      await this.notifications.createMany(
+        allowed.map((id) => ({
+          recipientUserId: id,
+          kind: "mention" as const,
+          title: opts.title,
+          body,
+          link: opts.link,
+          excludeActorId: opts.excludeUserId,
+        })),
+      );
+    } catch (err) {
+      // Callers fire and forget; a failed notice must not become an unhandled rejection.
+      this.logger.warn(`mention notify failed: ${(err as Error).message}`);
+    }
   }
 }

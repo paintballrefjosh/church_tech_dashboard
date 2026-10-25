@@ -127,7 +127,7 @@ describe.skipIf(!url)("tickets from email against a real database", () => {
         uploads.push(f.filename);
       },
     };
-    tickets = new TicketsService(db as never, none as never, none as never, none as never, none as never);
+    tickets = new TicketsService(db as never, none as never, none as never, none as never);
     const events = {
       created: () => undefined,
       commented: (_a: unknown, t: { number: number; status: string }, c: { body: string }) => void told.push({ kind: c.body, ticket: t.number, status: t.status }),
@@ -387,7 +387,7 @@ describe.skipIf(!url || !imap)("tickets from email through a real IMAP server", 
     await q(`DELETE FROM users WHERE email LIKE 'hdm-%@test.local'`);
     ana = (await q(`INSERT INTO users (email, name) VALUES ('hdm-ana@test.local', 'ana') RETURNING id`)).rows[0].id as string;
     const none = { changed: () => undefined, record: async () => undefined, notify: async () => undefined };
-    const tickets = new TicketsService(db as never, none as never, none as never, none as never, none as never);
+    const tickets = new TicketsService(db as never, none as never, none as never, none as never);
     const stateSvc = {
       get: async (_j: string, k: string) => (state.has(k) ? { value: state.get(k), ageMs: 0 } : null),
       set: async (_j: string, k: string, v: unknown) => void state.set(k, v),

@@ -79,7 +79,10 @@ export function MonitoringTabs() {
       if (!cancelled) setHealth(next);
     }
     void load();
-    const t = setInterval(() => void load(), 20_000);
+    // Not while the tab is hidden: every Monitoring page carries this row.
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, 20_000);
     // Let a tab's own page trigger an immediate badge refresh after a mutation
     // (e.g. acking a UniFi device) instead of waiting for the poll interval.
     const onRefresh = () => void load();

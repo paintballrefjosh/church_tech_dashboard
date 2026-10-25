@@ -107,6 +107,9 @@ export const updateWikiPageSchema = z
   });
 export type UpdateWikiPageInput = z.infer<typeof updateWikiPageSchema>;
 
+/** Body of `POST /wiki/:id/revisions/:revId/revert`: the page's updatedAt as last read, to refuse a stale revert. */
+export const revertWikiPageSchema = z.object({ expectedUpdatedAt: z.string().datetime().optional() }).strict();
+
 /**
  * Metadata for POST /wiki/import, carried as query params rather than
  * multipart fields — @fastify/multipart only reliably populates a file

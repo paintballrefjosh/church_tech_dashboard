@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { RefreshCw, Trash2, Radar, Plus, ScanLine, Pencil } from "lucide-react";
 import type { IpamSubnet, IpamDiscoveredSubnet, IpamSummary } from "@church/shared";
 import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
+import { usePoll } from "@/lib/use-poll";
 
 interface EditForm {
   id: string;
@@ -61,11 +62,7 @@ export default function IpamPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 15_000);
-    return () => clearInterval(t);
-  }, [load]);
+  usePoll(load, 15_000);
 
   const addSubnet = async () => {
     if (!cidr.trim()) return;

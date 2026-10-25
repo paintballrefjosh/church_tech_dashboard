@@ -7,6 +7,7 @@ import { useRealtimeRoom } from "@/lib/use-realtime";
 import { DataTable, type Column } from "@/components/data-table";
 import { clientTraffic } from "@/lib/unifi-traffic";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
+import { usePoll } from "@/lib/use-poll";
 
 interface Health {
   configured: boolean;
@@ -126,11 +127,7 @@ export function NetworkClient() {
     void load(true);
   }, [load]);
 
-  useEffect(() => {
-    if (connected) return;
-    const t = setInterval(() => void load(false), 30_000);
-    return () => clearInterval(t);
-  }, [connected, load]);
+  usePoll(() => load(false), 30_000, { enabled: !connected, immediate: false });
 
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 

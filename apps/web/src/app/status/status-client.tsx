@@ -52,7 +52,9 @@ export function StatusClient({ initial }: { initial: StatusPage | null }) {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => void refresh(), POLL_MS);
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void refresh();
+    }, POLL_MS);
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
     return () => {

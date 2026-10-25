@@ -22,7 +22,6 @@ import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { SearchService } from "../search/search.service";
 import { ActivityService } from "../activity/activity.service";
-import { MentionsService } from "../mentions/mentions.service";
 
 /**
  * Tickets visibility rule applied to every read/write:
@@ -45,7 +44,6 @@ export class TicketsService {
     private readonly attachments: AttachmentsService,
     private readonly search: SearchService,
     private readonly activity: ActivityService,
-    private readonly mentions: MentionsService,
   ) {}
 
   private hasAnyRead(user: AuthenticatedUser): boolean {
@@ -373,21 +371,14 @@ export class TicketsService {
       await this.logEvent(ticketId, user, `${user.name ?? user.email} replied: status changed from ${ticket.status} to ${reopenedTo}`);
       void this.search.changed("ticket", ticketId);
     }
-    // Fire mention notifications. Internal comments only notify staff — the
-    // mention itself is gated by who can see the comment; the resolver here
-    // just looks at the body so we leave it as-is and let the recipient's
-    // RBAC enforce visibility when they click through. Fire-and-forget.
-    void this.mentions.notify({
-      body: input.body,
-      excludeUserId: user.id,
-      title: `Mentioned in ticket comment`,
-      summary: input.body,
-      link: `/tickets/${ticketId}`,
-    });
+    // Mentions are sent by TicketEvents.commented (with the read check), never here: both used to, so every
+    // mention arrived twice.
     return row;
   }
 
   async deleteComment(user: AuthenticatedUser, ticketId: string, commentId: string) {
+    // Someone who can no longer open the ticket cannot change its conversation either (getById throws 404/403).
+    await this.getById(user, ticketId);
     const [c] = await this.db
       .select()
       .from(ticketComments)

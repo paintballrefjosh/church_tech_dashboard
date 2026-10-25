@@ -153,7 +153,8 @@ test.describe("Cisco port editor VLAN pickers", () => {
       route.fulfill({ json: [{ vlanId: 1, name: "default" }, { vlanId: 10, name: "servers" }, { vlanId: 30, name: "printers" }, { vlanId: 40, name: "cameras" }] }),
     );
     await page.goto(`/monitoring/network-cisco/switches/${SW1}`);
-    await page.getByRole("button", { name: "Edit" }).first().click();
+    // exact: the switch's own "Edit switch" button comes first on the page and would match a loose "Edit".
+    await page.getByRole("button", { name: "Edit", exact: true }).first().click();
     const modal = page.locator("div.fixed").filter({ hasText: "Edit Gi1/0/1" });
 
     const access = modal.getByLabel("Access VLAN");

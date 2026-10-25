@@ -249,6 +249,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: 90,
     category: "site",
   },
+  {
+    key: "monitoring.history_retention_days",
+    type: "number",
+    label: "Monitoring history retention (days)",
+    description:
+      "Resolved incidents, resolved switch drift and finished host update runs (with their output) older than this are removed by a background job. 0 keeps them all. Defaults to 365 days.",
+    defaultValue: 365,
+    category: "site",
+  },
   // Ticket SLAs. Targets are in minutes; "response" = time-to-first-engagement
   // (a non-creator comment or an assignment), "resolution" = time-to-status≥resolved.
   // 0 disables the clock for that priority. Default values are a starting

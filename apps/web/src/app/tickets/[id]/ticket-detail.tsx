@@ -18,6 +18,7 @@ import { AttachmentList } from "@/components/attachment-list";
 import { TagPicker } from "@/components/tag-picker";
 import { TicketCategoryPicker } from "@/components/ticket-category-picker";
 import { type TagLike } from "@/components/tag-badge";
+import { useRealtimeRoom } from "@/lib/use-realtime";
 
 interface UserBrief {
   id: string;
@@ -187,6 +188,24 @@ export function TicketDetail({
         }
       }
     });
+  }
+
+  // Someone else replied, changed the status or added a file: the event says only "changed", so the page refetches
+  // through the usual routes (which leave out internal notes for a requester). Also on every (re)connect, for missed events.
+  useRealtimeRoom(
+    `ticket:${ticket.id}`,
+    { "ticket:changed": () => void refreshAll() },
+    () => void refreshAll(),
+  );
+
+  async function refreshAll() {
+    const res = await fetch(`/api/tickets/${ticket.id}`, { credentials: "same-origin", cache: "no-store" });
+    if (res.status === 404 || res.status === 403) {
+      router.refresh();
+      return;
+    }
+    if (res.ok) setTicket((await res.json()) as Ticket);
+    await refreshComments();
   }
 
   async function refreshComments() {

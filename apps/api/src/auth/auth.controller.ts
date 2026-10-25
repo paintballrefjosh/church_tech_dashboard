@@ -55,6 +55,11 @@ const verifyBodySchema = z.object({
 /** Failed attempts allowed per account in the window, before further attempts are refused until it passes. */
 const MAX_FAILED_SIGNINS = 10;
 const FAILED_SIGNIN_WINDOW_MS = 15 * 60_000;
+/**
+ * Failed sign-ins from one address in the same window. Failures, not attempts: a church's volunteers usually share
+ * one public address on the building's Wi-Fi, and twenty people signing in on a Sunday morning is not an attack.
+ */
+export const MAX_FAILED_SIGNINS_PER_IP = 30;
 
 function normaliseIdentifier(input: string): string {
   return input.includes("@") ? input.toLowerCase().trim() : `${input.toLowerCase().trim()}@local`;
@@ -73,9 +78,24 @@ export class AuthController {
     @Inject(DB) private readonly db: Db,
   ) {}
 
+  /**
+   * Internal only: the web's Credentials `authorize()` calls it over the docker network with X-Internal-Token and the
+   * person's address in X-Forwarded-For (the brute-force limits count per address, and without it every sign-in counted
+   * against the web container's). Caddy 404s it on the public proxy. Refused while local sign-in is switched off, so it is
+   * never a password checker for an install that only uses Google or Microsoft.
+   */
   @Public()
   @Post("verify-credentials")
-  async verifyCredentials(@Body() body: unknown) {
+  async verifyCredentials(
+    @Req() req: { headers?: Record<string, string | string[] | undefined>; ip?: string },
+    @Body() body: unknown,
+  ) {
+    assertInternalCaller(req);
+    // The web passes the person's address in X-Forwarded-For (trustProxy), so this is theirs, not the web container's.
+    const ipKey = `ip|${req.ip ?? "unknown"}`;
+    if ((await this.settingsSvc.get("auth.local.enabled")) === false) {
+      throw new UnauthorizedException("Signing in with a password is switched off.");
+    }
     const parsed = verifyBodySchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const { email: rawEmail, password, totp } = parsed.data;
@@ -83,19 +103,25 @@ export class AuthController {
 
     // Per-account brake, on top of the per-IP limit: a password guessed from many addresses still runs into it.
     // Keyed by what was typed, existing account or not, so a lock-out does not tell anyone the account exists.
-    const lock = await this.limiter.failures(email, FAILED_SIGNIN_WINDOW_MS);
-    if (lock.count >= MAX_FAILED_SIGNINS) {
+    const [lock, ipLock] = await Promise.all([
+      this.limiter.failures(email, FAILED_SIGNIN_WINDOW_MS),
+      this.limiter.failures(ipKey, FAILED_SIGNIN_WINDOW_MS),
+    ]);
+    if (lock.count >= MAX_FAILED_SIGNINS || ipLock.count >= MAX_FAILED_SIGNINS_PER_IP) {
       throw new HttpException(
         {
           statusCode: 429,
-          message: `Too many failed sign-in attempts for this account. Try again in ${Math.ceil(lock.retryAfterSec / 60)} minute(s).`,
+          message: `Too many failed sign-in attempts. Try again in ${Math.ceil(Math.max(lock.retryAfterSec, ipLock.retryAfterSec) / 60)} minute(s).`,
           code: "too_many_attempts",
         },
         429,
       );
     }
     const fail = async (message: string): Promise<never> => {
-      await this.limiter.recordFailure(email, FAILED_SIGNIN_WINDOW_MS).catch(() => undefined);
+      await Promise.all([
+        this.limiter.recordFailure(email, FAILED_SIGNIN_WINDOW_MS).catch(() => undefined),
+        this.limiter.recordFailure(ipKey, FAILED_SIGNIN_WINDOW_MS).catch(() => undefined),
+      ]);
       throw new UnauthorizedException(message);
     };
 

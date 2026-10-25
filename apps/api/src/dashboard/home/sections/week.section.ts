@@ -205,8 +205,9 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
   private async wikiEvents(ctx: HomeContext, from: Date, to: Date): Promise<WeekEventInput[]> {
     const rows = await this.shared.get(`wiki|${from.getTime()}|${to.getTime()}`, WEEK_SHARED_MS, () => this.wikiActivityRows(from, to));
     if (rows.length === 0) return [];
-    // Page ACLs: only pages the person can read.
-    const visible = new Set((await this.wiki.list(ctx.user, { limit: 200 })).map((p) => p.id));
+    // Page ACLs: only pages the person can read (asked about these pages only, not the newest 200 with their bodies,
+    // which also left out events on older pages).
+    const visible = await this.wiki.readableIds(ctx.user, rows.map((r) => r.resourceId ?? "").filter(Boolean));
     const seen = new Set<string>();
     const out: WeekEventInput[] = [];
     for (const r of rows) {

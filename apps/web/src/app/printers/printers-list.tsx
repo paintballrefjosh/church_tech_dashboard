@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   Printer as PrinterIcon,
   RefreshCw,
@@ -18,6 +18,7 @@ import {
   type PrinterKind,
 } from "@church/shared";
 import { useModal } from "@/components/modal";
+import { usePoll } from "@/lib/use-poll";
 
 const STATUS_LABEL: Record<PrinterStatus, string> = {
   green: "OK",
@@ -66,10 +67,7 @@ export function PrintersList({
   }
 
   // Auto-refetch every 30s to pick up the API's background poll snapshot.
-  useEffect(() => {
-    const t = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  usePoll(refresh, 30_000, { immediate: false });
 
   async function pollOne(id: string) {
     const r = await fetch(`/api/printers/${id}/poll`, {

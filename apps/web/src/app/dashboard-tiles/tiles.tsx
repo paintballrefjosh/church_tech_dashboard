@@ -341,7 +341,9 @@ export function MonitoringOverviewTile() {
       if (!cancelled) setRows(buildOverviewRows(mon, infra, unifi, cisco, dns));
     }
     void load();
-    const t = setInterval(load, 15_000);
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, 15_000);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -482,7 +484,9 @@ export function PlanningCenterNextServiceTile() {
     void load();
     // Refresh every 5 minutes — PC data rarely changes mid-day, no need to
     // poll harder than that.
-    const t = setInterval(load, 5 * 60_000);
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, 5 * 60_000);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -617,7 +621,9 @@ export function MyChecklistsTile({ limit = 5 }: { limit?: number }) {
     }
     void load();
     // Light poll so a fresh assignment shows up without a reload.
-    const t = setInterval(load, 60_000);
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void load();
+    }, 60_000);
     return () => {
       cancelled = true;
       clearInterval(t);

@@ -79,7 +79,7 @@ describe.skipIf(!url)("helpdesk waiting, SLA notices and canned replies against 
       },
     };
     const none = { changed: () => undefined, record: async () => undefined, notify: async () => undefined };
-    tickets = new TicketsService(db as never, none as never, none as never, none as never, none as never);
+    tickets = new TicketsService(db as never, none as never, none as never, none as never);
     sla = new TicketSla(db as never, { register: () => undefined } as never, settings as never, notifications as never);
     canned = new CannedRepliesService(db as never);
 

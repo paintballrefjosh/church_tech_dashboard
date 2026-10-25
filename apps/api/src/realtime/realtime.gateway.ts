@@ -11,7 +11,11 @@ import {
 import { Logger, Inject, type OnModuleDestroy } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
 import { decode } from "@auth/core/jwt";
+import { originMatchesRequest, parseOriginList } from "@church/shared";
+import { eq } from "drizzle-orm";
 import { AuthService } from "../auth/auth.service";
+import { DB, type Db } from "../db/db.module";
+import { tickets } from "../db/schema";
 import { sessionIdOf, sessionIsCurrent, sessionVersionOf } from "../auth/session-version";
 import { ClusterBus, INTERNAL_ROOM_PREFIX } from "../cluster/cluster-bus.service";
 import type { BusRow } from "../cluster/bus.store";
@@ -28,7 +32,12 @@ const ROOM_PERMISSIONS: ReadonlyArray<{ exact?: string; prefix?: string; permiss
   { exact: "infra", permission: "monitors:read:any" },
   { prefix: "infra:", permission: "monitors:read:any" },
   { exact: "network", permission: "unifi:read:any" },
+  // One ticket's page. Its events carry no content (`ticket:changed`, the page refetches through the permission-checked
+  // routes), and joining also needs the ticket itself to be readable: see `mayJoin`.
+  { prefix: "ticket:", permission: "tickets:read:own" },
 ];
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function requiredPermission(room: string): string | null {
   for (const r of ROOM_PERMISSIONS) {
@@ -83,25 +92,7 @@ function wsAllowedOrigin(
  * or a non-browser client) is let through, as on the HTTP side; the cookie is the credential there.
  */
 export function handshakeOriginAllowed(headers: Record<string, string | string[] | undefined>): boolean {
-  const first = (v: string | string[] | undefined): string => (Array.isArray(v) ? v[0] ?? "" : v ?? "");
-  const origin = first(headers.origin).trim();
-  if (!origin) return true;
-  let originHost: string;
-  try {
-    originHost = new URL(origin).host.toLowerCase();
-  } catch {
-    return false;
-  }
-  // Either name the request was addressed by: the proxy chain may rewrite `Host` but sets X-Forwarded-Host
-  // (the sign-in flow depends on it too).
-  const hosts = [first(headers["x-forwarded-host"]), first(headers.host)]
-    .flatMap((h) => h.split(","))
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean);
-  if (hosts.includes(originHost)) return true;
-  const raw = process.env.APP_URL?.trim();
-  const allowlist = raw ? raw.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean) : [];
-  return allowlist.includes(origin.replace(/\/$/, ""));
+  return originMatchesRequest((h) => headers[h], parseOriginList(process.env.APP_URL));
 }
 
 /** How often each node re-checks its open sockets against the users' current access. */
@@ -122,6 +113,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   server!: Server;
 
   constructor(
+    @Inject(DB) private readonly db: Db,
     @Inject(AuthService) private readonly auth: AuthService,
     private readonly bus: ClusterBus,
   ) {}
@@ -187,11 +179,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
           continue;
         }
         socket.data.permissions = user.permissions;
-        const perms = new Set(user.permissions);
         for (const room of [...socket.rooms]) {
           if (room === socket.id || room.startsWith("user:")) continue;
-          const need = requiredPermission(room);
-          if (!need || !perms.has(need)) await socket.leave(room);
+          if (!(await this.mayJoin(user.id, user.permissions, room))) await socket.leave(room);
         }
       } catch (err) {
         this.logger.debug(`socket revalidation failed: ${(err as Error).message}`);
@@ -229,6 +219,25 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     return null;
   }
 
+  /**
+   * Whether this person may be in `room`: the room's permission, and for a ticket's room that the ticket is theirs or
+   * they read every ticket (the rule of `TicketsService.getById`).
+   */
+  async mayJoin(userId: string, permissions: readonly string[], room: string): Promise<boolean> {
+    const need = requiredPermission(room);
+    if (!need || !permissions.includes(need)) return false;
+    if (!room.startsWith("ticket:")) return true;
+    if (permissions.includes("tickets:read:any")) return true;
+    const id = room.slice("ticket:".length);
+    if (!UUID_RE.test(id)) return false;
+    const [row] = await this.db
+      .select({ createdBy: tickets.createdByUserId })
+      .from(tickets)
+      .where(eq(tickets.id, id))
+      .limit(1);
+    return row?.createdBy === userId;
+  }
+
   async handleConnection(socket: Socket): Promise<void> {
     const userId = socket.data.userId as string | undefined;
     if (!userId) {
@@ -258,12 +267,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     @ConnectedSocket() socket: Socket,
     @MessageBody() body: unknown,
   ): Promise<{ joined: string[] }> {
-    const perms = new Set<string>((socket.data.permissions as string[] | undefined) ?? []);
+    const perms = (socket.data.permissions as string[] | undefined) ?? [];
+    const userId = socket.data.userId as string | undefined;
     const rooms = normaliseRooms(body);
     const joined: string[] = [];
     for (const room of rooms) {
-      const need = requiredPermission(room);
-      if (!need || !perms.has(need)) continue;
+      if (!userId || !(await this.mayJoin(userId, perms, room))) continue;
       await socket.join(room);
       joined.push(room);
     }

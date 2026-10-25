@@ -18,6 +18,7 @@ import {
   MAX_IMPORT_SOURCE_BYTES,
   createWikiPageSchema,
   updateWikiPageSchema,
+  revertWikiPageSchema,
   wikiPageListQuerySchema,
   wikiReviewQuerySchema,
   importWikiQuerySchema,
@@ -29,6 +30,7 @@ import { WikiService } from "./wiki.service";
 import { WikiWritesService } from "./wiki-writes.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AttachmentsService } from "../attachments/attachments.service";
+import { contentDisposition } from "../attachments/content-disposition";
 import { WikiImportService } from "./import/wiki-import.service";
 
 @Controller("wiki")
@@ -115,8 +117,13 @@ export class WikiController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("id") id: string,
     @Param("revId") revId: string,
+    @Body() body: unknown,
   ) {
-    return this.wiki.revertToRevision(user, id, revId);
+    // Optional: the page's updatedAt as the caller saw it; the revert is refused (409) if someone has edited since.
+    const parsed = revertWikiPageSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const expected = parsed.data.expectedUpdatedAt ? new Date(parsed.data.expectedUpdatedAt) : undefined;
+    return this.writes.revertPage(user, id, revId, { expectedUpdatedAt: expected });
   }
 
   @Post()
@@ -253,10 +260,7 @@ export class WikiController {
     void reply
       .header("content-type", row.contentType)
       .header("x-content-type-options", "nosniff")
-      .header(
-        "content-disposition",
-        `${disp}; filename="${encodeURIComponent(row.filename)}"`,
-      )
+      .header("content-disposition", contentDisposition(disp, row.filename))
       .header("cache-control", "private, max-age=3600")
       .send(stream);
   }

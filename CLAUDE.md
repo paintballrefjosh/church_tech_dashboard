@@ -62,7 +62,7 @@ services in compose.
 | DB | CockroachDB v24 or YugabyteDB YSQL (2024.2+) | Postgres wire; SQL must run on both (see ## Database) |
 | ORM | Drizzle ORM + drizzle-kit | Schema-as-code TS; migrations checked into `apps/api/migrations/` |
 | Auth | Auth.js v5 (NextAuth) | Google + Microsoft Entra OAuth + Credentials (argon2id) + TOTP; providers configured in DB `settings`, not env |
-| Realtime | Socket.io 4 (in-process adapter) + `ClusterBus` over the DB between nodes | Rooms per resource (`ticket:{id}`) and per user (`user:{id}`) |
+| Realtime | Socket.io 4 (in-process adapter) + `ClusterBus` over the DB between nodes | Rooms per resource (`monitor:{id}`, `ticket:{id}`; see ## Realtime rooms) and per user (`user:{id}`) |
 | Search | Meilisearch v1 | Single `content` index, kind-discriminated; permission-filtered at query time (see ## Search) |
 | File storage | Garage (S3-compatible), or any external S3 store | Behind API only, never exposed via proxy. Was MinIO until its images were withdrawn from the registries (2026-10-04). |
 | Reverse proxy | Caddy 2 | Only ingress; serves :8100 |
@@ -565,8 +565,23 @@ audit snapshot.
   account with no local password yet. The web profile form signs the person out after it.
 - **Failed sign-ins are counted per account** (`RateLimitService.failures/recordFailure/clearFailures`, same
   `rate_limit_buckets` table, key `acct|<identifier typed>`, existing account or not): 10 failures in 15 minutes
-  refuse further attempts with 429 `too_many_attempts`; a success clears it. `verify-credentials` always spends the
+  refuse further attempts with 429 `too_many_attempts`; a success clears it. **And per address**: 30 failures in 15
+  minutes (`MAX_FAILED_SIGNINS_PER_IP`, key `acct|ip|<address>`, never cleared by a success). Failures, not attempts: a
+  church's volunteers share one public address on the building Wi-Fi. `verify-credentials` always spends the
   time of one argon2 check (`verifyPasswordOrDecoy`) and says "deleted" only after the right password.
+- **`verify-credentials` is internal only** (Caddy `@internal_only` + `assertInternalCaller`), refused while
+  `auth.local.enabled` is off, and the web's Credentials `authorize()` passes the person's address in
+  `X-Forwarded-For` (until 2026-10-25 it sent none, so every sign-in counted against the web container's address).
+- **The strict 10/minute limit** (TOTP, password change, reset request/consume; 60/minute for `verify-credentials`) is set
+  by an `onRoute` hook in `main.ts` that **must be added before `@fastify/rate-limit` is registered**: the plugin reads
+  `config.rateLimit` in its own `onRoute` hook, hooks run in the order added, and with ours second (until 2026-10-25)
+  none of these routes had more than the general limit. The last smoke test proves an 11th try is refused.
+- **Cookie writes must come from this site's pages** (`crossOriginWriteRefused`, `packages/shared/src/request-origin.ts`):
+  `SameSite=Lax` still lets another origin of the same site (a sibling subdomain) post a form, multipart uploads
+  included. `SessionGuard` refuses a non-GET carrying a session cookie whose `Sec-Fetch-Site` is cross-site/same-site or
+  whose `Origin` is not the request's host (or the `APP_URL` list); a request with neither header (scripts, the web's
+  own server-side calls) passes. The web middleware applies the same rule to its route handlers (they proxy server-side,
+  where the browser's headers never reach the API), except `/api/auth/*` (Auth.js has its own CSRF token).
 - **Public reset routes** (`/auth/tokens/request-reset`, `/consume`) share the strict 10/min/IP bucket. A reset email is
   sent at most once per account per 5 minutes; a link is claimed with one conditional UPDATE (single use under
   concurrency), refused for a disabled or deleted account, and spends the account's other outstanding links.
@@ -715,6 +730,21 @@ ticket's is its creator's or a `tickets:read:any` holder's, a wiki page's follow
 `wiki:read:any`), infra/monitor events need `monitors:read:any`, and an event type the filter does not know is
 visible to its actor only. **A new kind of event must be added to `visibleTo`**, or it stays private. Test:
 `apps/api/test/activity-visibility.integration.test.ts` (needs `TEST_DATABASE_URL`; empties the tables it uses).
+
+## Realtime rooms, mentions and polling
+
+- **A browser joins only the rooms `ROOM_PERMISSIONS` lists** (`realtime.gateway.ts`), and `mayJoin` also checks the thing
+  itself: `ticket:<id>` needs the ticket to be the person's or `tickets:read:any`, re-judged every 30 s. A room that holds
+  people with different rights (a ticket's requester and its staff) carries **no content**: `ticket:changed {ticketId}`
+  (`TicketEvents.changed`), and the page refetches through the routes that leave internal notes out. Never emit a comment
+  body to a ticket room.
+- **An @mention carries the text** (in-app and email), so `MentionsService.notify` takes `canSee(user)` and only tells people
+  who could open what it is in: `mayReadComment` for tickets (an internal note is for `tickets:read:any` only), the page's
+  own rule for wiki pages. Disabled, deleted and pending accounts are skipped; at most `MAX_MENTIONS` (20) handles per body.
+  Ticket mentions are sent by `TicketEvents.commented` alone (the service used to send them too: every mention twice).
+- **Client polling goes through `usePoll`** (`apps/web/src/lib/use-poll.ts`): it stops while the tab is hidden and catches up
+  when it is shown, and `enabled: !connected` keeps a page that has a live socket from polling as well. A bare `setInterval`
+  that fetches must at least skip `document.visibilityState === "hidden"`.
 
 ## Search
 
@@ -1423,15 +1453,20 @@ roll back by itself. A failed build or migration puts the code back before anyth
   to the theme bootstrap. Caddy sends a looser baseline on every response as well (the browser enforces both). **A new
   inline `<script>` must take the nonce** (read `x-nonce` from `headers()`); the smoke suite fails on a bare one.
   Styles stay `unsafe-inline`.
-- `/api/v1/auth/providers/internal`, `/users/ensure-default-group` and `/users/oauth-provision` are 404 at the proxy
-  (and token-gated in the api); a new internal-only route belongs in Caddy's `@internal_only` matcher too.
+- `/api/v1/auth/providers/internal`, `/auth/verify-credentials`, `/users/ensure-default-group` and `/users/oauth-provision`
+  are 404 at the proxy (and token-gated in the api); a new internal-only route belongs in Caddy's `@internal_only` matcher too.
+- `/api/v1/metrics` (Prometheus) needs `site:admin`: scrape it with a read-only API token of an admin-group account.
 
 ## Retention
 
 Tables that only grow are pruned by age, in batches (`retention/batched-delete.ts`: portable `WHERE pk IN (SELECT pk ...
 LIMIT n)` loops, capped per run), by cluster jobs, each window a setting where 0 keeps everything: audit log
 (`audit.retention_days`, 365, in `AuditService`), notifications (`notifications.retention_days`, 180) and the activity
-feed (`activity.retention_days`, 90), the last two in `RetentionService`. A new table that grows without bound needs a
+feed (`activity.retention_days`, 90), the last two in `RetentionService`, which also removes FINISHED monitoring history
+(`monitoring.history_retention_days`, 365: resolved incidents, resolved Cisco drift, finished host update runs with their
+output) and runtime rows on fixed windows (spent or expired invite/reset links after 30 days, finished backup operations after
+180). An open incident or a running operation is never removed. The probe worker prunes `monitor_checks` itself, in batches
+through `monitor_checks_ts_idx` (migration 0076). A new table that grows without bound needs a
 window here (or in its own service, as infra metrics and mail do), not a one-off `DELETE`. Test:
 `apps/api/test/retention.integration.test.ts`.
 

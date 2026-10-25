@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Trash2, Power, AlertTriangle, CircleCheck, CircleHelp } from "lucide-react";
 import type { Monitor, MonitorCheck, MonitorIncident } from "@church/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "../use-monitor-workers";
 import { AcknowledgeButton } from "../acknowledge-button";
+import { usePoll } from "@/lib/use-poll";
 
 export function MonitorDetailClient({
   initialMonitor,
@@ -51,11 +52,7 @@ export function MonitorDetailClient({
     () => void refresh(),
   );
 
-  useEffect(() => {
-    if (connected) return;
-    const t = setInterval(() => void refresh(), 15_000);
-    return () => clearInterval(t);
-  }, [connected, refresh]);
+  usePoll(refresh, 15_000, { enabled: !connected, immediate: false });
 
   async function destroy() {
     if (!confirm(`Delete monitor "${monitor.name}"? This cannot be undone.`)) return;

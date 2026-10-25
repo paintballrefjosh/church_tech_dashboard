@@ -19,6 +19,7 @@ import { useCanWrite } from "../../network-cisco/cisco-ui";
 import { MONITORING_HEALTH_REFRESH } from "../../section-tabs";
 import { AcknowledgeButton } from "../../acknowledge-button";
 import { useModal } from "@/components/modal";
+import { usePoll } from "@/lib/use-poll";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -144,11 +145,7 @@ export function InfraDetailClient({
   // While a run is in progress, poll its own endpoint (not just realtime infra:
   // update, which only fires on the regular metrics-poll cadence and wouldn't
   // otherwise reflect the run finishing promptly).
-  useEffect(() => {
-    if (!runningRun) return;
-    const id = setInterval(() => void loadRuns(), 4_000);
-    return () => clearInterval(id);
-  }, [runningRun, loadRuns]);
+  usePoll(loadRuns, 4_000, { enabled: !!runningRun, immediate: false });
 
   // A run this page started has ended: if it stopped on sudo, put the terminal in front of the operator.
   useEffect(() => {

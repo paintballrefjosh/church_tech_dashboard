@@ -67,6 +67,8 @@ const CONTENT_RECONCILE_MS = Math.max(
 );
 /** A search waits at most this long for the start-up reconcile before answering anyway. */
 const READY_WAIT_MS = 8_000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALL_KINDS = new Set<string>([...CONTENT_KINDS, ...MONITORING_KINDS, ...LIVE_KINDS]);
 const DELETE_CHUNK = 1_000;
 
 @Injectable()
@@ -380,6 +382,13 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     // wait a few seconds for that rather than answer from a half-built index.
     if (!this.ready) await Promise.race([this.initial, new Promise((r) => setTimeout(r, READY_WAIT_MS))]);
 
+    // Every value below is spliced into a Meilisearch filter string, so none may carry a quote or bracket. Ids are
+    // uuids (from the session and the database), kinds come from the fixed list; anything else is dropped here rather
+    // than trusted to every caller.
+    const quoted = (vals: readonly string[]) => vals.map((v) => `"${v}"`).join(",");
+    if (!UUID_RE.test(opts.userId)) return [];
+    const groupIds = opts.userGroupIds.filter((g) => UUID_RE.test(g));
+
     const orParts: string[] = [];
 
     // Tickets: own OR (tickets:read:any → all). We don't have a ticket
@@ -398,10 +407,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (opts.canSeeAnyWiki) {
       orParts.push(`kind = "wiki"`);
     } else {
-      const groupClause =
-        opts.userGroupIds.length > 0
-          ? ` OR aclGroupIds IN [${opts.userGroupIds.map((g) => `"${g}"`).join(",")}]`
-          : "";
+      const groupClause = groupIds.length > 0 ? ` OR aclGroupIds IN [${quoted(groupIds)}]` : "";
       orParts.push(
         `(kind = "wiki" AND (visibility = "public" OR ownerUserId = "${opts.userId}"${groupClause}))`,
       );
@@ -420,14 +426,10 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     }
 
     let filter = `(${orParts.join(" OR ")})`;
-    if (opts.kinds && opts.kinds.length > 0) {
-      const allowed = opts.kinds.map((k) => `"${k}"`).join(",");
-      filter = `${filter} AND kind IN [${allowed}]`;
-    }
-    if (opts.tagIds && opts.tagIds.length > 0) {
-      const ts = opts.tagIds.map((t) => `"${t}"`).join(",");
-      filter = `${filter} AND tagIds IN [${ts}]`;
-    }
+    const kinds = (opts.kinds ?? []).filter((k) => ALL_KINDS.has(k));
+    if (kinds.length > 0) filter = `${filter} AND kind IN [${quoted(kinds)}]`;
+    const tagIds = (opts.tagIds ?? []).filter((t) => UUID_RE.test(t));
+    if (tagIds.length > 0) filter = `${filter} AND tagIds IN [${quoted(tagIds)}]`;
 
     try {
       const res = await idx.search<SearchDoc>(opts.q, {

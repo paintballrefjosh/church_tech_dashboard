@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { TicketStatus } from "@church/shared";
+import { PERMISSIONS, type TicketStatus } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -13,6 +13,16 @@ type CommentRow = typeof ticketComments.$inferSelect;
  * What the world is told when a ticket changes. The HTTP routes and the helpdesk mailbox both create tickets and comments,
  * and must tell the same people the same way, so it lives here instead of in the controller.
  */
+/** Whether `user` may read `comment` on `ticket`: the rule `TicketsService.listComments` applies. */
+export function mayReadComment(
+  user: Pick<AuthenticatedUser, "id" | "permissions">,
+  ticket: Pick<TicketRow, "createdByUserId">,
+  comment: Pick<CommentRow, "isInternal">,
+): boolean {
+  if (user.permissions.includes(PERMISSIONS.TICKETS_READ_ANY)) return true;
+  return !comment.isInternal && ticket.createdByUserId === user.id;
+}
+
 @Injectable()
 export class TicketEvents {
   constructor(
@@ -20,6 +30,14 @@ export class TicketEvents {
     private readonly notifications: NotificationsService,
     private readonly mentions: MentionsService,
   ) {}
+
+  /**
+   * Tell open pages of this ticket to refetch. Deliberately no content: the room holds the requester as well as staff,
+   * and an internal note must only ever be read through the routes that check who is asking.
+   */
+  changed(ticketId: string): void {
+    this.realtime.toRoom(`ticket:${ticketId}`, "ticket:changed", { ticketId });
+  }
 
   created(ticket: TicketRow): void {
     this.realtime.toUser(ticket.createdByUserId, "ticket:created", ticket);
@@ -30,7 +48,7 @@ export class TicketEvents {
    * work, and open pages and the assignee should see that.
    */
   commented(actor: Pick<AuthenticatedUser, "id">, ticket: TicketRow, comment: CommentRow, statusBefore: TicketStatus | string): void {
-    this.realtime.toRoom(`ticket:${ticket.id}`, "ticket:comment", comment);
+    this.changed(ticket.id);
     if (ticket.status !== statusBefore) {
       this.realtime.toUser(ticket.createdByUserId, "ticket:updated", ticket);
       if (ticket.assignedUserId && ticket.assignedUserId !== ticket.createdByUserId) {
@@ -57,12 +75,14 @@ export class TicketEvents {
     );
 
     // Anyone @mentioned (a separate kind, so mentions can be muted apart from the comment firehose).
+    // Only people who could read this comment: an internal note is for ticket staff, a public one also for the requester.
     void this.mentions.notify({
       body: comment.body,
       excludeUserId: actor.id,
       title: `Mentioned in ticket #${ticket.number}`,
       summary: comment.body,
       link: `/tickets/${ticket.id}`,
+      canSee: (u) => mayReadComment(u, ticket, comment),
     });
   }
 }

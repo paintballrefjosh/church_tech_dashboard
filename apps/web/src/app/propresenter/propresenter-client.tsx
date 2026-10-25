@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   CircleCheck,
   AlertTriangle,
 } from "lucide-react";
+import { usePoll } from "@/lib/use-poll";
 
 interface Health {
   configured: boolean;
@@ -44,14 +45,9 @@ export function PropresenterClient() {
     if (s.ok) setStatus((await s.json()) as Status);
   }
 
-  useEffect(() => {
-    void refresh();
-    // Polling every second is fine for the live-control use case; PP7 reacts
-    // to commands faster than that already. We can swap in a WebSocket
-    // adapter later if this becomes a bottleneck.
-    const t = setInterval(refresh, 1_000);
-    return () => clearInterval(t);
-  }, []);
+  // Polling every second is fine for the live-control use case; PP7 reacts
+  // to commands faster than that already. A hidden tab stops asking.
+  usePoll(refresh, 1_000);
 
   async function trigger(action: "next" | "previous" | "clear") {
     setErr(null);

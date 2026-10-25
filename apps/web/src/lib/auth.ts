@@ -142,7 +142,12 @@ function buildProviders(cfg: ProviderConfig) {
           password: { label: "Password", type: "password" },
           totp: { label: "TOTP", type: "text" },
         },
-        async authorize(creds) {
+        async authorize(creds, request) {
+          // The API counts failed sign-ins per address, so pass the person's (Caddy overwrites X-Forwarded-For with
+          // the real client address on the way in). Without it every sign-in on the site shared one bucket: the web
+          // container's address. The route is internal only, hence the token.
+          const fwd = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+          const ua = request?.headers?.get("user-agent") ?? "";
           const payload = {
             email: typeof creds?.email === "string" ? creds.email : "",
             password: typeof creds?.password === "string" ? creds.password : "",
@@ -151,7 +156,12 @@ function buildProviders(cfg: ProviderConfig) {
           try {
             const res = await fetch(`${apiInternalUrl}/api/v1/auth/verify-credentials`, {
               method: "POST",
-              headers: { "content-type": "application/json" },
+              headers: {
+                "content-type": "application/json",
+                ...internalHeaders(),
+                ...(fwd ? { "x-forwarded-for": fwd } : {}),
+                ...(ua ? { "user-agent": ua } : {}),
+              },
               body: JSON.stringify(payload),
               cache: "no-store",
             });
