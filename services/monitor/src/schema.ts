@@ -118,3 +118,14 @@ export const activityEvents = pgTable("activity_events", {
   link: text("link"),
   ts: timestamp("ts").notNull(),
 });
+
+/** Alerts for the API to send (apps/api/src/db/schema/alerts.ts). The worker only inserts, with `fanout` set. */
+export const alertOutbox = pgTable("alert_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  link: text("link"),
+  fanout: boolean("fanout").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

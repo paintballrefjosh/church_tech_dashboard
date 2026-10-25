@@ -341,6 +341,25 @@ leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (Coc
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
 restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
 
+**Alert channels and the alert outbox** (migration 0077; rules in
+`packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,
+`apps/api/src/alerts/`, page `/monitoring/alert-channels`, the "Alerts" tab; reads AND writes `monitors:write:any`, MCP-excluded) are
+site-wide destinations: ntfy, Pushover, Slack, Teams (Workflows webhook), Discord, a JSON webhook (optional HMAC `X-Church-Signature`
+over `<timestamp>.<body>`) and Twilio SMS. `events` is `outages` (`OUTAGE_ALERT_KINDS`, each kind with its recovery) or `everything`
+(also `OTHER_ALERT_KINDS`). The token or webhook URL is `secret` (encrypted `enc:v1:`, never returned: `hasSecret`). **Every request
+is built by the pure `buildAlertRequests`; destinations go through `alertDestinationProblem`** (Slack/Discord/Teams only to their own
+hosts over https; never credentials in the URL; never link-local, also after DNS resolution), no redirects, 10 s timeout. A failure is
+recorded on the channel (`last_error`), never retried per channel. (2) *The outbox* (`alert_outbox`, `skip` in the backup registry): the
+**probe worker no longer writes bell rows**: `notifyAll` queues a `fanout` row and the API's `alert-dispatch` cluster job (5 s) tells the
+monitoring recipients through `NotificationsService.createMany` (so email, push, quiet hours and urgent kinds apply; until 2026-10-25 a
+service going down never sent an email or a push) and the channels. `NotificationsService.create/createMany` also queue every
+`isAlertKind` notice (one row per distinct notice, not per recipient) for the channels; `alertChannels: false` opts out (the job uses
+it). Rows are CLAIMED by one conditional UPDATE (`claimed_until`, database clock), at most 5 attempts, sent rows kept 7 days; a row older
+than `ALERT_STALE_MS` (30 min) when picked up goes to the bell only. Maintenance mode silences at the source, as before. A fan-out with no
+recipients sends nothing to the channels either. Tests:
+`alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
+bell case in `tests/smoke/alerts.mjs`.
+
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and
 `waited_ms` for finished waits: **SLA elapsed time is always `ticketSlaElapsedMs`** (creation to now minus the waits), never a bare

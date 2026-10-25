@@ -4,6 +4,7 @@ import {
   DEFAULT_NOTIFICATION_DELIVERY,
   INBOUND_KEYS,
   emailReleaseAt,
+  isAlertKind,
   pushAllowed,
   pushPayloadFor,
   ticketSubjectToken,
@@ -11,7 +12,7 @@ import {
   type NotificationKind,
 } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
-import { notificationHeld, notifications, notificationPrefs, users } from "../db/schema";
+import { alertOutbox, notificationHeld, notifications, notificationPrefs, users } from "../db/schema";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { MailerService } from "../mailer/mailer.service";
 import { SettingsService } from "../settings/settings.service";
@@ -81,6 +82,12 @@ export interface CreateNotificationInput {
    * off for anything the requester must not see (an internal note): that reply would be a public comment.
    */
   ticketNumber?: number;
+  /**
+   * A monitoring alert kind (`isAlertKind`) is also queued for the alert channels (team chat, ntfy, SMS ...), once per
+   * distinct notice however many people it goes to. False skips that: the `alert-dispatch` job sets it when it tells people
+   * about an alert it is already sending to the channels itself.
+   */
+  alertChannels?: boolean;
 }
 
 export interface EmailContext {
@@ -108,7 +115,31 @@ export class NotificationsService {
     return typeof v === "string" && v.length > 0 ? v : "Church Dashboard";
   }
 
+  /**
+   * Queue alert kinds for the alert channels: one row per distinct notice (a fan-out to twenty people is one alert). Never
+   * throws: a channel problem must not stop people being told.
+   */
+  private async queueForChannels(inputs: CreateNotificationInput[]): Promise<void> {
+    const seen = new Set<string>();
+    const rows: Array<typeof alertOutbox.$inferInsert> = [];
+    for (const i of inputs) {
+      const kind = String(i.kind);
+      if (i.alertChannels === false || !isAlertKind(kind)) continue;
+      const key = `${kind}\u0000${i.title}\u0000${i.body ?? ""}\u0000${i.link ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ kind, title: i.title, body: i.body ?? "", link: i.link ?? null, fanout: false });
+    }
+    if (rows.length === 0) return;
+    try {
+      await this.db.insert(alertOutbox).values(rows);
+    } catch (err) {
+      this.logger.warn(`queueing alerts for the channels failed: ${(err as Error).message}`);
+    }
+  }
+
   async create(input: CreateNotificationInput): Promise<void> {
+    await this.queueForChannels([input]);
     if (input.excludeActorId && input.excludeActorId === input.recipientUserId) return;
     try {
       const [recipient] = await this.db
@@ -192,6 +223,7 @@ export class NotificationsService {
    */
   async createMany(inputs: CreateNotificationInput[]): Promise<void> {
     if (inputs.length === 0) return;
+    await this.queueForChannels(inputs);
     try {
       // Filter self-notifies before any DB work.
       const work = inputs.filter(

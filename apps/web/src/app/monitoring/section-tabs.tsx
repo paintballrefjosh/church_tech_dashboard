@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Server, Wifi, Network, BatteryCharging } from "lucide-react";
+import { Activity, Server, Wifi, Network, BatteryCharging, BellRing } from "lucide-react";
 import { MaintenanceControl } from "./maintenance-control";
 
 /**
@@ -36,7 +36,8 @@ const TABS = [
       (p.startsWith("/monitoring/") &&
         !p.startsWith("/monitoring/infra") &&
         !p.startsWith("/monitoring/network") &&
-        !p.startsWith("/monitoring/ups")),
+        !p.startsWith("/monitoring/ups") &&
+        !p.startsWith("/monitoring/alert-channels")),
   },
   { key: "infra", href: "/monitoring/infra", label: "Infrastructure", Icon: Server, match: (p: string) => p.startsWith("/monitoring/infra") },
   {
@@ -59,6 +60,13 @@ const TABS = [
     label: "UPS",
     Icon: BatteryCharging,
     match: (p: string) => p.startsWith("/monitoring/ups"),
+  },
+  {
+    key: "alerts",
+    href: "/monitoring/alert-channels",
+    label: "Alerts",
+    Icon: BellRing,
+    match: (p: string) => p.startsWith("/monitoring/alert-channels"),
   },
 ] as const;
 

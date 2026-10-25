@@ -31,3 +31,4 @@ export * from "./backup";
 export * from "./availability";
 export * from "./sessions";
 export * from "./racks";
+export * from "./alerts";

@@ -540,6 +540,13 @@
       "when": 1793127350977,
       "tag": "0076_monitor_checks_ts",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793127410977,
+      "tag": "0077_alert_channels",
+      "breakpoints": true
     }
   ]
 }

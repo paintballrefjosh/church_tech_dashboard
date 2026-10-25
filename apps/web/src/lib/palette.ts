@@ -141,6 +141,7 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "monitoring", cmd: go("go:ipam", "Go to", "IPAM", "/ipam", Boxes, "ip addresses subnets") },
   { module: "monitoring", cmd: go("go:dns", "Go to", "DNS", "/dns", Globe, "records zones") },
   { module: "monitoring", cmd: go("go:cabinets", "Go to", "Cabinets", "/cabinets", Server, "racks elevation rack u server room") },
+  { module: "monitoring", cmd: go("go:alert-channels", "Go to", "Alert channels", "/monitoring/alert-channels", Activity, "slack teams discord ntfy pushover sms webhook") },
   { module: "printers", cmd: go("go:printers", "Go to", "Printers", "/printers", Printer, "toner") },
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },

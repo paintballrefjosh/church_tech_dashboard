@@ -2204,6 +2204,9 @@ async function main() {
   await alertTests({ test, assert, fetchWithCookies, jar });
 
   // ---- helpdesk: waiting on the requester, saved replies, mailbox settings (tests/smoke/helpdesk.mjs) ----
+  const { alertChannelTests } = await import("./alert-channels.mjs");
+  await alertChannelTests({ test, assert, fetchWithCookies, jar });
+
   const { helpdeskTests } = await import("./helpdesk.mjs");
   await helpdeskTests({ test, assert, fetchWithCookies, jar });
 

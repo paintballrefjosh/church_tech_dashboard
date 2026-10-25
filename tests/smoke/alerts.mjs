@@ -88,6 +88,22 @@ export async function alertTests({ test, assert, fetchWithCookies, jar }) {
       assert((await second.res.json()).acknowledgedAt === body.acknowledgedAt, "a second ack changed the time");
     });
 
+    await test("incidents: the probe worker's down alert reaches the bell (through the alert outbox)", async () => {
+      // The worker queues its alerts in alert_outbox and the API's alert-dispatch job tells people through the ordinary
+      // notification path. Until 2026-10-25 the worker wrote bell rows itself, so these never sent an email or a push.
+      const maint = await (await session("/api/v1/monitors/maintenance")).res.json();
+      if (maint.enabled) return; // alerts are paused on this stack: nothing to see
+      const deadline = Date.now() + 30_000;
+      for (;;) {
+        const { res } = await session("/api/v1/notifications?limit=50");
+        assert(res.status === 200, `notifications status ${res.status}`);
+        const rows = await res.json();
+        if (rows.some((n) => n.kind === "monitor.incident.opened" && n.title === `${listed.name} is down`)) break;
+        assert(Date.now() < deadline, "the down alert did not reach the bell within 30 s");
+        await sleep(2000);
+      }
+    });
+
     await test("status: the acknowledged outage is shown as down with somebody on it", async () => {
       const page = await readStatus();
       const item = page.items.find((i) => i.name === "Smoke Plain Name");

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { and, desc, eq, gt, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { acquireLease, restoreInProgress } from "@church/shared/db";
@@ -20,13 +20,9 @@ import {
   monitors,
   monitorChecks,
   monitorIncidents,
-  notifications,
-  users,
-  groups,
-  groupMemberships,
-  groupModuleAccess,
   settings,
   activityEvents,
+  alertOutbox,
 } from "./schema";
 import { probeHttp, probeTcp, probeIcmp, probeDns, probeTls, type ProbeResult } from "./probes";
 
@@ -69,39 +65,6 @@ async function runProbe(kind: string, target: string, options: Record<string, un
   }
 }
 
-/**
- * Recipients for monitor notifications: every active, non-deleted user who
- * holds the `monitoring` module (any tier — reads only need `user` tier) via
- * group_module_access, or is in the admin group (which implicitly gets
- * everything — see CLAUDE.md ## Access control). Computed per-event so group
- * changes take effect without restarting the worker.
- *
- * This used to join through the legacy user_roles/roles/role_permissions
- * tables (pre migration 0022/0024) which are dead — always empty — so this
- * worker's notifications were a silent no-op for every recipient. Fixed
- * 2026-09-18 to mirror apps/api/src/infra/infra.service.ts's
- * monitoringRecipientIds().
- */
-async function notificationRecipients(): Promise<{ id: string; email: string | null; muted: string[] }[]> {
-  const rows = await db
-    .selectDistinct({ id: users.id, email: users.email, muted: users.mutedNotificationKinds })
-    .from(users)
-    .innerJoin(groupMemberships, eq(groupMemberships.userId, users.id))
-    .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
-    .leftJoin(
-      groupModuleAccess,
-      and(eq(groupModuleAccess.groupId, groups.id), eq(groupModuleAccess.moduleKey, "monitoring")),
-    )
-    .where(
-      and(
-        eq(users.isActive, true),
-        isNull(users.deletedAt),
-        or(eq(groups.name, "admin"), sql`${groupModuleAccess.groupId} is not null`),
-      ),
-    );
-  return rows.map((r) => ({ id: r.id, email: r.email, muted: r.muted ?? [] }));
-}
-
 /** Mirrors SettingsService.get for the two keys this worker cares about; the rule is shared with the API. */
 async function maintenanceModeOn(): Promise<boolean> {
   const rows = await db.select().from(settings).where(inArray(settings.key, [MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY]));
@@ -129,20 +92,10 @@ async function notifyAll(kind: string, title: string, body: string, link: string
   // alert fan-out (see CLAUDE.md ## Maintenance mode) — incidents are still
   // recorded above; only the notification is paused.
   if (await maintenanceModeOn().catch(() => false)) return;
-  const recipients = await notificationRecipients();
-  if (recipients.length === 0) return;
-  const rows = recipients
-    .filter((r) => !(r.muted ?? []).includes(kind))
-    .map((r) => ({
-      recipientUserId: r.id,
-      kind,
-      title,
-      body,
-      link,
-      createdAt: new Date(),
-    }));
-  if (rows.length === 0) return;
-  await db.insert(notifications).values(rows);
+  // Queued for the API's `alert-dispatch` job, which tells the monitoring recipients through NotificationsService (bell,
+  // email and push by each person's own choices, quiet hours, urgent kinds) and the alert channels. Until 2026-10-25 this
+  // inserted bell rows itself, so a service going down never sent an email or a push.
+  await db.insert(alertOutbox).values({ kind, title, body, link, fanout: true });
 }
 
 /**

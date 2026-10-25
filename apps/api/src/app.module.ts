@@ -39,6 +39,7 @@ import { AuthTokensModule } from "./auth-tokens/auth-tokens.module";
 import { CiscoModule } from "./cisco/cisco.module";
 import { SwitchModelsModule } from "./switch-models/switch-models.module";
 import { RacksModule } from "./racks/racks.module";
+import { AlertsModule } from "./alerts/alerts.module";
 import { IpamModule } from "./ipam/ipam.module";
 import { UpsModule } from "./ups/ups.module";
 import { DnsModule } from "./dns/dns.module";
@@ -99,6 +100,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     CiscoModule,
     SwitchModelsModule,
     RacksModule,
+    AlertsModule,
     IpamModule,
     UpsModule,
     DnsModule,
