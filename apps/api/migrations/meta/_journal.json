@@ -575,6 +575,13 @@
       "when": 1793127650977,
       "tag": "0081_device_pictures",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793127710977,
+      "tag": "0082_assets_and_rooms",
+      "breakpoints": true
     }
   ]
 }

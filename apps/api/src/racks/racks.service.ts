@@ -23,6 +23,7 @@ import {
 import { DB, type Db } from "../db/db.module";
 import { ciscoPorts, ciscoSwitches, infraTargets, rackItems, racks, switchModels } from "../db/schema";
 import { UnifiService } from "../unifi/unifi.service";
+import { LocationsService } from "../assets/locations.service";
 import { TtlCache } from "../dashboard/home/cache";
 
 type RackRowDb = typeof racks.$inferSelect;
@@ -76,7 +77,7 @@ function unifiStyle(type: string | undefined): RackItemStyle {
 }
 
 function toRack(r: RackRowDb): Rack {
-  return { id: r.id, name: r.name, location: r.location, units: r.units, notes: r.notes, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() };
+  return { id: r.id, name: r.name, location: r.location, locationId: r.locationId, units: r.units, notes: r.notes, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() };
 }
 
 function toItem(r: ItemRowDb): RackItemRow {
@@ -120,7 +121,15 @@ export class RacksService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly unifi: UnifiService,
+    private readonly rooms: LocationsService,
   ) {}
+
+  /** A cabinet's room: checked, and its old text column kept equal to the room's name for older nodes. */
+  private async withRoom<T extends { locationId?: string | null; location?: string }>(input: T): Promise<T> {
+    if (input.locationId === undefined) return input;
+    await this.rooms.check(input.locationId);
+    return { ...input, location: await this.rooms.nameOf(input.locationId) };
+  }
 
   // ---- cabinets ----
 
@@ -149,7 +158,7 @@ export class RacksService {
 
   async create(input: CreateRackInput): Promise<Rack> {
     await this.assertNameFree(input.name);
-    const [row] = await this.db.insert(racks).values(input).returning();
+    const [row] = await this.db.insert(racks).values(await this.withRoom(input)).returning();
     if (!row) throw new Error("cabinet insert failed");
     return toRack(row);
   }
@@ -166,7 +175,7 @@ export class RacksService {
         throw new ConflictException(`Cannot make this cabinet ${newUnits}U: ${over.join(", ")} reach${over.length === 1 ? "es" : ""} U${highest}. Move or remove ${over.length === 1 ? "it" : "them"} first.`);
       }
     }
-    const [row] = await this.db.update(racks).set({ ...input, updatedAt: new Date() }).where(eq(racks.id, id)).returning();
+    const [row] = await this.db.update(racks).set({ ...(await this.withRoom(input)), updatedAt: new Date() }).where(eq(racks.id, id)).returning();
     if (!row) throw new NotFoundException("Cabinet not found");
     return toRack(row);
   }

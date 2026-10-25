@@ -23,6 +23,7 @@ export const SEARCH_KINDS: SearchKind[] = [
   "ipam_subnet",
   "ipam_host",
   "dns_record",
+  "asset",
 ];
 
 @Controller("search")
@@ -54,6 +55,7 @@ export class SearchController {
       canSeeAnyWiki: user.permissions.includes(PERMISSIONS.WIKI_READ_ANY),
       canSeeMonitoring: user.permissions.includes(PERMISSIONS.MONITORS_READ_ANY),
       canSeeUnifi: user.permissions.includes(PERMISSIONS.UNIFI_READ_ANY),
+      canSeeAssets: user.permissions.includes(PERMISSIONS.ASSETS_READ_ANY),
       kinds,
       limit: Math.max(1, Math.min(50, parseInt(limit ?? "20", 10) || 20)),
     });

@@ -127,6 +127,15 @@ export const PERMISSIONS = {
   ASSISTANT_USE: "assistant:use",
   ASSISTANT_USAGE: "assistant:usage",
   ASSISTANT_HISTORY: "assistant:history",
+
+  // Assets and rooms (docs/assets.md). READ_ANY = the inventory, CHECKOUT_OWN = check an item out to / back in from
+  // yourself, WRITE_ANY = add and edit items, check out to anyone, see cost and history, ADMIN = delete and import.
+  // LOCATIONS_ADMIN = add, rename and remove rooms (reading rooms needs only a session).
+  ASSETS_READ_ANY: "assets:read:any",
+  ASSETS_CHECKOUT_OWN: "assets:checkout:own",
+  ASSETS_WRITE_ANY: "assets:write:any",
+  ASSETS_ADMIN: "assets:admin",
+  LOCATIONS_ADMIN: "locations:admin",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

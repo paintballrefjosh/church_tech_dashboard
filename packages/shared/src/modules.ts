@@ -156,6 +156,17 @@ export const MODULES: readonly ModuleDefinition[] = [
     },
   },
   {
+    key: "assets",
+    label: "Assets",
+    description: "Equipment inventory with check-out and labels, and the list of rooms.",
+    tiers: ["user", "moderator", "admin"],
+    permissionsByTier: {
+      user: [PERMISSIONS.ASSETS_READ_ANY, PERMISSIONS.ASSETS_CHECKOUT_OWN],
+      moderator: [PERMISSIONS.ASSETS_WRITE_ANY],
+      admin: [PERMISSIONS.ASSETS_ADMIN, PERMISSIONS.LOCATIONS_ADMIN],
+    },
+  },
+  {
     key: "admin",
     label: "Administration",
     description: "Site settings, users/groups, audit log, OAuth, SMTP, network config.",
@@ -231,6 +242,7 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     propresenter: "admin",
     planning_center: "admin",
     checklists: "admin",
+    assets: "admin",
     admin: "admin",
   },
   support_engineer: {
@@ -242,6 +254,7 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     propresenter: "user",
     planning_center: "user",
     checklists: "moderator",
+    assets: "moderator",
   },
   user: {
     notes: "user",
@@ -251,5 +264,6 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     printers: "user",
     planning_center: "user",
     checklists: "user",
+    assets: "user",
   },
 };

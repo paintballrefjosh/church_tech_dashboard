@@ -27,6 +27,9 @@ export const ticketSchema = z.object({
   /** Set while the status is `waiting`; the time spent waiting before that is in `waitedMs`. */
   waitingSince: z.string().datetime().nullable().optional(),
   waitedMs: z.number().int().nonnegative().optional(),
+  /** The room and the item it is about (docs/assets.md). */
+  locationId: z.string().uuid().nullable().optional(),
+  assetId: z.string().uuid().nullable().optional(),
 });
 export type Ticket = z.infer<typeof ticketSchema>;
 
@@ -81,6 +84,9 @@ export const createTicketSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(20_000).default(""),
   priority: z.enum(TICKET_PRIORITIES).default("normal"),
+  /** The room and the item it is about (docs/assets.md); both optional. */
+  locationId: z.string().uuid().nullable().optional(),
+  assetId: z.string().uuid().nullable().optional(),
 });
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 
@@ -91,6 +97,8 @@ export const updateTicketSchema = z.object({
   priority: z.enum(TICKET_PRIORITIES).optional(),
   // null = unassign. Pass a UUID string to assign.
   assignedUserId: z.string().uuid().nullable().optional(),
+  locationId: z.string().uuid().nullable().optional(),
+  assetId: z.string().uuid().nullable().optional(),
 });
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 

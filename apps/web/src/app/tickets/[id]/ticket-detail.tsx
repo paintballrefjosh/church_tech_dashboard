@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,6 +19,7 @@ import { TagPicker } from "@/components/tag-picker";
 import { TicketCategoryPicker } from "@/components/ticket-category-picker";
 import { type TagLike } from "@/components/tag-badge";
 import { useRealtimeRoom } from "@/lib/use-realtime";
+import { RoomLink, RoomSelect, useRooms } from "@/components/assets-ui";
 
 interface UserBrief {
   id: string;
@@ -65,6 +66,7 @@ export function TicketDetail({
   const [tags, setTags] = useState<TagLike[]>(initialTags);
   const [categories, setCategories] = useState<TagLike[]>(initialCategories);
   const router = useRouter();
+  const [rooms] = useRooms();
 
   async function saveTags(next: TagLike[]) {
     setTags(next);
@@ -492,6 +494,29 @@ export function TicketDetail({
           )}
         </Field>
 
+        <Field label="Room">
+          {canEditCore ? (
+            <RoomSelect
+              ariaLabel="Room"
+              value={ticket.locationId ?? null}
+              onChange={(locationId) => patch({ locationId })}
+              rooms={rooms}
+              disabled={pending}
+              className="w-full rounded-md border border-slate-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+            />
+          ) : ticket.locationId ? (
+            <RoomLink room={{ id: ticket.locationId, name: rooms?.find((r) => r.id === ticket.locationId)?.name ?? "A room" }} rooms={rooms} />
+          ) : (
+            <span className="text-slate-600 dark:text-slate-300">not given</span>
+          )}
+        </Field>
+
+        {ticket.assetId ? (
+          <Field label="About">
+            <TicketAsset assetId={ticket.assetId} onRemove={canEditCore ? () => patch({ assetId: null }) : undefined} />
+          </Field>
+        ) : null}
+
         <Field label="Assigned">
           {can.assign ? (
             <select
@@ -556,6 +581,35 @@ export function TicketDetail({
         ) : null}
       </aside>
     </div>
+  );
+}
+
+/** The item a ticket is about: its tag and name for people with the Equipment module, else just "an item". */
+function TicketAsset({ assetId, onRemove }: { assetId: string; onRemove?: () => void }) {
+  const [a, setA] = useState<{ tag: string; name: string } | null | "hidden">(null);
+  useEffect(() => {
+    fetch(`/api/assets/${assetId}`, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : "hidden"))
+      .then((v: { tag: string; name: string } | "hidden") => setA(v))
+      .catch(() => setA("hidden"));
+  }, [assetId]);
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {a === null ? (
+        <span className="text-slate-500 dark:text-slate-400">…</span>
+      ) : a === "hidden" ? (
+        <span className="text-slate-600 dark:text-slate-300">An item of equipment</span>
+      ) : (
+        <Link href={`/assets/${assetId}`} className="text-brand-600 hover:underline dark:text-brand-400">
+          <span className="font-mono text-xs">{a.tag}</span> {a.name}
+        </Link>
+      )}
+      {onRemove ? (
+        <button type="button" onClick={onRemove} className="text-xs text-slate-500 underline hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+          remove
+        </button>
+      ) : null}
+    </span>
   );
 }
 

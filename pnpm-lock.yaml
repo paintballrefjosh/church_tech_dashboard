@@ -283,6 +283,9 @@ importers:
       pg:
         specifier: 8.13.0
         version: 8.13.0
+      qrcode:
+        specifier: 1.5.4
+        version: 1.5.4
       react:
         specifier: 19.0.9
         version: 19.0.9
@@ -317,6 +320,9 @@ importers:
       '@types/pg':
         specifier: 8.11.10
         version: 8.11.10
+      '@types/qrcode':
+        specifier: 1.5.5
+        version: 1.5.5
       '@types/react':
         specifier: 19.0.0
         version: 19.0.0

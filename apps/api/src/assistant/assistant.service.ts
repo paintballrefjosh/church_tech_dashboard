@@ -240,6 +240,7 @@ export class AssistantService implements OnModuleInit {
           canSeeAnyWiki: user.permissions.includes(PERMISSIONS.WIKI_READ_ANY),
           canSeeMonitoring: user.permissions.includes(PERMISSIONS.MONITORS_READ_ANY),
           canSeeUnifi: user.permissions.includes(PERMISSIONS.UNIFI_READ_ANY),
+          canSeeAssets: user.permissions.includes(PERMISSIONS.ASSETS_READ_ANY),
           kinds: a.kinds as never,
           limit: 10,
         });

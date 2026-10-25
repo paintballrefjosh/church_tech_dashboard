@@ -15,6 +15,7 @@ import {
   findInfraMetric,
 } from "@church/shared";
 import { RunbookField } from "@/components/runbook-link";
+import { RoomField } from "@/components/assets-ui";
 import { DevicePictureField } from "@/components/device-picture";
 import { useSwitchModels } from "@/lib/use-switch-models";
 
@@ -68,6 +69,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
   const [thresholds, setThresholds] = useState<ThresholdRow[]>(initial?.thresholds ?? []);
   const [runbookPageId, setRunbookPageId] = useState<string | null>(initial?.runbookPageId ?? null);
   const [switchModelId, setSwitchModelId] = useState<string | null>(initial?.switchModelId ?? null);
+  const [locationId, setLocationId] = useState<string | null>(initial?.locationId ?? null);
   const { models } = useSwitchModels();
 
   const [busy, setBusy] = useState(false);
@@ -120,6 +122,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
       thresholds,
       runbookPageId,
       switchModelId,
+      locationId,
       credential: credProvided
         ? {
             authType,
@@ -423,6 +426,10 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
       <RunbookField value={runbookPageId} onChange={setRunbookPageId} />
 
       <DevicePictureField models={models} value={switchModelId} onChange={setSwitchModelId} />
+
+      <div className="max-w-sm">
+        <RoomField value={locationId} onChange={setLocationId} />
+      </div>
 
       <div className="flex items-center gap-3 pt-1">
         <button

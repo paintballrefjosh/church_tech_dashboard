@@ -6,13 +6,15 @@ import { Plus } from "lucide-react";
 import { DEFAULT_RACK_UNITS, MAX_RACK_UNITS, type RackListEntry } from "@church/shared";
 import { useCanWrite, StatusLine, inputCls, cardCls, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 import { errorText } from "@/lib/use-switch-models";
+import { RoomSelect, useRooms } from "@/components/assets-ui";
 
 export default function CabinetsPage() {
   const canWrite = useCanWrite();
   const [racks, setRacks] = useState<RackListEntry[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
-  const [form, setForm] = useState({ name: "", location: "", units: String(DEFAULT_RACK_UNITS) });
+  const [form, setForm] = useState<{ name: string; locationId: string | null; units: string }>({ name: "", locationId: null, units: String(DEFAULT_RACK_UNITS) });
+  const [rooms] = useRooms();
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -37,7 +39,7 @@ export default function CabinetsPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: form.name, location: form.location, units: Number(form.units) }),
+        body: JSON.stringify({ name: form.name, locationId: form.locationId, units: Number(form.units) }),
       });
       if (!r.ok) {
         setStatus({ ok: false, text: await errorText(r) });
@@ -103,8 +105,8 @@ export default function CabinetsPage() {
             <Field label="Name *">
               <input required maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Server room rack A" className={`w-full ${inputCls}`} />
             </Field>
-            <Field label="Location">
-              <input maxLength={120} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Basement comms room" className={`w-full ${inputCls}`} />
+            <Field label="Room">
+              <RoomSelect value={form.locationId} onChange={(locationId) => setForm({ ...form, locationId })} rooms={rooms} className={`w-full ${inputCls}`} />
             </Field>
             <Field label="Height (U)">
               <input type="number" min={1} max={MAX_RACK_UNITS} required value={form.units} onChange={(e) => setForm({ ...form, units: e.target.value })} className={`w-28 ${inputCls}`} />

@@ -7,6 +7,7 @@ import {
   Layers,
   LifeBuoy,
   Network,
+  Package,
   Server,
   StickyNote,
   Tag,
@@ -35,7 +36,8 @@ export type SearchKind =
   | "cisco_vlan"
   | "ipam_subnet"
   | "ipam_host"
-  | "dns_record";
+  | "dns_record"
+  | "asset";
 
 export interface SearchHit {
   id: string;
@@ -103,6 +105,7 @@ export const KIND_META: Record<SearchKind, KindMeta> = {
   ipam_subnet: meta("Subnet", Boxes, "indigo"),
   ipam_host: meta("IP", Network, "indigo"),
   dns_record: meta("DNS", Globe, "indigo"),
+  asset: meta("Item", Package, "emerald"),
 };
 
 /** Deep link for a hit: the indexer-provided URL, else a kind-based fallback. */
@@ -137,6 +140,8 @@ export function hrefForHit(h: SearchHit): string {
       return `/ipam`;
     case "dns_record":
       return `/dns?view=records`;
+    case "asset":
+      return `/assets/${h.resourceId}`;
     default:
       return `/`;
   }

@@ -41,6 +41,7 @@ import { SwitchModelsModule } from "./switch-models/switch-models.module";
 import { RacksModule } from "./racks/racks.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { RenewalsModule } from "./renewals/renewals.module";
+import { AssetsModule } from "./assets/assets.module";
 import { ReportsModule } from "./reports/reports.module";
 import { AssistantModule } from "./assistant/assistant.module";
 import { IpamModule } from "./ipam/ipam.module";
@@ -105,6 +106,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     RacksModule,
     AlertsModule,
     RenewalsModule,
+    AssetsModule,
     ReportsModule,
     AssistantModule,
     IpamModule,

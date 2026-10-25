@@ -2235,6 +2235,10 @@ async function main() {
   const { cabinetTests } = await import("./cabinets.mjs");
   await cabinetTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- equipment and rooms: check-out, import, tickets in a room (tests/smoke/assets.mjs; removes what it makes) ----
+  const { assetTests } = await import("./assets.mjs");
+  await assetTests({ test, assert, fetchWithCookies, jar });
+
   // ---- device pictures: infra hosts and UniFi devices choose a device profile (tests/smoke/device-pictures.mjs) ----
   const { devicePictureTests } = await import("./device-pictures.mjs");
   await devicePictureTests({ test, assert, fetchWithCookies, jar });

@@ -1,5 +1,6 @@
 import { pgTable, text, integer, timestamp, uuid, index } from "drizzle-orm/pg-core";
 import { switchModels } from "./switch-models";
+import { locations } from "./assets";
 
 /**
  * Cabinets (racks) and the items placed in them (see packages/shared/src/schemas/rack.ts). An item points at a Cisco
@@ -11,7 +12,9 @@ import { switchModels } from "./switch-models";
 export const racks = pgTable("racks", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull().unique(),
+  // Kept equal to the room's name for older nodes (expand/contract); the room is `location_id`.
   location: text("location").notNull().default(""),
+  locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
   units: integer("units").notNull().default(42),
   notes: text("notes").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),

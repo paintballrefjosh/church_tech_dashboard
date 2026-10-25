@@ -1,5 +1,6 @@
 import type { BridgeTool } from "../bridge.types";
 import { ADMIN_TOOLS } from "./admin.tools";
+import { ASSET_TOOLS } from "./assets.tools";
 import { ATTACHMENT_TOOLS } from "./attachments.tools";
 import { CHECKLIST_TOOLS } from "./checklists.tools";
 import { CHURCH_TOOLS } from "./church.tools";
@@ -28,4 +29,5 @@ export const BRIDGE_TOOLS: BridgeTool[] = [
   ...OPERATIONAL_TOOLS,
   ...ADMIN_TOOLS,
   ...ATTACHMENT_TOOLS,
+  ...ASSET_TOOLS,
 ];

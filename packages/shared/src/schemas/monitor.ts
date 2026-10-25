@@ -137,6 +137,8 @@ export const monitorSchema = z.object({
   statusName: z.string().nullable().optional(),
   /** The runbook's wiki page id; the page decides who may read its title. */
   runbookPageId: z.string().uuid().nullable().optional(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -155,6 +157,8 @@ export const createMonitorSchema = z.object({
   statusName: z.string().trim().max(120).nullable().optional(),
   /** A wiki page with what to do when it fails; null removes the link. */
   runbookPageId: z.string().uuid().nullable().optional(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
 });
 export type CreateMonitorInput = z.infer<typeof createMonitorSchema>;
 

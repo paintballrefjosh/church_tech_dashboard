@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, uuid, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { locations } from "./assets";
 
 /**
  * Printer inventory + last-poll snapshot. The polling worker (in
@@ -25,6 +26,7 @@ export const printers = pgTable("printers", {
   fieryApiKey: text("fiery_api_key"),
   enabled: boolean("enabled").notNull().default(true),
   notes: text("notes"),
+  locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
   /** 'green' | 'yellow' | 'red' | 'unknown' */
   lastStatus: text("last_status").notNull().default("unknown"),
   lastCheckedAt: timestamp("last_checked_at"),

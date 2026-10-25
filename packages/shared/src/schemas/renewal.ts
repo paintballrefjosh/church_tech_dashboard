@@ -28,6 +28,9 @@ const isoDate = z
     return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
   }, "Not a real date");
 
+/** A date-only YYYY-MM-DD string on the site's calendar (shared with assets). */
+export const isoDateSchema = isoDate;
+
 export const DEFAULT_RENEWAL_REMIND_DAYS = [30, 7] as const;
 
 export const createRenewalSchema = z

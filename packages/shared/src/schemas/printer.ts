@@ -53,6 +53,8 @@ export const printerSchema = z.object({
   fieryApiKey: z.string().nullable(),
   enabled: z.boolean(),
   notes: z.string().nullable(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   lastStatus: z.enum(PRINTER_STATUSES),
   lastCheckedAt: z.string().datetime().nullable(),
   lastError: z.string().nullable(),
@@ -75,6 +77,8 @@ export const createPrinterSchema = z.object({
   fieryApiUrl: z.string().trim().max(500).nullable().default(null),
   fieryApiKey: z.string().trim().max(500).nullable().default(null),
   notes: z.string().max(500).nullable().default(null),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
 });
 export type CreatePrinterInput = z.infer<typeof createPrinterSchema>;
 
@@ -88,6 +92,8 @@ export const updatePrinterSchema = z.object({
   fieryApiUrl: z.string().trim().max(500).nullable().optional(),
   fieryApiKey: z.string().trim().max(500).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   enabled: z.boolean().optional(),
 });
 export type UpdatePrinterInput = z.infer<typeof updatePrinterSchema>;

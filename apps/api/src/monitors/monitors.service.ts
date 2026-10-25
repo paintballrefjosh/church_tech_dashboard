@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { mergeMonitorSecretOptions } from "@church/shared";
 import { checkRunbookPage } from "../wiki/runbook";
+import { checkLocation } from "../assets/locations.service";
 import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
 import { NODE_LIVE_SEC } from "../cluster/node.service";
 import { MONITOR_WORKER_WINDOW_MIN } from "@church/shared";
@@ -38,6 +39,7 @@ export class MonitorsService {
         showOnStatus: input.showOnStatus,
         statusName: input.statusName?.trim() || null,
         runbookPageId: runbookPageId ?? null,
+        locationId: (await checkLocation(this.db, input.locationId)) ?? null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -62,6 +64,7 @@ export class MonitorsService {
     if (input.showOnStatus !== undefined) patch.showOnStatus = input.showOnStatus;
     if (input.statusName !== undefined) patch.statusName = input.statusName?.trim() || null;
     if (input.runbookPageId !== undefined) patch.runbookPageId = await checkRunbookPage(this.db, input.runbookPageId);
+    if (input.locationId !== undefined) patch.locationId = (await checkLocation(this.db, input.locationId)) ?? null;
     const [row] = await this.db
       .update(monitors)
       .set(patch)

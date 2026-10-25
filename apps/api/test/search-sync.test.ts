@@ -83,6 +83,10 @@ class FakeSources implements SearchSources {
   async loadMonitoringDocs() {
     return this.monitoring;
   }
+  assets: SearchDoc[] = [];
+  async loadAssetDocs() {
+    return this.assets;
+  }
   put(kind: "ticket" | "note" | "wiki", id: string, title: string, over: Partial<SearchDoc> = {}) {
     this.map(kind).set(id, {
       id: searchDocId(kind, id),

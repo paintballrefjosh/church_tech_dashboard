@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Save } from "lucide-react";
 import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
 import { RunbookField } from "@/components/runbook-link";
+import { RoomField } from "@/components/assets-ui";
 
 type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs";
 
@@ -28,6 +29,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [showOnStatus, setShowOnStatus] = useState(initial?.showOnStatus ?? false);
   const [statusName, setStatusName] = useState(initial?.statusName ?? "");
   const [runbookPageId, setRunbookPageId] = useState<string | null>(initial?.runbookPageId ?? null);
+  const [locationId, setLocationId] = useState<string | null>(initial?.locationId ?? null);
   // Per-kind options (only the ones relevant to the selected kind are submitted).
   const [httpMethod, setHttpMethod] = useState(optStr(o, "method", "GET"));
   const [httpExpectedStatus, setHttpExpectedStatus] = useState(optNum(o, "expectedStatus", 200));
@@ -103,6 +105,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         showOnStatus,
         statusName: statusName.trim() || null,
         runbookPageId,
+        locationId,
         options: buildOptions(),
       });
       const url = initial ? `/api/monitors/${initial.id}` : "/api/monitors";
@@ -448,6 +451,10 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
       </fieldset>
 
       <RunbookField value={runbookPageId} onChange={setRunbookPageId} />
+
+      <div className="max-w-sm">
+        <RoomField value={locationId} onChange={setLocationId} hint="Where the thing it checks is (a projector, the stream PC)." />
+      </div>
 
       <div className="flex items-center gap-3 pt-2">
         <button

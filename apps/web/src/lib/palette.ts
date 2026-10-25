@@ -41,6 +41,8 @@ import {
   CalendarClock,
   Bot,
   Images,
+  Package,
+  DoorOpen,
 } from "lucide-react";
 
 /**
@@ -147,6 +149,8 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "monitoring", cmd: go("go:device-profiles", "Go to", "Device profiles", "/device-profiles", Images, "switch models pictures faceplate stencil port layout") },
   { module: "monitoring", cmd: go("go:renewals", "Go to", "Renewals", "/renewals", CalendarClock, "licence license domain warranty subscription ccli expiry") },
   { module: "monitoring", cmd: go("go:alert-channels", "Go to", "Alert channels", "/monitoring/alert-channels", Activity, "slack teams discord ntfy pushover sms webhook") },
+  { module: "assets", cmd: go("go:assets", "Go to", "Equipment", "/assets", Package, "assets inventory kit check out borrow lend mic cable laptop") },
+  { module: "assets", cmd: go("go:rooms", "Go to", "Rooms", "/rooms", DoorOpen, "locations places room sign qr") },
   { module: "assistant", cmd: go("go:assistant", "Go to", "Assistant", "/assistant", Bot, "ask question chat ai help") },
   { module: "printers", cmd: go("go:printers", "Go to", "Printers", "/printers", Printer, "toner") },
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },

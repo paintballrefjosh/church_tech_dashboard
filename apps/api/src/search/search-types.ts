@@ -20,7 +20,8 @@ export type SearchKind =
   | "cisco_vlan"
   | "ipam_subnet"
   | "ipam_host"
-  | "dns_record";
+  | "dns_record"
+  | "asset";
 
 /**
  * Monitoring kinds visible to anyone with `monitors:read:any` (the `monitoring`
@@ -46,6 +47,8 @@ export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
  * pushed by the DNS module's indexer instead. Same monitors:read:any gate.
  */
 export const DNS_KINDS: SearchKind[] = ["dns_record"];
+/** Equipment (the inventory): rebuilt from the database like the monitoring kinds, gated on `assets:read:any`. */
+export const ASSET_KINDS: SearchKind[] = ["asset"];
 
 /**
  * Build a Meilisearch document id from a kind + resource id.

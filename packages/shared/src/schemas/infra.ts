@@ -334,6 +334,8 @@ export const infraTargetSchema = z.object({
   authType: z.enum(INFRA_AUTH_TYPES).nullable(),
   /** The runbook's wiki page id; the page decides who may read its title. */
   runbookPageId: z.string().uuid().nullable().optional(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   /** The device profile whose pictures show this host (its page, cabinets); null = none. */
   switchModelId: z.string().uuid().nullable().optional(),
   createdAt: z.string().datetime(),
@@ -370,6 +372,8 @@ export const createInfraTargetSchema = z.object({
   credential: infraCredentialInputSchema.optional(),
   /** A wiki page with what to do when it misbehaves; null removes the link. */
   runbookPageId: z.string().uuid().nullable().optional(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   /** A device profile (not an add-on module) for this host's pictures; null removes it. */
   switchModelId: z.string().uuid().nullable().optional(),
 });

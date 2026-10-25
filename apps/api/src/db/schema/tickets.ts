@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, uuid, boolean, index, bigint, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { users } from "./users";
+import { assets, locations } from "./assets";
 
 /**
  * Helpdesk tickets (Phase 1.3 MVP). Owner-or-staff visibility:
@@ -45,6 +46,9 @@ export const tickets = pgTable(
     responseBreachedAt: timestamp("response_breached_at"),
     resolutionWarnedAt: timestamp("resolution_warned_at"),
     resolutionBreachedAt: timestamp("resolution_breached_at"),
+    // The room and the item the ticket is about (docs/assets.md); either may be unset.
+    locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
+    assetId: uuid("asset_id").references(() => assets.id, { onDelete: "set null" }),
   },
   (t) => ({
     createdByIdx: index("tickets_created_by_idx").on(t.createdByUserId),

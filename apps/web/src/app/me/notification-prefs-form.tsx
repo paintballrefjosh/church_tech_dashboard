@@ -96,6 +96,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Scheduled backup failed",
     hint: "A scheduled backup could not be made. (Admins only.)",
   },
+  "asset.overdue": {
+    title: "Equipment overdue",
+    hint: "An item checked out to you (or one you checked out to someone) is past the date it was due back.",
+  },
 };
 
 interface Pref {

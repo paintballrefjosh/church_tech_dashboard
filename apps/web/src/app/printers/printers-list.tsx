@@ -19,6 +19,7 @@ import {
 } from "@church/shared";
 import { useModal } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
+import { RoomSelect, useRooms } from "@/components/assets-ui";
 
 const STATUS_LABEL: Record<PrinterStatus, string> = {
   green: "OK",
@@ -366,6 +367,8 @@ function PrinterFormDrawer({
   const [fieryApiKey, setFieryApiKey] = useState<string>(printer?.fieryApiKey ?? "");
   const [enabled, setEnabled] = useState<boolean>(printer?.enabled ?? true);
   const [notes, setNotes] = useState<string>(printer?.notes ?? "");
+  const [locationId, setLocationId] = useState<string | null>(printer?.locationId ?? null);
+  const [rooms] = useRooms();
   const [busy, startTransition] = useTransition();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<
@@ -421,6 +424,7 @@ function PrinterFormDrawer({
         fieryApiUrl: fieryApiUrl.trim() === "" ? null : fieryApiUrl.trim(),
         fieryApiKey: fieryApiKey.trim() === "" ? null : fieryApiKey.trim(),
         notes: notes.trim() === "" ? null : notes.trim(),
+        locationId,
         ...(mode === "edit" ? { enabled } : {}),
       };
       const url = mode === "create" ? "/api/printers" : `/api/printers/${printer!.id}`;
@@ -568,6 +572,15 @@ function PrinterFormDrawer({
               Enabled (poll on the background tick)
             </label>
           ) : null}
+
+          <Field label="Room">
+            <RoomSelect
+              value={locationId}
+              onChange={setLocationId}
+              rooms={rooms}
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+            />
+          </Field>
 
           <Field label="Notes">
             <textarea

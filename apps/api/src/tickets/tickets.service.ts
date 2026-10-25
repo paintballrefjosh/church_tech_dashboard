@@ -7,7 +7,8 @@ import {
 } from "@nestjs/common";
 import { and, eq, desc, asc, ilike, or, inArray, isNull, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { tickets, ticketComments, users, tagAssignments } from "../db/schema";
+import { assets, tickets, ticketComments, users, tagAssignments } from "../db/schema";
+import { LocationsService } from "../assets/locations.service";
 import {
   PERMISSIONS,
   type CreateTicketInput,
@@ -44,6 +45,7 @@ export class TicketsService {
     private readonly attachments: AttachmentsService,
     private readonly search: SearchService,
     private readonly activity: ActivityService,
+    private readonly rooms: LocationsService,
   ) {}
 
   private hasAnyRead(user: AuthenticatedUser): boolean {
@@ -125,7 +127,17 @@ export class TicketsService {
     return row;
   }
 
+  /** A room or item given for a ticket must exist (who may see the item is the asset routes' business). */
+  private async checkPlace(input: { locationId?: string | null; assetId?: string | null }): Promise<void> {
+    await this.rooms.check(input.locationId);
+    if (input.assetId) {
+      const [a] = await this.db.select({ id: assets.id }).from(assets).where(eq(assets.id, input.assetId)).limit(1);
+      if (!a) throw new BadRequestException("That item does not exist.");
+    }
+  }
+
   async create(user: AuthenticatedUser, input: CreateTicketInput) {
+    await this.checkPlace(input);
     const [row] = await this.db
       .insert(tickets)
       .values({
@@ -134,6 +146,8 @@ export class TicketsService {
         priority: input.priority,
         createdByUserId: user.id,
         status: "open",
+        locationId: input.locationId ?? null,
+        assetId: input.assetId ?? null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -180,7 +194,10 @@ export class TicketsService {
       if (!u) throw new BadRequestException("Assignee user not found");
     }
 
+    await this.checkPlace(input);
     const patch: Partial<typeof tickets.$inferInsert> = { updatedAt: new Date() };
+    if (input.locationId !== undefined) patch.locationId = input.locationId;
+    if (input.assetId !== undefined) patch.assetId = input.assetId;
     if (input.title !== undefined) patch.title = input.title.trim();
     if (input.description !== undefined) patch.description = input.description;
     if (input.priority !== undefined) patch.priority = input.priority;

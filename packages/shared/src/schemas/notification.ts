@@ -29,6 +29,7 @@ export const NOTIFICATION_KINDS = [
   "dns.primary_unreachable",
   "backup.failed",
   "cluster.node_down",
+  "asset.overdue",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

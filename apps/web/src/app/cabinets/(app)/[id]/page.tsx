@@ -25,6 +25,7 @@ import { RackElevation } from "@/components/rack-elevation";
 import { errorText, useSwitchModels } from "@/lib/use-switch-models";
 import { matchSwitchModel } from "@/lib/faceplates/custom";
 import { modelPicture, type RackSide } from "@/lib/rack-pictures";
+import { RoomSelect, useRooms } from "@/components/assets-ui";
 
 type Dialog =
   | { kind: "add"; startU: number | null }
@@ -121,7 +122,13 @@ export default function CabinetPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">{rack.name}</h2>
-        {rack.location ? <span className="text-sm text-slate-500 dark:text-slate-400">{rack.location}</span> : null}
+        {rack.locationId ? (
+          <Link href={`/rooms/${rack.locationId}`} className="text-sm text-brand-600 hover:underline dark:text-brand-400">
+            {rack.location || "Its room"}
+          </Link>
+        ) : rack.location ? (
+          <span className="text-sm text-slate-500 dark:text-slate-400">{rack.location}</span>
+        ) : null}
         <span className="text-xs text-slate-500 dark:text-slate-400">
           {rack.units}U · {usedUnits(items)}U used · {Math.max(free, 0)}U free
         </span>
@@ -590,7 +597,8 @@ function ItemDialog({
 
 function CabinetDialog({ rack, onClose, onDelete, onDone }: { rack: RackDetail; onClose: () => void; onDelete: () => void; onDone: () => Promise<void> }) {
   const [name, setName] = useState(rack.name);
-  const [location, setLocation] = useState(rack.location);
+  const [locationId, setLocationId] = useState<string | null>(rack.locationId ?? null);
+  const [rooms] = useRooms();
   const [units, setUnits] = useState(String(rack.units));
   const [notes, setNotes] = useState(rack.notes);
   const [busy, setBusy] = useState(false);
@@ -606,7 +614,7 @@ function CabinetDialog({ rack, onClose, onDelete, onDone }: { rack: RackDetail; 
         method: "PATCH",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, location, units: Number(units), notes }),
+        body: JSON.stringify({ name, locationId, units: Number(units), notes }),
       });
       if (!r.ok) {
         setError(await errorText(r));
@@ -624,8 +632,8 @@ function CabinetDialog({ rack, onClose, onDelete, onDone }: { rack: RackDetail; 
         <Field label="Name *">
           <input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} className={`w-full ${inputCls}`} />
         </Field>
-        <Field label="Location">
-          <input maxLength={120} value={location} onChange={(e) => setLocation(e.target.value)} className={`w-full ${inputCls}`} />
+        <Field label="Room">
+          <RoomSelect value={locationId} onChange={setLocationId} rooms={rooms} className={`w-full ${inputCls}`} />
         </Field>
         <Field label={`Height (U)${highest > 0 ? `, at least ${highest} (the highest item)` : ""}`}>
           <input type="number" min={Math.max(1, highest)} max={MAX_RACK_UNITS} required value={units} onChange={(e) => setUnits(e.target.value)} className={`w-28 ${inputCls}`} />

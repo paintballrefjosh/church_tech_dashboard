@@ -4,6 +4,7 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { DB, type Db } from "../db/db.module";
 import {
   activityEvents,
+  assetCheckouts,
   authTokens,
   backupOperations,
   ciscoDriftEvents,
@@ -21,6 +22,8 @@ const DAY_MS = 86_400_000;
 export const AUTH_TOKEN_KEEP_DAYS = 30;
 /** Finished backup operations (the progress rows behind Admin > Backups) are kept this long. */
 export const BACKUP_OPERATION_KEEP_DAYS = 180;
+/** Returned equipment check-outs are kept this long ("who had the wireless pack last spring?"), then removed. */
+export const ASSET_CHECKOUT_KEEP_DAYS = 3 * 365;
 
 export interface RetentionResult {
   notifications: number;
@@ -30,11 +33,12 @@ export interface RetentionResult {
   updateRuns: number;
   authTokens: number;
   backupOperations: number;
+  assetCheckouts: number;
 }
 
 /**
  * Age-based clean-up of the tables that only ever grow: the notification centre, the activity feed, finished monitoring
- * history (resolved incidents and switch drift, host update runs) and spent sign-in links and backup operations. (The
+ * history (resolved incidents and switch drift, host update runs) and spent sign-in links, backup operations and returned equipment check-outs. (The
  * audit log prunes itself in `AuditService`, the infra metrics in `InfraCollector`, mail and bus tables in their stores.)
  * Each window that people care about is a setting (0 keeps everything); runtime state has a fixed window. Runs as one
  * cluster job, in batches. Only FINISHED rows are ever removed: an open incident or a running operation is never old.
@@ -70,7 +74,7 @@ export class RetentionService implements OnModuleInit {
   }
 
   async pruneOnce(now: Date = new Date()): Promise<RetentionResult> {
-    const out: RetentionResult = { notifications: 0, activity: 0, incidents: 0, drift: 0, updateRuns: 0, authTokens: 0, backupOperations: 0 };
+    const out: RetentionResult = { notifications: 0, activity: 0, incidents: 0, drift: 0, updateRuns: 0, authTokens: 0, backupOperations: 0, assetCheckouts: 0 };
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
     try {
       const nDays = await this.days("notifications.retention_days");
@@ -108,6 +112,12 @@ export class RetentionService implements OnModuleInit {
         backupOperations,
         backupOperations.id,
         and(ne(backupOperations.status, "running"), isNotNull(backupOperations.finishedAt), lt(backupOperations.finishedAt, before(BACKUP_OPERATION_KEEP_DAYS)))!,
+      );
+
+      out.assetCheckouts = await this.prune(
+        assetCheckouts,
+        assetCheckouts.id,
+        and(isNotNull(assetCheckouts.returnedAt), lt(assetCheckouts.returnedAt, before(ASSET_CHECKOUT_KEEP_DAYS)))!,
       );
 
       const removed = Object.entries(out).filter(([, n]) => n > 0);

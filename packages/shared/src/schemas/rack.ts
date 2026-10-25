@@ -57,7 +57,10 @@ const text = (max: number) =>
 export const rackSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  /** The room's name (kept for older clients); the room is `locationId`. */
   location: z.string(),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   units: z.number().int(),
   notes: z.string(),
   createdAt: z.string().datetime(),
@@ -68,6 +71,8 @@ export type Rack = z.infer<typeof rackSchema>;
 export const createRackSchema = z.object({
   name: text(80).pipe(z.string().min(1, "a name is required")),
   location: text(120).default(""),
+  /** The room it is in (docs/assets.md); null = none. */
+  locationId: z.string().uuid().nullable().optional(),
   units: z.number().int().min(1).max(MAX_RACK_UNITS).default(DEFAULT_RACK_UNITS),
   notes: z.string().trim().max(2000).default(""),
 });

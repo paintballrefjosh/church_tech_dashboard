@@ -78,8 +78,8 @@ describe.skipIf(!url)("helpdesk waiting, SLA notices and canned replies against 
         sent.push({ recipients: inputs.map((i) => i.recipientUserId), kind: first.kind, title: first.title, body: first.body ?? "" });
       },
     };
-    const none = { changed: () => undefined, record: async () => undefined, notify: async () => undefined };
-    tickets = new TicketsService(db as never, none as never, none as never, none as never);
+    const none = { changed: () => undefined, record: async () => undefined, notify: async () => undefined, check: async () => undefined };
+    tickets = new TicketsService(db as never, none as never, none as never, none as never, none as never);
     sla = new TicketSla(db as never, { register: () => undefined } as never, settings as never, notifications as never);
     canned = new CannedRepliesService(db as never);
 

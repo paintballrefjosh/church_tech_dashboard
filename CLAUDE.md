@@ -112,7 +112,7 @@ migrations 0022/0024). Access is granted as **(module, tier)** per **group**:
 
 Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 `wiki`, `monitoring`, `printers`, `propresenter`, `planning_center`,
-`checklists`, `admin`. Default per-group grants live in
+`checklists`, `assets`, `admin` (among others). Default per-group grants live in
 `DEFAULT_GROUP_MODULE_ACCESS` and are applied by the seed.
 
 The `monitoring` module is a single section covering tabbed views under
@@ -398,6 +398,25 @@ DATE-ONLY string on the site's calendar (never an instant; `siteToday` from `sit
 nothing more than `RENEWAL_OVERDUE_NOTICE_DAYS` past), CLAIMS it with a conditional UPDATE of `reminded_for` and tells the owner, else the
 admin group (kind `renewal.due`). Moving the date gives new markers, so the reminders start again; never an earlier reminder after a nearer
 one. `remind_days` is jsonb because the backup codec writes back jsonb, not `integer[]`.
+
+**Rooms and equipment** (`apps/api/src/assets/`, pages `/assets` ("Equipment" in the IT menu) and `/rooms`, migration 0082; design and
+decisions in [docs/assets.md](docs/assets.md); rules and CSV parsing in `packages/shared/src/schemas/{asset,location}.ts`, unit-tested in
+`apps/api/test/assets.test.ts`). Module `assets`: user tier = `assets:read:any` + `assets:checkout:own` (every volunteer sees the
+inventory and checks out to and back from THEMSELVES), moderator = `assets:write:any` (add/edit, check out to anyone or a typed name,
+see cost, purchase date and history), admin = `assets:admin` + `locations:admin` (delete, import, edit rooms). Reading rooms needs only a
+session. Rules: (1) **one open check-out per item is the database's rule** (partial unique index `asset_checkouts_open_idx`); a 23505
+is the "just checked out to ..." 409, returning is a conditional UPDATE. (2) Cost and purchase date are null in every answer to a
+non-staff reader (`toDto`), never only hidden in the UI; search never indexes them. (3) A room is `location_id` (ON DELETE SET NULL)
+on tickets, assets, racks, monitors, infra hosts and printers, checked by `checkLocation`/`LocationsService.check`; **a Cisco switch's
+`location` is its snmp-server location, not a room**. Cabinets keep `racks.location` equal to the room name for older nodes, and the
+`locations-adopt` job turns leftover text into rooms (CockroachDB cannot write a column added in the same migration transaction, so
+the conversion is not in the migration). (4) Overdue reminders: job `asset-overdue` (hourly), CLAIM `reminded_for` = the due date
+before sending (kind `asset.overdue`), 30+ days overdue when first seen = flagged silently. (5) Import is parsed and checked in the
+browser (`parseAssetCsv`), sent as JSON (2000 rows, under the 1 MiB body limit), applied in one transaction. (6) Labels and room signs
+are print pages whose QR SVG is made on the server from the request's own address (`lib/qr.ts`). (7) Search kind `asset`
+(`ASSET_KINDS`, `canSeeAssets`); writes call `SearchService.assetsChanged()`. (8) Retention: returned check-outs after 3 years. MCP has
+read and create/update tools (`catalogue/assets.tools.ts`); check-out, return, due date, import and deletes are excluded. Tests: smoke
+`tests/smoke/assets.mjs` (a throwaway volunteer account proves the own-only rules), e2e `assets.spec.ts`.
 
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and

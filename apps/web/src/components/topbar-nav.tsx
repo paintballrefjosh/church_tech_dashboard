@@ -26,6 +26,8 @@ import {
   Boxes,
   CalendarClock,
   Bot,
+  Package,
+  DoorOpen,
 } from "lucide-react";
 import { NavDropdown, type NavDropdownItem, type NavDropdownEntry } from "./nav-dropdown";
 
@@ -58,6 +60,9 @@ const IT_ITEMS: Item[] = [
   { href: "/cabinets", label: "Cabinets", Icon: Server, module: "monitoring" },
   { href: "/device-profiles", label: "Device profiles", Icon: Images, module: "monitoring" },
   { href: "/renewals", label: "Renewals", Icon: CalendarClock, module: "monitoring" },
+  { href: "/assets", label: "Equipment", Icon: Package, module: "assets" },
+  // Everyone reads rooms; the link rides the Assets module so the menu stays short for people who never need it.
+  { href: "/rooms", label: "Rooms", Icon: DoorOpen, module: "assets" },
 ];
 
 const DOCS_ITEMS: Item[] = [

@@ -6,6 +6,7 @@ import { LIVE_SEARCH_STORE, type LiveSearchStore } from "./live-search.store";
 import { diffDocs, withRev } from "./search-helpers";
 import { SEARCH_SOURCES, type SearchSources } from "./search-sources";
 import {
+  ASSET_KINDS,
   CONTENT_KINDS,
   DNS_KINDS,
   LIVE_KINDS,
@@ -68,7 +69,7 @@ const CONTENT_RECONCILE_MS = Math.max(
 /** A search waits at most this long for the start-up reconcile before answering anyway. */
 const READY_WAIT_MS = 8_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ALL_KINDS = new Set<string>([...CONTENT_KINDS, ...MONITORING_KINDS, ...LIVE_KINDS]);
+const ALL_KINDS = new Set<string>([...CONTENT_KINDS, ...MONITORING_KINDS, ...ASSET_KINDS, ...LIVE_KINDS]);
 const DELETE_CHUNK = 1_000;
 
 @Injectable()
@@ -291,6 +292,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     await this.serial(async () => {
       const content = await this.reconcileKinds(CONTENT_KINDS, await this.loadAllContent());
       const monitoring = await this.reconcileKinds(MONITORING_KINDS, await this.sources.loadMonitoringDocs());
+      await this.reconcileKinds(ASSET_KINDS, await this.sources.loadAssetDocs());
       const live = await this.reconcileKinds(LIVE_KINDS, await this.live.load(LIVE_KINDS));
       const n = (r: { upserted: number; deleted: number }) => `${r.upserted} written, ${r.deleted} removed`;
       this.logger.log(`search index reconciled: content ${n(content)}; monitoring ${n(monitoring)}; live ${n(live)}`);
@@ -314,8 +316,20 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       if (!idx) return { total: 0, monitors: 0 };
       const docs = await this.sources.loadMonitoringDocs();
       await this.reconcileKinds(MONITORING_KINDS, docs);
+      await this.reconcileKinds(ASSET_KINDS, await this.sources.loadAssetDocs());
       return { total: docs.length, monitors: docs.filter((d) => d.kind === "monitor").length };
     });
+  }
+
+  /**
+   * An item of equipment was added, changed or removed: bring this node's equipment documents in line now. Other nodes
+   * pick it up on their next timed sync (SEARCH_MONITORING_SYNC_MS). Best effort, like every index write.
+   */
+  assetsChanged(): void {
+    void this.serial(async () => {
+      if (!(await this.indexOrNull())) return;
+      await this.reconcileKinds(ASSET_KINDS, await this.sources.loadAssetDocs());
+    }).catch((err: unknown) => this.logger.warn(`search: equipment refresh failed: ${(err as Error).message}`));
   }
 
   /** Bring the UniFi and DNS kinds in line with `live_search_docs`. */
@@ -372,6 +386,8 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     canSeeMonitoring: boolean;
     /** Holds `unifi:read:any` — sees UniFi device / client kinds. */
     canSeeUnifi: boolean;
+    /** Holds `assets:read:any` — sees equipment. */
+    canSeeAssets?: boolean;
     kinds?: SearchKind[];
     tagIds?: string[];
     limit?: number;
@@ -424,6 +440,9 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     if (opts.canSeeUnifi) {
       orParts.push(`kind IN [${UNIFI_KINDS.map((k) => `"${k}"`).join(",")}]`);
     }
+    if (opts.canSeeAssets) {
+      orParts.push(`kind IN [${quoted(ASSET_KINDS)}]`);
+    }
 
     let filter = `(${orParts.join(" OR ")})`;
     const kinds = (opts.kinds ?? []).filter((k) => ALL_KINDS.has(k));
@@ -472,6 +491,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       }
       const monitoring = await this.sources.loadMonitoringDocs();
       await this.upsertMany(monitoring);
+      await this.upsertMany(await this.sources.loadAssetDocs());
       counts.monitoring = monitoring.length;
       counts.monitors = monitoring.filter((d) => d.kind === "monitor").length;
       // UniFi and DNS documents come back from their table, not from waiting for the next poll.

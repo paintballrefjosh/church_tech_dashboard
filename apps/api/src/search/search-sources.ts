@@ -16,6 +16,8 @@ import {
   ciscoVlanDb,
   ipamSubnets,
   ipamHosts,
+  assets,
+  locations,
 } from "../db/schema";
 import { searchDocId, type ContentKind, type SearchDoc } from "./search-types";
 
@@ -32,6 +34,8 @@ export interface SearchSources {
   loadContentDocs(kind: ContentKind): Promise<SearchDoc[]>;
   /** Every DB-backed monitoring document (monitors, infra, Cisco, IPAM). */
   loadMonitoringDocs(): Promise<SearchDoc[]>;
+  /** Every item of equipment. */
+  loadAssetDocs(): Promise<SearchDoc[]>;
 }
 
 export const SEARCH_SOURCES = Symbol("SEARCH_SOURCES");
@@ -125,6 +129,36 @@ export class DbSearchSources implements SearchSources {
 
   async loadMonitoringDocs(): Promise<SearchDoc[]> {
     return this.buildMonitoringDbDocs();
+  }
+
+  /** Equipment: tag and name as the title; make, model, serial, room and category to search by. Cost is never indexed. */
+  async loadAssetDocs(): Promise<SearchDoc[]> {
+    const rows = await this.db
+      .select({
+        id: assets.id,
+        tag: assets.tag,
+        name: assets.name,
+        category: assets.category,
+        make: assets.make,
+        model: assets.model,
+        serial: assets.serial,
+        status: assets.status,
+        room: locations.name,
+        updatedAt: assets.updatedAt,
+      })
+      .from(assets)
+      .leftJoin(locations, eq(locations.id, assets.locationId));
+    return rows.map((r) => ({
+      id: searchDocId("asset", r.id),
+      kind: "asset",
+      resourceId: r.id,
+      ownerUserId: null,
+      title: `${r.tag} ${r.name}`,
+      body: [r.make, r.model, r.serial, r.room, r.category].filter(Boolean).join(" · "),
+      extra: { tag: r.tag, status: r.status },
+      url: `/assets/${r.id}`,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
   }
 
   /** Timestamp helper — cache tables (cisco) carry no updatedAt, so freshness

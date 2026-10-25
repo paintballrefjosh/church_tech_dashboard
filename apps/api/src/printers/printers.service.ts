@@ -19,6 +19,7 @@ import type {
 } from "@church/shared";
 import { probePrinterSnmp } from "./snmp";
 import { probeFieryQueue } from "./fiery";
+import { checkLocation } from "../assets/locations.service";
 
 /**
  * Defaults if no settings rows exist yet. Reseeding is idempotent so these are
@@ -83,6 +84,7 @@ export class PrintersService implements OnModuleInit {
         fieryApiUrl: input.fieryApiUrl,
         fieryApiKey: input.fieryApiKey,
         notes: input.notes ?? null,
+        locationId: (await checkLocation(this.db, input.locationId)) ?? null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -101,6 +103,7 @@ export class PrintersService implements OnModuleInit {
     if (input.fieryApiUrl !== undefined) patch.fieryApiUrl = input.fieryApiUrl;
     if (input.fieryApiKey !== undefined) patch.fieryApiKey = input.fieryApiKey;
     if (input.notes !== undefined) patch.notes = input.notes;
+    if (input.locationId !== undefined) patch.locationId = (await checkLocation(this.db, input.locationId)) ?? null;
     if (input.enabled !== undefined) patch.enabled = input.enabled;
     const [row] = await this.db.update(printers).set(patch).where(eq(printers.id, id)).returning();
     return toPrinter(row!);
@@ -301,6 +304,7 @@ function toPrinter(row: typeof printers.$inferSelect): Printer {
     fieryApiKey: row.fieryApiKey ?? null,
     enabled: row.enabled,
     notes: row.notes ?? null,
+    locationId: row.locationId ?? null,
     lastStatus: row.lastStatus as PrinterStatus,
     lastCheckedAt: row.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
     lastError: row.lastError ?? null,

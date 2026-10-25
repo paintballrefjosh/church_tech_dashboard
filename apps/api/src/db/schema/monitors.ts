@@ -11,6 +11,7 @@ import {
 import { infraTargets } from "./infra";
 import { users } from "./users";
 import { wikiPages } from "./wiki";
+import { locations } from "./assets";
 
 /**
  * A user-defined monitor. The probe worker reads the active set on a poll and
@@ -60,6 +61,7 @@ export const monitors = pgTable(
     statusName: text("status_name"),
     // The wiki page that says what to do when it fails, shown on the monitor's page (the title only to people who may read it).
     runbookPageId: uuid("runbook_page_id").references(() => wikiPages.id, { onDelete: "set null" }),
+    locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

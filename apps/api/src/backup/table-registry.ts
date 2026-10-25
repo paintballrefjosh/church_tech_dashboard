@@ -45,6 +45,7 @@ const WIKI = "Wiki";
 const NOTES = "Notes";
 const CHECKLISTS = "Checklists";
 const MONITORING = "Monitoring";
+const ASSETS = "Assets and rooms";
 const PRINTERS = "Printers";
 const FILES = "Files";
 const OTHER = "Other";
@@ -163,6 +164,9 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   cisco_vlans: { policy: "data", group: MONITORING, title: "Cisco VLANs (desired)", label: ["vlan_id", "name"] },
   racks: { policy: "data", group: MONITORING, title: "Cabinets (racks)", label: ["name"] },
   renewals: { policy: "data", group: MONITORING, title: "Renewals", label: ["name", "renews_on"], volatile: ["reminded_for"] },
+  locations: { policy: "data", group: ASSETS, title: "Rooms", label: ["name"] },
+  assets: { policy: "data", group: ASSETS, title: "Assets", label: ["tag", "name"] },
+  asset_checkouts: { policy: "data", group: ASSETS, title: "Asset check-outs", label: ["holder_name", "out_at"], volatile: ["reminded_for"] },
   alert_channels: {
     policy: "data",
     group: MONITORING,
@@ -241,7 +245,7 @@ export interface RestoreSection {
   hasFiles: boolean;
 }
 
-const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, FILES];
+const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, ASSETS, FILES];
 
 const SECTION_BLURBS: Record<string, string> = {
   [PEOPLE]: "Users, groups and who can do what, sign-in links, passwords, two-factor secrets and API tokens.",
@@ -252,6 +256,7 @@ const SECTION_BLURBS: Record<string, string> = {
   [CHECKLISTS]: "Checklist stations and templates, recurring services, events, tasks and volunteers.",
   [MONITORING]: "Everything under the Monitoring menu: service monitors and incidents, infrastructure hosts, UPS devices, Cisco switches and ports, IPAM subnets and hosts, UniFi acknowledgements.",
   [PRINTERS]: "Printers and their SNMP settings.",
+  [ASSETS]: "Rooms, the equipment inventory and who has had each item.",
   [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
 };
 
