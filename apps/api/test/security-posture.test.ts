@@ -89,6 +89,8 @@ describe("security posture", () => {
   });
 
   it("maintenance: no end time warns, a window with an end is only a note and says how long is left", () => {
+    expect(byId(evaluatePosture(facts({ publicStatus: true })), "public-status")).toMatchObject({ severity: "info" });
+    expect(byId(evaluatePosture(facts({})), "public-status")).toBeUndefined();
     expect(byId(evaluatePosture(facts({ maintenanceMode: true, maintenanceUntil: null })), "maintenance-mode")).toMatchObject({ severity: "warn", title: "Alert notifications are paused with no end time" });
     const timed = (ms: number) => byId(evaluatePosture(facts({ maintenanceMode: true, maintenanceUntil: NOW + ms })), "maintenance-mode")!;
     expect(timed(30 * 60_000)).toMatchObject({ severity: "info", title: "Alert notifications are paused for another 30 minutes" });

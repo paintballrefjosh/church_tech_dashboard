@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, CircleHelp, CircleX, TriangleAlert, Wrench, Zap } from "lucide-react";
-import { STATUS_OVERALL_TEXT, type StatusItem, type StatusOverall, type StatusPage } from "@church/shared";
+import { STATUS_OVERALL_TEXT, type PublicStatusPage, type StatusOverall } from "@church/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 
 const POLL_MS = 30_000;
@@ -15,7 +15,10 @@ const BANNER: Record<StatusOverall, string> = {
   unknown: "border-slate-300 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
 };
 
-function stateWords(item: StatusItem): { label: string; hint: string | null } {
+/** The signed-in page's items carry an id too; both pages render the same fields. */
+type Item = PublicStatusPage["items"][number];
+
+function stateWords(item: Item): { label: string; hint: string | null } {
   switch (item.state) {
     case "up":
       return { label: "Working", hint: null };
@@ -28,7 +31,7 @@ function stateWords(item: StatusItem): { label: string; hint: string | null } {
   }
 }
 
-function StateIcon({ state }: { state: StatusItem["state"] }) {
+function StateIcon({ state }: { state: Item["state"] }) {
   const cls = "h-6 w-6 shrink-0";
   if (state === "up") return <CircleCheck aria-hidden className={`${cls} text-emerald-700 dark:text-emerald-400`} />;
   if (state === "down") return <CircleX aria-hidden className={`${cls} text-rose-600 dark:text-rose-400`} />;
@@ -36,20 +39,21 @@ function StateIcon({ state }: { state: StatusItem["state"] }) {
   return <CircleHelp aria-hidden className={`${cls} text-slate-500 dark:text-slate-400`} />;
 }
 
-export function StatusClient({ initial }: { initial: StatusPage | null }) {
+/** `source` is where it refreshes from: the signed-in page's proxy, or the public copy (no sign-in). */
+export function StatusClient({ initial, source = "/api/status" }: { initial: PublicStatusPage | null; source?: string }) {
   const [page, setPage] = useState(initial);
   const [stale, setStale] = useState(initial === null);
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch("/api/status", { credentials: "same-origin", cache: "no-store" });
+      const r = await fetch(source, { credentials: "same-origin", cache: "no-store" });
       if (!r.ok) throw new Error(String(r.status));
-      setPage((await r.json()) as StatusPage);
+      setPage((await r.json()) as PublicStatusPage);
       setStale(false);
     } catch {
       setStale(true);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -105,10 +109,10 @@ export function StatusClient({ initial }: { initial: StatusPage | null }) {
         </p>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-300 dark:divide-slate-800 dark:border-slate-800" data-testid="status-list">
-          {page.items.map((item) => {
+          {page.items.map((item, i) => {
             const words = stateWords(item);
             return (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-3" data-state={item.state}>
+              <li key={`${i}:${item.name}`} className="flex items-center gap-3 px-4 py-3" data-state={item.state}>
                 <StateIcon state={item.state} />
                 <div className="min-w-0 flex-1">
                   <div className="text-base font-medium">{item.name}</div>

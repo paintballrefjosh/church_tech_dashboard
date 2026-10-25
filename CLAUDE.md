@@ -341,7 +341,7 @@ leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (Coc
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
 restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
 
-**Alert channels, the alert outbox, runbooks** (migrations 0077, 0078; rules in
+**Alert channels, the alert outbox, runbooks, the public status page** (migrations 0077, 0078; rules in
 `packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,
 `apps/api/src/alerts/`, page `/monitoring/alert-channels`, the "Alerts" tab; reads AND writes `monitors:write:any`, MCP-excluded) are
 site-wide destinations: ntfy, Pushover, Slack, Teams (Workflows webhook), Discord, a JSON webhook (optional HMAC `X-Church-Signature`
@@ -358,9 +358,12 @@ it). Rows are CLAIMED by one conditional UPDATE (`claimed_until`, database clock
 than `ALERT_STALE_MS` (30 min) when picked up goes to the bell only. Maintenance mode silences at the source, as before. A fan-out with no
 recipients sends nothing to the channels either. (3) *Runbooks*: `monitors.runbook_page_id` and `infra_targets.runbook_page_id` (FK to
 `wiki_pages`, ON DELETE SET NULL; `checkRunbookPage` only checks the page exists). The web reads the title through the wiki's own route
-(`RunbookCard`), so a person who may see the monitor but not the page sees "a runbook is linked" and nothing more. Tests:
+(`RunbookCard`), so a person who may see the monitor but not the page sees "a runbook is linked" and nothing more. (4) *Public status*:
+`monitoring.status_public` (off) publishes `/public-status` (a PUBLIC middleware path) from `GET /status/public` (`@Public`, 404 while off,
+`publicStatusPage` drops monitor ids, 15 s cache because anyone can ask). It shows exactly what the signed-in page does; the rule
+"never a target, address, error text or threshold" applies doubly. The Security overview shows it as `info`. Tests:
 `alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
-bell and runbook cases in `tests/smoke/alerts.mjs`.
+bell/runbook/public-status cases in `tests/smoke/alerts.mjs`.
 
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and

@@ -21,6 +21,8 @@ const PUBLIC_PATH_PREFIXES = [
   // The service worker script holds nothing private. Behind a sign-in redirect a browser refuses to register it, so a
   // visit before signing in left no worker for push to use.
   "/sw.js",
+  // The status page's public copy, when an admin has switched it on (the API answers 404 otherwise).
+  "/public-status",
 ];
 
 /**

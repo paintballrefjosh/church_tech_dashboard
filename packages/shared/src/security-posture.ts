@@ -44,6 +44,8 @@ export interface PostureFacts {
   /** The helpdesk mailbox: switched on, how sure it is of a sender (`strict` | `aligned` | `off`), and whether the mail server's name is set. */
   helpdeskEmail: { enabled: boolean; auth: string; authServerSet: boolean };
   auditRetentionDays: number;
+  /** The status page is also published without sign-in (`monitoring.status_public`). */
+  publicStatus?: boolean;
 }
 
 export interface PostureCheck {
@@ -232,6 +234,15 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
       severity: "info",
       detail: "Maintenance mode has an end time, so alerts resume by themselves. Incidents are recorded meanwhile.",
       fix: { label: "Open Monitoring", href: "/monitoring" },
+    });
+  }
+  if (f.publicStatus) {
+    add({
+      id: "public-status",
+      title: "The status page is public",
+      severity: "info",
+      detail: "Anyone with the address can read /public-status without signing in: the names chosen for the status page, whether each is up, and the notice. Make sure those names say nothing you would not put on a noticeboard.",
+      fix: { label: "Open Monitoring settings", href: "/admin/settings/monitoring" },
     });
   }
   if (!f.siteUrlSet) {

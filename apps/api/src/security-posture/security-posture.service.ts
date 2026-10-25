@@ -141,6 +141,7 @@ export class SecurityPostureService {
         authServerSet: (await text("tickets.inbound.auth_server")) !== "",
       },
       auditRetentionDays: typeof retention === "number" && retention >= 0 ? Math.floor(retention) : 365,
+      publicStatus: await flag("monitoring.status_public"),
     };
   }
 }

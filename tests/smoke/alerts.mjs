@@ -144,6 +144,24 @@ export async function alertTests({ test, assert, fetchWithCookies, jar }) {
       assert((await put("monitoring.flap_incidents", 3)).res.status === 200, "default flap count");
     });
 
+    await test("public status: 404 while off; when on, readable without signing in and without monitor ids", async () => {
+      const put = (value) => session("/api/v1/settings/monitoring.status_public", { method: "PUT", ...json({ value }) });
+      try {
+        assert((await put(false)).res.status === 200, "switch off");
+        assert((await fetchWithCookies("/api/v1/status/public")).res.status === 404, "public copy while off");
+        assert((await fetchWithCookies("/public-status")).res.status === 404, "public page while off");
+        assert((await put(true)).res.status === 200, "switch on");
+        const { res } = await fetchWithCookies("/api/v1/status/public");
+        assert(res.status === 200, `public copy ${res.status}`);
+        const body = await res.json();
+        assert(Array.isArray(body.items) && body.items.every((i) => !("id" in i)), `ids leaked: ${JSON.stringify(body.items)}`);
+        assert(body.items.some((i) => i.name === listed.statusName || i.name === listed.name), "the listed monitor is missing");
+        assert((await fetchWithCookies("/public-status")).res.status === 200, "public page while on");
+      } finally {
+        await put(false);
+      }
+    });
+
     await test("status: the admin's notice is shown (and cleared)", async () => {
       const put = (value) => session("/api/v1/settings/monitoring.status_notice", { method: "PUT", ...json({ value }) });
       assert((await put("[smoke] Wi-Fi work on Saturday")).res.status === 200, "set notice");

@@ -946,6 +946,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "monitoring",
   },
   {
+    key: ALERT_KEYS.statusPublic,
+    type: "boolean",
+    label: "Status page: also public",
+    description:
+      "Also publish the status page at /public-status, readable without signing in (for the congregation: 'the livestream is having trouble'). It shows exactly what the signed-in page shows: the names you chose, their state and the notice. Off by default.",
+    defaultValue: false,
+    category: "monitoring",
+  },
+  {
     key: "monitoring.tick_seconds",
     type: "number",
     label: "Collector tick interval (seconds)",

@@ -11,6 +11,7 @@ export const ALERT_KEYS = {
   groupAfterMin: "monitoring.escalate_group_min",
   escalationGroup: "monitoring.escalation_group",
   statusNotice: "monitoring.status_notice",
+  statusPublic: "monitoring.status_public",
 } as const;
 
 export const FLAP_DEFAULT_INCIDENTS = 3;
@@ -125,6 +126,18 @@ export interface StatusPage {
   /** A line an admin wrote for everybody ("Wi-Fi work this Saturday"), or "". */
   notice: string;
   generatedAt: string;
+}
+
+/**
+ * What the PUBLIC status page (no sign-in, `monitoring.status_public`) carries: the same names and states, without the
+ * internal monitor ids. Everything else on the page is already chosen for everybody to read.
+ */
+export interface PublicStatusPage extends Omit<StatusPage, "items"> {
+  items: Array<Omit<StatusItem, "id">>;
+}
+
+export function publicStatusPage(page: StatusPage): PublicStatusPage {
+  return { ...page, items: page.items.map(({ name, state, since, acknowledged }) => ({ name, state, since, acknowledged })) };
 }
 
 /** The headline: all clear, some services trouble, or most of them out. Nothing shown at all is "unknown". */
