@@ -526,6 +526,13 @@
       "when": 1793040890977,
       "tag": "0074_cisco_poe_state",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793127290977,
+      "tag": "0075_racks",
+      "breakpoints": true
     }
   ]
 }

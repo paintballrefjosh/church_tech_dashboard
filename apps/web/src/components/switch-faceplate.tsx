@@ -21,6 +21,11 @@ export interface FaceItem {
   poe?: string;
 }
 
+/** Smallest side of a port button on a phone, in px (WCAG 2.2 target size), and the panel widths that implies. */
+const FACE_TARGET_PX = 24;
+const MIN_PANEL_PX = 760;
+const MAX_PHONE_PANEL_PX = 3200;
+
 const STATE_COLOUR: Record<FaceState, { ring: string; fill: string }> = {
   up: { ring: "#34d399", fill: "rgba(52, 211, 153, 0.45)" },
   down: { ring: "#fbbf24", fill: "rgba(251, 191, 36, 0.30)" },
@@ -111,6 +116,10 @@ export function SwitchFaceplate({
   const activeGroups = new Set(layout.ports.filter((p) => p.group && bySlot.has(p.key)).map((p) => p.group as string));
   const shownPorts = layout.ports.filter((p) => !p.group || activeGroups.has(p.group));
   const shownOverlays = (layout.overlays ?? []).filter((o) => activeGroups.has(o.id));
+  // On a phone the panel scrolls sideways anyway, so it is made wide enough that the smallest port button is at least
+  // FACE_TARGET_PX square (WCAG 2.2 target size). Wider screens keep the normal width: there the panel fits the page.
+  const smallest = Math.min(...shownPorts.filter((p) => bySlot.has(p.key)).map((p) => Math.min(p.w, p.h)));
+  const phoneMinWidth = Number.isFinite(smallest) && smallest > 0 ? Math.min(Math.max(MIN_PANEL_PX, Math.ceil((FACE_TARGET_PX * layout.width) / smallest)), MAX_PHONE_PANEL_PX) : MIN_PANEL_PX;
 
   const cancelClose = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -230,7 +239,10 @@ export function SwitchFaceplate({
         </div>
       ) : (
       <div tabIndex={0} role="region" aria-label={`${layout.title}, ports`} className="overflow-x-auto rounded-md border border-slate-300 bg-slate-100 p-3 dark:border-slate-800 dark:bg-slate-900">
-        <div className="relative mx-auto" style={{ aspectRatio: `${layout.width} / ${layout.height}`, minWidth: 760, maxWidth: 1400 }}>
+        <div
+          className="relative mx-auto min-w-[760px] max-sm:min-w-[var(--phone-min-width)]"
+          style={{ aspectRatio: `${layout.width} / ${layout.height}`, maxWidth: 1400, ["--phone-min-width" as string]: `${phoneMinWidth}px` }}
+        >
           {photo ? (
             // eslint-disable-next-line @next/next/no-img-element -- a fixed catalogue photo, sized by the layout
             <img src={photo} alt={layout.title} onError={() => setImageFailed(true)} className="absolute inset-0 h-full w-full select-none" draggable={false} />
@@ -293,7 +305,7 @@ export function SwitchFaceplate({
 
       {strip.length > 0 ? (
         <section aria-label="Other interfaces" className="space-y-1.5">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Other interfaces</h3>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Other interfaces</h2>
           <div className="flex flex-wrap gap-1.5">
             {strip.map((item) =>
               portButton(

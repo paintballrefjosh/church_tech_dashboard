@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CircleCheck, CircleHelp, RefreshCw } from "lucide-react";
+import { AlertTriangle, CircleCheck, CircleHelp, Printer, RefreshCw } from "lucide-react";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { DataTable, type Column } from "@/components/data-table";
 import { clientTraffic } from "@/lib/unifi-traffic";
@@ -24,6 +25,8 @@ interface UDevice {
   type?: string;
   num_sta?: number;
   uptime?: number;
+  // A switch or gateway lists its ports here; an access point does not.
+  port_table?: unknown[];
   // Server-annotated: operator has acknowledged this device's current outage,
   // so it's suppressed from the Network tab problem badge until it recovers.
   acked?: boolean;
@@ -256,6 +259,23 @@ function DevicesTable({
       align: "right",
       render: (d) => <span className="text-xs text-slate-500 dark:text-slate-400">{formatUptime(d.uptime)}</span>,
       sortValue: (d) => d.uptime ?? 0,
+    },
+    {
+      key: "print",
+      label: "",
+      srLabel: "Printable port sheet",
+      align: "right",
+      // Only a device with a port table has ports to list.
+      render: (d) =>
+        d.mac && Array.isArray(d.port_table) && d.port_table.length > 0 ? (
+          <Link
+            href={`/print/unifi/${encodeURIComponent(d.mac)}`}
+            aria-label={`Printable port sheet for ${d.name ?? d.mac}`}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <Printer className="h-3.5 w-3.5" aria-hidden /> Print ports
+          </Link>
+        ) : null,
     },
     {
       key: "ack",

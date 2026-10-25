@@ -10,6 +10,7 @@ import { Agent } from "undici";
 import { eq, inArray } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { unifiDeviceAcks } from "../db/schema";
+import type { UnifiNetworkLike, UnifiProfileLike } from "@church/shared";
 import { SettingsService } from "../settings/settings.service";
 
 /** Normalise a MAC for storage/comparison — controllers report lowercase, but
@@ -261,6 +262,32 @@ export class UnifiService {
       purpose: n.purpose ?? null,
       enabled: n.enabled !== false,
     }));
+  }
+
+  /**
+   * The controller's networks as the controller stores them (`rest/networkconf`, with their ids), for the port sheet:
+   * a port's profile names networks by id. Resolves to `null` when the controller cannot be asked (the sheet then says
+   * the VLANs are unavailable instead of printing guesses); an unconfigured controller is also `null`.
+   */
+  async networkConfs(): Promise<UnifiNetworkLike[] | null> {
+    return this.restList("rest/networkconf");
+  }
+
+  /** Switch port profiles (`rest/portconf`): each says which network a port is native on and which it tags. */
+  async portProfiles(): Promise<UnifiProfileLike[] | null> {
+    return this.restList("rest/portconf");
+  }
+
+  private async restList<T>(path: string): Promise<T[] | null> {
+    const cfg = await this.config();
+    if (!cfg) return null;
+    try {
+      const data = await this.apiGet(`s/${encodeURIComponent(cfg.siteId)}/${path}`);
+      return Array.isArray(data) ? (data as T[]) : null;
+    } catch (err) {
+      this.logger.debug(`UniFi ${path} failed: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   async health(): Promise<{ configured: boolean; reachable: boolean; error: string | null }> {

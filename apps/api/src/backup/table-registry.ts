@@ -161,6 +161,8 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   },
   switch_models: { policy: "data", group: MONITORING, title: "Switch models (pictures and port layouts)", label: ["name"] },
   cisco_vlans: { policy: "data", group: MONITORING, title: "Cisco VLANs (desired)", label: ["vlan_id", "name"] },
+  racks: { policy: "data", group: MONITORING, title: "Cabinets (racks)", label: ["name"] },
+  rack_items: { policy: "data", group: MONITORING, title: "Cabinet items", label: ["label", "start_u"] },
   cisco_config_backups: { policy: "data", group: MONITORING, title: "Cisco configuration backups", label: ["backup_type", "backed_up_at"] },
   cisco_arp_cache: rebuilt("Cisco ARP cache"),
   cisco_mac_table: rebuilt("Cisco MAC tables"),

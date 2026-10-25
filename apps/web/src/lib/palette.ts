@@ -140,6 +140,7 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "monitoring", cmd: go("go:ups", "Go to", "UPS", "/monitoring/ups", Zap, "battery power") },
   { module: "monitoring", cmd: go("go:ipam", "Go to", "IPAM", "/ipam", Boxes, "ip addresses subnets") },
   { module: "monitoring", cmd: go("go:dns", "Go to", "DNS", "/dns", Globe, "records zones") },
+  { module: "monitoring", cmd: go("go:cabinets", "Go to", "Cabinets", "/cabinets", Server, "racks elevation rack u server room") },
   { module: "printers", cmd: go("go:printers", "Go to", "Printers", "/printers", Printer, "toner") },
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },

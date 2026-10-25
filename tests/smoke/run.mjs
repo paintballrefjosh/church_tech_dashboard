@@ -2212,6 +2212,10 @@ async function main() {
   const { ciscoTests } = await import("./cisco.mjs");
   await ciscoTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- cabinets (racks) and the printable port sheets (tests/smoke/cabinets.mjs; creates and removes cabinets only) ----
+  const { cabinetTests } = await import("./cabinets.mjs");
+  await cabinetTests({ test, assert, fetchWithCookies, jar });
+
   // ---- notification delivery: quiet hours, summary, push (tests/smoke/notification-delivery.mjs) ----
   const { notificationDeliveryTests } = await import("./notification-delivery.mjs");
   await notificationDeliveryTests({ test, assert, fetchWithCookies, jar });

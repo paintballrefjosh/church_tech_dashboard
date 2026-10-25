@@ -446,6 +446,18 @@ manually. Web sub-pages under `/monitoring` can dispatch the
 `monitoring:health-refresh` window event (see `section-tabs.tsx`) after a
 mutation to refresh the tab badges immediately instead of on their 20s poll.
 
+**Cabinets and printable port sheets** (`apps/api/src/racks/`, `/cabinets` in the IT menu, `/print/cisco/<id>`, `/print/unifi/<mac>`; migration 0075;
+design and the planned follow-up in [docs/cabinets.md](docs/cabinets.md)). A cabinet (`racks`, 1-60U) holds items (`rack_items`) that point at a Cisco switch,
+an infra host, a UniFi device (by MAC) or are custom; **U1 is the bottom**, and all placement arithmetic is the pure `rack-layout.ts` in shared. Rules:
+(1) **an item stores a pointer plus a snapshot, never a foreign key to the device**, and the page shows the device's own name/IP/status (`withLive`); a
+UniFi controller that is down is not "device missing". (2) Placement checks and writes run in one transaction that first updates the cabinet row, so two
+nodes cannot both pass the overlap check. (3) A device sits in one cabinet only. (4) Pictures are **switch models** (`pictureModelFor`): any model can be
+picked for any item; a new kind of device that gets pictures goes through that function. (5) The printable pages carry no top bar, stay white in dark
+mode, and the cabinet table's rows share the cabinet's grid so they line up (tested). (6) **Subnets on the Cisco sheet come from IPAM by VLAN number**, UniFi's
+from `rest/networkconf` + `rest/portconf` (read-only, `null` when unreachable: say so, never guess). Reads gate on `monitors:read:any`, writes on
+`monitors:write:any` (like IPAM/DNS/UPS); MCP has read tools only (`racks_list`, `racks_get`, `port_sheet_*`). Tests: `rack-layout.test.ts`, `port-sheet.test.ts`,
+smoke `tests/smoke/cabinets.mjs`, e2e `cabinets.spec.ts`.
+
 Three groups ship by default: `admin` (everything), `support_engineer`
 (helpdesk-focused), `user` (baseline; auto-joined by every newly provisioned
 account). Wiki page ACLs and other per-resource controls reference **groups**.

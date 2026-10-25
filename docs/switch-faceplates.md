@@ -185,7 +185,7 @@ A model with a layout but no photo is drawn as a plain chassis, so layouts can b
 - One uplink cage can be in the desired config under two names (`Gi1/1/1` and `Te1/1/1`, from whichever module was
   fitted before). `faceItems` draws the one the switch has reported on (`operStatus` not null); the other is listed.
 - A port's colour is never the only signal: the button's accessible name carries the state in words, the popover says it,
-  and there is a legend. The panel scrolls sideways below 760 px (it is a 10:1 picture); the list view is the
+  and there is a legend. The panel scrolls sideways below 760 px (it is a 10:1 picture), and on a phone it is made wide enough that the smallest port button is 24 px square (WCAG 2.2 target size); the list view is the
   accessible alternative on a phone.
 - A popover opened by hover closes after a short delay and is kept open while the pointer is on it; a different port only
   takes it over if the pointer rests there (the pointer crosses neighbours on its way to the popover). Enter or a click pins it,

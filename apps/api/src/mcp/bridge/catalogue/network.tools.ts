@@ -324,4 +324,51 @@ export const NETWORK_TOOLS = [
     permissions: [READ],
     input: z.object({ id: z.string().uuid() }),
   }),
+
+  // ---- Cabinets and port sheets ----
+  defineTool({
+    name: "racks_list",
+    title: "Cabinets",
+    description: "The server / network cabinets (racks) with their height in U, location, how many items are placed and how many U are used.",
+    cls: "read",
+    method: "GET",
+    path: "/racks",
+    permissions: [READ],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "racks_get",
+    title: "Read a cabinet",
+    description:
+      "One cabinet with every item in it. U1 is the bottom; an item with startU 10 and heightU 2 fills U10 and U11. Each item says what it is (sourceKind cisco, infra, unifi or custom) and, in `live`, the device's own name, hostname, IP, model and status now.",
+    cls: "read",
+    method: "GET",
+    path: "/racks/:id",
+    permissions: [READ],
+    input: z.object({ id: z.string().uuid() }),
+    link: (r) => {
+      const rackId = (r as { id?: unknown } | null)?.id;
+      return typeof rackId === "string" ? `/cabinets/${rackId}` : null;
+    },
+  }),
+  defineTool({
+    name: "port_sheet_cisco",
+    title: "Port sheet of a Cisco switch",
+    description: "Every port of one switch with its description, mode, VLAN (with name) and the subnet routed on that VLAN, as the printable port sheet shows them.",
+    cls: "read",
+    method: "GET",
+    path: "/port-sheets/cisco/:id",
+    permissions: [READ],
+    input: z.object({ id: z.string().uuid() }),
+  }),
+  defineTool({
+    name: "port_sheet_unifi",
+    title: "Port sheet of a UniFi switch",
+    description: "Every port of one UniFi switch or gateway (by MAC) with its description, profile, VLAN and subnet, as the printable port sheet shows them.",
+    cls: "read",
+    method: "GET",
+    path: "/port-sheets/unifi/:mac",
+    permissions: [PERMISSIONS.UNIFI_READ_ANY],
+    input: z.object({ mac: z.string().min(11).max(17) }),
+  }),
 ];

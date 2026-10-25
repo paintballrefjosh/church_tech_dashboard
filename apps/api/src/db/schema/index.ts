@@ -30,3 +30,4 @@ export * from "./cluster";
 export * from "./backup";
 export * from "./availability";
 export * from "./sessions";
+export * from "./racks";

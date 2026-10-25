@@ -42,7 +42,7 @@ async function signInAsTestUser(page: Page) {
 const ROUTES = [
   "/", "/activity", "/notifications", "/notes", "/tickets", "/tickets/new", "/tickets/canned-replies",
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
-  "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/status",
+  "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/status",
   "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/network", "/monitoring/ups",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
@@ -60,6 +60,7 @@ const DETAILS: Array<{ list: string; href: RegExp; suffixes?: string[] }> = [
   { list: "/monitoring/infra", href: /^\/monitoring\/infra\/[0-9a-f-]{36}$/, suffixes: ["/edit"] },
   { list: "/monitoring/network-cisco", href: /^\/monitoring\/network-cisco\/switches\/[0-9a-f-]{36}$/ },
   { list: "/ipam", href: /^\/ipam\/[0-9a-f-]{36}$/ },
+  { list: "/cabinets", href: /^\/cabinets\/[0-9a-f-]{36}$/, suffixes: ["/print"] },
   { list: "/checklists", href: /^\/checklists\/[0-9a-f-]{36}$/ },
   { list: "/admin/checklists/services", href: /^\/admin\/checklists\/services\/[0-9a-f-]{36}$/ },
   { list: "/admin/settings", href: /^\/admin\/settings\/[a-z_-]+$/ },

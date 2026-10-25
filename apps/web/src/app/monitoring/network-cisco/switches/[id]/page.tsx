@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud, Loader2, Zap } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Power, PowerOff, DownloadCloud, Loader2, Printer, Zap } from "lucide-react";
 import {
   CISCO_DUPLEX_CHOICES,
   CISCO_SPEED_CHOICES,
@@ -425,8 +425,14 @@ export default function CiscoSwitchDetailPage() {
           <span className="text-lg font-semibold">{sw.hostname}</span>
           <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{sw.ipAddress}</span>
           {sw.model ? <span className="text-xs text-slate-500 dark:text-slate-400">{sw.model}</span> : null}
+          <Link
+            href={`/print/cisco/${id}`}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            <Printer className="h-4 w-4" aria-hidden /> Printable page
+          </Link>
           {canWrite ? (
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={async () => {
