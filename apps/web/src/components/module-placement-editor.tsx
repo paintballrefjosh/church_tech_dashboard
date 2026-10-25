@@ -7,8 +7,6 @@ import type { SwitchModel, SwitchModelModule } from "@church/shared";
 import { switchModelImageUrl } from "@/lib/faceplates/custom";
 import { defaultPlacement, moduleSize, moveTo, nudge, resizeTo, type Size } from "@/lib/faceplates/module-ops";
 
-const MODELS = "/monitoring/network-cisco/models";
-
 const field =
   "rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
 
@@ -25,6 +23,7 @@ export function ModulePlacementEditor({
   catalogue,
   onChange,
   readOnly,
+  base: MODELS,
 }: {
   host: SwitchModel;
   hostImageUrl: string;
@@ -34,6 +33,8 @@ export function ModulePlacementEditor({
   catalogue: SwitchModel[];
   onChange: (next: SwitchModelModule[]) => void;
   readOnly: boolean;
+  /** The models page this editor was opened from, so links stay in that section. */
+  base: string;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; mode: "move" | "resize"; dx: number; dy: number } | null>(null);

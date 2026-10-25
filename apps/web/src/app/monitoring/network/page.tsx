@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, Settings as SettingsIcon } from "lucide-react";
+import { Activity, Cpu, Settings as SettingsIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
@@ -23,13 +23,22 @@ export default async function NetworkPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             UniFi devices and clients reported by the Network controller.
           </p>
-          <Link
-            href="/admin/settings/monitoring"
-            className="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-          >
-            <SettingsIcon className="h-4 w-4" aria-hidden />
-            UniFi config
-          </Link>
+          <div className="ml-auto flex flex-wrap items-center gap-4">
+            <Link
+              href="/monitoring/network/models"
+              className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <Cpu className="h-4 w-4" aria-hidden />
+              Device models
+            </Link>
+            <Link
+              href="/admin/settings/monitoring"
+              className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <SettingsIcon className="h-4 w-4" aria-hidden />
+              UniFi config
+            </Link>
+          </div>
         </header>
         <NetworkClient />
       </main>

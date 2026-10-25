@@ -17,7 +17,7 @@ faceplate gets the table and no toggle. The UniFi page is meant to use the same 
 
 ## Switch models (admin, in the app)
 
-The normal way to add a model: **Monitoring > Network (Cisco) > Switch models** (`/monitoring/network-cisco/models`). Reads need
+The normal way to add a model: **Monitoring > Network (Cisco) > Switch models** (`/monitoring/network-cisco/models`). The same list and editor are reachable from the UniFi and Infrastructure pages ("Device models" in their headers, `/monitoring/network/models`, `/monitoring/infra/models`). Reads need
 `monitors:read:any`, changes `monitors:write:any` (the monitoring admin tier). On a switch's page an admin also gets a link:
 "Set up a switch view for this model" (opens the create form with the model text filled in) or "Edit this switch view".
 

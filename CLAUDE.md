@@ -208,7 +208,7 @@ clears the pin. Writes to a switch (`pushToSwitch`, manual backup) refuse to run
 
 **Switch view** (Cisco switch page): the ports open as a picture of the switch from the front with a hover popover per port, and a
 "Switch view | List view" toggle (remembered in this browser) beside the Rows selector. **Switch models** are admin data
-(`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; page `/monitoring/network-cisco/models`; reads
+(`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; page `/monitoring/network-cisco/models`, also mounted at `/monitoring/network/models` (UniFi) and `/monitoring/infra/models` (Infrastructure) from the shared `components/switch-models-page.tsx` and `switch-model-editor.tsx`, which take a `base` so links stay in the section; reads
 `monitors:read:any`, writes `monitors:write:any`): a front and back picture (stored as `attachments`, parent type `switch_model`, size read
 from the file's own bytes), match strings, which side has the ports, and a box per port as a fraction of that picture, placed in a drag
 editor with an Auto option (find sockets / even grid / rename in order). **Import from a file** (`apps/web/src/lib/stencils/`,

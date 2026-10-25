@@ -549,7 +549,7 @@ function ItemDialog({
           </select>
         </Field>
         <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Front and rear pictures come from <Link href="/monitoring/network-cisco/models" className="text-brand-600 hover:underline dark:text-brand-400">Switch models</Link>. Any model can be used for any item.
+          Front and rear pictures come from <Link href="/monitoring/network-cisco/models" className="text-brand-600 hover:underline dark:text-brand-400">Device models</Link>. Any model can be used for any item.
         </p>
 
         <Field label="Notes">
