@@ -26,8 +26,8 @@ import { ActivityService } from "../activity/activity.service";
 
 /**
  * Tickets visibility rule applied to every read/write:
- *   - tickets:read:any (support_engineer, admin) → see / touch any ticket
- *   - tickets:read:own (user) → see / touch only tickets they created
+ *   - tickets:read:any (moderator/admin tier) → see / touch any ticket
+ *   - tickets:read:own (user tier) → see / touch only tickets they created
  *
  * Internal comments add a second layer:
  *   - is_internal=true comments only render for users with tickets:read:any.

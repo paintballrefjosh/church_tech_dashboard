@@ -543,6 +543,10 @@ smoke `tests/smoke/cabinets.mjs`, e2e `cabinets.spec.ts`.
 Three groups ship by default: `admin` (everything), `support_engineer`
 (helpdesk-focused), `user` (baseline; auto-joined by every newly provisioned
 account). Wiki page ACLs and other per-resource controls reference **groups**.
+Only `admin` and `user` are system groups; `support_engineer` is a seed default that installs rename or delete (this one has
+none). **A migration that grants a new module to existing installs grants by the tiers a group already holds, never by a
+non-system group's name** (0083: moderators of Tickets or Monitoring get Assets moderator); the seed's
+`DEFAULT_GROUP_MODULE_ACCESS` covers fresh installs.
 
 **Legacy:** the `roles`, `permissions`, `role_permissions`, `user_roles`, and
 `group_permissions` tables still exist (kept for migration safety) but are never

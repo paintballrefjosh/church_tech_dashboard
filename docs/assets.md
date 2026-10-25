@@ -25,8 +25,9 @@ A new module `assets` (group editor: "Assets"):
 | moderator | `assets:write:any` | add and edit items, check out to anyone (or a name), return anything, see cost, purchase and history |
 | admin | `assets:admin`, `locations:admin` | delete items, import from a spreadsheet, add/rename/remove rooms |
 
-Defaults: `user` group = user, `support_engineer` = moderator, `admin` = everything (as for every module). Migration 0082 adds
-the two grants to existing installs when those groups exist. Reading rooms needs only a session (no permission string), like
+Defaults for a fresh install (the seed): `user` group = user, `support_engineer` = moderator, `admin` = everything (as for every
+module). Existing installs are granted by tier, never by group name: 0082 gives the `user` group the user tier, and 0083 gives
+every other group that moderates Tickets or Monitoring (moderator or admin tier) the Assets moderator tier. Reading rooms needs only a session (no permission string), like
 `/status`.
 
 ## Rooms (`locations`)

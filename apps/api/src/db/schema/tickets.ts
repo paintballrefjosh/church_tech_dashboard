@@ -4,8 +4,8 @@ import { assets, locations } from "./assets";
 
 /**
  * Helpdesk tickets (Phase 1.3 MVP). Owner-or-staff visibility:
- *   - role 'user' sees only the tickets they created
- *   - role 'support_engineer' + 'admin' see all
+ *   - tickets:read:own (the Tickets user tier) sees only the tickets they created
+ *   - tickets:read:any (the moderator and admin tiers) sees all
  *
  * `number` is a monotonic human-friendly id ("#41") shown in the UI; the uuid
  * remains the primary key. Assets, watchers, tags, attachments, and email
@@ -74,8 +74,8 @@ export const ticketComments = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
-    // Internal comments are only visible to support_engineer + admin (i.e. holders of
-    // tickets:read:any). Users never see them, even on their own tickets.
+    // Internal comments are only visible to holders of tickets:read:any (the Tickets
+    // moderator and admin tiers). Users never see them, even on their own tickets.
     isInternal: boolean("is_internal").notNull().default(false),
     // 'comment' = user-written; 'event' = system-logged change (status, tags, ...).
     kind: text("kind").notNull().default("comment"),
