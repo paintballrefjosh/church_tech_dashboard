@@ -9,7 +9,12 @@ pointer with that switch's picture and its ports coloured by state, plus the col
 down"); it follows the pointer and flips to stay in the window (`network-cisco/switch-hover-preview.tsx`, `FacePreview` and
 `faceSummary` in `switch-faceplate.tsx`). Nothing on it can be pressed and it is hidden from screen readers: the row already says the
 port counts in words, and the switch's page has the full, keyboard-usable view. Ports are read on the first hover of a switch and reused
-for 30 s; a switch with no picture gets no card. The UniFi device page uses the same pieces (see the end).
+for 30 s; a switch with no picture gets no card. The UniFi devices list (`network/device-hover-preview.tsx`) and the infrastructure
+overview (`infra/host-hover-preview.tsx`) have the same card through the shared `useFollowCard` (`components/follow-card.tsx`), but only
+when a device profile applies: the built-in drawings are Cisco layouts. A UniFi device's profile is its own choice or the one its model
+text matches; with port boxes its ports are coloured from the port table the list already has (nothing is read), without them the card
+is the plain front picture. An infra host has no model text, so only its chosen profile counts, and the card is its picture. The UniFi
+device page uses the same pieces (see the end).
 
 ## Pieces
 

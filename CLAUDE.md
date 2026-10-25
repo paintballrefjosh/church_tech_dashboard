@@ -209,7 +209,9 @@ clears the pin. Writes to a switch (`pushToSwitch`, manual backup) refuse to run
 **Switch view** (Cisco switch page): the ports open as a picture of the switch from the front with a hover popover per port, and a
 "Switch view | List view" toggle (remembered in this browser) beside the Rows selector. On the switch LIST, hovering a row with the mouse
 shows a card that follows the pointer with that switch's picture, ports coloured by state (`switch-hover-preview.tsx`, the static `FacePreview`,
-ports read on first hover and reused 30 s; no card for a switch with no picture; port items from the shared `ciscoFaceItems`). **Device profiles** (called switch models in the
+ports read on first hover and reused 30 s; no card for a switch with no picture; port items from the shared `ciscoFaceItems`). The UniFi devices list and the infra overview do the same (`components/follow-card.tsx` `useFollowCard`, shared by all three), but
+**only for a device profile**, never a built-in drawing: UniFi by its choice or model text (ports coloured from the list's own `port_table`, or the plain
+picture for a profile with no ports), an infra host by its chosen profile (picture only). `DataTable` takes `rowProps` for this. **Device profiles** (called switch models in the
 code and database, and "switch models" in the UI until 2026-10-25) are admin data
 (`switch_models`, migration 0070, `apps/api/src/switch-models/`, `/api/v1/switch-models`; their own page **`/device-profiles`** in the IT menu, from the shared `components/switch-models-page.tsx` and `switch-model-editor.tsx`; the old `/monitoring/{network-cisco,network,infra}/models*` addresses redirect there in `next.config.mjs`; reads
 `monitors:read:any`, writes `monitors:write:any`): a front and back picture (stored as `attachments`, parent type `switch_model`, size read

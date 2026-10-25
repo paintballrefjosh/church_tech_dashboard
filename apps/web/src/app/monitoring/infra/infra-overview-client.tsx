@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type HTMLAttributes } from "react";
 import { Server as ServerIcon } from "lucide-react";
 import type { InfraTarget, InfraSummary } from "@church/shared";
 import { OS_META, capabilityLabels, StatusPill, Gauge } from "./infra-ui";
 import { useRealtimeRoom } from "@/lib/use-realtime";
+import { useSwitchModels } from "@/lib/use-switch-models";
+import { useHostHoverPreview } from "./host-hover-preview";
 
 export function InfraOverviewClient({
   initialTargets,
@@ -16,6 +18,8 @@ export function InfraOverviewClient({
 }) {
   const [targets, setTargets] = useState(initialTargets);
   const [summary, setSummary] = useState(initialSummary);
+  const { models } = useSwitchModels();
+  const { cardProps, card } = useHostHoverPreview(models);
 
   const load = useCallback(async () => {
     try {
@@ -111,15 +115,16 @@ export function InfraOverviewClient({
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {targets.map((t) => (
-            <TargetCard key={t.id} target={t} />
+            <TargetCard key={t.id} target={t} hoverProps={cardProps(t)} />
           ))}
         </ul>
       )}
+      {card}
     </div>
   );
 }
 
-function TargetCard({ target }: { target: InfraTarget }) {
+function TargetCard({ target, hoverProps }: { target: InfraTarget; hoverProps: HTMLAttributes<HTMLLIElement> }) {
   const meta = OS_META[target.os];
   const caps = capabilityLabels(target.capabilities);
   const sample = target.lastSample as
@@ -134,7 +139,7 @@ function TargetCard({ target }: { target: InfraTarget }) {
   // Switched off: greyed out, and the last readings are not shown as if they were current.
   const off = !target.enabled;
   return (
-    <li>
+    <li {...hoverProps}>
       <Link
         href={`/monitoring/infra/${target.id}`}
         aria-label={off ? `${target.name} (monitoring disabled)` : undefined}

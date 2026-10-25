@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface Column<T> {
@@ -52,6 +52,7 @@ export function DataTable<T>({
   initialPageSize,
   rowsSelector = "top",
   server,
+  rowProps,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -67,6 +68,8 @@ export function DataTable<T>({
   /** Where the "Rows" selector sits: "top" beside the filter (the default), or "footer", bottom right after the page buttons. */
   rowsSelector?: "top" | "footer";
   server?: ServerMode;
+  /** Extra handlers for each body row (a hover card, say). */
+  rowProps?: (row: T) => HTMLAttributes<HTMLTableRowElement>;
 }) {
   const isServer = Boolean(server);
   const [filter, setFilter] = useState("");
@@ -223,7 +226,7 @@ export function DataTable<T>({
               </tr>
             ) : (
               pageRows.map((r) => (
-                <tr key={getKey(r)} className="hover:bg-slate-50 dark:hover:bg-slate-900">
+                <tr key={getKey(r)} {...rowProps?.(r)} className="hover:bg-slate-50 dark:hover:bg-slate-900">
                   {columns.map((c) => (
                     <td key={c.key} className={`px-3 py-2 ${c.align === "right" ? "text-right" : ""}`}>
                       {c.render(r)}

@@ -8,6 +8,8 @@ import { DataTable, type Column } from "@/components/data-table";
 import { clientTraffic } from "@/lib/unifi-traffic";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { usePoll } from "@/lib/use-poll";
+import { useSwitchModels } from "@/lib/use-switch-models";
+import { useDeviceHoverPreview } from "./device-hover-preview";
 
 interface Health {
   configured: boolean;
@@ -244,6 +246,8 @@ function DevicesTable({
   leftSlot: React.ReactNode;
   rightSlot: React.ReactNode;
 }) {
+  const { models } = useSwitchModels();
+  const { rowProps, card } = useDeviceHoverPreview(models);
   const columns: Column<UDevice>[] = [
     {
       key: "status",
@@ -329,17 +333,21 @@ function DevicesTable({
     },
   ];
   return (
-    <DataTable
-      rows={items}
-      columns={columns}
-      getKey={(d) => d.mac ?? `${d.name ?? ""}-${d.ip ?? ""}`}
-      initialSort={{ key: "name", dir: "asc" }}
-      filterPlaceholder="Search devices…"
-      emptyText="No devices reported."
-      leftSlot={leftSlot}
-      rightSlot={rightSlot}
-      rowsSelector="footer"
-    />
+    <>
+      <DataTable
+        rows={items}
+        columns={columns}
+        getKey={(d) => d.mac ?? `${d.name ?? ""}-${d.ip ?? ""}`}
+        initialSort={{ key: "name", dir: "asc" }}
+        filterPlaceholder="Search devices…"
+        emptyText="No devices reported."
+        leftSlot={leftSlot}
+        rightSlot={rightSlot}
+        rowsSelector="footer"
+        rowProps={rowProps}
+      />
+      {card}
+    </>
   );
 }
 
