@@ -25,7 +25,7 @@ const MIN_RATE_LIMIT_PER_MIN = 60;
  * Reflecting Origin with credentials (the previous default) lets any site on
  * the internet read the API as a logged-in user via fetch(). We don't do that.
  */
-function buildCorsOrigin(): (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => void {
+function buildCorsOrigin(): (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => void {
   const raw = process.env.APP_URL?.trim();
   const allowlist = raw
     ? raw.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean)

@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { tags, tagAssignments } from "../db/schema";
 import type { CreateTagInput, TaggableResourceType, UpdateTagInput } from "@church/shared";
+import { dbErrorCode } from "@church/shared/db";
 
 @Injectable()
 export class TagsService {
@@ -28,7 +29,7 @@ export class TagsService {
       return row;
     } catch (err) {
       // Postgres unique-violation code → friendlier 409 for the UI.
-      if ((err as { code?: string }).code === "23505") {
+      if (dbErrorCode(err) === "23505") {
         throw new ConflictException("A tag with that name already exists");
       }
       throw err;
@@ -45,7 +46,7 @@ export class TagsService {
       const [row] = await this.db.update(tags).set(patch).where(eq(tags.id, id)).returning();
       return row!;
     } catch (err) {
-      if ((err as { code?: string }).code === "23505") {
+      if (dbErrorCode(err) === "23505") {
         throw new ConflictException("A tag with that name already exists");
       }
       throw err;

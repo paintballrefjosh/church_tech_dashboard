@@ -11,6 +11,8 @@ ENV PNPM_STORE_PATH=/root/.local/share/pnpm/store
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+# pnpm patchedDependencies (see package.json) are applied at install time.
+COPY patches patches
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \

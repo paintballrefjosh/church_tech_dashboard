@@ -57,8 +57,8 @@ services in compose.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Frontend | Next.js 15 (App Router) + React 19 + TS 5 | RSC where it helps; Tailwind for styles |
-| Backend | NestJS 10 + Fastify adapter | WS via Socket.io, RBAC guard, audit interceptor |
+| Frontend | Next.js 15.5 (App Router) + React 19 + TS 5 | RSC where it helps; Tailwind for styles; `next/image` unused and its optimizer off |
+| Backend | NestJS 11 + Fastify 5 adapter | WS via Socket.io, RBAC guard, audit interceptor |
 | DB | CockroachDB v24 or YugabyteDB YSQL (2024.2+) | Postgres wire; SQL must run on both (see ## Database) |
 | ORM | Drizzle ORM + drizzle-kit | Schema-as-code TS; migrations checked into `apps/api/migrations/` |
 | Auth | Auth.js v5 (NextAuth) | Google + Microsoft Entra OAuth + Credentials (argon2id) + TOTP; providers configured in DB `settings`, not env |
@@ -1455,7 +1455,8 @@ roll back by itself. A failed build or migration puts the code back before anyth
   Styles stay `unsafe-inline`.
 - `/api/v1/auth/providers/internal`, `/auth/verify-credentials`, `/users/ensure-default-group` and `/users/oauth-provision`
   are 404 at the proxy (and token-gated in the api); a new internal-only route belongs in Caddy's `@internal_only` matcher too.
-- `/api/v1/metrics` (Prometheus) needs `site:admin`: scrape it with a read-only API token of an admin-group account.
+- `/api/v1/metrics` (Prometheus) needs `site:admin`: scrape it with a read-only API token of an admin-group account. `/_next/image`
+  is 404 at the proxy and `images.unoptimized` is set (the app never uses `next/image`; the optimizer had RCE advisories).
 
 ## Retention
 
@@ -1472,6 +1473,23 @@ window here (or in its own service, as infra metrics and mail do), not a one-off
 
 Emails are stored lower-case and "already in use" ignores case (admin create and `PATCH /me`): sign-in lower-cases what
 is typed, so a mixed-case row could never be matched.
+
+## Dependencies
+
+- **`pnpm audit --prod`** is the check; pick versions published at least two weeks ago (`latest.py`-style: newest version
+  whose npm `time` is older than the cutoff). Vulnerable transitive packages are pinned in the root `package.json`
+  `pnpm.overrides`, scoped by major (`fast-uri@^3`), so a parent's range cannot pull a bad version back. Fixes still inside the
+  two-week window are left for a later pass, never taken early.
+- **`patches/`** holds `pnpm.patchedDependencies`, copied into every image before `pnpm install` (all three Dockerfiles):
+  `@fastify/busboy` (its types augment `stream.Readable` with a `'limit'` event that hid `on()`/`once()` from TypeScript
+  everywhere) and `drizzle-orm@0.45.4`: since 0.45 a failed query throws `DrizzleQueryError` whose message was the SQL **and
+  its parameters** (row values in logs and in errors shown to admins) and whose `code` was gone (every `err.code ===
+  "23505"` stopped matching). The patch makes the message the database's own and copies `code`. **A drizzle upgrade needs the
+  patch regenerated for the new version.** `dbErrorCode`/`unwrapDbError` (`@church/shared/db`) also read through `cause`.
+- drizzle 0.45's `is()` walks the prototype chain, so a lazy `Proxy` standing in for a drizzle client must forward
+  `getPrototypeOf` (`apps/web/src/lib/db.ts`; without it the Auth.js adapter refused the database and sign-in broke).
+- `tsc --noEmit` in `apps/api` is incremental (`dist/.tsbuildinfo`) and can skip files: typecheck with
+  `--tsBuildInfoFile /tmp/tsbi` (a throwaway file) to see every error.
 
 ## Repository hygiene
 

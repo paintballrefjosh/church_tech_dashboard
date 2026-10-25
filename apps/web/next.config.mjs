@@ -12,6 +12,9 @@ const nextConfig = {
   generateBuildId: async () => buildId ?? null,
   ...(buildId ? { deploymentId: buildId } : {}),
   poweredByHeader: false,
+  // The app never uses next/image, so its optimizer (/_next/image, a server-side fetcher with a history of RCE, SSRF
+  // and DoS advisories) is switched off; Caddy also answers 404 for the path.
+  images: { unoptimized: true },
   reactStrictMode: true,
   // Allow building inside the docker context without writing to other workspace dirs.
   outputFileTracingRoot: process.env.MONOREPO_ROOT || undefined,

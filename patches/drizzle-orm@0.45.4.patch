@@ -1,0 +1,32 @@
+diff --git a/errors.js b/errors.js
+--- a/errors.js
++++ b/errors.js
+@@ -9,8 +9,10 @@
+ }
+ class DrizzleQueryError extends Error {
+   constructor(query, params, cause) {
+-    super(`Failed query: ${query}
+-params: ${params}`);
++    // church-dashboard patch: the message is the database's own (never the parameters, which hold row values and
++    // ended up in logs and in errors shown to people), and pg's SQLSTATE stays on `code` as before drizzle 0.45.
++    super(cause && typeof cause.message === "string" && cause.message ? cause.message : `Failed query: ${query}`);
++    if (cause && typeof cause.code === "string") this.code = cause.code;
+     this.query = query;
+     this.params = params;
+     this.cause = cause;
+diff --git a/errors.cjs b/errors.cjs
+--- a/errors.cjs
++++ b/errors.cjs
+@@ -34,8 +34,10 @@
+ }
+ class DrizzleQueryError extends Error {
+   constructor(query, params, cause) {
+-    super(`Failed query: ${query}
+-params: ${params}`);
++    // church-dashboard patch: the message is the database's own (never the parameters, which hold row values and
++    // ended up in logs and in errors shown to people), and pg's SQLSTATE stays on `code` as before drizzle 0.45.
++    super(cause && typeof cause.message === "string" && cause.message ? cause.message : `Failed query: ${query}`);
++    if (cause && typeof cause.code === "string") this.code = cause.code;
+     this.query = query;
+     this.params = params;
+     this.cause = cause;

@@ -11,6 +11,7 @@ import type {
   CreateTicketCategoryInput,
   UpdateTicketCategoryInput,
 } from "@church/shared";
+import { dbErrorCode } from "@church/shared/db";
 
 @Injectable()
 export class TicketCategoriesService {
@@ -39,7 +40,7 @@ export class TicketCategoriesService {
       if (!row) throw new Error("Insert failed");
       return row;
     } catch (err) {
-      if ((err as { code?: string }).code === "23505") {
+      if (dbErrorCode(err) === "23505") {
         throw new ConflictException("A category with that name already exists");
       }
       throw err;
@@ -60,7 +61,7 @@ export class TicketCategoriesService {
         .returning();
       return row!;
     } catch (err) {
-      if ((err as { code?: string }).code === "23505") {
+      if (dbErrorCode(err) === "23505") {
         throw new ConflictException("A category with that name already exists");
       }
       throw err;

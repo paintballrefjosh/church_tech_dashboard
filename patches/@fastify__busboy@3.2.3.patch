@@ -1,0 +1,24 @@
+diff --git a/types/index.d.ts b/types/index.d.ts
+--- a/types/index.d.ts
++++ b/types/index.d.ts
+@@ -6,17 +6,9 @@
+ import * as http from 'node:http'
+ import { Readable, Writable } from 'node:stream'
+ 
+-declare module 'stream' {
+-  interface Readable {
+-    /**
+-     * Emitted when the configured file size limit is reached.
+-     */
+-    on(event: 'limit', listener: () => void): this;
+-    once(event: 'limit', listener: () => void): this;
+-    addListener(event: 'limit', listener: () => void): this;
+-    removeListener(event: 'limit', listener: () => void): this;
+-  }
+-}
++// (church-dashboard patch) The augmentation of stream.Readable with a 'limit' event is removed: it hid
++// Readable's normal on()/once() overloads from TypeScript across the whole program (multipart file streams
++// still emit 'limit'; nothing here listens for it).
+ export { Dicer } from '../deps/dicer/lib/dicer'
+ 
+ export const Busboy: BusboyConstructor

@@ -86,6 +86,12 @@
 		}
 	}
 
+	# Next's image optimizer is unused (next.config.mjs images.unoptimized) and has had RCE, SSRF and DoS
+	# advisories; it is never reachable from outside.
+	handle /_next/image* {
+		respond "Not found" 404
+	}
+
 	# Internal-only endpoints that hand out secrets (OAuth client_id/secret) or
 	# accept un-authenticated state mutations. The web container reaches these
 	# directly via api:3001 on the docker bridge — they have no business being

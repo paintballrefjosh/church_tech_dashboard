@@ -36,8 +36,29 @@ const AMBIGUOUS_MESSAGES = [
   /query read timeout/i, // pg: no answer within query_timeout; the statement may have run
 ];
 
+/**
+ * The database's own error under any wrapping. Since drizzle-orm 0.45 a query that fails through drizzle throws a
+ * `DrizzleQueryError` whose `cause` is pg's error (with the SQLSTATE in `code`); code that read `err.code` directly
+ * stopped seeing it. Follows `cause` a few levels; returns the innermost error that has a `code`, else `err`.
+ */
+export function unwrapDbError(err: unknown): unknown {
+  let cur: unknown = err;
+  for (let i = 0; i < 5 && cur && typeof cur === "object"; i++) {
+    if (typeof (cur as { code?: unknown }).code === "string") return cur;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return err;
+}
+
+/** The SQLSTATE (or node socket code) of a database error, through drizzle's wrapping; "" when there is none. */
+export function dbErrorCode(err: unknown): string {
+  const e = unwrapDbError(err) as { code?: unknown } | null;
+  return e && typeof e.code === "string" ? e.code : "";
+}
+
 /** The class of a retryable database error, or null if retrying will not help. */
 export function classifyDbError(err: unknown): DbErrorClass | null {
+  err = unwrapDbError(err);
   if (!err || typeof err !== "object") return null;
   const e = err as { code?: unknown; message?: unknown };
   const code = typeof e.code === "string" ? e.code : "";

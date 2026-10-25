@@ -19,10 +19,19 @@ function getPool(): Pool {
  * module does not connect to or even read DATABASE_URL at build time — only
  * when a query actually runs.
  */
+function real(): NodePgDatabase<typeof schema> {
+  if (!_db) _db = drizzle(getPool(), { schema });
+  return _db;
+}
+
 export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
   get(_target, prop, receiver) {
-    if (!_db) _db = drizzle(getPool(), { schema });
-    return Reflect.get(_db as object, prop, receiver);
+    return Reflect.get(real() as object, prop, receiver);
+  },
+  // drizzle's `is()` (the Auth.js adapter asks `is(db, PgDatabase)`) walks the prototype chain since drizzle 0.45, so the
+  // proxy must report the real client's; without this the adapter refused it ("Unsupported database type (object)").
+  getPrototypeOf() {
+    return Object.getPrototypeOf(real()) as object;
   },
 });
 

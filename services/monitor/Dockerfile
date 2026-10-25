@@ -7,6 +7,8 @@ ENV PNPM_STORE_PATH=/root/.local/share/pnpm/store
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json tsconfig.base.json ./
+# pnpm patchedDependencies (see package.json) are applied at install time.
+COPY patches patches
 COPY services/monitor/package.json services/monitor/
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
@@ -26,6 +28,8 @@ ENV NODE_ENV=production
 # Production dependencies first, from the manifests alone: this layer is rebuilt only when a package.json or the
 # lockfile changes, never for a code edit (it used to be installed again after every build).
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+# pnpm patchedDependencies (see package.json) are applied at install time.
+COPY patches patches
 COPY services/monitor/package.json services/monitor/
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
