@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS, createUnifiVouchersSchema } from "@church/shared";
+import { OperationalOnly } from "../auth/operational-only.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
@@ -56,6 +57,37 @@ export class UnifiController {
   @Audited({ action: "unifi.device.unack", resourceType: "unifi_device", resourceIdFromParams: (p) => p.mac ?? null })
   unack(@Param("mac") mac: string) {
     return this.unifi.unackDevice(mac);
+  }
+
+  /**
+   * Guest Wi-Fi vouchers. A code is a way onto the guest network, so listing them needs the monitoring admin tier too, like
+   * making and revoking them. Creating and revoking change the controller: operational for API tokens, not offered to MCP
+   * (a person hands vouchers out, printed from the web app).
+   */
+  @Get("vouchers")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  vouchers() {
+    return this.unifi.vouchers();
+  }
+
+  @Post("vouchers")
+  @OperationalOnly()
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "unifi.voucher.create", resourceType: "unifi_voucher" })
+  createVouchers(@Body() body: unknown) {
+    const parsed = createUnifiVouchersSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.unifi.createVouchers(parsed.data);
+  }
+
+  @Delete("vouchers/:id")
+  @OperationalOnly()
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "unifi.voucher.revoke", resourceType: "unifi_voucher", resourceIdFromParams: (p) => p.id ?? null })
+  async revokeVoucher(@Param("id") id: string) {
+    if (!/^[0-9a-f]{24}$/i.test(id)) throw new BadRequestException("Not a voucher id");
+    await this.unifi.revokeVoucher(id);
+    return { ok: true };
   }
 
   /**

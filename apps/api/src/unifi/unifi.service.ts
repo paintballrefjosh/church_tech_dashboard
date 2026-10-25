@@ -10,7 +10,7 @@ import { Agent } from "undici";
 import { eq, inArray } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { unifiDeviceAcks } from "../db/schema";
-import type { UnifiNetworkLike, UnifiProfileLike } from "@church/shared";
+import type { CreateUnifiVouchersInput, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
 import { SettingsService } from "../settings/settings.service";
 
 /** Normalise a MAC for storage/comparison — controllers report lowercase, but
@@ -176,10 +176,11 @@ export class UnifiService {
    * without persisting them first. Tries the UniFi-OS path then falls back to
    * the self-hosted one, and bounds each attempt with a timeout.
    */
-  private async fetchWith(cfg: UnifiConfig, path: string): Promise<unknown> {
+  private async fetchWith(cfg: UnifiConfig, path: string, post?: unknown): Promise<unknown> {
     const headers: Record<string, string> = {
       "X-API-Key": cfg.apiKey,
       accept: "application/json",
+      ...(post !== undefined ? { "content-type": "application/json" } : {}),
     };
     // Node's global `fetch` is undici-based and IGNORES the legacy `agent`
     // option — the only way to scope a TLS-verify override to this request is
@@ -196,8 +197,9 @@ export class UnifiService {
       const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const res = await fetch(url, {
-          method: "GET",
+          method: post !== undefined ? "POST" : "GET",
           headers,
+          ...(post !== undefined ? { body: JSON.stringify(post) } : {}),
           dispatcher,
           signal: controller.signal,
         } as RequestInit & { dispatcher: Agent });
@@ -212,7 +214,7 @@ export class UnifiService {
           (err as Error)?.name === "AbortError"
             ? new Error(`timed out after ${REQUEST_TIMEOUT_MS}ms`)
             : describeFetchError(err);
-        this.logger.debug(`UniFi GET ${url} failed: ${(lastErr as Error).message}`);
+        this.logger.debug(`UniFi ${post !== undefined ? "POST" : "GET"} ${url} failed: ${(lastErr as Error).message}`);
       } finally {
         clearTimeout(timer);
       }
@@ -220,6 +222,52 @@ export class UnifiService {
     throw new ServiceUnavailableException(
       `UniFi unreachable: ${lastErr instanceof Error ? lastErr.message : "unknown"}`,
     );
+  }
+
+  /** POST to a UniFi Network API path (same UniFi OS / self-hosted fallback as GET). Only the guest vouchers write. */
+  private async apiPost(path: string, body: unknown): Promise<unknown> {
+    const cfg = await this.config();
+    if (!cfg) throw new ServiceUnavailableException("UniFi controller is not configured");
+    return this.fetchWith(cfg, path, body);
+  }
+
+  // ---- guest Wi-Fi vouchers (the controller's hotspot) ----
+
+  async vouchers(): Promise<UnifiVoucher[]> {
+    const cfg = await this.config();
+    if (!cfg) throw new ServiceUnavailableException("UniFi controller is not configured");
+    const data = await this.apiGet(`s/${encodeURIComponent(cfg.siteId)}/stat/voucher`);
+    return (Array.isArray(data) ? data : []).map(toVoucher).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  /**
+   * Create `count` vouchers and return them. The controller answers with the batch's create_time only, so the new
+   * vouchers are read back by it.
+   */
+  async createVouchers(input: CreateUnifiVouchersInput): Promise<UnifiVoucher[]> {
+    const cfg = await this.config();
+    if (!cfg) throw new ServiceUnavailableException("UniFi controller is not configured");
+    const reply = await this.apiPost(`s/${encodeURIComponent(cfg.siteId)}/cmd/hotspot`, {
+      cmd: "create-voucher",
+      n: input.count,
+      expire: input.minutes,
+      quota: input.uses,
+      note: input.note,
+      ...(input.downKbps ? { down: input.downKbps } : {}),
+      ...(input.upKbps ? { up: input.upKbps } : {}),
+      ...(input.megabytes ? { bytes: input.megabytes } : {}),
+    });
+    const created = Array.isArray(reply) ? (reply[0] as { create_time?: number } | undefined)?.create_time : undefined;
+    const all = await this.vouchers();
+    if (created === undefined) return all.slice(0, input.count);
+    const at = new Date(created * 1000).toISOString();
+    return all.filter((v) => v.createdAt === at);
+  }
+
+  async revokeVoucher(id: string): Promise<void> {
+    const cfg = await this.config();
+    if (!cfg) throw new ServiceUnavailableException("UniFi controller is not configured");
+    await this.apiPost(`s/${encodeURIComponent(cfg.siteId)}/cmd/hotspot`, { cmd: "delete-voucher", _id: id });
   }
 
   async devices(): Promise<unknown[]> {
@@ -442,4 +490,37 @@ export class UnifiService {
     await this.db.delete(unifiDeviceAcks).where(eq(unifiDeviceAcks.mac, normalized));
     return { mac: normalized, acked: false };
   }
+}
+
+/** One controller voucher, in plain fields. The code is shown as the controller prints it: 12345-67890. */
+export function toVoucher(raw: unknown): UnifiVoucher {
+  const v = raw as {
+    _id?: string;
+    code?: string;
+    note?: string;
+    create_time?: number;
+    duration?: number;
+    quota?: number;
+    used?: number;
+    status?: string;
+    status_expires?: number;
+    qos_rate_max_down?: number;
+    qos_rate_max_up?: number;
+    qos_usage_quota?: number;
+  };
+  const code = String(v.code ?? "");
+  return {
+    id: String(v._id ?? ""),
+    code: /^\d{10}$/.test(code) ? `${code.slice(0, 5)}-${code.slice(5)}` : code,
+    note: v.note ?? "",
+    createdAt: new Date((v.create_time ?? 0) * 1000).toISOString(),
+    minutes: v.duration ?? 0,
+    uses: v.quota ?? 0,
+    used: v.used ?? 0,
+    status: v.status ?? "",
+    expiresAt: v.status_expires ? new Date(v.status_expires * 1000).toISOString() : null,
+    downKbps: v.qos_rate_max_down ?? null,
+    upKbps: v.qos_rate_max_up ?? null,
+    megabytes: v.qos_usage_quota ?? null,
+  };
 }

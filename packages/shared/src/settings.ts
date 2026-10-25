@@ -675,6 +675,14 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "monitoring",
   },
   {
+    key: "unifi.guest_ssid",
+    type: "string",
+    label: "Guest Wi-Fi network name",
+    description: "The guest network's name (SSID), printed on guest Wi-Fi voucher cards so a visitor knows which network to join. Blank leaves it off.",
+    defaultValue: "",
+    category: "monitoring",
+  },
+  {
     key: "unifi.verify_tls",
     type: "boolean",
     label: "Verify TLS certificate",

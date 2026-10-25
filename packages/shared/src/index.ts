@@ -22,6 +22,7 @@ export * from "./schemas/switch-model";
 export * from "./schemas/rack";
 export * from "./schemas/alert-channel";
 export * from "./schemas/renewal";
+export * from "./schemas/unifi-voucher";
 export * from "./schemas/ipam";
 export * from "./schemas/ups";
 export * from "./schemas/dns";
