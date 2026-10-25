@@ -13,7 +13,7 @@ import {
   type SwitchModelModule,
   type SwitchModelSide,
 } from "@church/shared";
-import { useCanWrite, StatusLine, Field, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
+import { useCanWrite, useToasts, ToastStack, Field, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
 import { ModulePlacementEditor } from "@/components/module-placement-editor";
 import { PortLayoutEditor } from "@/components/port-layout-editor";
 import { StencilImporter } from "@/components/stencil-importer";
@@ -43,7 +43,7 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
   const [savedMods, setSavedMods] = useState<SwitchModelModule[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const { toasts, show: toast, dismiss } = useToasts();
   const loadedOnce = useRef(false);
 
   const load = useCallback(async () => {
@@ -88,7 +88,6 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
 
   async function patch(body: Record<string, unknown>, what: string): Promise<boolean> {
     setBusy(what);
-    setStatus(null);
     try {
       const r = await fetch(`/api/switch-models/${id}`, {
         method: "PATCH",
@@ -97,7 +96,7 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
         body: JSON.stringify(body),
       });
       if (!r.ok) {
-        setStatus({ ok: false, text: await errorText(r) });
+        toast(false, await errorText(r));
         return false;
       }
       setModel(normaliseModel((await r.json()) as SwitchModel));
@@ -109,55 +108,54 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
 
   async function saveDetails(e: React.FormEvent) {
     e.preventDefault();
-    if (await patch(isModule ? { name } : { name, match: splitMatch(match) }, "details")) setStatus({ ok: true, text: "Saved." });
+    if (await patch(isModule ? { name } : { name, match: splitMatch(match) }, "details")) toast(true, "Saved.");
   }
 
   async function saveLayout() {
     const out = fromEditorPorts(ports);
     const check = switchModelPortsSchema.safeParse(out);
     if (!check.success) {
-      setStatus({ ok: false, text: check.error.issues[0]?.message ?? "The layout is not valid." });
+      toast(false, check.error.issues[0]?.message ?? "The layout is not valid.");
       return;
     }
     if (await patch({ ports: out }, "layout")) {
       setSaved(ports);
-      setStatus({ ok: true, text: `Layout saved: ${out.length} ports.` });
+      toast(true, `Layout saved: ${out.length} ports.`);
     }
   }
 
   async function saveModules() {
     const check = switchModelModulesSchema.safeParse(mods);
     if (!check.success) {
-      setStatus({ ok: false, text: check.error.issues[0]?.message ?? "The modules are not valid." });
+      toast(false, check.error.issues[0]?.message ?? "The modules are not valid.");
       return;
     }
     if (await patch({ modules: mods }, "modules")) {
       setSavedMods(mods);
-      setStatus({ ok: true, text: mods.length === 0 ? "Modules saved: none on this model." : `Modules saved: ${mods.length} placed.` });
+      toast(true, mods.length === 0 ? "Modules saved: none on this model." : `Modules saved: ${mods.length} placed.`);
     }
   }
 
   async function upload(side: SwitchModelSide, file: File) {
     if (!(SWITCH_MODEL_IMAGE_TYPES as readonly string[]).includes(file.type)) {
-      setStatus({ ok: false, text: "The picture must be a PNG, JPEG or WebP file." });
+      toast(false, "The picture must be a PNG, JPEG or WebP file.");
       return;
     }
     if (file.size > MAX_MB * 1024 * 1024) {
-      setStatus({ ok: false, text: `That picture is over ${MAX_MB} MB. Save it smaller: about 2000 pixels across is plenty.` });
+      toast(false, `That picture is over ${MAX_MB} MB. Save it smaller: about 2000 pixels across is plenty.`);
       return;
     }
     setBusy(`image-${side}`);
-    setStatus(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const r = await fetch(`/api/switch-models/${id}/images/${side}`, { method: "POST", credentials: "same-origin", body: fd });
       if (!r.ok) {
-        setStatus({ ok: false, text: await errorText(r) });
+        toast(false, await errorText(r));
         return;
       }
       setModel(normaliseModel((await r.json()) as SwitchModel));
-      setStatus({ ok: true, text: `The ${side} picture is saved.` });
+      toast(true, `The ${side} picture is saved.`);
     } finally {
       setBusy(null);
     }
@@ -167,7 +165,7 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
     setBusy(`image-${side}`);
     try {
       const r = await fetch(`/api/switch-models/${id}/images/${side}`, { method: "DELETE", credentials: "same-origin" });
-      if (!r.ok) setStatus({ ok: false, text: await errorText(r) });
+      if (!r.ok) toast(false, await errorText(r));
       else setModel(normaliseModel((await r.json()) as SwitchModel));
     } finally {
       setBusy(null);
@@ -266,8 +264,8 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
         {model.name}
         {isModule ? <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 align-middle text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">Add-on module</span> : null}
       </h2>
-      <StatusLine status={status} />
       {!canWrite ? <p className="text-sm text-slate-600 dark:text-slate-400">You can look at this profile. Changing it needs the monitoring admin tier.</p> : null}
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
 
       <form onSubmit={saveDetails} className={`grid items-end gap-3 ${isModule ? "sm:grid-cols-[1fr_auto]" : "sm:grid-cols-[1fr_1fr_auto]"}`}>
         <Field label="Name">
@@ -411,7 +409,7 @@ export function SwitchModelEditor({ base: BASE }: { base: string }) {
           onDone={(m) => {
             setModel(normaliseModel(m));
             setImporting(false);
-            setStatus({ ok: true, text: "The pictures are saved. Check the port boxes still sit on the ports." });
+            toast(true, "The pictures are saved. Check the port boxes still sit on the ports.");
           }}
         />
       ) : null}

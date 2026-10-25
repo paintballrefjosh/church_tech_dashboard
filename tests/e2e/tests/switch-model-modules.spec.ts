@@ -205,7 +205,7 @@ test.describe("Device profiles: add-on modules", () => {
     await handle.focus();
     await page.keyboard.press("ArrowLeft");
     await section.getByRole("button", { name: "Save modules" }).click();
-    await expect(page.getByText("Modules saved: 1 placed.")).toBeVisible();
+    await expect(page.getByTestId("toast-stack").getByText("Modules saved: 1 placed.")).toBeVisible();
     expect(body).not.toBeNull();
     expect(body!.modules).toHaveLength(1);
     expect(body!.modules![0]).toMatchObject({ moduleId: MOD_ID });

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { FileUp, ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
 import { SWITCH_MODEL_SIDES, type SwitchModel, type SwitchModelKind, type SwitchModelSide } from "@church/shared";
-import { useCanWrite, Modal, Field, inputCls, StatusLine } from "@/app/monitoring/network-cisco/cisco-ui";
+import { useCanWrite, Modal, Field, inputCls, useToasts, ToastStack } from "@/app/monitoring/network-cisco/cisco-ui";
 import { errorText, useSwitchModels } from "@/lib/use-switch-models";
 import { DataTable, type Column } from "@/components/data-table";
 import { StencilImporter } from "@/components/stencil-importer";
@@ -33,7 +33,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
   const [confirmDel, setConfirmDel] = useState<SwitchModel | null>(null);
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const { toasts, show: toast, dismiss } = useToasts();
 
   // "Set up a profile for this model" on a switch page arrives here with the model text to match.
   const prefill = params.get("create");
@@ -45,7 +45,6 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
     e.preventDefault();
     if (!form) return;
     setBusy(true);
-    setStatus(null);
     try {
       const r = await fetch("/api/switch-models", {
         method: "POST",
@@ -54,7 +53,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
         body: JSON.stringify({ name: form.name, kind: form.kind, match: form.kind === "module" ? [] : splitMatch(form.match), portSide: form.portSide }),
       });
       if (!r.ok) {
-        setStatus({ ok: false, text: await errorText(r) });
+        toast(false, await errorText(r));
         return;
       }
       const m = (await r.json()) as SwitchModel;
@@ -69,8 +68,8 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
     setBusy(true);
     try {
       const r = await fetch(`/api/switch-models/${confirmDel.id}`, { method: "DELETE", credentials: "same-origin" });
-      if (!r.ok) setStatus({ ok: false, text: await errorText(r) });
-      else setStatus({ ok: true, text: `Deleted ${confirmDel.name}.` });
+      if (!r.ok) toast(false, await errorText(r));
+      else toast(true, `Deleted ${confirmDel.name}.`);
       setConfirmDel(null);
       await reload();
     } finally {
@@ -179,7 +178,7 @@ export function SwitchModelsPage({ base: BASE }: { base: string }) {
           </div>
         ) : null}
       </div>
-      <StatusLine status={status} />
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
 
       <DataTable
         rows={models ?? []}

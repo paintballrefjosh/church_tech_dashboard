@@ -148,7 +148,7 @@ test.describe("Device profiles", () => {
     expect(Math.abs((await at("Gi1/0/1")).x - from.x)).toBeLessThan(1);
 
     await page.getByRole("button", { name: "Save layout" }).click();
-    await expect(page.getByText("Layout saved: 24 ports.")).toBeVisible();
+    await expect(page.getByTestId("toast-stack").getByText("Layout saved: 24 ports.")).toBeVisible();
     expect(model.ports.length).toBe(24);
     expect(model.ports.find((p) => p.name === "Gi1/0/2")!.y).toBeGreaterThan(model.ports.find((p) => p.name === "Gi1/0/1")!.y);
 
