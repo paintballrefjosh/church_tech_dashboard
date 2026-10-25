@@ -524,7 +524,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
         title: d.name || d.model || d.mac,
         body: [d.ip, d.model, d.mac, d.type].filter(Boolean).join(" · "),
         extra: { state: d.state, ip: d.ip },
-        url: `/monitoring/network`,
+        url: `/monitoring/network/devices/${encodeURIComponent(d.mac.toLowerCase())}`,
         updatedAt: now,
       });
     }

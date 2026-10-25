@@ -236,7 +236,7 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
         name: d.name || d.model || mac || "UniFi device",
         detail: d.model && d.name ? d.model : null,
         since: typeof d.last_seen === "number" && d.last_seen > 0 ? new Date(d.last_seen * 1000).toISOString() : null,
-        href: "/monitoring/network",
+        href: mac ? `/monitoring/network/devices/${encodeURIComponent(mac)}` : "/monitoring/network",
         ack: mac ? { kind: "unifi" as const, mac, acked: d.acked === true } : null,
       };
     });

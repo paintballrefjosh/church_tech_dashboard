@@ -45,6 +45,7 @@ export function DataTable<T>({
   getKey,
   initialSort,
   filterPlaceholder = "Filter…",
+  leftSlot,
   rightSlot,
   emptyText = "No matching rows.",
   pageSizeOptions = [25, 50, 100, 200],
@@ -57,11 +58,13 @@ export function DataTable<T>({
   getKey: (row: T) => string;
   initialSort?: { key: string; dir: "asc" | "desc" };
   filterPlaceholder?: string;
+  /** Before the filter box, on the same row (a view switch, say). */
+  leftSlot?: ReactNode;
   rightSlot?: ReactNode;
   emptyText?: string;
   pageSizeOptions?: number[];
   initialPageSize?: number;
-  /** Where the "Rows" selector sits: "top" beside the filter (the default), or "footer", bottom left on the pagination row. */
+  /** Where the "Rows" selector sits: "top" beside the filter (the default), or "footer", bottom right after the page buttons. */
   rowsSelector?: "top" | "footer";
   server?: ServerMode;
 }) {
@@ -161,6 +164,7 @@ export function DataTable<T>({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
+        {leftSlot}
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
           <input
@@ -233,8 +237,7 @@ export function DataTable<T>({
       </div>
 
       {pageCount > 1 || rowsSelector === "footer" ? (
-        <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <div>{rowsSelector === "footer" ? rowsPicker : null}</div>
+        <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-slate-500 dark:text-slate-400">
           {pageCount > 1 ? (
             <div className="flex items-center gap-3">
               <span>
@@ -260,6 +263,7 @@ export function DataTable<T>({
               </div>
             </div>
           ) : null}
+          {rowsSelector === "footer" ? rowsPicker : null}
         </div>
       ) : null}
     </div>

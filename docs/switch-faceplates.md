@@ -4,7 +4,7 @@ The Cisco switch page (`/monitoring/network-cisco/switches/<id>`) opens on a pic
 with a button over every port. Hovering a port (or focusing it, or tapping it) shows its details with Edit, Delete and
 Shut down / Enable. A "Switch view | List view" toggle at the top right, beside the Rows selector, goes back to the
 table; the choice is remembered per browser (`church.portView` in localStorage, `usePortView`). A model with no
-faceplate gets the table and no toggle. The UniFi page is meant to use the same pieces (see the end).
+faceplate gets the table and no toggle. The UniFi device page uses the same pieces (see the end).
 
 ## Pieces
 
@@ -19,7 +19,7 @@ faceplate gets the table and no toggle. The UniFi page is meant to use the same 
 
 The code and the database call them switch models (`switch_models`, `SwitchModel`); the UI calls them **device profiles** since 2026-10-25,
 because they also draw UniFi devices, infra hosts and cabinet items. The normal way to add one: **IT > Device profiles** (`/device-profiles`;
-the UniFi and Infrastructure pages link to it, and the old `/monitoring/*/models` addresses redirect there). Reads need
+the old `/monitoring/*/models` addresses redirect there). Reads need
 `monitors:read:any`, changes `monitors:write:any` (the monitoring admin tier). On a switch's page an admin also gets a link:
 "Set up a profile for this model" (opens the create form with the model text filled in) or "Edit <profile>".
 
@@ -193,14 +193,20 @@ A model with a layout but no photo is drawn as a plain chassis, so layouts can b
   takes it over if the pointer rests there (the pointer crosses neighbours on its way to the popover). Enter or a click pins it,
   focus moves into it, Escape closes it and returns focus to the port.
 
-## UniFi (next)
+## UniFi device page
 
-Same component and the same switch models (they are not Cisco-specific: a box is named for whatever the device calls its
-port). UniFi devices report `model` (the code, e.g. `US48PRO`) and a `port_table` with a `port_idx` per port, so a model
-matching `US48PRO` with ports named "1" to "52" is all that is needed, plus the popover body (name, profile/VLAN, PoE, link
-speed, the client on the port). UniFi ports have no desired config, so its popover has no Edit/Delete. Which profile a UniFi
-device uses can already be chosen (the "Picture" column of the devices table; see [cabinets.md](cabinets.md)), and the
-cabinets and port sheets draw it; the live switch view on a UniFi page is still to do.
+`/monitoring/network/devices/<mac>` (MAC lower case; the device name in the Network (UniFi) devices table links to it, and
+so do cabinets, search and the home page's problems) uses the same component and the same device profiles: a box is named
+for whatever the device calls its port, so a profile matching `US48PRO` with ports named "1" to "52" is all a UniFi switch
+needs. The page reads the controller through the existing `/unifi/devices` and `/unifi/clients` routes (the realtime
+`network` room while it is open, a 30 s poll otherwise) and the port sheet (`/port-sheets/unifi/<mac>`) for each port's
+network and subnet; there is no new API route. The pure mapping is `apps/web/src/lib/unifi-ports.ts` (unit-tested in
+`unifi-ports.test.ts`): `unifiSlotFor` places a port by its number, then by its own name, and only on a profile (the Cisco
+built-in layouts never place UniFi ports, so a device with no matching profile gets the table); `clientsByPort` takes wired
+clients by `sw_mac`/`sw_port`. The popover shows link, network, subnet, PoE (only while power is drawn), media and the
+clients on the port. UniFi ports have no desired config here, so nothing on the page changes a port. The picture is chosen
+with the "Picture" button (the only place the device's own choice is made; a cabinet item can still pick its own, see [cabinets.md](cabinets.md)). A device with no port
+table (an access point) shows its profile's pictures instead.
 
 ## Tests
 
@@ -209,5 +215,6 @@ cabinets and port sheets draw it; the live switch view on a UniFi page is still 
 `switch-model-import.spec.ts` in `tests/e2e`,
 `lib/faceplates/*.test.ts` (layouts, matching, detection on synthetic pictures, editor operations, module placement),
 `apps/api/test/switch-models.test.ts` (image sizes, schemas), `switch-models.integration.test.ts` (CockroachDB and YugabyteDB,
-including the module rules), `cisco-switch-view.spec.ts`, `switch-models.spec.ts` and `switch-model-modules.spec.ts` in `tests/e2e`
+including the module rules), `lib/unifi-ports.test.ts`, `cisco-switch-view.spec.ts`, `switch-models.spec.ts`, `switch-model-modules.spec.ts` and
+`unifi-device.spec.ts` (with an axe check of both views) in `tests/e2e`
 (fake API through `page.route`; the live stack only supplies the pages and the signed-in user).

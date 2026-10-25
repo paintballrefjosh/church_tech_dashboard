@@ -1,17 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { SwitchModel } from "@church/shared";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CircleCheck, CircleHelp, Images, Printer, RefreshCw } from "lucide-react";
+import { AlertTriangle, CircleCheck, CircleHelp, Printer, RefreshCw, Settings as SettingsIcon, Ticket } from "lucide-react";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { DataTable, type Column } from "@/components/data-table";
 import { clientTraffic } from "@/lib/unifi-traffic";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { usePoll } from "@/lib/use-poll";
-import { useSwitchModels } from "@/lib/use-switch-models";
-import { useCanWrite } from "../network-cisco/cisco-ui";
-import { pictureSummary, UnifiPictureDialog, type PictureDevice } from "./unifi-picture-dialog";
 
 interface Health {
   configured: boolean;
@@ -93,10 +89,6 @@ export function NetworkClient() {
     setRefreshing(false);
   }, []);
 
-  const { models } = useSwitchModels();
-  const canWrite = useCanWrite();
-  const [picturing, setPicturing] = useState<PictureDevice | null>(null);
-
   // Acknowledge / clear an offline device. Optimistic; reverts on failure.
   const toggleAck = useCallback(
     async (mac: string, currentlyAcked: boolean) => {
@@ -140,10 +132,19 @@ export function NetworkClient() {
 
   usePoll(() => load(false), 30_000, { enabled: !connected, immediate: false });
 
+  const actions = (
+    <PageActions refreshing={refreshing} onRefresh={() => void load(false)} />
+  );
+  const viewSwitch = (
+    <ViewSwitch value={tab} onChange={setTab} devices={devices.length} clients={clients.length} />
+  );
+
   if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
   if (health && !health.configured) {
     return (
+      <div className="space-y-3">
+      <div className="flex justify-end">{actions}</div>
       <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
         UniFi isn&apos;t configured. Set <code className="mx-0.5">unifi.controller_url</code> and{" "}
         <code className="mx-0.5">unifi.api_key</code> in{" "}
@@ -152,103 +153,96 @@ export function NetworkClient() {
         </a>{" "}
         to enable.
       </p>
+      </div>
     );
   }
   if (health && !health.reachable) {
     return (
+      <div className="space-y-3">
+      <div className="flex justify-end">{actions}</div>
       <p className="rounded-md border border-rose-300 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300">
         Controller unreachable: {health.error ?? "unknown error"}. Double-check the URL, API key
         and that TLS-verification matches your cert.
       </p>
+      </div>
     );
   }
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 border-b border-slate-300 text-sm dark:border-slate-800">
-        <TabButton active={tab === "devices"} onClick={() => setTab("devices")}>
-          Devices ({devices.length})
-        </TabButton>
-        <TabButton active={tab === "clients"} onClick={() => setTab("clients")}>
-          Clients ({clients.length})
-        </TabButton>
-        <button
-          type="button"
-          onClick={() => void load(false)}
-          disabled={refreshing}
-          aria-label="Refresh"
-          className="ml-auto mb-[-1px] inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 disabled:opacity-50 dark:hover:text-white"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
-
       {ackError ? (
         <p className="mb-2 text-xs text-rose-600 dark:text-rose-400">{ackError}</p>
       ) : null}
 
       {tab === "devices" ? (
-        <DevicesTable
-          items={devices}
-          onToggleAck={toggleAck}
-          models={models}
-          onPicture={canWrite ? setPicturing : null}
-        />
+        <DevicesTable items={devices} onToggleAck={toggleAck} leftSlot={viewSwitch} rightSlot={actions} />
       ) : (
-        <ClientsTable items={clients} />
+        <ClientsTable items={clients} leftSlot={viewSwitch} rightSlot={actions} />
       )}
 
-      {picturing && models ? (
-        <UnifiPictureDialog
-          device={picturing}
-          models={models}
-          onClose={() => setPicturing(null)}
-          onSaved={() => {
-            setPicturing(null);
-            void load(false);
-          }}
-        />
-      ) : null}
     </div>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
+const SWITCH_BASE = "inline-flex items-center px-3 py-1.5 text-sm";
+const SWITCH_ON = "bg-brand-600 text-white";
+const SWITCH_OFF = "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+
+/** "Devices | Clients": which list the table shows, with how many of each. */
+function ViewSwitch({
+  value,
+  onChange,
+  devices,
+  clients,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  value: "devices" | "clients";
+  onChange: (v: "devices" | "clients") => void;
+  devices: number;
+  clients: number;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`mb-[-1px] border-b-2 px-3 py-2 ${
-        active
-          ? "border-brand-600 text-brand-700 dark:text-brand-300"
-          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-      }`}
-    >
-      {children}
-    </button>
+    <div role="group" aria-label="Show" className="inline-flex overflow-hidden rounded-md border border-slate-300 dark:border-slate-700">
+      <button type="button" aria-pressed={value === "devices"} onClick={() => onChange("devices")} className={`${SWITCH_BASE} ${value === "devices" ? SWITCH_ON : SWITCH_OFF}`}>
+        Devices ({devices})
+      </button>
+      <button type="button" aria-pressed={value === "clients"} onClick={() => onChange("clients")} className={`${SWITCH_BASE} border-l border-slate-300 dark:border-slate-700 ${value === "clients" ? SWITCH_ON : SWITCH_OFF}`}>
+        Clients ({clients})
+      </button>
+    </div>
+  );
+}
+
+const ACTION_CLS =
+  "inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 dark:text-slate-300 dark:hover:text-white";
+
+/** Refresh and the links that belong to the whole page, at the right of the table's toolbar. */
+function PageActions({ refreshing, onRefresh }: { refreshing: boolean; onRefresh: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <button type="button" onClick={onRefresh} disabled={refreshing} className={ACTION_CLS}>
+        <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+        {refreshing ? "Refreshing…" : "Refresh"}
+      </button>
+      <Link href="/monitoring/network/vouchers" className={ACTION_CLS}>
+        <Ticket className="h-4 w-4" aria-hidden /> Guest vouchers
+      </Link>
+      <Link href="/admin/settings/monitoring" className={ACTION_CLS}>
+        <SettingsIcon className="h-4 w-4" aria-hidden /> UniFi config
+      </Link>
+    </div>
   );
 }
 
 function DevicesTable({
   items,
   onToggleAck,
-  models,
-  onPicture,
+  leftSlot,
+  rightSlot,
 }: {
   items: UDevice[];
   onToggleAck: (mac: string, currentlyAcked: boolean) => void;
-  models: SwitchModel[] | null;
-  // Only for people who may change the choice; others see no picture column.
-  onPicture: ((d: PictureDevice) => void) | null;
+  leftSlot: React.ReactNode;
+  rightSlot: React.ReactNode;
 }) {
   const columns: Column<UDevice>[] = [
     {
@@ -264,7 +258,13 @@ function DevicesTable({
       label: "Name",
       render: (d) => (
         <span className="flex items-center gap-2">
-          <span className="font-medium">{d.name ?? "—"}</span>
+          {d.mac ? (
+            <Link href={`/monitoring/network/devices/${encodeURIComponent(d.mac.toLowerCase())}`} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+              {d.name ?? d.mac}
+            </Link>
+          ) : (
+            <span className="font-medium">{d.name ?? "—"}</span>
+          )}
           {d.acked ? (
             <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-slate-600 dark:bg-slate-700 dark:text-slate-300">
               acked
@@ -307,29 +307,6 @@ function DevicesTable({
           </Link>
         ) : null,
     },
-    ...(onPicture && models
-      ? [
-          {
-            key: "picture",
-            label: "Picture",
-            render: (d: UDevice) => {
-              if (!d.mac) return null;
-              const dev: PictureDevice = { mac: d.mac, name: d.name ?? d.mac, model: d.model ?? null, switchModelId: d.switchModelId, switchViewOff: d.switchViewOff };
-              return (
-                <button
-                  type="button"
-                  onClick={() => onPicture(dev)}
-                  aria-label={`Choose the picture of ${dev.name}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  <Images className="h-3.5 w-3.5" aria-hidden /> {pictureSummary(models, dev)}
-                </button>
-              );
-            },
-            sortValue: (d: UDevice) => (d.mac ? pictureSummary(models, { mac: d.mac, name: "", model: d.model ?? null, switchModelId: d.switchModelId, switchViewOff: d.switchViewOff }) : ""),
-          } satisfies Column<UDevice>,
-        ]
-      : []),
     {
       key: "ack",
       label: "",
@@ -357,13 +334,16 @@ function DevicesTable({
       columns={columns}
       getKey={(d) => d.mac ?? `${d.name ?? ""}-${d.ip ?? ""}`}
       initialSort={{ key: "name", dir: "asc" }}
-      filterPlaceholder="Search devices by name, model, IP, MAC…"
+      filterPlaceholder="Search devices…"
       emptyText="No devices reported."
+      leftSlot={leftSlot}
+      rightSlot={rightSlot}
+      rowsSelector="footer"
     />
   );
 }
 
-function ClientsTable({ items }: { items: UClient[] }) {
+function ClientsTable({ items, leftSlot, rightSlot }: { items: UClient[]; leftSlot: React.ReactNode; rightSlot: React.ReactNode }) {
   const columns: Column<UClient>[] = [
     { key: "name", label: "Name", render: (c) => <span className="font-medium">{c.name ?? c.hostname ?? "—"}</span>, sortValue: (c) => c.name ?? c.hostname ?? "" },
     { key: "ip", label: "IP", render: (c) => <span className="font-mono text-xs">{c.ip ?? "—"}</span>, sortValue: (c) => c.ip ?? "" },
@@ -399,13 +379,16 @@ function ClientsTable({ items }: { items: UClient[] }) {
       columns={columns}
       getKey={(c) => c.mac ?? `${c.ip ?? ""}-${c.name ?? ""}`}
       initialSort={{ key: "name", dir: "asc" }}
-      filterPlaceholder="Search clients by name, IP, MAC, network…"
+      filterPlaceholder="Search clients…"
       emptyText="No clients reported."
+      leftSlot={leftSlot}
+      rightSlot={rightSlot}
+      rowsSelector="footer"
     />
   );
 }
 
-function DeviceStatus({ state }: { state?: number }) {
+export function DeviceStatus({ state }: { state?: number }) {
   // UniFi state codes: 1 = connected, 0 = disconnected, others = pending / upgrading.
   if (state === 1)
     return <CircleCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-label="Connected" />;
@@ -414,7 +397,7 @@ function DeviceStatus({ state }: { state?: number }) {
   return <CircleHelp className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-label="Pending" />;
 }
 
-function formatUptime(secs?: number): string {
+export function formatUptime(secs?: number): string {
   if (!secs || secs <= 0) return "—";
   const d = Math.floor(secs / 86400);
   if (d > 0) return `${d}d`;

@@ -396,7 +396,7 @@ export class RacksService {
           ip: d.ip ?? null,
           model: d.model ?? null,
           status: d.state === 1 ? "up" : "down",
-          href: "/monitoring/network",
+          href: `/monitoring/network/devices/${encodeURIComponent(mac)}`,
           style: unifiStyle(d.type),
           switchModelId: views.get(mac)?.switchModelId ?? null,
           switchViewOff: views.get(mac)?.switchViewOff ?? false,

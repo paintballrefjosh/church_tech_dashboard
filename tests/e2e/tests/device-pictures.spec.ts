@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// The UniFi devices table's "Picture" column, driven by fake API answers (page.route) and with the realtime socket closed,
+// Choosing a UniFi device's picture from its own page (the "Picture" button), driven by fake API answers (page.route) and with the realtime socket closed,
 // so nothing reaches the controller, the database or the store.
 const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
@@ -38,7 +38,7 @@ const MAC = "02:5e:00:00:00:02";
 
 async function fakeUnifi(page: Page) {
   const now = new Date().toISOString();
-  const device = { name: "Hall switch", model: "E2EUSW24", ip: "10.0.0.2", mac: MAC, state: 1, type: "usw", num_sta: 3, uptime: 3600, port_table: [{}], acked: false, switchModelId: null as string | null, switchViewOff: false };
+  const device = { name: "Hall switch", model: "E2EUSW24", ip: "10.0.0.2", mac: MAC, state: 1, type: "usw", num_sta: 3, uptime: 3600, port_table: [{ port_idx: 1, up: true, enable: true }], acked: false, switchModelId: null as string | null, switchViewOff: false };
   const profile = {
     id: PROFILE_ID, name: "E2E USW 24", kind: "switch", match: ["E2EUSW24"], portSide: "front",
     frontImageId: null, backImageId: null, frontWidth: null, frontHeight: null, backWidth: null, backHeight: null,
@@ -55,6 +55,7 @@ async function fakeUnifi(page: Page) {
   await page.route("**/api/unifi/health", (route) => route.fulfill({ json: { configured: true, reachable: true, error: null } }));
   await page.route("**/api/unifi/devices", (route) => route.fulfill({ json: [device] }));
   await page.route("**/api/unifi/clients", (route) => route.fulfill({ json: [] }));
+  await page.route(`**/api/port-sheets/unifi/${encodeURIComponent(MAC)}`, (route) => route.fulfill({ status: 404, json: { message: "not here" } }));
   await page.route(`**/api/unifi/devices/${encodeURIComponent(MAC)}/switch-view`, async (route) => {
     const body = route.request().postDataJSON() as { mode: string; modelId?: string };
     puts.push(body);
@@ -70,9 +71,11 @@ test.describe("UniFi device pictures", () => {
     await signInAsTestUser(page);
     const { puts } = await fakeUnifi(page);
     await page.goto("/monitoring/network");
-    const button = page.getByRole("button", { name: "Choose the picture of Hall switch" });
-    await expect(button).toHaveText(/E2E USW 24/);
-    await button.click();
+    // The list has no picture column any more: the choice is made on the device's own page.
+    await expect(page.getByRole("button", { name: /Choose the picture of/ })).toHaveCount(0);
+    await page.getByRole("link", { name: "Hall switch", exact: true }).click();
+    await expect(page.getByText(/E2E USW 24/).first()).toBeVisible();
+    await page.getByRole("button", { name: "Picture" }).click();
     const dialog = page.getByRole("dialog", { name: "Picture of Hall switch" });
     await expect(dialog.getByLabel("Device profile")).toHaveValue("auto");
     await expect(dialog.getByRole("option", { name: /Automatic \(E2E USW 24, matched on "E2EUSW24"\)/ })).toBeAttached();
@@ -80,6 +83,5 @@ test.describe("UniFi device pictures", () => {
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(dialog).toBeHidden();
     expect(puts).toEqual([{ mode: "off" }]);
-    await expect(button).toHaveText(/No picture/);
   });
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, Images, Plus } from "lucide-react";
+import { Activity, Plus } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
@@ -32,12 +32,6 @@ export default async function InfraPage() {
             CPU, memory, disk, network, containers and VMs, with threshold alerts.
           </p>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Link
-              href="/device-profiles"
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <Images className="h-4 w-4" aria-hidden /> Device profiles
-            </Link>
             <Link
               href="/monitoring/infra/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"

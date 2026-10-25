@@ -218,8 +218,8 @@ the front and back: all reading and EMF drawing happens in the browser and the p
 the server is unchanged (the binary Visio reader was checked byte for byte against libvisio; see the docs). Which model draws a switch is `resolveSwitchView` (an admin's per-switch pick or "off", `cisco_switches.switch_model_id` / `switch_view_off`,
 migration 0071, `PUT /cisco/switches/:id/switch-view`; else the model text matched against the models' match strings; else a built-in), and the
 page shows which one it was ("matched on C3064PQ"); the choice is made in the Edit switch form (shared `SwitchFormModal`). A matching model wins over the three rough built-in layouts in
-`apps/web/src/lib/faceplates/layouts.ts`; `SwitchFaceplate` is generic and not Cisco-specific (the UniFi page is meant to reuse it and
-the models). Rules (name-to-port matching, cage aliases, colours never alone, popover behaviour, how Auto works):
+`apps/web/src/lib/faceplates/layouts.ts`; `SwitchFaceplate` is generic and not Cisco-specific (the UniFi device page, `/monitoring/network/devices/<mac>`, reuses it
+and the profiles: ports matched by number, `apps/web/src/lib/unifi-ports.ts`; read-only, no new API route). Rules (name-to-port matching, cage aliases, colours never alone, popover behaviour, how Auto works):
 **Add-on modules** (migration 0072: `switch_models.kind` `switch`|`module`, `switch_models.modules` placements) are models too, placed on a host's picture; a module is drawn only while the switch reports one of its ports (`layoutFromSwitchModel(host, all)`), see the docs. [docs/switch-faceplates.md](docs/switch-faceplates.md). The routes are MCP-excluded (picture curation).
 
 There is also a **UPS** tab (`/monitoring/ups` — the `ups` module: an SNMP poller

@@ -16,12 +16,6 @@ export interface PictureDevice {
   switchViewOff?: boolean;
 }
 
-/** What a UniFi device is drawn with now, in a few words, for its row in the devices table. */
-export function pictureSummary(models: readonly SwitchModel[], d: PictureDevice): string {
-  if (d.switchViewOff) return "No picture";
-  return resolveSwitchView(models, d).model?.name ?? "No picture";
-}
-
 /**
  * Choose which device profile draws a UniFi device (in cabinets and on its printed port sheet): automatic (matched on the
  * model text the controller reports), a profile, or none. Nothing is sent to the controller.

@@ -75,8 +75,8 @@ PDFs: a 42U cabinet is one page (front, or front and rear); a 48-port sheet is t
 - **Infra host:** `infra_targets.switch_model_id` (no "off" column: a host has no model text, so no picture = no profile). Chosen
   in the host form ("Picture"), shown as a card with the front and back on the host page (`components/device-picture.tsx`).
 - **UniFi device:** `unifi_device_views (mac, switch_model_id, switch_view_off)`, because the devices are not rows here; "automatic"
-  is no row. `PUT /unifi/devices/:mac/switch-view` with the same body as Cisco (`setSwitchViewSchema`), from the "Picture" column of
-  the devices table (writers only; `unifi-picture-dialog.tsx`, with a preview). It works while the controller is down and sends
+  is no row. `PUT /unifi/devices/:mac/switch-view` with the same body as Cisco (`setSwitchViewSchema`), from the "Picture" button on
+  the device's own page, `/monitoring/network/devices/<mac>` (writers only; `unifi-picture-dialog.tsx`, with a preview). It works while the controller is down and sends
   nothing to it.
 - Both go through `checkDeviceProfile` (`apps/api/src/switch-models/check-profile.ts`: the profile exists and is not an add-on
   module), and deleting a profile clears the choice (foreign key, ON DELETE SET NULL). The cabinet and the UniFi port sheet read
