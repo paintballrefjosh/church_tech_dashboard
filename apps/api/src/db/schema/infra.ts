@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   primaryKey,
 } from "drizzle-orm/pg-core";
+import { wikiPages } from "./wiki";
 import { users } from "./users";
 
 /**
@@ -49,6 +50,8 @@ export const infraTargets = pgTable(
     lastError: text("last_error"),
     lastSample: jsonb("last_sample"), // most recent target-level sample for instant list render
     alertState: jsonb("alert_state").notNull().default({}), // ruleId -> { breachingSince, open, incidentId }
+    // The wiki page that says what to do when it misbehaves (see monitors.runbook_page_id).
+    runbookPageId: uuid("runbook_page_id").references(() => wikiPages.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -8,6 +8,7 @@ import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "../use-monitor-workers";
 import { AcknowledgeButton } from "../acknowledge-button";
 import { usePoll } from "@/lib/use-poll";
+import { RunbookCard } from "@/components/runbook-link";
 
 export function MonitorDetailClient({
   initialMonitor,
@@ -84,6 +85,7 @@ export function MonitorDetailClient({
 
   return (
     <div className="space-y-4 text-sm">
+      <RunbookCard pageId={monitor.runbookPageId} />
       <section className={`grid gap-3 ${clustered ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
         <Stat
           label="Status"

@@ -20,6 +20,7 @@ import { MONITORING_HEALTH_REFRESH } from "../../section-tabs";
 import { AcknowledgeButton } from "../../acknowledge-button";
 import { useModal } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
+import { RunbookCard } from "@/components/runbook-link";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -383,6 +384,8 @@ export function InfraDetailClient({
           </Link>
         </div>
       </header>
+
+      <RunbookCard pageId={target.runbookPageId} />
 
       {!target.enabled ? (
         <div

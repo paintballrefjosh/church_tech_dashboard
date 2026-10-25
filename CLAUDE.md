@@ -341,7 +341,7 @@ leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (Coc
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
 restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
 
-**Alert channels and the alert outbox** (migration 0077; rules in
+**Alert channels, the alert outbox, runbooks** (migrations 0077, 0078; rules in
 `packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,
 `apps/api/src/alerts/`, page `/monitoring/alert-channels`, the "Alerts" tab; reads AND writes `monitors:write:any`, MCP-excluded) are
 site-wide destinations: ntfy, Pushover, Slack, Teams (Workflows webhook), Discord, a JSON webhook (optional HMAC `X-Church-Signature`
@@ -356,9 +356,11 @@ service going down never sent an email or a push) and the channels. `Notificatio
 `isAlertKind` notice (one row per distinct notice, not per recipient) for the channels; `alertChannels: false` opts out (the job uses
 it). Rows are CLAIMED by one conditional UPDATE (`claimed_until`, database clock), at most 5 attempts, sent rows kept 7 days; a row older
 than `ALERT_STALE_MS` (30 min) when picked up goes to the bell only. Maintenance mode silences at the source, as before. A fan-out with no
-recipients sends nothing to the channels either. Tests:
+recipients sends nothing to the channels either. (3) *Runbooks*: `monitors.runbook_page_id` and `infra_targets.runbook_page_id` (FK to
+`wiki_pages`, ON DELETE SET NULL; `checkRunbookPage` only checks the page exists). The web reads the title through the wiki's own route
+(`RunbookCard`), so a person who may see the monitor but not the page sees "a runbook is linked" and nothing more. Tests:
 `alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
-bell case in `tests/smoke/alerts.mjs`.
+bell and runbook cases in `tests/smoke/alerts.mjs`.
 
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and

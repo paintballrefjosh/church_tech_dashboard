@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { infraTargets } from "./infra";
 import { users } from "./users";
+import { wikiPages } from "./wiki";
 
 /**
  * A user-defined monitor. The probe worker reads the active set on a poll and
@@ -57,6 +58,8 @@ export const monitors = pgTable(
     // Listed on the status page every signed-in person can read, under `statusName` when there is one.
     showOnStatus: boolean("show_on_status").notNull().default(false),
     statusName: text("status_name"),
+    // The wiki page that says what to do when it fails, shown on the monitor's page (the title only to people who may read it).
+    runbookPageId: uuid("runbook_page_id").references(() => wikiPages.id, { onDelete: "set null" }),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

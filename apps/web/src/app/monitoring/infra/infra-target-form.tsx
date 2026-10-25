@@ -14,6 +14,7 @@ import {
   infraMetricsForCapabilities,
   findInfraMetric,
 } from "@church/shared";
+import { RunbookField } from "@/components/runbook-link";
 
 type ThresholdRow = InfraThresholdRule;
 
@@ -63,6 +64,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
   const [caCert, setCaCert] = useState("");
 
   const [thresholds, setThresholds] = useState<ThresholdRow[]>(initial?.thresholds ?? []);
+  const [runbookPageId, setRunbookPageId] = useState<string | null>(initial?.runbookPageId ?? null);
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -112,6 +114,7 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
         dockerTransport: capabilities.includes("docker") ? "ssh" : undefined,
       },
       thresholds,
+      runbookPageId,
       credential: credProvided
         ? {
             authType,
@@ -411,6 +414,8 @@ export function InfraTargetForm({ initial }: { initial?: InfraTarget }) {
 
       {/* Thresholds */}
       <ThresholdEditor rules={thresholds} onChange={setThresholds} capabilities={capabilities} />
+
+      <RunbookField value={runbookPageId} onChange={setRunbookPageId} />
 
       <div className="flex items-center gap-3 pt-1">
         <button

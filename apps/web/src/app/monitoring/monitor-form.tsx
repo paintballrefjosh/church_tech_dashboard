@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Save } from "lucide-react";
 import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
+import { RunbookField } from "@/components/runbook-link";
 
 type Kind = "http" | "tcp" | "icmp" | "tls" | "dns";
 
@@ -23,6 +24,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [showOnStatus, setShowOnStatus] = useState(initial?.showOnStatus ?? false);
   const [statusName, setStatusName] = useState(initial?.statusName ?? "");
+  const [runbookPageId, setRunbookPageId] = useState<string | null>(initial?.runbookPageId ?? null);
   // Per-kind options (only the ones relevant to the selected kind are submitted).
   const [httpMethod, setHttpMethod] = useState(optStr(o, "method", "GET"));
   const [httpExpectedStatus, setHttpExpectedStatus] = useState(optNum(o, "expectedStatus", 200));
@@ -68,6 +70,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         enabled,
         showOnStatus,
         statusName: statusName.trim() || null,
+        runbookPageId,
         options: buildOptions(),
       });
       const url = initial ? `/api/monitors/${initial.id}` : "/api/monitors";
@@ -308,6 +311,8 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           </label>
         ) : null}
       </fieldset>
+
+      <RunbookField value={runbookPageId} onChange={setRunbookPageId} />
 
       <div className="flex items-center gap-3 pt-2">
         <button

@@ -56,6 +56,19 @@ export async function alertTests({ test, assert, fetchWithCookies, jar }) {
       assert(typeof page.maintenance.enabled === "boolean" && typeof page.notice === "string", "shape");
     });
 
+    await test("runbook: a monitor links a wiki page; a page that does not exist is refused; deleting the page clears it", async () => {
+      const made = await session("/api/v1/wiki", { method: "POST", ...json({ title: "[smoke] runbook", body: "Restart the encoder." }) });
+      assert(made.res.status === 201 || made.res.status === 200, `wiki create ${made.res.status}`);
+      const page = await made.res.json();
+      const bogus = await session(`/api/v1/monitors/${listed.id}`, { method: "PATCH", ...json({ runbookPageId: "00000000-0000-4000-8000-000000000000" }) });
+      assert(bogus.res.status === 400, `missing page: ${bogus.res.status}`);
+      const linked = await session(`/api/v1/monitors/${listed.id}`, { method: "PATCH", ...json({ runbookPageId: page.id }) });
+      assert(linked.res.status === 200 && (await linked.res.json()).runbookPageId === page.id, "link not stored");
+      await session(`/api/v1/wiki/${page.id}`, { method: "DELETE" });
+      const after = await (await session(`/api/v1/monitors/${listed.id}`)).res.json();
+      assert(after.runbookPageId === null, `link survived the page: ${after.runbookPageId}`);
+    });
+
     await test("status: a token limited to notes can still read it (no monitoring access needed)", async () => {
       const { res } = await session("/api/v1/me/api-tokens", { method: "POST", ...json({ name: "smoke status", modules: ["notes"], expiresInDays: 1 }) });
       assert(res.status === 201 || res.status === 200, `create status ${res.status}`);

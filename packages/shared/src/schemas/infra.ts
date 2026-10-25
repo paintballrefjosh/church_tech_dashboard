@@ -332,6 +332,8 @@ export const infraTargetSchema = z.object({
   hasCredential: z.boolean(),
   /** Auth type of the stored credential, if any (not the secret itself). */
   authType: z.enum(INFRA_AUTH_TYPES).nullable(),
+  /** The runbook's wiki page id; the page decides who may read its title. */
+  runbookPageId: z.string().uuid().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -364,6 +366,8 @@ export const createInfraTargetSchema = z.object({
   options: z.record(z.unknown()).default({}),
   thresholds: z.array(infraThresholdRuleSchema).default([]),
   credential: infraCredentialInputSchema.optional(),
+  /** A wiki page with what to do when it misbehaves; null removes the link. */
+  runbookPageId: z.string().uuid().nullable().optional(),
 });
 export type CreateInfraTargetInput = z.infer<typeof createInfraTargetSchema>;
 

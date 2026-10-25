@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
 import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
+import { checkRunbookPage } from "../wiki/runbook";
 import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
 import { NODE_LIVE_SEC } from "../cluster/node.service";
 import { MONITOR_WORKER_WINDOW_MIN } from "@church/shared";
@@ -21,6 +22,7 @@ export class MonitorsService {
   }
 
   async create(input: CreateMonitorInput) {
+    const runbookPageId = await checkRunbookPage(this.db, input.runbookPageId);
     const [row] = await this.db
       .insert(monitors)
       .values({
@@ -34,6 +36,7 @@ export class MonitorsService {
         enabled: input.enabled,
         showOnStatus: input.showOnStatus,
         statusName: input.statusName?.trim() || null,
+        runbookPageId: runbookPageId ?? null,
       })
       .returning();
     if (!row) throw new Error("Insert failed");
@@ -53,6 +56,7 @@ export class MonitorsService {
     if (input.enabled !== undefined) patch.enabled = input.enabled;
     if (input.showOnStatus !== undefined) patch.showOnStatus = input.showOnStatus;
     if (input.statusName !== undefined) patch.statusName = input.statusName?.trim() || null;
+    if (input.runbookPageId !== undefined) patch.runbookPageId = await checkRunbookPage(this.db, input.runbookPageId);
     const [row] = await this.db
       .update(monitors)
       .set(patch)
