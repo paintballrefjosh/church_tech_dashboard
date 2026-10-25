@@ -18,6 +18,8 @@ import {
   createMonitorSchema,
   updateMonitorSchema,
   type MaintenanceState,
+  redactMonitorOptions,
+  monitorScheduleProblem,
 } from "@church/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
@@ -35,6 +37,20 @@ const maintenanceBody = z.object({
 /** `enabled`: alerts are silenced now. `until`: ISO end time, or null when it has none. */
 function maintenanceReply(state: MaintenanceState): { enabled: boolean; until: string | null } {
   return { enabled: state.active, until: state.active && state.until !== null ? new Date(state.until).toISOString() : null };
+}
+
+/** What the schemas cannot say: a schedule that reads, and a livestream given as a web address. */
+function checkMonitorInput(kind: string | undefined, target: string | undefined, options: Record<string, unknown> | undefined): void {
+  const problem = monitorScheduleProblem(options?.schedule);
+  if (problem) throw new BadRequestException(`Schedule: ${problem}`);
+  if (kind === "hls" && target !== undefined && !/^https?:\/\//i.test(target)) {
+    throw new BadRequestException("A livestream (HLS) monitor needs the playlist's address, starting http:// or https://");
+  }
+}
+
+/** A monitor as the API returns it: credentials in its options replaced by a placeholder (see MONITOR_SECRET_OPTION_KEYS). */
+function redacted<T extends { options: unknown }>(m: T): T {
+  return { ...m, options: redactMonitorOptions(m.options as Record<string, unknown>) };
 }
 
 @Controller("monitors")
@@ -74,8 +90,8 @@ export class MonitorsController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
-  list() {
-    return this.monitors.list();
+  async list() {
+    return (await this.monitors.list()).map(redacted);
   }
 
   @Get("summary")
@@ -111,8 +127,8 @@ export class MonitorsController {
 
   @Get(":id")
   @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
-  byId(@Param("id") id: string) {
-    return this.monitors.getById(id);
+  async byId(@Param("id") id: string) {
+    return redacted(await this.monitors.getById(id));
   }
 
   @Get(":id/history")
@@ -134,7 +150,8 @@ export class MonitorsController {
   async create(@Body() body: unknown) {
     const parsed = createMonitorSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    return this.monitors.create(parsed.data);
+    checkMonitorInput(parsed.data.kind, parsed.data.target, parsed.data.options);
+    return redacted(await this.monitors.create(parsed.data));
   }
 
   @Patch(":id")
@@ -147,7 +164,8 @@ export class MonitorsController {
   async update(@Param("id") id: string, @Body() body: unknown) {
     const parsed = updateMonitorSchema.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    return this.monitors.update(id, parsed.data);
+    checkMonitorInput(parsed.data.kind, parsed.data.target, parsed.data.options);
+    return redacted(await this.monitors.update(id, parsed.data));
   }
 
   @Delete(":id")
@@ -157,7 +175,8 @@ export class MonitorsController {
     resourceType: "monitor",
     resourceIdFromParams: (p) => p.id ?? null,
   })
-  remove(@Param("id") id: string) {
-    return this.monitors.delete(id);
+  async remove(@Param("id") id: string) {
+    const row = await this.monitors.delete(id);
+    return row ? redacted(row) : row;
   }
 }

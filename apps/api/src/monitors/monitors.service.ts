@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
 import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
+import { mergeMonitorSecretOptions } from "@church/shared";
 import { checkRunbookPage } from "../wiki/runbook";
 import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
 import { NODE_LIVE_SEC } from "../cluster/node.service";
@@ -52,7 +53,11 @@ export class MonitorsService {
     if (input.intervalSec !== undefined) patch.intervalSec = input.intervalSec;
     if (input.failThreshold !== undefined) patch.failThreshold = input.failThreshold;
     if (input.recoverThreshold !== undefined) patch.recoverThreshold = input.recoverThreshold;
-    if (input.options !== undefined) patch.options = input.options;
+    if (input.options !== undefined) {
+      // A secret (Authorization header, password) comes back from the UI as a placeholder, or not at all: keep the saved one.
+      const saved = await this.getById(id);
+      patch.options = mergeMonitorSecretOptions(input.options, saved.options as Record<string, unknown>);
+    }
     if (input.enabled !== undefined) patch.enabled = input.enabled;
     if (input.showOnStatus !== undefined) patch.showOnStatus = input.showOnStatus;
     if (input.statusName !== undefined) patch.statusName = input.statusName?.trim() || null;

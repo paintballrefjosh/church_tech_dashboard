@@ -12,6 +12,8 @@ import {
   flapSettled,
   isFlapping,
   maintenanceState,
+  monitorScheduleActive,
+  parseMonitorSchedule,
   type FlapConfig,
 } from "@church/shared";
 import { db, pool } from "./db";
@@ -25,6 +27,7 @@ import {
   alertOutbox,
 } from "./schema";
 import { probeHttp, probeTcp, probeIcmp, probeDns, probeTls, type ProbeResult } from "./probes";
+import { probeHls, probeHyperdeck, probePjlink, probeShure, probeObs } from "./av-probes";
 
 const POLL_MS = parseInt(process.env.MONITOR_POLL_MS ?? "5000", 10);
 const PRUNE_KEEP_DAYS = parseInt(process.env.MONITOR_PRUNE_DAYS ?? "30", 10);
@@ -60,8 +63,48 @@ async function runProbe(kind: string, target: string, options: Record<string, un
       return probeDns({ target, options });
     case "tls":
       return probeTls({ target, options });
+    case "hls":
+      return probeHls({ target, options });
+    case "hyperdeck":
+      return probeHyperdeck({ target, options });
+    case "pjlink":
+      return probePjlink({ target, options });
+    case "shure":
+      return probeShure({ target, options });
+    case "obs":
+      return probeObs({ target, options });
     default:
       return { ok: false, latencyMs: 0, info: `unknown kind '${kind}'` };
+  }
+}
+
+/** What a check outside the monitor's hours records. Closing an incident with it sends no "is back up" notice. */
+const OUTSIDE_HOURS = "outside its hours (not checked)";
+
+/** The site's time zone for schedules, read at most once a minute. */
+let zoneCache: { at: number; tz: string } | null = null;
+async function siteZone(): Promise<string> {
+  if (zoneCache && Date.now() - zoneCache.at < 60_000) return zoneCache.tz;
+  let tz = "UTC";
+  try {
+    const [row] = await db.select().from(settings).where(eq(settings.key, "site.timezone")).limit(1);
+    if (typeof row?.value === "string" && row.value) tz = row.value;
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+  } catch {
+    tz = "UTC";
+  }
+  zoneCache = { at: Date.now(), tz };
+  return tz;
+}
+
+/** Whether a monitor is due a real check now (`options.schedule`); a schedule that cannot be read is ignored (always). */
+async function inSchedule(options: Record<string, unknown>): Promise<boolean> {
+  const text = options.schedule;
+  if (typeof text !== "string" || !text.trim()) return true;
+  try {
+    return monitorScheduleActive(parseMonitorSchedule(text), new Date(), await siteZone());
+  } catch {
+    return true;
   }
 }
 
@@ -206,7 +249,8 @@ async function applyResult(
         .update(monitorIncidents)
         .set({ resolvedAt: now })
         .where(eq(monitorIncidents.id, open.id));
-      if (!flappingNow) {
+      // Closed because its hours ended, not because it came back: nothing to announce.
+      if (!flappingNow && result.info !== OUTSIDE_HOURS) {
         const downSecs = Math.round((now.getTime() - new Date(open.startedAt).getTime()) / 1000);
         const summary = `${monitor.kind.toUpperCase()} recovered after ${downSecs}s`;
         await notifyAll("monitor.incident.resolved", `${monitor.name} is back up`, summary, link);
@@ -276,7 +320,12 @@ async function tick() {
     inFlight.add(m.id);
     void (async () => {
       try {
-        const result = await runProbe(m.kind, m.target, (m.options as Record<string, unknown>) ?? {});
+        const options = (m.options as Record<string, unknown>) ?? {};
+        // Outside its hours (options.schedule) a monitor is not probed: a healthy "not checked" result is recorded, so an
+        // incident left open when the service ended closes and nobody is paged about a stream that is meant to be off.
+        const result = (await inSchedule(options))
+          ? await runProbe(m.kind, m.target, options)
+          : { ok: true, latencyMs: 0, info: OUTSIDE_HOURS };
         await applyResult(m, result);
       } catch (err) {
         console.error(`[monitor] ${m.name} (${m.id}) probe error`, (err as Error).message);

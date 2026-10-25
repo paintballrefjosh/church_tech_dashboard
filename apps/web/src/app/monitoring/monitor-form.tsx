@@ -6,11 +6,14 @@ import { Save } from "lucide-react";
 import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
 import { RunbookField } from "@/components/runbook-link";
 
-type Kind = "http" | "tcp" | "icmp" | "tls" | "dns";
+type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs";
+
+const AV_KINDS: Kind[] = ["hls", "hyperdeck", "pjlink", "shure", "obs"];
 
 type Rec = Record<string, unknown>;
 const optStr = (o: Rec, k: string, d = ""): string => (typeof o[k] === "string" ? (o[k] as string) : d);
 const optNum = (o: Rec, k: string, d: number): number => (typeof o[k] === "number" ? (o[k] as number) : d);
+const optBool = (o: Rec, k: string): boolean => o[k] === true;
 
 export function MonitorForm({ initial }: { initial?: Monitor }) {
   const router = useRouter();
@@ -33,11 +36,38 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [tlsWarnDays, setTlsWarnDays] = useState(optNum(o, "warnDays", 21));
   const [dnsRecordType, setDnsRecordType] = useState(optStr(o, "recordType", "A"));
   const [dnsExpectedValue, setDnsExpectedValue] = useState(optStr(o, "expectedValue"));
+  // AV kinds. A saved password comes back as "[saved]" and is sent back as it is, which keeps it.
+  const [password, setPassword] = useState(optStr(o, "password"));
+  const [hlsMaxAge, setHlsMaxAge] = useState(optNum(o, "maxAgeSec", 60));
+  const [expectRecording, setExpectRecording] = useState(optBool(o, "expectRecording"));
+  const [expectStreaming, setExpectStreaming] = useState(optBool(o, "expectStreaming"));
+  const [minRecordMinutes, setMinRecordMinutes] = useState(optNum(o, "minRecordMinutes", 0));
+  const [expectOn, setExpectOn] = useState(optBool(o, "expectOn"));
+  const [maxLampHours, setMaxLampHours] = useState(optNum(o, "maxLampHours", 0));
+  const [shureChannels, setShureChannels] = useState(optNum(o, "channels", 4));
+  const [shureMinBars, setShureMinBars] = useState(optNum(o, "minBars", 1));
+  const [schedule, setSchedule] = useState(optStr(o, "schedule"));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   function buildOptions(): Rec {
+    const opts = kindOptions();
+    if (schedule.trim()) opts.schedule = schedule.trim();
+    return opts;
+  }
+
+  function kindOptions(): Rec {
     switch (kind) {
+      case "hls":
+        return { maxAgeSec: hlsMaxAge };
+      case "hyperdeck":
+        return { expectRecording, ...(minRecordMinutes > 0 ? { minRecordMinutes } : {}) };
+      case "pjlink":
+        return { expectOn, ...(maxLampHours > 0 ? { maxLampHours } : {}), ...(password ? { password } : {}) };
+      case "shure":
+        return { channels: shureChannels, minBars: shureMinBars };
+      case "obs":
+        return { expectStreaming, expectRecording, ...(password ? { password } : {}) };
       case "http": {
         const opts: Rec = { method: httpMethod, expectedStatus: httpExpectedStatus };
         if (httpExpectBody.trim()) opts.expectBody = httpExpectBody.trim();
@@ -121,6 +151,13 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
             <option value="icmp">ICMP (ping)</option>
             <option value="tls">TLS cert expiry</option>
             <option value="dns">DNS</option>
+            <optgroup label="AV and livestream">
+              <option value="hls">Livestream (HLS playlist)</option>
+              <option value="hyperdeck">Blackmagic HyperDeck</option>
+              <option value="pjlink">Projector or display (PJLink)</option>
+              <option value="shure">Shure wireless receiver</option>
+              <option value="obs">OBS Studio</option>
+            </optgroup>
           </select>
         </label>
         <label className="block sm:col-span-2">
@@ -139,6 +176,10 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
                 ? "example.com"
                 : kind === "dns"
                 ? "example.com"
+                : kind === "hls"
+                ? "https://stream.example.com/live/playlist.m3u8"
+                : AV_KINDS.includes(kind)
+                ? "192.168.20.30 (or host:port)"
                 : "host.example.com"
             }
             className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-950"
@@ -239,6 +280,83 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
           </label>
         </div>
       ) : null}
+
+      {AV_KINDS.includes(kind) ? (
+        <fieldset className="space-y-3 rounded-md border border-slate-300 p-3 dark:border-slate-700">
+          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What counts as working</legend>
+          {kind === "hls" ? (
+            <label className="block max-w-xs">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Newest segment no older than (seconds)</span>
+              <input type="number" min={10} max={3600} value={hlsMaxAge} onChange={(e) => setHlsMaxAge(parseInt(e.target.value, 10) || 60)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+            </label>
+          ) : null}
+          {kind === "hyperdeck" || kind === "obs" ? (
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={expectRecording} onChange={(e) => setExpectRecording(e.target.checked)} />
+              <span>Down unless it is recording</span>
+            </label>
+          ) : null}
+          {kind === "obs" ? (
+            <label className="inline-flex items-center gap-2 sm:ml-4">
+              <input type="checkbox" checked={expectStreaming} onChange={(e) => setExpectStreaming(e.target.checked)} />
+              <span>Down unless it is streaming</span>
+            </label>
+          ) : null}
+          {kind === "hyperdeck" ? (
+            <label className="block max-w-xs">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Recording space at least (minutes, 0 = do not check)</span>
+              <input type="number" min={0} max={6000} value={minRecordMinutes} onChange={(e) => setMinRecordMinutes(parseInt(e.target.value, 10) || 0)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+            </label>
+          ) : null}
+          {kind === "pjlink" ? (
+            <>
+              <label className="inline-flex items-center gap-2">
+                <input type="checkbox" checked={expectOn} onChange={(e) => setExpectOn(e.target.checked)} />
+                <span>Down unless it is switched on</span>
+              </label>
+              <label className="block max-w-xs">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Lamp hours at most (0 = do not check)</span>
+                <input type="number" min={0} max={100000} value={maxLampHours} onChange={(e) => setMaxLampHours(parseInt(e.target.value, 10) || 0)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+              </label>
+            </>
+          ) : null}
+          {kind === "shure" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Channels on the receiver</span>
+                <input type="number" min={1} max={8} value={shureChannels} onChange={(e) => setShureChannels(parseInt(e.target.value, 10) || 4)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+              </label>
+              <label className="block">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Problem at this many battery bars or fewer (of 5)</span>
+                <input type="number" min={0} max={4} value={shureMinBars} onChange={(e) => setShureMinBars(parseInt(e.target.value, 10) || 0)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+              </label>
+            </div>
+          ) : null}
+          {kind === "pjlink" || kind === "obs" ? (
+            <label className="block max-w-sm">
+              <span className="text-xs text-slate-500 dark:text-slate-400">{kind === "obs" ? "OBS WebSocket password" : "PJLink password"} (blank if none)</span>
+              <input type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+              <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Kept for the checks and never shown again, not even to admins.</span>
+            </label>
+          ) : null}
+        </fieldset>
+      ) : null}
+
+      <label className="block">
+        <span className="text-xs text-slate-500 dark:text-slate-400">Only check during these hours (optional)</span>
+        <textarea
+          value={schedule}
+          onChange={(e) => setSchedule(e.target.value)}
+          rows={2}
+          maxLength={500}
+          placeholder="Sun 08:00-13:00; Wed 18:30-20:30"
+          className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 font-mono text-xs"
+        />
+        <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+          On the site&apos;s clock. Outside these hours it is not checked and counts as fine, so a stream or projector that is meant to be
+          off does not page anyone. Blank = always.
+        </span>
+      </label>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">

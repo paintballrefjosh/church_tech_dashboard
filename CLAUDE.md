@@ -117,7 +117,7 @@ Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 
 The `monitoring` module is a single section covering tabbed views under
 `/monitoring`: **Services** (uptime probes run by the `services/monitor` worker —
-`http`/`tcp`/`icmp`/`dns`/`tls`; per-kind config lives in the monitor's freeform
+`http`/`tcp`/`icmp`/`dns`/`tls`, and the AV kinds `hls`/`hyperdeck`/`pjlink`/`shure`/`obs` (see "AV and livestream probes" below); per-kind config lives in the monitor's freeform
 `options` blob, no migration to add a kind. The `tls` probe (`probeTls`) judges certificate
 expiry only (down once expired or `warnDays` or fewer days remain), not chain trust, so private-CA
 services work. A kind in `MONITOR_KINDS` needs a case in the worker's `runProbe`, or it reports
@@ -340,6 +340,22 @@ enabled) under `status_name`, and carries NAME, STATE, SINCE, ACKNOWLEDGED, the 
 leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (CockroachDB and YugabyteDB), smoke
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
 restarted container (no automated test: `applyResult` lives in the worker's `main.ts`).
+
+**AV and livestream probes, monitor schedules, option secrets** (`services/monitor/src/av-probes.ts`, `packages/shared/src/monitor-schedule.ts`;
+tests `apps/api/test/av-probes.test.ts` run each probe against a fake device). (1) Read-only probes in each device's own protocol: `hls` (the
+playlist, following a master to its first variant, must not be ended and must move: the last `#EXT-X-PROGRAM-DATE-TIME` within `maxAgeSec`,
+else the media sequence advancing between two reads a target duration apart), `hyperdeck` (Blackmagic Ethernet protocol, TCP 9993: transport
+status, recording space; `expectRecording`, `minRecordMinutes`), `pjlink` (class 1, TCP 4352, MD5 digest auth: power, ERST error/warning digits,
+lamp hours; `expectOn`, `maxLampHours`), `shure` (command strings, TCP 2202: `BATT_BARS` per channel, 255 = no transmitter; `minBars`), `obs`
+(obs-websocket 5, port 4455, sha256 auth; `expectStreaming`, `expectRecording`). Nothing here ever sends a command that changes a device.
+ATEM switchers (a proprietary UDP protocol) are not covered. (2) **Any monitor may carry `options.schedule`** (`Sun 08:00-13:00; Wed 18:30-20:30`,
+day ranges, windows across midnight, on `site.timezone`). Outside every window the worker does not probe and records a healthy
+`outside its hours (not checked)`, so an incident open at the end of a service closes, silently (no "is back up"). The API refuses a schedule
+`monitorScheduleProblem` cannot read; the worker treats an unreadable one as "always". (3) **Credentials in monitor options**
+(`MONITOR_SECRET_OPTION_KEYS`: the HTTP probe's `authorization`, the `password` of PJLink/OBS) are stored for the worker but every monitor the API
+returns carries `[saved]` instead (`redactMonitorOptions`; the Monitoring USER tier, every volunteer, reads monitors, and so do MCP tools); on an
+update the placeholder, or a secret key left out, keeps the saved value and `""` removes it (`mergeMonitorSecretOptions`). Until 2026-10-25 the
+Authorization header was returned to every reader, and editing the monitor in the form silently dropped it.
 
 **Alert channels, the alert outbox, runbooks, the public status page** (migrations 0077, 0078; rules in
 `packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,

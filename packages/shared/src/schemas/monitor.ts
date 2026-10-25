@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const MONITOR_KINDS = ["http", "tcp", "icmp", "tls", "dns"] as const;
+/**
+ * `hls` (a livestream playlist), `hyperdeck` (Blackmagic recorder), `pjlink` (projector / display), `shure` (wireless
+ * mic receiver) and `obs` (OBS Studio) are the AV probes (services/monitor/src/av-probes.ts). Any kind may carry
+ * `options.schedule` (monitor-schedule.ts): checked only during those hours.
+ */
+export const MONITOR_KINDS = ["http", "tcp", "icmp", "tls", "dns", "hls", "hyperdeck", "pjlink", "shure", "obs"] as const;
 export type MonitorKind = (typeof MONITOR_KINDS)[number];
 
 export const DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT"] as const;
@@ -62,6 +67,41 @@ export const monitorDnsOptionsSchema = z.object({
   timeoutMs: z.number().int().min(500).max(60_000).default(5_000),
 });
 export type MonitorDnsOptions = z.infer<typeof monitorDnsOptionsSchema>;
+
+/**
+ * Monitor options that are credentials: the HTTP probe's Authorization header, the password of a projector (PJLink) or
+ * of OBS. They are stored for the probe worker but never returned by the API: the reply carries
+ * `MONITOR_SECRET_PLACEHOLDER` instead (the Monitoring USER tier, every volunteer, reads monitors). On an update a
+ * placeholder, or a secret key left out, keeps the saved value; an empty string removes it.
+ */
+export const MONITOR_SECRET_OPTION_KEYS = ["authorization", "password"] as const;
+export const MONITOR_SECRET_PLACEHOLDER = "[saved]";
+
+export function redactMonitorOptions(options: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(options ?? {}) };
+  for (const k of MONITOR_SECRET_OPTION_KEYS) {
+    if (typeof out[k] === "string" && out[k] !== "") out[k] = MONITOR_SECRET_PLACEHOLDER;
+  }
+  return out;
+}
+
+/** The options to store: `incoming`, with each secret the caller did not really change taken from `saved`. */
+export function mergeMonitorSecretOptions(
+  incoming: Record<string, unknown>,
+  saved: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...incoming };
+  for (const k of MONITOR_SECRET_OPTION_KEYS) {
+    const v = out[k];
+    if (v === MONITOR_SECRET_PLACEHOLDER || v === undefined) {
+      if (typeof saved?.[k] === "string" && saved[k] !== "") out[k] = saved[k];
+      else delete out[k];
+    } else if (v === "") {
+      delete out[k];
+    }
+  }
+  return out;
+}
 
 export const monitorSchema = z.object({
   id: z.string().uuid(),
