@@ -48,6 +48,8 @@ import { nextRunAfter } from "./schedule";
 
 /** A backup operation that has not reported for this long belongs to a node that died. */
 const STALE_OPERATION_MINUTES = 3;
+/** A failed backup (and its row) is kept this long, then swept. */
+const FAILED_BACKUP_KEEP_DAYS = 7;
 /** The lease that allows one backup, comparison, import or restore at a time, renewed while it runs. */
 const OPERATION_LEASE = "backup";
 const OPERATION_LEASE_TTL_SEC = 90;
@@ -506,8 +508,16 @@ export class BackupService implements OnModuleInit {
       await this.db.update(backups).set({ sizeBytes: size, sha256: hash.digest("hex") }).where(eq(backups.id, id));
     } catch (err) {
       await this.store.remove([key]).catch(() => undefined);
-      await this.db.update(backups).set({ status: "failed", finishedAt: sql`now()`, error: message(err).slice(0, 2000) }).where(eq(backups.id, id)).catch(() => undefined);
       await tracker?.fail(message(err));
+      // Refused at the door: the caller gets the reason in the response and never sees a backup id, so a
+      // row would only be clutter nobody can open or tidy. If the row cannot be removed it is marked failed
+      // (and the sweep in `pruneFailed` takes it later).
+      await this.db
+        .delete(backups)
+        .where(eq(backups.id, id))
+        .catch(() =>
+          this.db.update(backups).set({ status: "failed", finishedAt: sql`now()`, error: message(err).slice(0, 2000) }).where(eq(backups.id, id)).catch(() => undefined),
+        );
       await mutex.release();
       throw new BadRequestException(message(err));
     }
@@ -1028,6 +1038,7 @@ export class BackupService implements OnModuleInit {
   /** Every minute, on the one node leading the job. */
   async tick(): Promise<void> {
     await this.recoverStale();
+    await this.pruneFailed().catch((err: unknown) => this.logger.warn(`pruning failed backups failed: ${message(err)}`));
     const due = await this.db
       .select()
       .from(backupSchedules)
@@ -1043,6 +1054,28 @@ export class BackupService implements OnModuleInit {
       } finally {
         await mutex.release();
       }
+    }
+  }
+
+  /**
+   * Failed backups are only useful for a little while, whatever made them (a schedule, a manual backup,
+   * an uploaded file that failed its check). `pruneSchedule` does this for a schedule's own; this covers the rest.
+   * Only looks for work first, so a quiet minute does not take the operation lease.
+   */
+  private async pruneFailed(): Promise<void> {
+    const stale = () =>
+      this.db
+        .select()
+        .from(backups)
+        .where(and(eq(backups.status, "failed"), lte(backups.createdAt, sql`now() - ${`${FAILED_BACKUP_KEEP_DAYS} days`}::interval`)))
+        .limit(50);
+    if ((await stale()).length === 0) return;
+    const mutex = await this.leases.acquireMutex(OPERATION_LEASE, OPERATION_LEASE_TTL_SEC);
+    if (!mutex) return;
+    try {
+      for (const r of await stale()) await this.removeBackup(r).catch((err: unknown) => this.logger.warn(`could not remove ${r.id}: ${message(err)}`));
+    } finally {
+      await mutex.release();
     }
   }
 

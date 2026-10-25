@@ -210,6 +210,9 @@ export async function backupTests({ test, assert, fetchWithCookies, jar }) {
     notGzip.append("file", new Blob([Buffer.from("this is not a backup")]), "junk.tar.gz");
     const a = await session("/api/v1/admin/backups/upload", { method: "POST", body: notGzip });
     assert(a.res.status === 400, `junk status ${a.res.status}`);
+    // A file refused at the door must not leave a failed row behind (it used to, forever, with no id to delete it by).
+    const afterJunk = await (await session("/api/v1/admin/backups")).res.json();
+    assert(!afterJunk.some((b) => b.name === "junk"), "a refused upload left a backup row");
 
     // 12 MiB of gzip that is not a backup: accepted as an upload, refused by the check that follows.
     const big = new FormData();

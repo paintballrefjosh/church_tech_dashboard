@@ -1315,6 +1315,11 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   and bad JSON or a bad table folder name gives a plain "The backup is damaged" message, not a parser error. Accepted: a table part or JSON entry may
   still be read whole up to `MAX_JSON_ENTRY` (256 MiB; the writer cuts parts at about 4 MiB, so only a hostile file comes near it). Tests:
   `backup-archive-hardening.test.ts`, smoke "an upload that names a file outside the uploads folder ...", "an oversized extended header ...".
+- **Failed backup rows do not pile up** (2026-10-24; 81 `junk`/`notes` rows had built up from the smoke and e2e "bad file" tests). An upload refused at the
+  door (not gzip, empty, too big) deletes its row: the caller gets the reason in the 400 and never sees an id, so a row could not be opened or tidied. A
+  file that fails the check AFTER the 202 stays as a failed row, because the UI shows it. The scheduler tick (`pruneFailed`) removes every failed backup, of any
+  kind or schedule, after `FAILED_BACKUP_KEEP_DAYS` (7), taking the operation lease only when there is something to remove. Test:
+  `backup-failed-rows.integration.test.ts` (one integration file at a time), smoke "a damaged or foreign upload is rejected".
 - **Object store**: use `removeObject` per key. minio's `removeObjects` is refused by Garage ("Invalid
   delete XML query"), and swallowing delete errors had leaked archives; `removeBackup` keeps the row when
   the delete fails and `sweepOrphans` cleans up archives with no row.
