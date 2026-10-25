@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
-import { ALERT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
+import { ALERT_KEYS, REPORT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
 import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";
 import { groups, settings } from "../db/schema";
@@ -134,7 +134,7 @@ export class SettingsService implements OnModuleInit {
 
   /** A setting that names something else must name something that exists, or it would silently do nothing. */
   private async assertReferences(key: string, value: unknown): Promise<void> {
-    if (key !== ALERT_KEYS.escalationGroup || typeof value !== "string" || value.trim() === "") return;
+    if ((key !== ALERT_KEYS.escalationGroup && key !== REPORT_KEYS.group) || typeof value !== "string" || value.trim() === "") return;
     const [row] = await this.db.select({ id: groups.id }).from(groups).where(eq(groups.name, value.trim())).limit(1);
     if (!row) throw new BadRequestException(`No group is called "${value.trim()}". Use the exact name shown under Admin > Groups.`);
   }

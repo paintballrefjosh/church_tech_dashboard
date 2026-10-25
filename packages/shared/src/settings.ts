@@ -19,6 +19,7 @@ import {
   normaliseCustomExtension,
 } from "./schemas/attachment";
 import { OFFSITE_KEYS, OFFSITE_MAX_KEEP, normaliseOffsitePrefix } from "./backup-offsite";
+import { REPORT_KEYS } from "./monthly-report";
 import {
   ALERT_KEYS,
   ESCALATION_MAX_MIN,
@@ -247,6 +248,23 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Activity feed events older than this are removed by a background job. 0 keeps them all. Defaults to 90 days.",
     defaultValue: 90,
+    category: "site",
+  },
+  {
+    key: REPORT_KEYS.enabled,
+    type: "boolean",
+    label: "Monthly report",
+    description:
+      "On the 1st of each month, send a short report of the month before (uptime, incidents, the helpdesk, backups, what renews next month) to the group below, in the bell and by email. The full report for any month is at /reports/monthly.",
+    defaultValue: false,
+    category: "site",
+  },
+  {
+    key: REPORT_KEYS.group,
+    type: "string",
+    label: "Monthly report: who receives it",
+    description: "The exact name of a group (Admin > Groups), for example your elders or the IT team. Blank sends it to the admin group. Members of that group can also open the report page.",
+    defaultValue: "",
     category: "site",
   },
   {
@@ -1270,6 +1288,7 @@ export function validateSettingValue(key: string, value: unknown): string | null
         ? null
         : `Enter a whole number of minutes from 0 to ${ESCALATION_MAX_MIN}.`;
     case ALERT_KEYS.escalationGroup:
+    case REPORT_KEYS.group:
       return typeof value === "string" && value.length <= 100 ? null : "Enter a group name.";
     case ALERT_KEYS.statusNotice:
       return typeof value === "string" && value.length <= STATUS_NOTICE_MAX && !/[\u0000-\u0008\u000b-\u001f]/.test(value)

@@ -149,6 +149,8 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },
   { module: "checklists", cmd: go("go:checklists", "Go to", "Checklists", "/checklists", ListChecks, "tasks sunday") },
   { cmd: go("go:status", "Go to", "Service status", "/status", Activity, "is it up") },
+  // The report group (Site settings) can open it too; they get there from the notification it sends them.
+  { admin: true, cmd: go("go:monthly-report", "Go to", "Monthly report", "/reports/monthly", Activity, "uptime tickets backups month elders summary") },
   { cmd: go("go:notifications", "Go to", "Notifications", "/notifications", Bell, "inbox bell") },
   { cmd: go("go:profile", "Go to", "My profile and notification settings", "/me", User, "account quiet hours push password") },
   { cmd: go("go:my-sessions", "Go to", "My signed-in browsers", "/me/security", ShieldCheck, "sessions devices sign out") },

@@ -48,3 +48,4 @@ export * from "./port-sheet";
 export * from "./request-origin";
 export * from "./alert-channels";
 export * from "./monitor-schedule";
+export * from "./monthly-report";
