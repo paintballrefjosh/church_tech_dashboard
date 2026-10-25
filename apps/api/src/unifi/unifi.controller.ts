@@ -59,6 +59,12 @@ export class UnifiController {
     return this.unifi.unackDevice(mac);
   }
 
+  /** UniFi Protect cameras (read-only), while `unifi.protect_enabled` is on. */
+  @Get("cameras")
+  cameras() {
+    return this.unifi.cameras();
+  }
+
   /**
    * Guest Wi-Fi vouchers. A code is a way onto the guest network, so listing them needs the monitoring admin tier too, like
    * making and revoking them. Creating and revoking change the controller: operational for API tokens, not offered to MCP

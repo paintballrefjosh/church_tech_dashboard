@@ -6,6 +6,7 @@ import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { MonitoringTabs } from "../section-tabs";
 import { NetworkClient } from "./network-client";
+import { CamerasPanel } from "./cameras-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function NetworkPage() {
           </div>
         </header>
         <NetworkClient />
+        <CamerasPanel />
       </main>
     </>
   );

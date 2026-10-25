@@ -308,6 +308,17 @@ export const MONITORING_TOOLS = [
     input: z.object({}),
   }),
   defineTool({
+    name: "unifi_list_cameras",
+    title: "UniFi Protect cameras",
+    description:
+      "The UniFi Protect cameras with name, model and whether each is connected. `enabled` is false when Protect reading is switched off; `error` says why the cameras could not be read.",
+    cls: "read",
+    method: "GET",
+    path: "/unifi/cameras",
+    permissions: [PERMISSIONS.UNIFI_READ_ANY],
+    input: z.object({}),
+  }),
+  defineTool({
     name: "unifi_list_clients",
     title: "UniFi clients",
     description: "Every client the UniFi controller currently knows, with name, IP, MAC, network and where it is connected. Can be long: prefer search_everything for one device.",

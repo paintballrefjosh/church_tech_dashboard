@@ -70,3 +70,17 @@ describe("UniFi guest vouchers", () => {
     expect(createUnifiVouchersSchema.safeParse({ count: 500, minutes: 60 }).success).toBe(false);
   });
 });
+
+describe("UniFi Protect cameras", () => {
+  it("maps Protect's fields; only CONNECTED is online", async () => {
+    const { toCamera } = await import("../src/unifi/unifi.service");
+    expect(toCamera({ id: "c1", name: "Front door", state: "CONNECTED", mac: "AA", marketName: "G4 Bullet" })).toEqual({
+      id: "c1", name: "Front door", state: "CONNECTED", online: true, mac: "AA", model: "G4 Bullet",
+    });
+    expect(toCamera({ id: "c2", state: "disconnected", type: "UVC G3" })).toMatchObject({ name: "Camera", online: false, state: "DISCONNECTED", model: "UVC G3" });
+  });
+  it("reports switched off without asking the console", async () => {
+    const svc = new UnifiService({ get: async () => undefined } as never, {} as never);
+    expect(await svc.cameras()).toEqual({ enabled: false, cameras: [], error: null });
+  });
+});

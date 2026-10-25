@@ -675,6 +675,15 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     category: "monitoring",
   },
   {
+    key: "unifi.protect_enabled",
+    type: "boolean",
+    label: "Read UniFi Protect cameras",
+    description:
+      "Also list the cameras of UniFi Protect (on the same UniFi OS console, with the same API key) on the Network (UniFi) tab, and include them in the device offline alerts. Leave off for a self-hosted Network controller, which has no Protect.",
+    defaultValue: false,
+    category: "monitoring",
+  },
+  {
     key: "unifi.guest_ssid",
     type: "string",
     label: "Guest Wi-Fi network name",

@@ -114,6 +114,12 @@ export class UnifiPoller implements OnModuleInit {
       if (!d.mac) continue;
       next.set(d.mac, { online: d.state === 1, name: d.name || d.model || d.mac });
     }
+    // Protect cameras ride the same baseline as `cam:<id>`, so a camera going offline or coming back is alerted like a
+    // device. A Protect that does not answer this tick adds nothing (its cameras are then "not seen", never "offline").
+    const cams = await this.unifi.cameras().catch(() => null);
+    if (cams?.enabled && !cams.error) {
+      for (const c of cams.cameras) if (c.id) next.set(`cam:${c.id}`, { online: c.online, name: `Camera ${c.name}` });
+    }
     if (next.size === 0) return; // nothing usable this tick
 
     // The baseline lives in job_state, so it follows the job between nodes: read

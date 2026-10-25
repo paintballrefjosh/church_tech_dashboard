@@ -10,7 +10,7 @@ import { Agent } from "undici";
 import { eq, inArray } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { unifiDeviceAcks } from "../db/schema";
-import type { CreateUnifiVouchersInput, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
+import type { CreateUnifiVouchersInput, UnifiCamera, UnifiCamerasReply, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
 import { SettingsService } from "../settings/settings.service";
 
 /** Normalise a MAC for storage/comparison — controllers report lowercase, but
@@ -229,6 +229,34 @@ export class UnifiService {
     const cfg = await this.config();
     if (!cfg) throw new ServiceUnavailableException("UniFi controller is not configured");
     return this.fetchWith(cfg, path, body);
+  }
+
+  // ---- UniFi Protect cameras (read-only) ----
+
+  /** The cameras, while `unifi.protect_enabled` is on. Never throws: an unreachable Protect is reported in `error`. */
+  async cameras(): Promise<UnifiCamerasReply> {
+    if ((await this.settings.get("unifi.protect_enabled")) !== true) return { enabled: false, cameras: [], error: null };
+    const cfg = await this.config();
+    if (!cfg) return { enabled: true, cameras: [], error: "The UniFi controller is not configured." };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${cfg.baseUrl}/proxy/protect/integration/v1/cameras`, {
+        headers: { "X-API-Key": cfg.apiKey, accept: "application/json" },
+        dispatcher: new Agent({ connect: { rejectUnauthorized: cfg.verifyTls } }),
+        signal: controller.signal,
+      } as RequestInit & { dispatcher: Agent });
+      if (res.status === 404) return { enabled: true, cameras: [], error: "This console has no UniFi Protect (or its integration API is not available)." };
+      if (!res.ok) return { enabled: true, cameras: [], error: `Protect answered ${res.status} ${res.statusText}` };
+      const data = (await res.json()) as unknown;
+      const list = Array.isArray(data) ? data : [];
+      return { enabled: true, cameras: list.map(toCamera).sort((a, b) => a.name.localeCompare(b.name)), error: null };
+    } catch (err) {
+      const e = (err as Error)?.name === "AbortError" ? new Error(`timed out after ${REQUEST_TIMEOUT_MS}ms`) : describeFetchError(err);
+      return { enabled: true, cameras: [], error: e.message };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // ---- guest Wi-Fi vouchers (the controller's hotspot) ----
@@ -522,5 +550,19 @@ export function toVoucher(raw: unknown): UnifiVoucher {
     downKbps: v.qos_rate_max_down ?? null,
     upKbps: v.qos_rate_max_up ?? null,
     megabytes: v.qos_usage_quota ?? null,
+  };
+}
+
+/** One Protect camera, in plain fields. */
+export function toCamera(raw: unknown): UnifiCamera {
+  const c = raw as { id?: string; name?: string; state?: string; mac?: string; modelKey?: string; marketName?: string; type?: string };
+  const state = String(c.state ?? "UNKNOWN").toUpperCase();
+  return {
+    id: String(c.id ?? ""),
+    name: c.name || c.marketName || c.mac || "Camera",
+    state,
+    online: state === "CONNECTED",
+    mac: c.mac ?? null,
+    model: c.marketName ?? c.type ?? c.modelKey ?? null,
   };
 }
