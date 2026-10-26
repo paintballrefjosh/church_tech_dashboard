@@ -45,4 +45,29 @@ export async function assistantTests({ test, assert, fetchWithCookies, jar }) {
     const huge = await session("/api/v1/assistant/chat", { method: "POST", ...json({ question: "x".repeat(5000) }) });
     assert(huge.res.status === 400, `oversized: ${huge.res.status}`);
   });
+
+  await test("assistant: feedback and decisions only touch the person's own answers, and check what they are given", async () => {
+    const s = await (await session("/api/v1/assistant/status")).res.json();
+    assert(s.health === null || ["ok", "failing", "budget_used"].includes(s.health), `health ${s.health}`);
+    const missing = "00000000-0000-4000-8000-0000000000aa";
+    const want = s.canUse ? 404 : 403;
+    const fb = await session(`/api/v1/assistant/messages/${missing}/feedback`, { method: "POST", ...json({ rating: 1 }) });
+    assert(fb.res.status === want, `feedback on a missing answer: ${fb.res.status}`);
+    const dec = await session(`/api/v1/assistant/messages/${missing}/actions/${missing}`, { method: "PATCH", ...json({ status: "done", resultUrl: "/tickets/x" }) });
+    assert(dec.res.status === want, `decision on a missing answer: ${dec.res.status}`);
+    if (!s.canUse) return;
+    const bad = await session(`/api/v1/assistant/messages/${missing}/feedback`, { method: "POST", ...json({ rating: 5 }) });
+    assert(bad.res.status === 400, `rating 5: ${bad.res.status}`);
+    const odd = await session(`/api/v1/assistant/messages/${missing}/actions/${missing}`, { method: "PATCH", ...json({ status: "proposed" }) });
+    assert(odd.res.status === 400, `status proposed: ${odd.res.status}`);
+  });
+
+  await test("assistant: the usage figures carry no question text", async () => {
+    const r = await session("/api/v1/assistant/admin/usage");
+    if (r.res.status === 403) return;
+    assert(r.res.status === 200, `usage ${r.res.status}`);
+    const u = await r.res.json();
+    assert(u.answers && typeof u.answers.total === "number" && Array.isArray(u.answers.proposals), JSON.stringify(u).slice(0, 300));
+    assert(!/"(question|content|text)"\s*:/.test(JSON.stringify(u)), "no text fields");
+  });
 }

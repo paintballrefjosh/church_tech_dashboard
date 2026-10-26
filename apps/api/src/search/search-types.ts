@@ -20,6 +20,7 @@ export type SearchKind =
   | "cisco_vlan"
   | "ipam_subnet"
   | "ipam_host"
+  | "service_instance"
   | "dns_record"
   | "asset";
 
@@ -39,6 +40,7 @@ export const MONITORING_KINDS: SearchKind[] = [
   "cisco_vlan",
   "ipam_subnet",
   "ipam_host",
+  "service_instance",
 ];
 export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
 /**

@@ -1,10 +1,13 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
-import { desc, eq, gte, sql, count } from "drizzle-orm";
-import { PERMISSIONS } from "@church/shared";
+import { desc, eq, gte, like, sql, count } from "drizzle-orm";
+import { ASSISTANT_STATE, PERMISSIONS, siteToday, type AssistantLastTest, type AssistantWatchState } from "@church/shared";
 import { Public } from "../auth/public.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { DB, type Db } from "../db/db.module";
-import { monitorChecks, monitors } from "../db/schema";
+import { assistantAnswers, assistantUsageDaily, monitorChecks, monitors } from "../db/schema";
+import { SettingsService } from "../settings/settings.service";
+import { JobStateService } from "../cluster/job-state.service";
+import { readAssistantConfig } from "../assistant/readiness";
 import { getS3 } from "../attachments/s3.client";
 import { describeS3, resolveS3Config } from "../attachments/s3.config";
 import { engineFromVersion, engineLabel } from "../db/connection";
@@ -32,7 +35,11 @@ const READY_TIMEOUT_MS = 3000;
 
 @Controller()
 export class HealthController {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly settings: SettingsService,
+    private readonly jobState: JobStateService,
+  ) {}
 
   @Public()
   @Get("healthz")
@@ -83,8 +90,44 @@ export class HealthController {
       this.probeStorage(),
       this.probeSearch(),
       this.probeMonitorWorker(),
+      this.probeAssistant().catch(() => null),
     ]);
-    return { services, ts: new Date().toISOString() };
+    return { services: services.filter((s): s is ServiceReport => s !== null), ts: new Date().toISOString() };
+  }
+
+  /**
+   * The assistant's card (docs/assistant.md section 12), only while it is switched on: degraded while the `assistant-watch`
+   * job finds the provider failing or once the month's budget is used up (never "down": the platform itself is fine). From recorded state; it never calls the
+   * provider. No key, address or spending figure: monitoring readers see this banner.
+   */
+  private async probeAssistant(): Promise<ServiceReport | null> {
+    const c = await readAssistantConfig((k) => this.settings.get(k));
+    if (!c.enabled) return null;
+    const [watch, test] = await Promise.all([
+      this.jobState.get<AssistantWatchState>(ASSISTANT_STATE.job, ASSISTANT_STATE.watch),
+      this.jobState.get<AssistantLastTest>(ASSISTANT_STATE.job, ASSISTANT_STATE.lastTest),
+    ]);
+    const tz = String((await this.settings.get("site.timezone")) || "UTC");
+    const month = siteToday(new Date(), tz).slice(0, 7);
+    const [spent] = await this.db.select({ c: sql<string | number>`coalesce(sum(${assistantUsageDaily.cost}), 0)` }).from(assistantUsageDaily).where(like(assistantUsageDaily.day, `${month}-%`));
+    const [recent] = await this.db
+      .select({ n: count(), failed: sql<string | number>`sum(CASE WHEN ${assistantAnswers.outcome} = 'error' THEN 1 ELSE 0 END)` })
+      .from(assistantAnswers)
+      .where(gte(assistantAnswers.createdAt, new Date(Date.now() - 60 * 60_000)));
+    const budgetUsed = c.monthlyBudget > 0 && Number(spent?.c ?? 0) >= c.monthlyBudget;
+    const status: ServiceStatus = watch?.value.providerDown || budgetUsed ? "degraded" : "ok";
+    return {
+      name: "Assistant",
+      kind: "assistant",
+      status,
+      message: watch?.value.providerDown ? "Its model has not been answering" : budgetUsed ? "This month's budget is used up" : undefined,
+      details: {
+        provider: c.provider === "anthropic" ? "Claude API" : "OpenAI-compatible server",
+        model: c.model,
+        "last test": test ? `${test.value.ok ? "passed" : "failed"} ${new Date(test.value.at).toLocaleString("en-GB", { timeZone: tz })}` : "never",
+        "answers in the last hour": `${Number(recent?.n ?? 0)} (${Number(recent?.failed ?? 0)} failed)`,
+      },
+    };
   }
 
   private async probeDb(): Promise<ServiceReport> {

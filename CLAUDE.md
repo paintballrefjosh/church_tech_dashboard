@@ -117,7 +117,7 @@ Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 
 The `monitoring` module is a single section covering tabbed views under
 `/monitoring`: **Services** (uptime probes run by the `services/monitor` worker —
-`http`/`tcp`/`icmp`/`dns`/`tls`, and the AV kinds `hls`/`hyperdeck`/`pjlink`/`shure`/`obs`/`atem` (see "AV and livestream probes" below); per-kind config lives in the monitor's freeform
+`http`/`tcp`/`icmp`/`dns`/`tls`, and the AV kinds `hls`/`hyperdeck`/`pjlink`/`shure`/`obs`/`atem`/`vmix`/`sennheiser` (see "AV and livestream probes" below); per-kind config lives in the monitor's freeform
 `options` blob, no migration to add a kind. The `tls` probe (`probeTls`) judges certificate
 expiry only (down once expired or `warnDays` or fewer days remain), not chain trust, so private-CA
 services work. A kind in `MONITOR_KINDS` needs a case in the worker's `runProbe`, or it reports
@@ -355,7 +355,14 @@ lamp hours; `expectOn`, `maxLampHours`), `shure` (command strings, TCP 2202: `BA
 (obs-websocket 5, port 4455, sha256 auth; `expectStreaming`, `expectRecording`). Nothing here ever sends a command that changes a device.
 `atem` (Blackmagic's UDP protocol, port 9910: hello, acknowledge every packet in order, read the state dump until `InCm`, leave;
 model, program input, streaming status/bitrate/service, recording and disk problems; `expectStreaming`, `expectRecording`; **the
-stream key arrives in `SRSU` and is never read**; a switcher has few client slots, so once a minute or less often). (2) **Any monitor may carry `options.schedule`** (`Sun 08:00-13:00; Wed 18:30-20:30`,
+stream key arrives in `SRSU` and is never read**; a switcher has few client slots, so once a minute or less often), `vmix` (its web API, TCP 8088: only `GET /api/` is ever asked, the URL
+is built from host and port so a `?Function=` in the target is dropped; streaming, recording, program input, master muted;
+`expectStreaming`, `expectRecording`, `expectSound`; optional Web Controller `username`/`password`), `sennheiser` (EW-DX receivers:
+`protocol` `ssc1` = JSON over UDP 45, one address per datagram so a missing transmitter's error 424 costs only its own answer, or `ssc2` =
+HTTPS GETs as user `api`; transmitter battery %, time left, LowBattery and RF warnings per channel; `minPercent`, `failOnRf`; SSCv2's
+optional `fingerprint` pins the receiver's self-signed certificate, checked when the handshake ends and BEFORE the request with the
+password is written, which is why it uses its own small TLS client and not `https.request`; the SSCv2 paths come from a third-party
+module, unverified on hardware). (2) **Any monitor may carry `options.schedule`** (`Sun 08:00-13:00; Wed 18:30-20:30`,
 day ranges, windows across midnight, on `site.timezone`). Outside every window the worker does not probe and records a healthy
 `outside its hours (not checked)`, so an incident open at the end of a service closes, silently (no "is back up"). The API refuses a schedule
 `monitorScheduleProblem` cannot read; the worker treats an unreadable one as "always". (3) **Credentials in monitor options**
@@ -391,6 +398,27 @@ recipients sends nothing to the channels either. (3) *Runbooks*: `monitors.runbo
 "never a target, address, error text or threshold" applies doubly. The Security overview shows it as `info`. Tests:
 `alert-dispatch.integration.test.ts` (CockroachDB and YugabyteDB, a local HTTP receiver), smoke `tests/smoke/alert-channels.mjs` and the
 alerts-off/runbook/public-status cases in `tests/smoke/alerts.mjs`.
+
+**Service monitoring** (`apps/api/src/service-monitoring/`, rules and format in `packages/shared/src/service-monitoring/`, migration 0085;
+design, decisions and what was verified in [docs/service-monitoring.md](docs/service-monitoring.md) section 0): services ON an infra host
+(HAProxy, PostgreSQL, MariaDB, CockroachDB, YugabyteDB, Kea, Technitium, Apache, keepalived, plus generic Prometheus / JSON / systemd unit / SQL
+number) read through **templates**: built-ins are code (`BUILTIN_TEMPLATES`, never stored, fork to change), custom ones are `service_templates`.
+A template is collectors (closed list of transports: `http`, `prometheus`, `sql`, `ssh`, `tcp`, `snmp`), metrics, members and checks written in
+our own closed expression grammar (`expr.ts`; never `eval`, never JSONata/CEL). Web: the host page's Services section, `/monitoring/infra/<host>/services/<id>`,
+`/monitoring/infra/service-templates` (YAML editor, parsed with `yaml` in the web only; the API speaks JSON). Reads `monitors:read:any`, writes,
+logins and Test `monitors:write:any`; Test, Check now and suggestions are `@OperationalOnly`; MCP read tools only. Rules: (1) **an `ssh` template
+runs only with its exact commands confirmed** (`confirmCommands` equal to `templateCommands(body)`) to save, fork, add, test, change inputs or
+switch back on (409 `confirm_commands` + the list); a confirmation, not a permission. ssh needs the host key pinned; `sudo` is only `sudo -n`.
+(2) **SQL is read-only three ways**: `sqlReadProblem` (keyword allowlist, no `INTO OUTFILE`), PostgreSQL `BEGIN READ ONLY` + **`queryMode:
+"extended"`** (the simple protocol ran `SELECT 1; COMMIT; CREATE TABLE` as the login), MySQL session + transaction READ ONLY with
+`multipleStatements` off (MariaDB DDL commits implicitly). Pools only through `createPool`, never the app's own. (3) Addresses: no loopback,
+link-local or one-word container names, also after DNS; no redirects; 5 MB cap. (4) Secrets and login passwords encrypted, `[saved]` keeps,
+`""` removes, scrubbed from errors/raw output, and **never reachable from an expression** (`serviceExprInputs`). (5) A breaching check is a
+`monitor_incident` on the host (`rule_id` `svc:<instance>:<check>`), notices `infra.alert.opened/resolved`, so ack/escalation/channels/maintenance
+apply; switching a service off or deleting it resolves its incidents. (6) Jobs `service-poll` (10 s, max 4, CLAIMED `claimed_until`),
+`service-rollup`, `service-prune` (raw 7 d, 5 m 90 d, 1 h 365 d); members and counters live on the instance row, not `infra_entities`.
+Tests: `service-monitoring.test.ts`, `service-monitoring.integration.test.ts` (CockroachDB and YugabyteDB), opt-in `service-sql-transport.test.ts`
+(real PostgreSQL/MariaDB, `TEST_SVC_POSTGRES`/`TEST_SVC_MYSQL`), smoke `tests/smoke/service-monitoring.mjs`, e2e `service-monitoring.spec.ts`.
 
 **Renewals** (`apps/api/src/renewals/`, page `/renewals` in the IT menu, migration 0079; rules in `packages/shared/src/schemas/renewal.ts`,
 unit-tested in `apps/api/test/renewals.test.ts`): licences, domains, warranties, subscriptions and certificates that lapse on a date. Monitoring
@@ -848,6 +876,20 @@ text). (6) Conversations are private to their owner (another person's id answers
 answered) by the `assistant-retention` job; the three tables are `skip` in the backup registry. Tests: `assistant.test.ts`,
 `assistant.integration.test.ts` (CockroachDB and YugabyteDB, a fake OpenAI-compatible server), smoke `tests/smoke/assistant.mjs` (closed doors
 only: no model is called).
+(7) **Proposed actions** (`packages/shared/src/assistant-actions.ts`, unit-tested in `assistant-actions.test.ts`): the model's one non-lookup tool
+`propose_action` only RECORDS a proposal (`assistant_messages.actions`, at most 3 per answer), offered per kind by the permission its route needs
+(`assistantActionsFor`). The browser makes the real call on Confirm (`proposalRequest`, as the person, through the normal audited route) and then
+`PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed ONCE. **Never execute a proposal on the server, and never take a card's
+description from the model** (an incident's is read from the database). A new kind = a schema branch, a permission, a `proposalRequest` case, a
+headline, tests. Pausing alerts is always 1-24 hours. (8) *Figures* are `assistant_answers` (migration 0086): one row per answer, no text, no person,
+400 days, `skip` in the backup registry; the usage page is `/admin/assistant`. Feedback: `POST /assistant/messages/:id/feedback` (comment redacted from
+audit). (9) Job `assistant-watch` (5 min, `job_state` `assistant/watch`) tells the admin group at 80%/100% of the budget and when the provider fails
+three answers in a row (`assistantProviderDown`) and recovers; not silenced by maintenance mode. `/assistant/status` carries `health`;
+`/health/services` has an assistant card (degraded only). (10) The slide-over (`components/assistant-panel.tsx`) has no button of its own (a third top-bar control
+wrapped the bar at 1280 px): the user menu's "Ask the assistant" and the palette open it via `ASSISTANT_OPEN_EVENT`; while a question is typed the
+palette shows the entry in its own LAST group (`paletteFilter` keeps it; cmdk does not reorder groups, so DOM order decides what Enter picks). (11) The evaluation set is
+`tests/assistant/questions.yaml` + `scripts/assistant-eval.mjs`: expected facts are READ from the API as the asking account at run time, `--dry-run`
+is free, `--yes` spends money; never run it from a test suite. e2e `assistant.spec.ts` never sends a question when the assistant is on.
 
 ## Activity feed
 
@@ -1697,8 +1739,8 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 1 — done** — helpdesk/tickets (+SLAs), notes, wiki (+attachments/ACLs), modular dashboard tiles, notification centre + SMTP (per-category in-app/email)
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
-- **Assistant (chatbot) — phase 1 built (2026-10-25)** — see ## Assistant; phases 2-4 of [docs/assistant.md](docs/assistant.md) (wider catalogue, evaluation set, feedback, slide-over panel, proposed actions) are not built; do not start them without an explicit ask.
-- **Service monitoring templates — designed, not built** — in-depth per-service monitoring on infra hosts (HAProxy, databases, Kea, Technitium ...) driven by a declarative, GUI-editable template engine. Design, proposed decisions and phasing in [docs/service-monitoring.md](docs/service-monitoring.md); do not start building without an explicit ask.
+- **Assistant (chatbot) — phases 1-3 built (2026-10-25/26)** — see ## Assistant and section 0 of [docs/assistant.md](docs/assistant.md); embeddings, replayed evaluation, API-token access and other channels are not built; do not start them without an explicit ask.
+- **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, a home-page section and catalogue wave two are not built.
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)

@@ -36,6 +36,7 @@ export type SearchKind =
   | "cisco_vlan"
   | "ipam_subnet"
   | "ipam_host"
+  | "service_instance"
   | "dns_record"
   | "asset";
 
@@ -104,6 +105,7 @@ export const KIND_META: Record<SearchKind, KindMeta> = {
   cisco_vlan: meta("VLAN", Layers, "teal"),
   ipam_subnet: meta("Subnet", Boxes, "indigo"),
   ipam_host: meta("IP", Network, "indigo"),
+  service_instance: meta("Service", Activity, "indigo"),
   dns_record: meta("DNS", Globe, "indigo"),
   asset: meta("Item", Package, "emerald"),
 };
@@ -138,6 +140,8 @@ export function hrefForHit(h: SearchHit): string {
     case "ipam_subnet":
     case "ipam_host":
       return `/ipam`;
+    case "service_instance":
+      return `/monitoring/infra`;
     case "dns_record":
       return `/dns?view=records`;
     case "asset":

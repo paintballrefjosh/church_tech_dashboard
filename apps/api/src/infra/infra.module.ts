@@ -18,6 +18,6 @@ import { RealtimeModule } from "../realtime/realtime.module";
   imports: [RealtimeModule],
   controllers: [InfraController],
   providers: [InfraService, InfraCollector, InfraTester, InfraUpdaterService],
-  exports: [InfraService],
+  exports: [InfraService, InfraCollector],
 })
 export class InfraModule {}

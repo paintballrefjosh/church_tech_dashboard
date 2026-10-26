@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Runs after auth.spec.ts has changed the test user's default password. Everything made here is prefixed and deleted again.
+// Runs after 00-auth.spec.ts has changed the test user's default password. Everything made here is prefixed and deleted again.
 // What makes a page due for review is time, so that is covered by the integration test, not here.
 test.describe.configure({ mode: "serial" });
 

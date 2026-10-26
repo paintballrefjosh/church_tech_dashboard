@@ -5,7 +5,7 @@ import { z } from "zod";
  * mic receiver) and `obs` (OBS Studio) are the AV probes (services/monitor/src/av-probes.ts). Any kind may carry
  * `options.schedule` (monitor-schedule.ts): checked only during those hours.
  */
-export const MONITOR_KINDS = ["http", "tcp", "icmp", "tls", "dns", "hls", "hyperdeck", "pjlink", "shure", "obs", "atem"] as const;
+export const MONITOR_KINDS = ["http", "tcp", "icmp", "tls", "dns", "hls", "hyperdeck", "pjlink", "shure", "obs", "atem", "vmix", "sennheiser"] as const;
 export type MonitorKind = (typeof MONITOR_KINDS)[number];
 
 export const DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT"] as const;

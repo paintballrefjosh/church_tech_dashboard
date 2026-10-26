@@ -1,6 +1,7 @@
-import { connect as tcpConnect, type Socket } from "node:net";
+import { connect as tcpConnect, isIP, type Socket } from "node:net";
 import { createHash } from "node:crypto";
 import { createSocket } from "node:dgram";
+import { connect as tlsConnect } from "node:tls";
 import type { ProbeContext, ProbeResult } from "./probes";
 
 /**
@@ -573,5 +574,383 @@ export async function probeAtem(ctx: ProbeContext): Promise<ProbeResult> {
     return failure(start, err);
   } finally {
     socket.close();
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// vMix (its web API, TCP 8088): `GET /api/` with no parameters returns the whole state as XML. Only that address is ever
+// asked for: a `?Function=` would run a shortcut, so the URL is built here from host and port, never taken from the target.
+
+export interface VmixState {
+  version: string | null;
+  edition: string | null;
+  streaming: boolean;
+  recording: boolean;
+  external: boolean;
+  multiCorder: boolean;
+  fadeToBlack: boolean;
+  active: number | null;
+  preview: number | null;
+  activeTitle: string | null;
+  inputs: number;
+  masterMuted: boolean | null;
+  masterVolume: number | null;
+}
+
+const xmlText = (s: string): string =>
+  s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+
+function xmlAttrs(attrs: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of attrs.matchAll(/([A-Za-z_][\w.-]*)\s*=\s*"([^"]*)"/g)) out[m[1]!] = xmlText(m[2]!);
+  return out;
+}
+
+/** The parts of vMix's state XML that say whether a service is going out. Unknown elements are ignored. */
+export function parseVmixXml(xml: string): VmixState {
+  if (!/<vmix[\s>]/i.test(xml)) throw new Error("not a vMix API answer");
+  const el = (name: string): string | null => {
+    const m = new RegExp(`<${name}(?:\\s[^>]*)?>([^<]*)</${name}>`, "i").exec(xml);
+    return m ? xmlText(m[1]!.trim()) : null;
+  };
+  const flag = (name: string) => (el(name) ?? "").toLowerCase() === "true";
+  const num = (name: string) => {
+    const v = el(name);
+    return v !== null && /^\d+$/.test(v) ? Number(v) : null;
+  };
+  const titles = new Map<number, string>();
+  for (const m of xml.matchAll(/<input\s([^>]*?)\/?>/gi)) {
+    const a = xmlAttrs(m[1]!);
+    if (a.number && /^\d+$/.test(a.number)) titles.set(Number(a.number), a.title ?? "");
+  }
+  const active = num("active");
+  const master = /<master\s([^>]*?)\/?>/i.exec(xml);
+  const ma = master ? xmlAttrs(master[1]!) : null;
+  const vol = ma?.volume !== undefined ? Number(ma.volume) : NaN;
+  return {
+    version: el("version"),
+    edition: el("edition"),
+    streaming: flag("streaming"),
+    recording: flag("recording"),
+    external: flag("external"),
+    multiCorder: flag("multiCorder"),
+    fadeToBlack: flag("fadeToBlack"),
+    active,
+    preview: num("preview"),
+    activeTitle: active !== null ? titles.get(active) ?? null : null,
+    inputs: titles.size,
+    masterMuted: ma?.muted !== undefined ? ma.muted.toLowerCase() === "true" : null,
+    masterVolume: Number.isFinite(vol) ? vol : null,
+  };
+}
+
+export function judgeVmix(
+  s: VmixState,
+  o: { expectStreaming?: boolean; expectRecording?: boolean; expectSound?: boolean },
+): { ok: boolean; info: string } {
+  const parts = [
+    s.streaming ? "streaming" : "not streaming",
+    s.recording ? "recording" : "not recording",
+    ...(s.external ? ["external output on"] : []),
+    ...(s.activeTitle ? [`program: ${s.activeTitle}`] : s.active !== null ? [`program: input ${s.active}`] : []),
+    ...(s.fadeToBlack ? ["faded to black"] : []),
+    ...(s.masterMuted ? ["master muted"] : []),
+  ];
+  const info = parts.join(", ");
+  const problems: string[] = [];
+  if (o.expectStreaming && !s.streaming) problems.push("not streaming");
+  if (o.expectRecording && !s.recording) problems.push("not recording");
+  if (o.expectSound && (s.masterMuted || s.masterVolume === 0)) problems.push(s.masterMuted ? "master muted" : "master at 0");
+  return problems.length ? { ok: false, info: `${problems.join(", ")} (${info})` } : { ok: true, info };
+}
+
+/** Reachable; with `expectStreaming` / `expectRecording` / `expectSound` (master not muted and not at 0) as asked. */
+export async function probeVmix(ctx: ProbeContext): Promise<ProbeResult> {
+  const o = ctx.options as { timeoutMs?: number; username?: string; password?: string; expectStreaming?: boolean; expectRecording?: boolean; expectSound?: boolean };
+  const { host, port } = hostPort(ctx.target, 8088);
+  const start = Date.now();
+  try {
+    const headers: Record<string, string> = {};
+    if (o.password) headers.authorization = `Basic ${Buffer.from(`${o.username ?? ""}:${o.password}`).toString("base64")}`;
+    const res = await fetch(`http://${host.includes(":") ? `[${host}]` : host}:${port}/api/`, {
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(o.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+    });
+    const latencyMs = Date.now() - start;
+    if (res.status === 401) return { ok: false, latencyMs, info: o.password ? "vMix refused the user name or password" : "vMix needs a user name and password (Settings, Web Controller)" };
+    if (!res.ok) return { ok: false, latencyMs, info: `HTTP ${res.status}` };
+    const text = await res.text();
+    return { latencyMs, ...judgeVmix(parseVmixXml(text.slice(0, 5_000_000)), o) };
+  } catch (err) {
+    return failure(start, err);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Sennheiser EW-DX receivers (EM 2, EM 2 Dante, EM 4 Dante): transmitter battery and channel warnings.
+// Two protocols, chosen in the options: SSCv1 ("ssc1", JSON over UDP 45, no password; firmware before 4.0, or 4.x with
+// third-party access set to "legacy") and SSCv2 ("ssc2", HTTPS REST with user `api` and the password set when the receiver
+// was claimed; firmware 4.0+ with third-party access "secure"). Only reads: every SSCv1 message asks with `null` values,
+// every SSCv2 request is a GET.
+
+export interface SennheiserChannel {
+  n: number; // 1-based, as printed on the receiver
+  name: string | null;
+  present: boolean; // a transmitter is linked and reports its battery
+  gauge: number | null; // percent
+  lifetimeMin: number | null;
+  rxWarnings: string[];
+  txWarnings: string[];
+}
+
+type Tree = Record<string, unknown>;
+const isTree = (v: unknown): v is Tree => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Deep-merges one SSCv1 reply into what was gathered. Error replies (`{"osc":{"error":...}}`) are left out. */
+export function sscMerge(into: Tree, reply: unknown): void {
+  if (!isTree(reply)) return;
+  for (const [k, v] of Object.entries(reply)) {
+    if (k === "osc") continue;
+    if (isTree(v) && isTree(into[k])) sscMerge(into[k] as Tree, v);
+    else if (isTree(v)) {
+      const t: Tree = {};
+      sscMerge(t, v);
+      into[k] = t;
+    } else into[k] = v;
+  }
+}
+
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+const numOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** The SSCv1 address tree (`rx1`, `mates.tx1` ...) as channels. */
+export function sennheiserChannelsFromSsc1(tree: Tree, channels: number): SennheiserChannel[] {
+  const out: SennheiserChannel[] = [];
+  const mates = isTree(tree.mates) ? tree.mates : {};
+  for (let n = 1; n <= channels; n++) {
+    const rx = isTree(tree[`rx${n}`]) ? (tree[`rx${n}`] as Tree) : {};
+    const tx = isTree(mates[`tx${n}`]) ? (mates[`tx${n}`] as Tree) : {};
+    const bat = isTree(tx.battery) ? tx.battery : {};
+    const gauge = numOrNull(bat.gauge);
+    const lifetimeMin = numOrNull(bat.lifetime);
+    out.push({
+      n,
+      name: typeof rx.name === "string" && rx.name ? rx.name : null,
+      present: gauge !== null || lifetimeMin !== null,
+      gauge,
+      lifetimeMin,
+      rxWarnings: strings(rx.warnings),
+      txWarnings: strings(tx.warnings),
+    });
+  }
+  return out;
+}
+
+/** The SSCv1 questions: one address per message, so a missing transmitter (error 424) costs only its own answer. */
+export function sscQuestions(channels: number): string[] {
+  const q: unknown[] = [{ device: { identity: { product: null } } }];
+  for (let n = 1; n <= channels; n++) {
+    q.push({ [`rx${n}`]: { name: null } }, { [`rx${n}`]: { warnings: null } });
+    q.push({ mates: { [`tx${n}`]: { battery: { gauge: null } } } }, { mates: { [`tx${n}`]: { battery: { lifetime: null } } } });
+    q.push({ mates: { [`tx${n}`]: { warnings: null } } });
+  }
+  return q.map((x) => JSON.stringify(x));
+}
+
+const RF_PROBLEM_WARNINGS = new Set(["LowSignal", "Aes256Error"]);
+
+export function judgeSennheiser(
+  product: string | null,
+  chans: SennheiserChannel[],
+  o: { minPercent?: number; failOnRf?: boolean },
+): { ok: boolean; info: string } {
+  const min = o.minPercent ?? 20;
+  const low: string[] = [];
+  const rf: string[] = [];
+  const parts = chans.map((c) => {
+    const label = `ch${c.n}${c.name ? ` ${c.name}` : ""}`;
+    const warn = [...c.rxWarnings.filter((w) => w !== "NoLink"), ...c.txWarnings];
+    if (!c.present) return `${label} no transmitter`;
+    if ((c.gauge !== null && c.gauge <= min) || c.txWarnings.includes("LowBattery")) low.push(label);
+    if (c.rxWarnings.some((w) => RF_PROBLEM_WARNINGS.has(w))) rf.push(label);
+    const time = c.lifetimeMin !== null ? ` (${Math.floor(c.lifetimeMin / 60)}h ${c.lifetimeMin % 60}m)` : "";
+    return `${label} ${c.gauge !== null ? `${c.gauge}%` : "battery ?"}${time}${warn.length ? ` [${warn.join(", ")}]` : ""}`;
+  });
+  const info = `${product ? `${product}: ` : ""}${parts.join(", ")}`;
+  if (low.length) return { ok: false, info: `battery low on ${low.join(", ")} (${info})` };
+  if (o.failOnRf && rf.length) return { ok: false, info: `radio problem on ${rf.join(", ")} (${info})` };
+  return { ok: true, info };
+}
+
+async function sennheiserSsc1(host: string, port: number, channels: number, timeoutMs: number): Promise<{ product: string | null; chans: SennheiserChannel[] }> {
+  const questions = sscQuestions(channels);
+  const tree: Tree = {};
+  const socket = createSocket(host.includes(":") ? "udp6" : "udp4");
+  let answers = 0;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => (answers > 0 ? resolve() : reject(new Error("no answer on UDP 45: is third-party access on, set to legacy (SSCv1)? Firmware 4.0+ defaults to off; choose SSCv2 for secure"))), timeoutMs);
+      socket.on("error", (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+      socket.on("message", (msg) => {
+        answers++;
+        try {
+          sscMerge(tree, JSON.parse(msg.toString("utf8")));
+        } catch {
+          /* not JSON: ignored */
+        }
+        if (answers >= questions.length) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      // A small gap between datagrams: a receiver drops a burst it cannot buffer.
+      void (async () => {
+        for (const q of questions) {
+          socket.send(q, port, host);
+          await new Promise((r) => setTimeout(r, 15));
+        }
+      })();
+    });
+  } finally {
+    socket.close();
+  }
+  const device = isTree(tree.device) ? tree.device : {};
+  const identity = isTree(device.identity) ? device.identity : {};
+  return { product: typeof identity.product === "string" ? identity.product : null, chans: sennheiserChannelsFromSsc1(tree, channels) };
+}
+
+/** Reads a whole HTTP/1.1 response (Connection: close): status and body, chunked or not. Exported for the tests. */
+export function parseHttpResponse(raw: Buffer): { status: number; body: string } {
+  const end = raw.indexOf("\r\n\r\n");
+  if (end < 0) throw new Error("the receiver sent no complete answer");
+  const head = raw.subarray(0, end).toString("latin1").split("\r\n");
+  const m = /^HTTP\/1\.[01] (\d{3})/.exec(head[0] ?? "");
+  if (!m) throw new Error("not an HTTP answer");
+  const chunked = head.some((h) => /^transfer-encoding:\s*chunked/i.test(h));
+  let body = raw.subarray(end + 4);
+  if (chunked) {
+    const parts: Buffer[] = [];
+    let at = 0;
+    for (;;) {
+      const nl = body.indexOf("\r\n", at);
+      if (nl < 0) break;
+      const size = parseInt(body.subarray(at, nl).toString("latin1"), 16);
+      if (!Number.isFinite(size) || size <= 0) break;
+      parts.push(body.subarray(nl + 2, nl + 2 + size));
+      at = nl + 2 + size + 2;
+    }
+    body = Buffer.concat(parts);
+  }
+  return { status: Number(m[1]), body: body.toString("utf8") };
+}
+
+/**
+ * One HTTPS GET to the receiver. The certificate is the receiver's own (self-signed), so the chain is not judged; when
+ * `fingerprint` is set it must match, and that is checked when the handshake ends, BEFORE the request (with the password)
+ * is written. A plain https.request writes its headers as soon as it can, so it is not used here.
+ */
+function sscv2Get(
+  host: string,
+  port: number,
+  path: string,
+  password: string | null,
+  fingerprint: string | null,
+  timeoutMs: number,
+): Promise<{ status: number; body: unknown; seen: string | null }> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let seen: string | null = null;
+    const sock = tlsConnect({ host, port, rejectUnauthorized: false, servername: isIP(host) ? undefined : host });
+    const timer = setTimeout(() => sock.destroy(new Error("timeout")), timeoutMs);
+    sock.once("secureConnect", () => {
+      seen = sock.getPeerCertificate()?.fingerprint256 ?? null;
+      const norm = (f: string) => f.replace(/[^0-9a-f]/gi, "").toLowerCase();
+      if (fingerprint && (!seen || norm(seen) !== norm(fingerprint))) {
+        return sock.destroy(new Error(`the receiver's certificate changed (now ${seen ?? "none"}); check it and update the fingerprint`));
+      }
+      const auth = password ? `Authorization: Basic ${Buffer.from(`api:${password}`).toString("base64")}\r\n` : "";
+      sock.write(`GET ${path} HTTP/1.1\r\nHost: ${host.includes(":") ? `[${host}]` : host}\r\nAccept: application/json\r\n${auth}Connection: close\r\n\r\n`);
+    });
+    sock.on("data", (d: Buffer) => {
+      size += d.length;
+      if (size > 1_000_000) return sock.destroy(new Error("answer too large"));
+      chunks.push(d);
+    });
+    sock.once("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    sock.once("end", () => {
+      clearTimeout(timer);
+      try {
+        const r = parseHttpResponse(Buffer.concat(chunks));
+        let body: unknown = null;
+        try {
+          body = r.body ? JSON.parse(r.body) : null;
+        } catch {
+          body = null;
+        }
+        resolve({ status: r.status, body, seen });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+async function sennheiserSsc2(
+  host: string,
+  port: number,
+  channels: number,
+  password: string | null,
+  fingerprint: string | null,
+  timeoutMs: number,
+): Promise<{ product: string | null; chans: SennheiserChannel[]; seen: string | null }> {
+  // A fingerprint must be checked before the password is sent, so the identity (no sign-in needed) goes first.
+  const id = await sscv2Get(host, port, "/api/device/identity", null, fingerprint, timeoutMs);
+  if (!password) throw new Error("SSCv2 needs the receiver's API password (set when it was claimed)");
+  const product = isTree(id.body) && typeof id.body.product === "string" ? id.body.product : null;
+  const chans: SennheiserChannel[] = [];
+  for (let i = 0; i < channels; i++) {
+    const [ch, warn, bat] = await Promise.all([
+      sscv2Get(host, port, `/api/channel/${i}`, password, fingerprint, timeoutMs),
+      sscv2Get(host, port, `/api/channel/${i}/warnings`, password, fingerprint, timeoutMs),
+      sscv2Get(host, port, `/api/transmitters/${i}/battery`, password, fingerprint, timeoutMs),
+    ]);
+    if ([ch, warn, bat].some((r) => r.status === 401 || r.status === 403)) throw new Error("the receiver refused the API password");
+    if (ch.status === 404 && i > 0) break; // fewer channels than asked for
+    const b = bat.status === 200 && isTree(bat.body) ? bat.body : {};
+    const gauge = numOrNull(b.gauge);
+    const lifetimeMin = numOrNull(b.lifetime);
+    const name = isTree(ch.body) && typeof ch.body.name === "string" && ch.body.name ? ch.body.name : null;
+    const w = warn.status === 200 ? (Array.isArray(warn.body) ? strings(warn.body) : isTree(warn.body) ? strings(warn.body.warnings) : []) : [];
+    chans.push({ n: i + 1, name, present: gauge !== null || lifetimeMin !== null, gauge, lifetimeMin, rxWarnings: w, txWarnings: strings(b.warnings) });
+  }
+  return { product, chans, seen: id.seen };
+}
+
+/** Reachable; a linked transmitter at `minPercent` or less (default 20) or reporting LowBattery is a problem. */
+export async function probeSennheiser(ctx: ProbeContext): Promise<ProbeResult> {
+  const o = ctx.options as { timeoutMs?: number; protocol?: string; channels?: number; minPercent?: number; failOnRf?: boolean; password?: string; fingerprint?: string };
+  const channels = Math.max(1, Math.min(4, o.channels ?? 2));
+  const ssc2 = o.protocol === "ssc2";
+  const { host, port } = hostPort(ctx.target, ssc2 ? 443 : 45);
+  const timeoutMs = o.timeoutMs ?? (ssc2 ? DEFAULT_TIMEOUT_MS : 4000);
+  const start = Date.now();
+  try {
+    if (ssc2) {
+      const r = await sennheiserSsc2(host, port, channels, o.password || null, o.fingerprint?.trim() || null, timeoutMs);
+      const j = judgeSennheiser(r.product, r.chans, o);
+      return { latencyMs: Date.now() - start, ok: j.ok, info: !o.fingerprint && r.seen ? `${j.info}; certificate ${r.seen}` : j.info };
+    }
+    const r = await sennheiserSsc1(host, port, channels, timeoutMs);
+    return { latencyMs: Date.now() - start, ...judgeSennheiser(r.product, r.chans, o) };
+  } catch (err) {
+    return failure(start, err);
   }
 }

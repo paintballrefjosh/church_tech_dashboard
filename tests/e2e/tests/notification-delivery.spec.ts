@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Runs after auth.spec.ts has changed the test user's default password. Settings changed here are put back afterwards.
+// Runs after 00-auth.spec.ts has changed the test user's default password. Settings changed here are put back afterwards.
 // Whether a held email goes out at the right time is covered by apps/api/test/notification-delivery.integration.test.ts.
 // The browser's push service is replaced by a stub (see stubPush): a real subscription needs the vendor's servers.
 test.describe.configure({ mode: "serial" });

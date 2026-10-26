@@ -596,6 +596,20 @@
       "when": 1793127830977,
       "tag": "0084_livestreams",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1793127890977,
+      "tag": "0085_service_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1793127950977,
+      "tag": "0086_assistant_phase2",
+      "breakpoints": true
     }
   ]
 }

@@ -181,6 +181,19 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   },
   livestream_snapshots: runtime("Livestream pictures", "The latest still of each stream; the next sample makes a new one."),
   livestream_checks: runtime("Livestream history", "Readings kept 30 days, written by the checker."),
+  // ---- service monitoring (templates on infra hosts) ----
+  service_templates: { policy: "data", group: MONITORING, title: "Service templates", label: ["key"] },
+  service_logins: { policy: "data", group: MONITORING, title: "Service logins", label: ["name", "username"], sensitive: ["password_enc"] },
+  service_instances: {
+    policy: "data", group: MONITORING, title: "Monitored services", label: ["name", "template_key"], sensitive: ["secrets_enc"],
+    // Everything the poller writes: a restored reading is stale at once, and alert state must not reopen or replay incidents.
+    volatile: [
+      "status", "last_error", "last_polled_at", "claimed_until", "last_values", "last_states", "members", "members_omitted", "checks",
+      "collector_errors", "counters", "alert_state",
+    ],
+  },
+  service_metric_samples: runtime("Service readings", "Readings kept 7 days, written by the poller."),
+  service_metric_rollups: runtime("Service reading summaries", "5-minute and hourly summaries rebuilt from the readings."),
   alert_channels: {
     policy: "data",
     group: MONITORING,
@@ -219,6 +232,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   assistant_conversations: runtime("Assistant conversations", "Private to each person and kept only for a few weeks; a restore must not bring back conversations people deleted."),
   assistant_messages: runtime("Assistant messages", "Part of the conversations (see above)."),
   assistant_usage_daily: runtime("Assistant usage", "Counters for the budget and the limits of this moment."),
+  assistant_answers: runtime("Assistant answer figures", "Timings and outcomes for the usage page; no text and no person, and a restore must not rewrite them."),
   alert_outbox: runtime("Alert outbox", "Alerts waiting to be sent, and a week of sent ones; a restore must not send old alerts again."),
   push_subscriptions: runtime("Push subscriptions", "Browser push credentials of this moment; a restore must not bring back devices that have since been removed. People turn push on again."),
   cluster_nodes: runtime("Cluster nodes", "Which nodes are running right now."),

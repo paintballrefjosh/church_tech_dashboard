@@ -78,7 +78,8 @@ export type ActionId =
   | "ticket-take"
   | "ticket-resolve"
   | "ticket-waiting"
-  | "wiki-confirm";
+  | "wiki-confirm"
+  | "assistant-ask";
 
 interface Base {
   id: string;
@@ -249,6 +250,8 @@ export function paletteCommands(state: PaletteState): PaletteCommand[] {
       }
     }
   }
+  // Opens the assistant's panel on this page with what was typed in the palette as the question.
+  if ("assistant" in user.access) out.push(run("act:assistant-ask", "Actions", "Ask the assistant", "assistant-ask", Bot, "question chat ai help how what where"));
   out.push(run("act:sign-out", "Actions", "Sign out", "sign-out", LogOut, "log out leave"));
 
   // ---- create ----

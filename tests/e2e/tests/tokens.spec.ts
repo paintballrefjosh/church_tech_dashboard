@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Named tokens.spec.ts, not api-tokens: files run alphabetically and auth.spec.ts
+// Named tokens.spec.ts, not api-tokens: files run alphabetically and 00-auth.spec.ts
 // must see the test user before any spec changes its default password.
 test.describe.configure({ mode: "serial" });
 

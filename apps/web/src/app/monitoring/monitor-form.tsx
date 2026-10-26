@@ -7,9 +7,9 @@ import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
 import { RunbookField } from "@/components/runbook-link";
 import { RoomField } from "@/components/assets-ui";
 
-type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs" | "atem";
+type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs" | "atem" | "vmix" | "sennheiser";
 
-const AV_KINDS: Kind[] = ["hls", "hyperdeck", "pjlink", "shure", "obs", "atem"];
+const AV_KINDS: Kind[] = ["hls", "hyperdeck", "pjlink", "shure", "obs", "atem", "vmix", "sennheiser"];
 
 type Rec = Record<string, unknown>;
 const optStr = (o: Rec, k: string, d = ""): string => (typeof o[k] === "string" ? (o[k] as string) : d);
@@ -48,6 +48,13 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
   const [maxLampHours, setMaxLampHours] = useState(optNum(o, "maxLampHours", 0));
   const [shureChannels, setShureChannels] = useState(optNum(o, "channels", 4));
   const [shureMinBars, setShureMinBars] = useState(optNum(o, "minBars", 1));
+  const [username, setUsername] = useState(optStr(o, "username"));
+  const [expectSound, setExpectSound] = useState(optBool(o, "expectSound"));
+  const [sscProtocol, setSscProtocol] = useState(optStr(o, "protocol", "ssc1"));
+  const [sennChannels, setSennChannels] = useState(optNum(o, "channels", 2));
+  const [sennMinPercent, setSennMinPercent] = useState(optNum(o, "minPercent", 20));
+  const [failOnRf, setFailOnRf] = useState(optBool(o, "failOnRf"));
+  const [fingerprint, setFingerprint] = useState(optStr(o, "fingerprint"));
   const [schedule, setSchedule] = useState(optStr(o, "schedule"));
   const [alerts, setAlerts] = useState(o.alerts !== false);
   const [busy, setBusy] = useState(false);
@@ -74,6 +81,17 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         return { expectStreaming, expectRecording, ...(password ? { password } : {}) };
       case "atem":
         return { expectStreaming, expectRecording };
+      case "vmix":
+        return { expectStreaming, expectRecording, expectSound, ...(username.trim() ? { username: username.trim() } : {}), ...(password ? { password } : {}) };
+      case "sennheiser":
+        return {
+          protocol: sscProtocol,
+          channels: sennChannels,
+          minPercent: sennMinPercent,
+          failOnRf,
+          ...(sscProtocol === "ssc2" && password ? { password } : {}),
+          ...(sscProtocol === "ssc2" && fingerprint.trim() ? { fingerprint: fingerprint.trim() } : {}),
+        };
       case "http": {
         const opts: Rec = { method: httpMethod, expectedStatus: httpExpectedStatus };
         if (httpExpectBody.trim()) opts.expectBody = httpExpectBody.trim();
@@ -165,6 +183,8 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
               <option value="shure">Shure wireless receiver</option>
               <option value="obs">OBS Studio</option>
               <option value="atem">Blackmagic ATEM switcher</option>
+              <option value="vmix">vMix</option>
+              <option value="sennheiser">Sennheiser EW-DX receiver</option>
             </optgroup>
           </select>
         </label>
@@ -305,13 +325,19 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
               Streaming and recording are only on the models that have them (Mini Pro, Extreme, Constellation).
             </p>
           ) : null}
-          {kind === "hyperdeck" || kind === "obs" || kind === "atem" ? (
+          {kind === "vmix" ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Reads vMix&apos;s web API (Settings, Web Controller, port 8088). Only the state is read; no shortcut or function is
+              ever called.
+            </p>
+          ) : null}
+          {kind === "hyperdeck" || kind === "obs" || kind === "atem" || kind === "vmix" ? (
             <label className="inline-flex items-center gap-2">
               <input type="checkbox" checked={expectRecording} onChange={(e) => setExpectRecording(e.target.checked)} />
               <span>Down unless it is recording</span>
             </label>
           ) : null}
-          {kind === "obs" || kind === "atem" ? (
+          {kind === "obs" || kind === "atem" || kind === "vmix" ? (
             <label className="inline-flex items-center gap-2 sm:ml-4">
               <input type="checkbox" checked={expectStreaming} onChange={(e) => setExpectStreaming(e.target.checked)} />
               <span>Down unless it is streaming</span>
@@ -346,6 +372,67 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
                 <input type="number" min={0} max={4} value={shureMinBars} onChange={(e) => setShureMinBars(parseInt(e.target.value, 10) || 0)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
               </label>
             </div>
+          ) : null}
+          {kind === "vmix" ? (
+            <>
+              <label className="inline-flex items-center gap-2 sm:ml-4">
+                <input type="checkbox" checked={expectSound} onChange={(e) => setExpectSound(e.target.checked)} />
+                <span>Down if the master audio is muted or at 0</span>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Web Controller user name (blank if none)</span>
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} maxLength={100} autoComplete="off" className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Web Controller password (blank if none)</span>
+                  <input type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+              </div>
+            </>
+          ) : null}
+          {kind === "sennheiser" ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Third-party access</span>
+                  <select value={sscProtocol} onChange={(e) => setSscProtocol(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
+                    <option value="ssc1">Legacy (SSCv1, UDP 45, no password)</option>
+                    <option value="ssc2">Secure (SSCv2, HTTPS, password)</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Channels on the receiver</span>
+                  <input type="number" min={1} max={4} value={sennChannels} onChange={(e) => setSennChannels(parseInt(e.target.value, 10) || 2)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Problem at this battery % or lower</span>
+                  <input type="number" min={0} max={90} value={sennMinPercent} onChange={(e) => setSennMinPercent(parseInt(e.target.value, 10) || 0)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+              </div>
+              <label className="inline-flex items-center gap-2">
+                <input type="checkbox" checked={failOnRf} onChange={(e) => setFailOnRf(e.target.checked)} />
+                <span>Also down on a weak signal or an encryption error</span>
+              </label>
+              {sscProtocol === "ssc2" ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">API password (set when the receiver was claimed)</span>
+                    <input type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Certificate fingerprint (SHA-256, optional)</span>
+                    <input value={fingerprint} onChange={(e) => setFingerprint(e.target.value)} maxLength={200} placeholder="from the first check's result" className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-950" />
+                  </label>
+                </div>
+              ) : null}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Turn on third-party access in Control Cockpit or Wireless Systems Manager first (firmware 4.0 and later ship with it off).
+                The receiver&apos;s certificate is its own; until a fingerprint is entered any certificate is accepted, and each check
+                shows the one it saw. A channel with no transmitter on is not a problem. Pair it with a schedule so a mic left in a
+                drawer during the week does not page anyone.
+              </p>
+            </>
           ) : null}
           {kind === "pjlink" || kind === "obs" ? (
             <label className="block max-w-sm">

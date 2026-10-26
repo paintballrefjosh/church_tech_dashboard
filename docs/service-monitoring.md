@@ -1,13 +1,84 @@
-# Service monitoring (templates): design
+# Service monitoring (templates)
 
-Status: **designed, not built** (written 2026-10-15). Nothing in this document exists in the code yet. It records the
-idea, the proposed decisions, the open questions and the phasing, so it can be implemented later without re-deriving
-them. Items marked **proposed** were recommended in discussion but not yet confirmed by the owner.
+Status: **built 2026-10-26** (phases 0-4 and the MCP read tools of phase 5). Section 0 says what was built and which of the
+proposed decisions were taken; sections 1-11 are the original design, kept for the reasoning. Where they differ, section 0
+is what the code does.
 
 In-depth monitoring of the *services running on* an infrastructure host (HAProxy, databases, DHCP, DNS ...), beyond what
 [infrastructure-monitoring.md](infrastructure-monitoring.md) already does (CPU, memory, disk, network, Docker containers,
 Proxmox guests). Examples: for HAProxy, frontends/backends down, session counts, response time, 5xx rate; for a database,
 cluster health, replication lag, connections, read/write latency, errors.
+
+## 0. As built
+
+**Where it lives.** Rules and the format: `packages/shared/src/service-monitoring/` (`template.ts` the Zod format and
+`serviceTemplateProblems`, `expr.ts` the expression language, `parse.ts` the parsers, `engine.ts` turns collector rows into
+values, states, members and checks, `render.ts` fills placeholders, `builtins.ts` the built-in templates and
+`suggestTemplates`, `api.ts` the route shapes). The API: `apps/api/src/service-monitoring/` (`transports.ts`,
+`service-monitoring.service.ts`, `service-poller.ts`, the controller under `/api/v1/service-monitoring`). Migration 0085. The
+web: a **Services** section on each infra host's page, a page per service (`/monitoring/infra/<host>/services/<id>`) and
+**Service templates** (`/monitoring/infra/service-templates`, linked from the Infrastructure tab) with the Logins tab.
+
+**Built-in templates** (code, never in the database, cannot be changed or deleted; fork one to change it): HAProxy,
+keepalived, PostgreSQL, MariaDB/MySQL, CockroachDB, YugabyteDB, Apache, Kea DHCP, Technitium DNS, and the generic ones:
+Prometheus metric, JSON endpoint (one number), systemd unit + port + log pattern, SQL query returns a number. Custom
+templates are rows in `service_templates` (versioned; `forked_from`). The Kea and Technitium fixtures were written from the
+vendors' documentation, not captured from real servers: check them against a real one when one is added.
+
+**Decisions taken** (section 9):
+
+| # | Decision |
+|---|---|
+| 1 | Agentless. |
+| 2 | Named **logins** (`service_logins`: user name + encrypted password, shared by many services); an input of type `login` holds `{loginId}`, and a per-instance secret input is the override. |
+| 3 | Yes: a breaching check opens a `monitor_incident` on the HOST (`target_id` = host, `rule_id` = `svc:<instance>:<check>`), so acknowledging, escalation, alert channels, maintenance mode and the host's alert history all apply; notices reuse `infra.alert.opened` / `infra.alert.resolved` (urgent, outage kinds). |
+| 4 | Deferred (per host only). |
+| 5 | Neither JSONata nor CEL: a small **closed grammar of our own** (`expr.ts`: literals, `inputs.x`, row fields, comparisons, `and/or/not`, arithmetic, a fixed list of functions). No loops, no user functions, no property access beyond a row's own fields, a length and depth limit. Both candidates were larger than the templates needed and neither is in the dependency tree. |
+| 6 | A sibling table: `service_metric_samples` (one wide jsonb row per poll, raw kept 7 days) and `service_metric_rollups` (long format: instance, bucket `5m`/`1h`, ts, metric; min/avg/max; kept 90 / 365 days), built with `jsonb_each` and `e.value::text::float8` so the SQL is the same on CockroachDB and YugabyteDB. |
+
+**Rules the code keeps** (also in CLAUDE.md):
+
+- **Commands are confirmed by the person, every time they are about to run on a new footing.** A template with an `ssh`
+  collector needs `confirmCommands` equal to `templateCommands(body)` (the exact lines, `sudo -n` included) to SAVE it, to
+  ADD it to a host, to TEST it, to change an instance's inputs and to switch an instance back on; otherwise 409
+  `{code: "confirm_commands", commands}`, which the web shows as the list and a tick box. Forking a template that runs
+  commands needs the same. This is a "you read what will run" step, not a permission: the permission is
+  `monitors:write:any` (the Monitoring admin tier), which is what can already run updates on a host.
+- **`ssh` collectors need the host's key already pinned** (the infra host's normal login) and run with that host's own
+  login; `sudo: true` becomes `sudo -n sh -c <quoted>` (never a password).
+- **SQL is read-only three ways**: `sqlReadProblem` allows only SELECT/WITH/SHOW/EXPLAIN/VALUES/TABLE/DESCRIBE and refuses
+  `INTO OUTFILE`/`DUMPFILE`; PostgreSQL runs in `BEGIN READ ONLY` with a `SET LOCAL statement_timeout` and the extended
+  protocol (`queryMode: "extended"`, one statement only: with the simple protocol `SELECT 1; COMMIT; CREATE TABLE ...`
+  ran as the login, found in testing against a real server); MySQL/MariaDB runs `SET SESSION TRANSACTION READ ONLY` then
+  `START TRANSACTION READ ONLY`, `multipleStatements` off (DDL commits implicitly in MariaDB and escaped a read-only
+  transaction alone, also found in testing). Use a login that can only read anyway (the templates' `needs` text says which).
+- **Addresses**: loopback, link-local and one-word names (the stack's own containers) are refused, also after DNS, for
+  every transport; HTTP redirects are not followed; a response is cut at 5 MB.
+- **Secrets** (secret inputs, login passwords) are encrypted, returned as `[saved]` (which keeps them; `""` removes them),
+  scrubbed from errors and raw output, never available to expressions (`serviceExprInputs` leaves secret and login inputs
+  out, so no metric, state or check text can print one), redacted from the audit log.
+- **Polling** is the `service-poll` cluster job (10 s ticks, at most 4 services at once, each CLAIMED with `claimed_until`,
+  180 s); a service on a switched-off host, or switched off itself, is not read. Counters (`kind: counter`) become rates
+  between two polls, kept on the instance row. Members (backends, pool members, peers) are kept on the instance row too, at
+  most a few hundred, not in `infra_entities` (the infra collector marks those absent on every poll).
+- **Retention**: `service-prune` (hourly). **Rollups**: `service-rollup` (5 min).
+- Backup registry: templates, logins and instances are `data` (`password_enc`/`secrets_enc` sensitive, the poller's columns
+  volatile); samples and rollups are `skip`.
+- MCP: read tools only (`services_list`, `services_get`, `services_get_series`, `services_list_incidents`,
+  `service_templates_list`, `service_templates_get`); writes, logins, Test and suggestions are excluded (curation, and they
+  reach live hosts). Test, Check now and suggestions are `@OperationalOnly` for API tokens.
+- Search kind `service_instance` (Monitoring read).
+
+**Tests**: `apps/api/test/service-monitoring.test.ts` (expressions, parsers, placeholders, template checks, every built-in
+against a fixture in `test/fixtures/service-monitoring/`), `service-monitoring.integration.test.ts` (CockroachDB and
+YugabyteDB: claims, incidents, rollups, prune, secrets, confirmations, a read-only SQL query through a saved login, refused
+addresses), `service-sql-transport.test.ts` (opt-in, `TEST_SVC_POSTGRES` / `TEST_SVC_MYSQL=host:port:user:password`:
+the PostgreSQL and MariaDB templates against real throwaway servers, as the monitoring login AND as a superuser, proving
+nothing is written), smoke `tests/smoke/service-monitoring.mjs` (reaches no real service), e2e `service-monitoring.spec.ts`.
+Not verified: the HAProxy, keepalived, Apache, Kea, Technitium, CockroachDB and YugabyteDB templates against the church's
+real servers (fixtures only).
+
+**Not built**: service groups across hosts, the home-page `services` section, catalogue wave two.
 
 ## 1. The idea
 

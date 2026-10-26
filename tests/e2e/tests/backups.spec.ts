@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Runs after auth.spec.ts (which needs the test user's default password) and before the specs
+// Runs after 00-auth.spec.ts (which needs the test user's default password) and before the specs
 // that sign in with the changed one. It never presses the final Restore button: a restore rewinds
 // the live data every other spec uses; restores are covered by the engine's integration tests and
 // the throwaway-cluster test (tests/cluster/backup-restore.sh).

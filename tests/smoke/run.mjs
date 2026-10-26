@@ -2243,6 +2243,10 @@ async function main() {
   const { livestreamTests } = await import("./livestreams.mjs");
   await livestreamTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- service monitoring: templates, confirmations, secrets, doors (tests/smoke/service-monitoring.mjs; reaches no real service) ----
+  const { serviceMonitoringTests } = await import("./service-monitoring.mjs");
+  await serviceMonitoringTests({ test, assert, fetchWithCookies, jar });
+
   // ---- device pictures: infra hosts and UniFi devices choose a device profile (tests/smoke/device-pictures.mjs) ----
   const { devicePictureTests } = await import("./device-pictures.mjs");
   await devicePictureTests({ test, assert, fetchWithCookies, jar });

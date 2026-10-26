@@ -22,6 +22,7 @@ import { useModal } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
 import { RunbookCard } from "@/components/runbook-link";
 import { DevicePictureCard } from "@/components/device-picture";
+import { ServicesSection } from "../services/services-section";
 
 const RANGES: { key: string; label: string; ms: number }[] = [
   { key: "1h", label: "1h", ms: 3_600_000 },
@@ -551,6 +552,8 @@ export function InfraDetailClient({
           }
         />
       ) : null}
+
+      <ServicesSection targetId={target.id} canWrite={canWrite} />
 
       {/* Incidents */}
       <section className="rounded-md border border-slate-300 p-4 dark:border-slate-800">

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { io, type Socket } from "socket.io-client";
-import { Bell, KeySquare, LayoutTemplate, LogOut, Moon, Radio, Sun, User as UserIcon, ChevronDown } from "lucide-react";
+import { Bell, Bot, KeySquare, LayoutTemplate, LogOut, Moon, Radio, Sun, User as UserIcon, ChevronDown } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { ASSISTANT_OPEN_EVENT } from "./command-palette";
 
 /**
  * Username-triggered dropdown holding the four things that used to live
@@ -14,7 +15,7 @@ import { signOut } from "next-auth/react";
  * on the trigger so users keep an at-a-glance signal without a dedicated
  * bell icon.
  */
-export function UserMenu({ email }: { email: string }) {
+export function UserMenu({ email, assistant = false }: { email: string; assistant?: boolean }) {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -174,6 +175,22 @@ export function UserMenu({ email }: { email: string }) {
             <KeySquare className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
             <span>API tokens</span>
           </Link>
+
+          {assistant ? (
+            // Opens the assistant's slide-over on this page (components/assistant-panel.tsx).
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(new CustomEvent(ASSISTANT_OPEN_EVENT, { detail: { question: "" } }));
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <Bot className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
+              <span>Ask the assistant</span>
+            </button>
+          ) : null}
 
           <Link
             role="menuitem"

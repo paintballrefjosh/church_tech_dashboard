@@ -6,7 +6,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Named zz- so it runs after auth.spec.ts has changed the test user's password (like the other specs, it signs in with the
+// Named zz- so it runs after 00-auth.spec.ts has changed the test user's password (like the other specs, it signs in with the
 // changed one first). Two parts:
 //  1. An axe-core sweep over every screen a person can reach (and the menus and dialogs that open on them), in the light and
 //     the dark scheme, on a desktop and a phone-sized window. axe finds contrast, names, roles, landmarks, duplicate ids and
@@ -43,12 +43,12 @@ const ROUTES = [
   "/", "/activity", "/notifications", "/notes", "/tickets", "/tickets/new", "/tickets/canned-replies",
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
   "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/device-profiles", "/status",
-  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/reports/monthly", "/assistant", "/assets", "/assets/import", "/rooms", "/livestreams",
+  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/infra/service-templates", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/reports/monthly", "/assistant", "/assets", "/assets/import", "/rooms", "/livestreams",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
   "/me", "/me/security", "/me/api-tokens",
   "/admin", "/admin/users", "/admin/groups", "/admin/permissions", "/admin/tags", "/admin/ticket-categories", "/admin/api-tokens",
-  "/admin/audit", "/admin/backups", "/admin/cluster", "/admin/security", "/admin/settings", "/admin/planning-center",
+  "/admin/audit", "/admin/backups", "/admin/cluster", "/admin/security", "/admin/assistant", "/admin/settings", "/admin/planning-center",
   "/admin/checklists", "/admin/checklists/stations", "/admin/checklists/services", "/admin/checklists/reports",
 ];
 

@@ -28,7 +28,40 @@ export const ASSISTANT_KEYS = {
 } as const;
 
 /** Where the API keeps what the admin's actions recorded (job_state, not settings: never typed by hand). */
-export const ASSISTANT_STATE = { job: "assistant", lastTest: "last-test", privacy: "privacy" } as const;
+export const ASSISTANT_STATE = { job: "assistant", lastTest: "last-test", privacy: "privacy", watch: "watch" } as const;
+
+/** What the `assistant-watch` job remembers between runs (and across a handover to another node). */
+export interface AssistantWatchState {
+  /** YYYY-MM of `budgetLevel`: a new month starts again from 0. */
+  month: string;
+  /** The highest budget notice sent this month: 0, 80 or 100. */
+  budgetLevel: number;
+  providerDown: boolean;
+}
+
+/** Which budget notice this month's spending has reached: 0, 80 or 100 (no budget = 0). */
+export function assistantBudgetLevel(spent: number, budget: number): number {
+  if (!(budget > 0)) return 0;
+  if (spent >= budget) return 100;
+  if (spent >= budget * 0.8) return 80;
+  return 0;
+}
+
+/** Errors that mean the provider, not the question, is the problem. */
+const PROVIDER_ERROR_KINDS = new Set(["unauthorised", "model_not_found", "timeout", "unreachable", "bad_response", "rate_limited"]);
+
+/**
+ * From the newest answers first (the last half hour): true when the newest three all failed on the provider, false when
+ * the newest answered, null when there is too little to tell (keep what was decided before).
+ */
+export function assistantProviderDown(newestFirst: Array<{ outcome: string; errorKind: string | null }>): boolean | null {
+  if (!newestFirst.length) return null;
+  const head = newestFirst[0]!;
+  if (head.outcome === "ok" || head.outcome === "partial") return false;
+  const last3 = newestFirst.slice(0, 3);
+  if (last3.length === 3 && last3.every((a) => a.outcome === "error" && a.errorKind !== null && PROVIDER_ERROR_KINDS.has(a.errorKind))) return true;
+  return null;
+}
 
 /** The prompt's version, stored with every answer so a change in quality can be traced to a change in the prompt. */
 export const ASSISTANT_PROMPT_VERSION = 1;

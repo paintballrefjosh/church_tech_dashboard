@@ -1,0 +1,23 @@
+{
+  "response": {
+    "stats": {
+      "totalQueries": 12000,
+      "totalNoError": 11000,
+      "totalServerFailure": 840,
+      "totalNxDomain": 150,
+      "totalRefused": 10,
+      "totalAuthoritative": 3000,
+      "totalRecursive": 4000,
+      "totalCached": 4100,
+      "totalBlocked": 900,
+      "totalDropped": 0,
+      "totalClients": 57,
+      "zones": 12,
+      "cachedEntries": 8100,
+      "allowedZones": 0,
+      "blockedZones": 1500
+    },
+    "mainChartData": { "labels": [], "datasets": [] }
+  },
+  "status": "ok"
+}

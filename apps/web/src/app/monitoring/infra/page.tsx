@@ -33,6 +33,12 @@ export default async function InfraPage() {
           </p>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Link
+              href="/monitoring/infra/service-templates"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              Service templates
+            </Link>
+            <Link
               href="/monitoring/infra/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
             >

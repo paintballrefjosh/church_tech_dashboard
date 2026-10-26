@@ -16,7 +16,22 @@ import {
   probeHyperdeck,
   probePjlink,
   probeShure,
+  judgeSennheiser,
+  parseHttpResponse,
+  judgeVmix,
+  parseVmixXml,
+  probeSennheiser,
+  probeVmix,
+  sennheiserChannelsFromSsc1,
+  sscMerge,
+  sscQuestions,
 } from "../../../services/monitor/src/av-probes";
+import { createSocket } from "node:dgram";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { createServer as createHttpsServer } from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const servers: Array<{ close: () => void }> = [];
 afterEach(() => servers.splice(0).forEach((s) => s.close()));
@@ -171,4 +186,174 @@ describe("probes against fake devices", () => {
     ended = true;
     expect(await probeHls({ target: url, options: {} })).toMatchObject({ ok: false, info: expect.stringMatching(/ended/) });
   }, 20_000);
+});
+
+// The example from vMix's own Developer API page (help29), plus the audio element newer versions add.
+const VMIX_XML = `<vmix>
+<version>27.0.0.49</version>
+<edition>4K</edition>
+<inputs>
+<input key="26cae087" number="1" type="Capture" title="Camera 1 &amp; wide" state="Running" position="0" duration="0" muted="True" loop="False">Camera 1</input>
+<input key="55cbe357" number="2" type="VirtualSet" title="LateNightNews" state="Paused" position="0" duration="0" muted="True" loop="False" selectedIndex="0">LateNightNews
+<overlay index="0" key="2fe8ff9d"/>
+</input>
+</inputs>
+<overlays><overlay number="1"/><overlay number="2">1</overlay></overlays>
+<preview>2</preview>
+<active>1</active>
+<fadeToBlack>False</fadeToBlack>
+<transitions><transition number="1" effect="Fade" duration="500"/></transitions>
+<recording>False</recording>
+<external>False</external>
+<streaming channel1="True" channel2="False">True</streaming>
+<playList>False</playList>
+<multiCorder>False</multiCorder>
+<audio><master volume="100" muted="False" meterF1="0.5" meterF2="0.5" headphonesVolume="74"/></audio>
+</vmix>`;
+
+describe("vMix", () => {
+  it("reads its state XML", () => {
+    const s = parseVmixXml(VMIX_XML);
+    expect(s).toMatchObject({ version: "27.0.0.49", streaming: true, recording: false, active: 1, preview: 2, activeTitle: "Camera 1 & wide", inputs: 2, masterMuted: false, masterVolume: 100 });
+    expect(judgeVmix(s, { expectStreaming: true })).toEqual({ ok: true, info: "streaming, not recording, program: Camera 1 & wide" });
+    expect(judgeVmix(s, { expectRecording: true }).ok).toBe(false);
+    const muted = parseVmixXml(VMIX_XML.replace('muted="False" meterF1', 'muted="True" meterF1'));
+    expect(judgeVmix(muted, { expectSound: true })).toMatchObject({ ok: false, info: expect.stringMatching(/^master muted/) });
+    expect(() => parseVmixXml("<html>login</html>")).toThrow(/not a vMix/);
+  });
+
+  it("asks only GET /api/, with the password when one is set", async () => {
+    const seen: string[] = [];
+    const server = createHttpServer((req, res) => {
+      seen.push(`${req.method} ${req.url} ${req.headers.authorization ?? "-"}`);
+      if (req.headers.authorization !== `Basic ${Buffer.from("ops:pw").toString("base64")}`) {
+        res.statusCode = 401;
+        return res.end();
+      }
+      res.end(VMIX_XML);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    servers.push(server);
+    const port = (server.address() as AddressInfo).port;
+    // A target with a path or a query is cut back to host and port: nothing but the state can be asked for.
+    const target = `127.0.0.1:${port}/api/?Function=StartStreaming`;
+    expect(await probeVmix({ target, options: { username: "ops", password: "pw", expectStreaming: true } })).toMatchObject({ ok: true });
+    expect((await probeVmix({ target, options: {} })).info).toMatch(/needs a user name/);
+    expect((await probeVmix({ target, options: { username: "ops", password: "no" } })).info).toMatch(/refused/);
+    expect(seen.every((l) => l.startsWith("GET /api/ "))).toBe(true);
+  });
+});
+
+describe("Sennheiser EW-DX", () => {
+  it("SSCv1: merges answers, ignores error replies, and judges batteries", () => {
+    const tree: Record<string, unknown> = {};
+    sscMerge(tree, { device: { identity: { product: "EWDX2CHS" } } });
+    sscMerge(tree, { rx1: { name: "PASTOR" } });
+    sscMerge(tree, { mates: { tx1: { battery: { gauge: 15 } } } });
+    sscMerge(tree, { mates: { tx1: { battery: { lifetime: 95 } } } });
+    sscMerge(tree, { rx2: { warnings: ["NoLink"] } });
+    sscMerge(tree, { osc: { error: [{ mates: { tx2: { battery: { gauge: [424] } } } }] } });
+    const chans = sennheiserChannelsFromSsc1(tree, 2);
+    expect(chans[0]).toMatchObject({ n: 1, name: "PASTOR", present: true, gauge: 15, lifetimeMin: 95 });
+    expect(chans[1]).toMatchObject({ n: 2, present: false });
+    expect(judgeSennheiser("EWDX2CHS", chans, { minPercent: 20 })).toEqual({ ok: false, info: "battery low on ch1 PASTOR (EWDX2CHS: ch1 PASTOR 15% (1h 35m), ch2 no transmitter)" });
+    expect(judgeSennheiser(null, chans, { minPercent: 10 }).ok).toBe(true);
+    // Every question reads (null values only): nothing here can change the receiver.
+    for (const q of sscQuestions(4)) expect(JSON.stringify(JSON.parse(q))).toMatch(/null/);
+    expect(JSON.stringify(sscQuestions(4).map((q) => JSON.parse(q)))).not.toMatch(/true|false|"[A-Za-z ]+"\s*[,}]/);
+  });
+
+  it("reads a chunked HTTP answer", () => {
+    const raw = Buffer.from('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{"gauge\r\n5\r\n":55}\r\n0\r\n\r\n');
+    expect(parseHttpResponse(raw)).toEqual({ status: 200, body: '{"gauge":55}' });
+    expect(() => parseHttpResponse(Buffer.from("garbage"))).toThrow();
+  });
+
+  it("SSCv1: against a fake receiver on UDP", async () => {
+    const values: Record<string, unknown> = {
+      "device.identity.product": "EWDX2CHS",
+      "rx1.name": "LECTERN",
+      "rx1.warnings": [],
+      "mates.tx1.battery.gauge": 80,
+      "mates.tx1.battery.lifetime": 312,
+      "mates.tx1.warnings": [],
+      "rx2.name": "HANDHELD",
+      "rx2.warnings": ["LowSignal"],
+      "mates.tx2.battery.gauge": 40,
+      "mates.tx2.battery.lifetime": 120,
+      "mates.tx2.warnings": ["LowBattery"],
+    };
+    const leaf = (o: Record<string, unknown>, path: string[] = []): string[] =>
+      Object.entries(o).flatMap(([k, v]) => (v && typeof v === "object" && !Array.isArray(v) ? leaf(v as Record<string, unknown>, [...path, k]) : [[...path, k].join(".")]));
+    const sock = createSocket("udp4");
+    sock.on("message", (msg, rinfo) => {
+      const q = JSON.parse(msg.toString()) as Record<string, unknown>;
+      const [path] = leaf(q);
+      const parts = path!.split(".");
+      const build = (v: unknown) => parts.reduceRight<unknown>((acc, k) => ({ [k]: acc }), v);
+      const reply = path! in values ? build(values[path!]) : { osc: { error: [build([424])] } };
+      sock.send(JSON.stringify(reply), rinfo.port, rinfo.address);
+    });
+    await new Promise<void>((r) => sock.bind(0, "127.0.0.1", r));
+    servers.push({ close: () => sock.close() });
+    const target = `127.0.0.1:${sock.address().port}`;
+    const r = await probeSennheiser({ target, options: { channels: 2 } });
+    expect(r).toMatchObject({ ok: false, info: expect.stringMatching(/^battery low on ch2 HANDHELD/) });
+    expect(r.info).toContain("ch1 LECTERN 80% (5h 12m)");
+    expect(r.info).toContain("[LowSignal, LowBattery]");
+    values["mates.tx2.warnings"] = [];
+    expect((await probeSennheiser({ target, options: { channels: 2 } })).ok).toBe(true);
+    expect((await probeSennheiser({ target, options: { channels: 2, failOnRf: true } })).info).toMatch(/^radio problem on ch2/);
+    // A receiver with access off never answers.
+    const silent = createSocket("udp4");
+    await new Promise<void>((r) => silent.bind(0, "127.0.0.1", r));
+    servers.push({ close: () => silent.close() });
+    expect((await probeSennheiser({ target: `127.0.0.1:${silent.address().port}`, options: { timeoutMs: 500 } })).info).toMatch(/no answer on UDP 45/);
+  });
+
+  const haveOpenssl = () => {
+    try {
+      execFileSync("openssl", ["version"], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it.skipIf(!haveOpenssl())("SSCv2: HTTPS with the api password, and a pinned certificate", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ssc2-"));
+    execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(dir, "k.pem"), "-out", join(dir, "c.pem"), "-days", "2", "-subj", "/CN=ewdx"], { stdio: "ignore" });
+    const auth = `Basic ${Buffer.from("api:secret").toString("base64")}`;
+    const seen: string[] = [];
+    const server = createHttpsServer({ key: readFileSync(join(dir, "k.pem")), cert: readFileSync(join(dir, "c.pem")) }, (req, res) => {
+      seen.push(`${req.method} ${req.url}`);
+      const json = (status: number, body: unknown) => {
+        res.statusCode = status;
+        res.setHeader("content-type", "application/json");
+        res.end(body === null ? "" : JSON.stringify(body));
+      };
+      if (req.url === "/api/device/identity") return json(200, { product: "EWDX4CHDS", serial: "1" });
+      if (req.headers.authorization !== auth) return json(401, null);
+      const m = /^\/api\/(channel|transmitters)\/(\d)(\/\w+)?$/.exec(req.url ?? "");
+      if (!m) return json(404, null);
+      const ch = Number(m[2]);
+      if (m[1] === "channel" && !m[3]) return json(200, { name: `MIC ${ch + 1}`, mute: false });
+      if (m[3] === "/warnings") return json(200, ch === 1 ? ["NoLink"] : []);
+      if (m[3] === "/battery") return ch === 1 ? json(422, null) : json(200, { gauge: 55, lifetime: 200, type: "Battery" });
+      return json(404, null);
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    servers.push(server);
+    const target = `127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const r = await probeSennheiser({ target, options: { protocol: "ssc2", channels: 2, password: "secret" } });
+    expect(r).toMatchObject({ ok: true, info: expect.stringMatching(/^EWDX4CHDS: ch1 MIC 1 55% \(3h 20m\), ch2 MIC 2 no transmitter; certificate [0-9A-F:]+$/) });
+    expect(seen.every((l) => l.startsWith("GET "))).toBe(true);
+    const fp = /certificate (\S+)$/.exec(r.info)![1]!;
+    expect((await probeSennheiser({ target, options: { protocol: "ssc2", channels: 1, password: "secret", fingerprint: fp } })).info).not.toMatch(/certificate/);
+    // A different certificate is refused before the password is sent.
+    const before = seen.length;
+    expect((await probeSennheiser({ target, options: { protocol: "ssc2", channels: 1, password: "secret", fingerprint: "AA:BB" } })).info).toMatch(/certificate changed/);
+    expect(seen.length).toBe(before);
+    expect((await probeSennheiser({ target, options: { protocol: "ssc2", channels: 1, password: "wrong" } })).info).toMatch(/refused the API password/);
+  });
 });

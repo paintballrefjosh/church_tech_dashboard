@@ -22,6 +22,7 @@ export const SEARCH_KINDS: SearchKind[] = [
   "cisco_vlan",
   "ipam_subnet",
   "ipam_host",
+  "service_instance",
   "dns_record",
   "asset",
 ];

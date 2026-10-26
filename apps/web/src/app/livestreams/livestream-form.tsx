@@ -24,7 +24,7 @@ const STATUS_EVERY = [30, 60, 120, 300, 600];
 const SAMPLE_EVERY = [60, 120, 300, 600, 900, 1800, 3600];
 const SAMPLE_FOR = [5, 10, 15, 20, 30];
 /** Monitor kinds that are an encoder or a switcher, listed first in the encoder picker. */
-const ENCODER_KINDS = ["atem", "obs", "hyperdeck", "hls"];
+const ENCODER_KINDS = ["atem", "obs", "vmix", "hyperdeck", "hls"];
 
 const every = (s: number) => (s < 60 ? `${s} seconds` : s < 3600 ? `${s / 60} minute${s === 60 ? "" : "s"}` : "hour");
 

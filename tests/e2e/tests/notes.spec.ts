@@ -18,7 +18,7 @@ async function signInAsTestUser(page: Page) {
       timeout: 15_000,
     });
   }
-  // Try the post-change-password value first, since auth.spec.ts runs first
+  // Try the post-change-password value first, since 00-auth.spec.ts runs first
   // and changes the password as part of its flow.
   await attempt(TEST_NEW_PASSWORD);
   if (page.url().includes("/signin")) {

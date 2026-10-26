@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Req, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req, Res } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { PERMISSIONS, siteToday } from "@church/shared";
@@ -10,6 +10,14 @@ import { NotificationDeliveryService } from "../notifications/notification-deliv
 import { AssistantService, type AssistantEvent } from "./assistant.service";
 
 const chatBody = z.object({ conversationId: z.string().uuid().optional(), question: z.string().trim().min(1).max(4000) }).strict();
+const feedbackBody = z.object({ rating: z.union([z.literal(1), z.literal(-1)]), comment: z.string().trim().max(1000).default("") }).strict();
+const decideBody = z.object({ status: z.enum(["done", "dismissed"]), resultUrl: z.string().max(500).nullable().default(null) }).strict();
+
+function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
+  const parsed = schema.safeParse(body ?? {});
+  if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+  return parsed.data;
+}
 
 /**
  * The assistant (docs/assistant.md). Session only throughout: an API token cannot spend the budget, and the lookups run
@@ -27,7 +35,8 @@ export class AssistantController {
   @Get("status")
   async status(@CurrentUser() user: AuthenticatedUser) {
     const c = await this.assistant.config();
-    return { enabled: c.enabled, canUse: user.permissions.includes(PERMISSIONS.ASSISTANT_USE) };
+    // `health` says only whether it works (no figures), for the chat page and the Services banner.
+    return { enabled: c.enabled, canUse: user.permissions.includes(PERMISSIONS.ASSISTANT_USE), health: c.enabled ? await this.assistant.health() : null };
   }
 
   /**
@@ -83,6 +92,27 @@ export class AssistantController {
   async deleteConversation(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
     await this.assistant.deleteConversation(user, id);
     return { ok: true };
+  }
+
+  /** Thumbs up or down on one of your own answers. The comment stays with the conversation; the audit row has the rating only. */
+  @Post("messages/:id/feedback")
+  @RequirePermissions(PERMISSIONS.ASSISTANT_USE)
+  @Audited({ action: "assistant.feedback", resourceType: "assistant_message", resourceIdFromParams: (p) => p.id ?? null, redactKeys: ["comment"] })
+  feedback(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const b = parse(feedbackBody, body);
+    return this.assistant.feedback(user, id, b.rating, b.comment);
+  }
+
+  /**
+   * Records the decision on a proposed action. It never acts: on Confirm the page has already called the action's own
+   * route as the person (audited there); this keeps the conversation truthful about what happened.
+   */
+  @Patch("messages/:id/actions/:actionId")
+  @RequirePermissions(PERMISSIONS.ASSISTANT_USE)
+  @Audited({ action: "assistant.action.decide", resourceType: "assistant_message", resourceIdFromParams: (p) => p.id ?? null })
+  decide(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string, @Param("actionId", ParseUUIDPipe) actionId: string, @Body() body: unknown) {
+    const b = parse(decideBody, body);
+    return this.assistant.decideAction(user, id, actionId, b.status, b.resultUrl);
   }
 
   // ---- site administration ----

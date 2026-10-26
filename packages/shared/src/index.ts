@@ -53,3 +53,5 @@ export * from "./alert-channels";
 export * from "./monitor-schedule";
 export * from "./monthly-report";
 export * from "./assistant";
+export * from "./assistant-actions";
+export * from "./service-monitoring";

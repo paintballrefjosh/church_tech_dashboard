@@ -1,0 +1,106 @@
+# Captured 2026-10-26 from the dev stack's CockroachDB v24.2.0 node (GET /_status/vars), cut down to the metrics the
+# built-in template reads plus surrounding lines of other kinds, so the parser meets real HELP/TYPE lines and labels.
+# HELP sql_guardrails_transaction_rows_read_log_count_internal Number of transactions logged because of transaction_rows_read_log guardrail (internal queries)
+# TYPE sql_guardrails_transaction_rows_read_log_count_internal counter
+sql_guardrails_transaction_rows_read_log_count_internal{node_id="1"} 0
+# HELP sql_mem_internal_session_prepared_current Current sql session memory usage by prepared statements for internal
+# TYPE sql_mem_internal_session_prepared_current gauge
+sql_mem_internal_session_prepared_current{node_id="1"} 0
+# HELP admission_requested_kv Number of requests
+# TYPE admission_requested_kv counter
+admission_requested_kv{node_id="1"} 6.23886e+07
+# HELP jobs_auto_span_config_reconciliation_fail_or_cancel_retry_error Number of auto_span_config_reconciliation jobs which failed with a retriable error on their failure or cancelation process
+# TYPE jobs_auto_span_config_reconciliation_fail_or_cancel_retry_error counter
+jobs_auto_span_config_reconciliation_fail_or_cancel_retry_error{node_id="1"} 0
+# HELP distsender_rpc_err_proxyfailederrtype Number of ProxyFailedErrType errors received replica-bound RPCs\n\nThis counts how often error of the specified type was received back from replicas\nas part of executing possibly range-spanning requests. Failures to reach the target\nreplica will be accounted for as 'roachpb.CommunicationErrType' and unclassified\nerrors as 'roachpb.InternalErrType'.\n
+# TYPE distsender_rpc_err_proxyfailederrtype counter
+distsender_rpc_err_proxyfailederrtype{node_id="1"} 0
+# HELP changefeed_buffer_entries_kv Number of kv elements added to the buffer
+# TYPE changefeed_buffer_entries_kv counter
+changefeed_buffer_entries_kv{node_id="1"} 0
+# HELP admission_wait_durations_kv_stores_normal_pri Wait time durations for requests that waited
+# TYPE admission_wait_durations_kv_stores_normal_pri histogram
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="10000"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="12638.482029342978"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="15973.122800602541"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="20187.602546790382"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="25514.065200312878"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="32245.90545296394"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="40753.92965871775"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="51506.78076168121"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="65096.75230458167"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="82272.41341700466"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="103979.84184814895"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="131414.73626117557"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="166088.27826277143"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="209910.3720108553"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="265294.8464431894"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="335292.41492495546"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="423758.7160604059"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="535566.6917706894"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="676875.0009458527"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="855467.2535565672"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.0811807510766068e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.3664483492953242e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.7269832906594332e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="2.182644728397485e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="2.7585316176291797e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="3.4863652276780806e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="4.406236427773566e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="5.568813990945262e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="7.038135554931545e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="8.89513497310822e+06"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.1242100350620849e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.4208308325339198e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="1.795714494371637e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="2.269510536694665e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="2.868316813342006e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="3.625117049988527e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="4.581597669054482e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="5.790443980602476e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="7.318242219076161e+07"} 1.8854477e+07
+admission_wait_durations_kv_stores_normal_pri_bucket{node_id="1",le="9.249147277217315e+07"} 1.8854477e+07
+# HELP ranges_unavailable Number of ranges with fewer live replicas than needed for quorum
+# TYPE ranges_unavailable gauge
+ranges_unavailable{store="1",node_id="1"} 0
+# HELP liveness_livenodes Number of live nodes in the cluster (will be 0 if this node is not itself live)
+# TYPE liveness_livenodes gauge
+liveness_livenodes{node_id="1"} 1
+# HELP capacity Total storage capacity
+# TYPE capacity gauge
+capacity{store="1",node_id="1"} 3.4403459792896e+13
+# HELP sql_query_count Number of SQL queries executed
+# TYPE sql_query_count counter
+sql_query_count{node_id="1"} 1.5977247e+07
+# HELP sys_cpu_combined_percent_normalized Current user+system cpu percentage consumed by the CRDB process, normalized 0-1 by number of cores
+# TYPE sys_cpu_combined_percent_normalized gauge
+sys_cpu_combined_percent_normalized{node_id="1"} 0.06822011472975115
+# HELP clock_offset_meannanos Mean clock offset with other nodes
+# TYPE clock_offset_meannanos gauge
+clock_offset_meannanos{node_id="1"} 24600
+# HELP capacity_available Available storage capacity
+# TYPE capacity_available gauge
+capacity_available{store="1",node_id="1"} 3.953296146432e+12
+# HELP sql_conns Number of open SQL connections
+# TYPE sql_conns gauge
+sql_conns{node_id="1"} 11
+# HELP sql_failure_count Number of statements resulting in a planning or runtime error
+# TYPE sql_failure_count counter
+sql_failure_count{node_id="1"} 1240
+# HELP ranges_underreplicated Number of ranges with fewer live replicas than the replication target
+# TYPE ranges_underreplicated gauge
+ranges_underreplicated{store="1",node_id="1"} 0
+# HELP capacity_used Used storage capacity
+# TYPE capacity_used gauge
+capacity_used{store="1",node_id="1"} 2.701952399e+09
+# HELP liveness_heartbeatfailures Number of failed node liveness heartbeats from this node
+# TYPE liveness_heartbeatfailures counter
+liveness_heartbeatfailures{node_id="1"} 1
+# HELP sys_uptime Process uptime
+# TYPE sys_uptime counter
+sys_uptime{node_id="1"} 887039
+sql_service_latency_bucket{node_id="1",le="10000"} 0
+sql_service_latency_bucket{node_id="1",le="12638.482029342978"} 0
+sql_service_latency_bucket{node_id="1",le="15973.122800602541"} 0
+sql_service_latency_bucket{node_id="1",le="20187.602546790382"} 0
+sql_service_latency_bucket{node_id="1",le="25514.065200312878"} 0

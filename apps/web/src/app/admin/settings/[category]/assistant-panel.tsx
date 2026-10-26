@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import type { AssistantLastTest, AssistantPrivacyAck, ReadinessItem } from "@church/shared";
@@ -130,7 +131,10 @@ export function AssistantPanel() {
       {usage ? (
         <p className="text-slate-700 dark:text-slate-300">
           This month ({usage.month}): {usage.questions} question{usage.questions === 1 ? "" : "s"}, cost {usage.cost.toFixed(2)}
-          {usage.days.reduce((s, d) => s + d.errors, 0) ? `, ${usage.days.reduce((s, d) => s + d.errors, 0)} failed` : ""}.
+          {usage.days.reduce((s, d) => s + d.errors, 0) ? `, ${usage.days.reduce((s, d) => s + d.errors, 0)} failed` : ""}.{" "}
+          <Link href="/admin/assistant" className="text-brand-600 underline dark:text-brand-400">
+            Usage in detail
+          </Link>
         </p>
       ) : null}
     </section>

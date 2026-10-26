@@ -71,6 +71,16 @@ gets an in-app + email notification; recovery resolves it. v1 evaluates
 target-level scalars (`cpuPct`, `memPct`, `diskPctMax`) and dotted metric paths
 (e.g. `load.one`).
 
+## Services on a host
+
+Beyond the host's own CPU, memory and disks, a host page has a **Services** section: a service (HAProxy, a database, Kea,
+Technitium, Apache, keepalived, or anything with a Prometheus/JSON endpoint, a systemd unit or a SQL query) watched through a
+**template** that says how to read it, which numbers to keep and when to alert. **Add service** offers the templates (and
+"What runs on this host?", which looks at the host's systemd units over SSH and suggests matching ones), asks for the
+template's inputs, and has a **Test** button that runs it once and shows what the host answered. A failing check opens an
+alert on the host like a threshold rule. Templates and the shared logins (a read-only database user, say) are under
+**Service templates**. Design, rules and what was verified: [service-monitoring.md](service-monitoring.md).
+
 ## Retention
 
 Raw samples are kept 7 days (CockroachDB row-level TTL). The collector rolls raw

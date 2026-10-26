@@ -28,7 +28,7 @@ import {
   alertOutbox,
 } from "./schema";
 import { probeHttp, probeTcp, probeIcmp, probeDns, probeTls, type ProbeResult } from "./probes";
-import { probeHls, probeHyperdeck, probePjlink, probeShure, probeObs, probeAtem } from "./av-probes";
+import { probeHls, probeHyperdeck, probePjlink, probeShure, probeObs, probeAtem, probeSennheiser, probeVmix } from "./av-probes";
 
 const POLL_MS = parseInt(process.env.MONITOR_POLL_MS ?? "5000", 10);
 const PRUNE_KEEP_DAYS = parseInt(process.env.MONITOR_PRUNE_DAYS ?? "30", 10);
@@ -76,6 +76,10 @@ async function runProbe(kind: string, target: string, options: Record<string, un
       return probeObs({ target, options });
     case "atem":
       return probeAtem({ target, options });
+    case "vmix":
+      return probeVmix({ target, options });
+    case "sennheiser":
+      return probeSennheiser({ target, options });
     default:
       return { ok: false, latencyMs: 0, info: `unknown kind '${kind}'` };
   }

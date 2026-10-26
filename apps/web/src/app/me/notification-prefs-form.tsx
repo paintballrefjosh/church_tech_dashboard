@@ -104,6 +104,14 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Livestream problem",
     hint: "A stream whose alerts go to one of your groups is not live when it should be, or has no sound or picture (and when it is back).",
   },
+  "assistant.budget": {
+    title: "Assistant budget",
+    hint: "The assistant has spent 80% of this month's budget, or all of it. (Admins only.)",
+  },
+  "assistant.provider_down": {
+    title: "Assistant model not answering",
+    hint: "The assistant's answers keep failing on its model or provider (and when it answers again). (Admins only.)",
+  },
 };
 
 interface Pref {

@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Runs after auth.spec.ts has changed the test user's default password. The monitor made here points at a closed port on
+// Runs after 00-auth.spec.ts has changed the test user's default password. The monitor made here points at a closed port on
 // the probe worker's own host and is deleted at the end, whatever happens.
 test.describe.configure({ mode: "serial" });
 

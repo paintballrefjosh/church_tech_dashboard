@@ -1,15 +1,31 @@
 # Assistant (chatbot): design
 
-Status: **phase 1 built (2026-10-25)**; designed 2026-10-10. Built: both providers, the readiness checklist and its
-enforcement, Test connection, the privacy notice, limits and budget, read-only lookups through the MCP catalogue's read tools
-acting as the person, the `/assistant` chat page with history, retention and usage figures. Not built: everything from phase 2
-on (section 15): the evaluation set, feedback, the slide-over panel, budget notifications, the platform status card and
-proposed actions. The rules as built are in CLAUDE.md "## Assistant".
+Status: **phases 1-3 built** (phase 1 2026-10-25, phases 2 and 3 2026-10-26); designed 2026-10-10. The rules as built are
+in CLAUDE.md "## Assistant"; section 0 below says what phases 2 and 3 added and what is still not built.
 
 A single place in the dashboard where a signed-in user asks a question in plain English and gets an answer built from
 what the site knows: wiki pages, tickets, and the live data the pollers collect from switches, hosts, services and the
 rest. Examples: "how many VLANs do we have?", "what do I need to do to reset the sound board?", "which of my tickets are
 still open?", "is anything down right now?", "what is the IP of the main switch in the office?".
+
+## 0. Phases 2 and 3 as built (2026-10-26)
+
+| Part | As built |
+|---|---|
+| Catalogue breadth | Already complete in phase 1: the assistant is given every READ tool of the MCP catalogue (`BRIDGE_TOOLS`) the person's permissions allow, minus `assistantMayUseRoute`'s deny list, so IPAM, DNS, UniFi, printers, checklists, equipment, cabinets, renewals and the rest came with it. No `query` views were added: nothing in the evaluation needs one yet. |
+| Proposed actions | One model tool, `propose_action` (`packages/shared/src/assistant-actions.ts`), offered only for the kinds the person's permissions allow (`assistantActionsFor`): `create_ticket` (`tickets:write:own`), `acknowledge_incident` and `pause_alerts` (`monitors:write:any`), `wiki_draft` (`wiki:create`). It RECORDS a proposal (`assistant_messages.actions`) and changes nothing; at most 3 per answer. The card shows `proposalHeadline` and exactly what will be sent; text fields are editable; Confirm makes the normal route call (`proposalRequest`) from the browser as the person, so permissions, audit and read-your-writes are those of the route; then `PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed once (`proposalTransitionProblem`), with the result as a site path only. An incident's description on the card is read from the database by the server, never taken from the model. A wiki draft is a page readable by its author only (visibility `group`, no groups). Pausing is always 1-24 hours, never open-ended. |
+| Feedback | Thumbs up/down with an optional comment on one's own answers (`POST /assistant/messages/:id/feedback`, audited without the comment). |
+| Figures | `assistant_answers` (migration 0086): one row per answer with no text and no person (outcome, error kind, timings, lookups, proposals, tokens, `answerSaysNotFound`, rating), kept 400 days apart from conversations, `skip` in the backup registry. The usage page `/admin/assistant` (`assistant:usage` or site admin) draws them with the month's cost against the budget. |
+| Notifications | Job `assistant-watch` (5 min, state in `job_state` `assistant/watch`): `assistant.budget` to the admin group at 80% and 100% of the month's budget (once each per month), `assistant.provider_down` when the newest three answers failed on the provider (`assistantProviderDown`) and again on recovery. Not silenced by maintenance mode. |
+| Health | `/assistant/status` returns `health` (`ok` / `failing` / `budget_used`); `/health/services` has an assistant card (only while it is on; degraded, never down). |
+| Panel and palette | The chat opens as a slide-over on any page (`components/assistant-panel.tsx`) from the user menu's "Ask the assistant" and from the command palette, which keeps that entry, last, while a question is typed and opens the panel with it as the question. No top-bar button: a third control wrapped the bar at 1280 px. |
+| Evaluation set | `tests/assistant/questions.yaml` (40 questions) and `scripts/assistant-eval.mjs`. The expected facts are read at run time from the normal API as the asking account, so it scores on any install; `--dry-run` reads only those references (free), `--yes` asks the model, `--out`/`--compare` show what a change fixed or broke. The deterministic "replay" mode of section 13 is the integration test's fake OpenAI-compatible server, not a recorded corpus. |
+
+**Not built:** embeddings / hybrid search for the wiki; recorded-response replay of the whole evaluation set; the
+permission-matrix and load tests of section 13; API-token access; other channels; admin review of other people's
+conversations. **Not verified:** no run against a real model (the stack's assistant has never been configured), so the
+evaluation set has no baseline score yet; the proposal card's browser side (edit, Confirm, the route call) has no test: only the server side is
+covered (integration test), and it was never clicked against a real answer.
 
 ## 1. Decisions already made
 

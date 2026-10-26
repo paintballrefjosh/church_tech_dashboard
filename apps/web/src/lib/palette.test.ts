@@ -40,6 +40,11 @@ describe("paletteCommands", () => {
     expect(ids(base({}, [], { monitoring: "admin" }))).not.toContain("go:users");
   });
 
+  it("offers asking the assistant only to people whose groups have it", () => {
+    expect(ids(base())).not.toContain("act:assistant-ask");
+    expect(ids(base({}, [], { assistant: "user" }))).toContain("act:assistant-ask");
+  });
+
   it("always offers the personal pages and actions", () => {
     const s = ids(base());
     for (const i of ["go:home", "go:notifications", "go:profile", "go:my-sessions", "act:theme", "act:copy-link", "act:read-all", "act:sign-out"]) expect(s).toContain(i);

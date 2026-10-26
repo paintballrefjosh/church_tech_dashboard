@@ -4,7 +4,7 @@ const TEST_USER = "regression-test@local";
 const TEST_DEFAULT_PASSWORD = "regression-default-pwd";
 const TEST_NEW_PASSWORD = "regression-changed-pwd-1";
 
-// Runs after auth.spec.ts has changed the test user's default password. The command palette's actions: what it lists is
+// Runs after 00-auth.spec.ts has changed the test user's default password. The command palette's actions: what it lists is
 // covered by apps/web/src/lib/palette.test.ts (who sees what); here the real routes are used. Everything made is deleted
 // and alert pausing is put back.
 test.describe.configure({ mode: "serial" });

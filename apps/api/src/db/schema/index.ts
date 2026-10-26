@@ -36,3 +36,4 @@ export * from "./renewals";
 export * from "./assistant";
 export * from "./assets";
 export * from "./livestreams";
+export * from "./service-monitoring";

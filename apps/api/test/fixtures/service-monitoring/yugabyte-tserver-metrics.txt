@@ -1,0 +1,50 @@
+# Captured 2026-10-26 from a throwaway YugabyteDB 2024.2.3.0 single node (tserver :9000/prometheus-metrics), cut down.
+# HELP threads_started_TabletServer threads_started_TabletServer metric in ThreadCategoryTracker
+# TYPE threads_started_TabletServer counter
+threads_started_TabletServer{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 9 1792988552188
+# HELP threads_running_iotp_universe_key_client threads_running_iotp_universe_key_client metric in ThreadCategoryTracker
+# TYPE threads_running_iotp_universe_key_client counter
+threads_running_iotp_universe_key_client{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 0 1792988552188
+# HELP threads_started_remote_bootstrap threads_started_remote_bootstrap metric in ThreadCategoryTracker
+# TYPE threads_started_remote_bootstrap counter
+threads_started_remote_bootstrap{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 1 1792988552188
+# HELP threads_running_remote_bootstrap threads_running_remote_bootstrap metric in ThreadCategoryTracker
+# TYPE threads_running_remote_bootstrap counter
+threads_running_remote_bootstrap{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 1 1792988552188
+# HELP threads_started_iotp_universe_key_client threads_started_iotp_universe_key_client metric in ThreadCategoryTracker
+# TYPE threads_started_iotp_universe_key_client counter
+threads_started_iotp_universe_key_client{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 4 1792988552188
+# HELP threads_running_universe_key_client_reactor threads_running_universe_key_client_reactor metric in ThreadCategoryTracker
+# TYPE threads_running_universe_key_client_reactor counter
+threads_running_universe_key_client_reactor{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 0 1792988552188
+# HELP mem_tracker_server_Metadata_cache Memory consumed by Metadata cache->server->root
+# TYPE mem_tracker_server_Metadata_cache gauge
+mem_tracker_server_Metadata_cache{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 0 1792988552188
+# HELP mem_tracker_server_LogCache Memory consumed by LogCache->server->root
+# TYPE mem_tracker_server_LogCache gauge
+mem_tracker_server_LogCache{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 0 1792988552188
+# HELP threads_started_apply threads_started_apply metric in ThreadCategoryTracker
+# TYPE threads_started_apply counter
+threads_started_apply{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 3 1792988552188
+# HELP threads_started_rocksdb:high threads_started_rocksdb:high metric in ThreadCategoryTracker
+# TYPE threads_started_rocksdb:high counter
+threads_started_rocksdb:high{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 4 1792988552188
+# HELP threads_running_rocksdb:high threads_running_rocksdb:high metric in ThreadCategoryTracker
+# TYPE threads_running_rocksdb:high counter
+threads_running_rocksdb:high{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 4 1792988552188
+# HELP threads_started_universe_key_client_reactor threads_started_universe_key_client_reactor metric in ThreadCategoryTracker
+# TYPE threads_started_universe_key_client_reactor counter
+threads_started_universe_key_client_reactor{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 4 1792988552188
+# HELP threads_running_long_operation_tracker threads_running_long_operation_tracker metric in ThreadCategoryTracker
+# TYPE threads_running_long_operation_tracker counter
+threads_running_long_operation_tracker{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 1 1792988552188
+# HELP threads_started_long_operation_tracker threads_started_long_operation_tracker metric in ThreadCategoryTracker
+rpc_connections_alive{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 16 1792988552188
+hybrid_clock_skew{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 0 1792988552188
+server_uptime_ms{exported_instance="12bb7420c956:9000",metric_type="server",metric_id="yb.tabletserver"} 1052 1792988552188
+leader_memory_pressure_rejections{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="YQL_TABLE_TYPE",namespace_name="system",table_name="metrics",table_id="989fff8af8134291a914a7cd28ccd27a"} 0 1792988552188
+leader_memory_pressure_rejections{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="TRANSACTION_STATUS_TABLE_TYPE",namespace_name="system",table_name="transactions",table_id="6f23defebca74e3193012f1a8b6c948d"} 0 1792988552188
+is_raft_leader{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="YQL_TABLE_TYPE",namespace_name="system",table_name="metrics",table_id="989fff8af8134291a914a7cd28ccd27a"} 1 1792988552188
+is_raft_leader{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="TRANSACTION_STATUS_TABLE_TYPE",namespace_name="system",table_name="transactions",table_id="6f23defebca74e3193012f1a8b6c948d"} 8 1792988552188
+follower_lag_ms{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="YQL_TABLE_TYPE",namespace_name="system",table_name="metrics",table_id="989fff8af8134291a914a7cd28ccd27a"} 0 1792988552188
+follower_lag_ms{exported_instance="12bb7420c956:9000",metric_type="tablet",table_type="TRANSACTION_STATUS_TABLE_TYPE",namespace_name="system",table_name="transactions",table_id="6f23defebca74e3193012f1a8b6c948d"} 0 1792988552188

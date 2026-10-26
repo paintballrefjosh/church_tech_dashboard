@@ -1,6 +1,6 @@
 "use client";
 
-import { Command } from "cmdk";
+import { Command, defaultFilter } from "cmdk";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -38,6 +38,14 @@ async function failure(r: Response): Promise<string> {
  *
  * Mounted once at the layout level; open state lives here. Search is debounced to avoid hammering Meili on every keystroke.
  */
+/** Opens the assistant's slide-over panel (components/assistant-panel.tsx); `detail.question` is asked at once when set. */
+export const ASSISTANT_OPEN_EVENT = "assistant:open";
+/** The `value` of the "Ask the assistant" entry: a typed question rarely matches it by letters, so it always scores a little. */
+const ASK_VALUE = "assistant-ask";
+const ASK_ID = "act:assistant-ask";
+const paletteFilter = (value: string, search: string, keywords?: string[]) =>
+  value === ASK_VALUE ? (search.trim() ? 0.0001 : 1) : (defaultFilter?.(value, search, keywords) ?? 0);
+
 export function CommandPalette({ access }: { access: Access }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -197,6 +205,12 @@ export function CommandPalette({ access }: { access: Access }) {
           router.refresh();
           return;
         }
+        case "assistant-ask": {
+          const question = q.trim();
+          close();
+          window.dispatchEvent(new CustomEvent(ASSISTANT_OPEN_EVENT, { detail: { question } }));
+          return;
+        }
         case "wiki-confirm": {
           const r = await send(`/api/v1/wiki/${c.arg}/review`, "POST");
           close();
@@ -221,6 +235,8 @@ export function CommandPalette({ access }: { access: Access }) {
   }
 
   const commands = paletteCommands({ user: me, pathname, alertsPaused, dark: resolvedTheme === "dark" });
+  const askCommand = commands.find((c) => c.id === ASK_ID);
+  const asking = q.trim() !== "";
 
   return (
     <>
@@ -234,6 +250,7 @@ export function CommandPalette({ access }: { access: Access }) {
             setOpen(true);
           }}
           label="Command palette"
+          filter={paletteFilter}
           className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-24"
         >
           <div className="absolute inset-0 bg-slate-900/40" onClick={close} aria-hidden />
@@ -300,7 +317,8 @@ export function CommandPalette({ access }: { access: Access }) {
                   ) : null}
 
                   {GROUP_ORDER.map((group) => {
-                    const items = commands.filter((c) => c.group === group);
+                    // While a question is typed the assistant entry moves to its own group at the end (see below).
+                    const items = commands.filter((c) => c.group === group && !(c.id === ASK_ID && asking));
                     if (items.length === 0) return null;
                     return (
                       <Command.Group key={group} heading={group}>
@@ -320,6 +338,22 @@ export function CommandPalette({ access }: { access: Access }) {
                       </Command.Group>
                     );
                   })}
+
+                  {askCommand && asking ? (
+                    // A typed question rarely matches "Ask the assistant" by letters, so it is always offered, last, so Enter
+                    // still opens the best match (`paletteFilter` keeps it; cmdk does not move groups, DOM order decides).
+                    <Command.Group heading="Assistant">
+                      <Command.Item
+                        value={ASK_VALUE}
+                        onSelect={() => choose(askCommand)}
+                        data-testid={`palette-${ASK_ID}`}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 aria-selected:bg-slate-100 dark:aria-selected:bg-slate-800"
+                      >
+                        <askCommand.icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
+                        <span className="truncate">Ask the assistant: {q.trim()}</span>
+                      </Command.Item>
+                    </Command.Group>
+                  ) : null}
                 </Command.List>
               </>
             )}

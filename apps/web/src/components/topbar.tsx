@@ -7,6 +7,7 @@ import { SearchBar } from "./search-bar";
 import { TopBarNav } from "./topbar-nav";
 import { UserMenu } from "./user-menu";
 import { CommandPalette } from "./command-palette";
+import { AssistantPanel } from "./assistant-panel";
 
 interface MePayload {
   access?: Record<string, "user" | "moderator" | "admin">;
@@ -87,10 +88,11 @@ export async function TopBar({
               {/* Mounts the global Cmd+K palette. It opens itself on the
                   keystroke and is invisible otherwise. */}
               {kiosk ? null : <CommandPalette access={access} />}
+              {kiosk ? null : <AssistantPanel access={access} />}
               {/* Profile / notifications / theme / sign-out all live inside
                   the UserMenu now — keeps the right-hand side to two
                   controls instead of five. */}
-              <UserMenu email={session.user.email ?? ""} />
+              <UserMenu email={session.user.email ?? ""} assistant={!kiosk && "assistant" in access} />
             </>
           ) : (
             <>

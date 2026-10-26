@@ -87,7 +87,7 @@ each packet in order (the switcher stops sending otherwise), reads the state dum
 `RTMS` (recording status, disk problems, time left). **The stream key arrives in `SRSU` and is never read.** Nothing is ever
 sent that changes the switcher. Options: `expectStreaming`, `expectRecording`. A switcher has only a few client slots
 (Companion, ATEM Software Control and this each take one; ours lasts a second and the switcher drops it), so check once a
-minute or less often. A stream's page shows the linked monitor (`encoder_monitor_id`: an ATEM, OBS, HyperDeck or HLS monitor).
+minute or less often. A stream's page shows the linked monitor (`encoder_monitor_id`: an ATEM, OBS, vMix, HyperDeck or HLS monitor).
 
 ## Access
 
@@ -115,5 +115,6 @@ group with Monitoring gets user.
 - Facebook and Twitch calls follow their documentation and were not run against a real account; YouTube through yt-dlp was run
   against a real live stream.
 - A private Facebook stream gets "is it live" only (Facebook gives no link to read).
-- ATEM was tested against a fake switcher, not a real one. ATEM over the internet (no UDP), vMix, Sennheiser: not built.
+- ATEM was tested against a fake switcher, not a real one. ATEM over the internet (no UDP): not built. vMix and Sennheiser are
+  monitor kinds since 2026-10-26 (see CLAUDE.md, "AV and livestream probes"), also tested against fakes only.
 - Starting, stopping or changing a stream anywhere: never (read only by design).

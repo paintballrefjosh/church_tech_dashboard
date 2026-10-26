@@ -12,6 +12,7 @@ import {
   CircleCheck,
   AlertTriangle,
   CircleHelp,
+  Bot,
 } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { usePoll } from "@/lib/use-poll";
@@ -217,6 +218,8 @@ function KindIcon({ kind }: { kind: string }) {
       return <Search className={cls} aria-hidden />;
     case "monitor":
       return <Activity className={cls} aria-hidden />;
+    case "assistant":
+      return <Bot className={cls} aria-hidden />;
     default:
       return <Server className={cls} aria-hidden />;
   }
