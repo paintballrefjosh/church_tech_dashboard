@@ -6,6 +6,7 @@
  */
 import type { ComponentType } from "react";
 import {
+  MonitorPlay,
   Globe,
   KeyRound,
   Cloud,
@@ -96,6 +97,14 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     Icon: Presentation,
     section: "module",
     permission: "propresenter:admin",
+  },
+  {
+    slug: "livestreams",
+    label: "Livestreams",
+    description: "Optional API keys for YouTube, Twitch, Facebook and Resi, and how many streams are sampled at once.",
+    Icon: MonitorPlay,
+    section: "module",
+    permission: "livestreams:admin",
   },
   {
     slug: "planning_center",

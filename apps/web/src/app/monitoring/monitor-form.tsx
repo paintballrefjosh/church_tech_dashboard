@@ -7,9 +7,9 @@ import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
 import { RunbookField } from "@/components/runbook-link";
 import { RoomField } from "@/components/assets-ui";
 
-type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs";
+type Kind = "http" | "tcp" | "icmp" | "tls" | "dns" | "hls" | "hyperdeck" | "pjlink" | "shure" | "obs" | "atem";
 
-const AV_KINDS: Kind[] = ["hls", "hyperdeck", "pjlink", "shure", "obs"];
+const AV_KINDS: Kind[] = ["hls", "hyperdeck", "pjlink", "shure", "obs", "atem"];
 
 type Rec = Record<string, unknown>;
 const optStr = (o: Rec, k: string, d = ""): string => (typeof o[k] === "string" ? (o[k] as string) : d);
@@ -72,6 +72,8 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
         return { channels: shureChannels, minBars: shureMinBars };
       case "obs":
         return { expectStreaming, expectRecording, ...(password ? { password } : {}) };
+      case "atem":
+        return { expectStreaming, expectRecording };
       case "http": {
         const opts: Rec = { method: httpMethod, expectedStatus: httpExpectedStatus };
         if (httpExpectBody.trim()) opts.expectBody = httpExpectBody.trim();
@@ -162,6 +164,7 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
               <option value="pjlink">Projector or display (PJLink)</option>
               <option value="shure">Shure wireless receiver</option>
               <option value="obs">OBS Studio</option>
+              <option value="atem">Blackmagic ATEM switcher</option>
             </optgroup>
           </select>
         </label>
@@ -295,13 +298,20 @@ export function MonitorForm({ initial }: { initial?: Monitor }) {
               <input type="number" min={10} max={3600} value={hlsMaxAge} onChange={(e) => setHlsMaxAge(parseInt(e.target.value, 10) || 60)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950" />
             </label>
           ) : null}
-          {kind === "hyperdeck" || kind === "obs" ? (
+          {kind === "atem" ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Reads the switcher's state over UDP 9910 and leaves; it never changes anything. A switcher has only a few client
+              slots (Companion, ATEM Software Control and this each take one for a moment), so check it once a minute or less often.
+              Streaming and recording are only on the models that have them (Mini Pro, Extreme, Constellation).
+            </p>
+          ) : null}
+          {kind === "hyperdeck" || kind === "obs" || kind === "atem" ? (
             <label className="inline-flex items-center gap-2">
               <input type="checkbox" checked={expectRecording} onChange={(e) => setExpectRecording(e.target.checked)} />
               <span>Down unless it is recording</span>
             </label>
           ) : null}
-          {kind === "obs" ? (
+          {kind === "obs" || kind === "atem" ? (
             <label className="inline-flex items-center gap-2 sm:ml-4">
               <input type="checkbox" checked={expectStreaming} onChange={(e) => setExpectStreaming(e.target.checked)} />
               <span>Down unless it is streaming</span>

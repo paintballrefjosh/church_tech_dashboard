@@ -52,6 +52,7 @@ export interface KnownSetting<T = unknown> {
     | "backup"
     | "helpdesk"
     | "assistant"
+    | "livestreams"
     | "experimental";
 }
 
@@ -971,6 +972,64 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: "",
     category: "planning_center",
   },
+  // Livestreams (docs/livestreams.md). Every key is optional: a public stream is read from its page or link without any. The
+  // platforms' APIs only add "is it live" for private streams and the viewer count. Managed by the Livestreams admin tier.
+  {
+    key: "livestreams.youtube_api_key",
+    type: "secret",
+    label: "YouTube Data API key",
+    description: "Optional. Adds the viewer count and the start time of a YouTube stream (one unit of the daily quota per check).",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.twitch_client_id",
+    type: "string",
+    label: "Twitch client ID",
+    description: "Optional, from dev.twitch.tv (an application with no redirect needed). Adds the viewer count.",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.twitch_client_secret",
+    type: "secret",
+    label: "Twitch client secret",
+    description: "The secret of the same application.",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.facebook_page_token",
+    type: "secret",
+    label: "Facebook page access token",
+    description: "Optional. A long-lived page token with pages_read_engagement: says whether a private Facebook stream is live, and the viewer count.",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.resi_client_id",
+    type: "string",
+    label: "Resi API client ID",
+    description: "Optional, from Resi Studio (Settings > API; the Go Live API needs the Pro plan or above). Lists your encoders to link a stream to one.",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.resi_client_secret",
+    type: "secret",
+    label: "Resi API client secret",
+    description: "The secret of the same client. Only reads are made with it: the dashboard never starts or stops a Resi stream.",
+    defaultValue: "",
+    category: "livestreams",
+  },
+  {
+    key: "livestreams.max_concurrent_samples",
+    type: "number",
+    label: "Samples at once (per node)",
+    description: "How many streams one node reads sound and picture from at the same time (1 to 4). Each uses some CPU for a few seconds.",
+    defaultValue: 2,
+    category: "livestreams",
+  },
   // Infrastructure monitoring (agentless: SSH / Proxmox API / Docker over SSH).
   // Per-target connection, credentials, interval and alert thresholds live on the
   // target rows (edited at /monitoring/infra). These are global collector knobs;
@@ -1209,6 +1268,7 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   propresenter: PERMISSIONS.PROPRESENTER_ADMIN,
   planning_center: PERMISSIONS.PLANNING_CENTER_ADMIN,
   monitoring: PERMISSIONS.MONITORS_WRITE_ANY,
+  livestreams: PERMISSIONS.LIVESTREAMS_ADMIN,
 };
 
 /** Category of a known setting key, or null when the key isn't in the catalogue. */

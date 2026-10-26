@@ -117,7 +117,7 @@ Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 
 The `monitoring` module is a single section covering tabbed views under
 `/monitoring`: **Services** (uptime probes run by the `services/monitor` worker —
-`http`/`tcp`/`icmp`/`dns`/`tls`, and the AV kinds `hls`/`hyperdeck`/`pjlink`/`shure`/`obs` (see "AV and livestream probes" below); per-kind config lives in the monitor's freeform
+`http`/`tcp`/`icmp`/`dns`/`tls`, and the AV kinds `hls`/`hyperdeck`/`pjlink`/`shure`/`obs`/`atem` (see "AV and livestream probes" below); per-kind config lives in the monitor's freeform
 `options` blob, no migration to add a kind. The `tls` probe (`probeTls`) judges certificate
 expiry only (down once expired or `warnDays` or fewer days remain), not chain trust, so private-CA
 services work. A kind in `MONITOR_KINDS` needs a case in the worker's `runProbe`, or it reports
@@ -353,7 +353,9 @@ else the media sequence advancing between two reads a target duration apart), `h
 status, recording space; `expectRecording`, `minRecordMinutes`), `pjlink` (class 1, TCP 4352, MD5 digest auth: power, ERST error/warning digits,
 lamp hours; `expectOn`, `maxLampHours`), `shure` (command strings, TCP 2202: `BATT_BARS` per channel, 255 = no transmitter; `minBars`), `obs`
 (obs-websocket 5, port 4455, sha256 auth; `expectStreaming`, `expectRecording`). Nothing here ever sends a command that changes a device.
-ATEM switchers (a proprietary UDP protocol) are not covered. (2) **Any monitor may carry `options.schedule`** (`Sun 08:00-13:00; Wed 18:30-20:30`,
+`atem` (Blackmagic's UDP protocol, port 9910: hello, acknowledge every packet in order, read the state dump until `InCm`, leave;
+model, program input, streaming status/bitrate/service, recording and disk problems; `expectStreaming`, `expectRecording`; **the
+stream key arrives in `SRSU` and is never read**; a switcher has few client slots, so once a minute or less often). (2) **Any monitor may carry `options.schedule`** (`Sun 08:00-13:00; Wed 18:30-20:30`,
 day ranges, windows across midnight, on `site.timezone`). Outside every window the worker does not probe and records a healthy
 `outside its hours (not checked)`, so an incident open at the end of a service closes, silently (no "is back up"). The API refuses a schedule
 `monitorScheduleProblem` cannot read; the worker treats an unreadable one as "always". (3) **Credentials in monitor options**
@@ -417,6 +419,24 @@ are print pages whose QR SVG is made on the server from the request's own addres
 (`ASSET_KINDS`, `canSeeAssets`); writes call `SearchService.assetsChanged()`. (8) Retention: returned check-outs after 3 years. MCP has
 read and create/update tools (`catalogue/assets.tools.ts`); check-out, return, due date, import and deletes are excluded. Tests: smoke
 `tests/smoke/assets.mjs` (a throwaway volunteer account proves the own-only rules), e2e `assets.spec.ts`.
+
+**Livestreams** (`apps/api/src/livestreams/`, page `/livestreams` in the Church Apps menu, migration 0084; design, platforms and what was not
+verified in [docs/livestreams.md](docs/livestreams.md); rules in `packages/shared/src/schemas/livestream.ts`, unit-tested in
+`apps/api/test/livestreams.test.ts` against REAL ffmpeg output in `test/fixtures/livestreams/`). Module `livestreams` (user reads, moderator
+adds/edits/checks now, admin deletes and owns the `livestreams` settings: optional YouTube/Twitch/Facebook/Resi keys). Rules: (1) **it runs in
+the API** (`livestream-checks` job, 10 s ticks; the worker cannot decrypt a private link or notify): a stream is CLAIMED with `claimed_until`
+before it is read; status on its own clock (yt-dlp `-J` on a page, or a GET of an HLS/DASH link), and while live a sample (ffmpeg:
+freeze/black/loudness/silence/per-channel level plus one JPEG still) on another. (2) **A problem is confirmed by two samples in a row**
+(the second 30 s after the first), "not live" only inside a schedule window past its grace minutes, "cannot be read" after three
+failures (`confirmedProblems`); outside its hours nothing is read and an open alert closes silently. (3) Alerts (`livestream.problem`,
+urgent, an outage kind) go to the stream's group, else Monitoring's recipients, CLAIMED through `alerted_problem` (`alertMarker`).
+(4) **yt-dlp and ffmpeg run with an argument array, an empty environment, a time limit and an output cap**; ffmpeg only on network
+protocols; addresses go through `streamUrlProblem` + `assertFetchableHost` (no loopback, link-local, one-word container names, also after
+DNS and on each redirect; LAN allowed for encoders). yt-dlp is pinned by hash in `apps/api/livestream-tools.txt` (venv `/opt/ytdlp`); YouTube
+breaks old versions, so update the pin when pages stop reading. (5) The private link is `stream_url_enc` (encrypted, never returned,
+`[saved]` keeps it). (6) Nothing is ever sent that starts, stops or changes a stream (Resi's Go Live routes are never called).
+Tests: `livestreams.integration.test.ts` (CockroachDB and YugabyteDB), smoke `tests/smoke/livestreams.mjs` (never reads a stream), e2e
+`livestreams.spec.ts`.
 
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and

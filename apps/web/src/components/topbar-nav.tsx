@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  MonitorPlay,
   Images,
   LifeBuoy,
   StickyNote,
@@ -80,6 +81,7 @@ const CHURCH_APPS_ITEMS: Item[] = [
     module: "planning_center",
   },
   { href: "/checklists", label: "Checklists", Icon: ListChecks, module: "checklists" },
+  { href: "/livestreams", label: "Livestreams", Icon: MonitorPlay, module: "livestreams" },
 ];
 
 // Shown only to full site admins (access.admin === "admin"). Split into the
@@ -114,6 +116,7 @@ const MODULE_ADMIN_ITEMS: Record<string, NavDropdownItem[]> = {
     { href: "/admin/planning-center", label: "Planning Center links", Icon: CalendarDays },
   ],
   checklists: [{ href: "/admin/checklists", label: "Checklists", Icon: ListChecks }],
+  livestreams: [{ href: "/admin/settings/livestreams", label: "Livestreams settings", Icon: MonitorPlay }],
 };
 
 function filterByAccess(items: Item[], access: Record<string, string>): NavDropdownItem[] {

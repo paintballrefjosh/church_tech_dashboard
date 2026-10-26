@@ -1,0 +1,68 @@
+ffmpeg stats and -progress period set to 1.
+[in#0 @ 0x7cd8b5dff4c0] Opening 'https://media.example.invalid/stream' for reading
+    Last message repeated 1 times
+Input #0, hls, from 'https://media.example.invalid/stream':
+  Duration: N/A, start: 80670.129244, bitrate: N/A
+  Program 0 
+    Metadata:
+      variant_bitrate : 0
+  Stream #0:0[0x0]: Video: h264 (Main) ([27][0][0][0] / 0x001B), yuv420p(tv, bt709), 854x480 [SAR 1:1 DAR 427:240], 30 fps, 30 tbr, 90k tbn, start 80670.129244
+    Metadata:
+      variant_bitrate : 0
+[in#1 @ 0x7cd8afcfa2c0] Opening 'https://media.example.invalid/stream' for reading
+    Last message repeated 1 times
+Input #1, hls, from 'https://media.example.invalid/stream':
+  Duration: N/A, start: 80670.123711, bitrate: 49 kb/s
+  Program 0 
+    Metadata:
+      variant_bitrate : 0
+  Stream #1:0[0x0]: Audio: aac (HE-AAC), 44100 Hz, stereo, fltp, 49 kb/s, start 80670.123711
+    Metadata:
+      variant_bitrate : 0
+      id3v2_priv.com.apple.streaming.transportStreamTimestamp: \x00\x00\x00\x01\xb0\xbf\x8e^
+Stream mapping:
+  Stream #0:0 (h264) -> split:default
+  Stream #1:0 (aac) -> ebur128:default
+  blackdetect:default -> Stream #0:0 (wrapped_avframe)
+  astats:default -> Stream #0:1 (pcm_s16le)
+  scale:default -> Stream #1:0 (mjpeg)
+[https @ 0x7cd8b00c8b00] Opening 'https://media.example.invalid/stream' for reading
+Output #1, image2pipe, to 'pipe:1':
+  Metadata:
+    encoder         : Lavf62.12.103
+  Stream #1:0: Video: mjpeg, yuv420p(pc, bt709, progressive), 480x270 [SAR 1281:1280 DAR 427:240], q=2-31, 200 kb/s, 30 fps, 30 tbn
+    Metadata:
+      encoder         : Lavc62.28.103 mjpeg
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/200000 buffer size: 0 vbv_delay: N/A
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf62.12.103
+  Stream #0:0: Video: wrapped_avframe, yuv420p(tv, bt709, progressive), 854x480 [SAR 1:1 DAR 427:240], q=2-31, 200 kb/s, 30 fps, 30 tbn
+    Metadata:
+      encoder         : Lavc62.28.103 wrapped_avframe
+  Stream #0:1: Audio: pcm_s16le, 44100 Hz, stereo, s16, 1411 kb/s
+    Metadata:
+      encoder         : Lavc62.28.103 pcm_s16le
+[https @ 0x7cd8afc6eb00] Opening 'https://media.example.invalid/stream' for reading
+[Parsed_astats_7 @ 0x7cd8af719380] Channel: 1
+[Parsed_astats_7 @ 0x7cd8af719380] RMS level dB: -12.489446
+[Parsed_astats_7 @ 0x7cd8af719380] Channel: 2
+[Parsed_astats_7 @ 0x7cd8af719380] RMS level dB: -12.200079
+[Parsed_ebur128_5 @ 0x7cd8af719140] Summary:
+
+  Integrated loudness:
+    I:         -11.1 LUFS
+    Threshold: -21.1 LUFS
+
+  Loudness range:
+    LRA:         1.3 LU
+    Threshold: -31.1 LUFS
+    LRA low:   -11.6 LUFS
+    LRA high:  -10.4 LUFS
+
+  True peak:
+    Peak:        0.9 dBFS
+[out#0/null @ 0x7cd8af3a1a40] video:124KiB audio:1723KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+[out#1/image2pipe @ 0x7cd8af3a2240] video:15KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
+frame=  300 fps=0.0 q=-0.0 Lq=6.0 size=N/A time=00:00:00.03 bitrate=N/A speed=0.0416x elapsed=0:00:00.80    

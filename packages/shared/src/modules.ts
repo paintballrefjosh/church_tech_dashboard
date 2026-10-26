@@ -167,6 +167,17 @@ export const MODULES: readonly ModuleDefinition[] = [
     },
   },
   {
+    key: "livestreams",
+    label: "Livestreams",
+    description: "Whether each livestream is live, with its picture and sound checked every few minutes.",
+    tiers: ["user", "moderator", "admin"],
+    permissionsByTier: {
+      user: [PERMISSIONS.LIVESTREAMS_READ_ANY],
+      moderator: [PERMISSIONS.LIVESTREAMS_WRITE_ANY],
+      admin: [PERMISSIONS.LIVESTREAMS_ADMIN],
+    },
+  },
+  {
     key: "admin",
     label: "Administration",
     description: "Site settings, users/groups, audit log, OAuth, SMTP, network config.",
@@ -243,6 +254,7 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     planning_center: "admin",
     checklists: "admin",
     assets: "admin",
+    livestreams: "admin",
     admin: "admin",
   },
   support_engineer: {
@@ -255,6 +267,7 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     planning_center: "user",
     checklists: "moderator",
     assets: "moderator",
+    livestreams: "moderator",
   },
   user: {
     notes: "user",
@@ -265,5 +278,6 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     planning_center: "user",
     checklists: "user",
     assets: "user",
+    livestreams: "user",
   },
 };

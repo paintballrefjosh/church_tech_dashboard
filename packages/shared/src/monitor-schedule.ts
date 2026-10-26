@@ -76,6 +76,29 @@ export function monitorScheduleProblem(text: unknown): string | null {
   }
 }
 
+/**
+ * How many minutes ago the window `now` is in began, on the clock of `tz`; null when `now` is in no window (or there are
+ * none). With overlapping windows, the one that began most recently counts. Livestreams use it for their grace period.
+ */
+export function monitorScheduleMinutesIn(windows: ScheduleWindow[], now: Date, tz: string): number | null {
+  const p = zonedParts(now, tz);
+  const minute = p.hour * 60 + p.minute;
+  const yesterday = p.weekday === 1 ? 7 : p.weekday - 1;
+  let best: number | null = null;
+  const keep = (m: number) => {
+    if (best === null || m < best) best = m;
+  };
+  for (const w of windows) {
+    if (w.start < w.end) {
+      if (w.days.includes(p.weekday) && minute >= w.start && minute < w.end) keep(minute - w.start);
+    } else {
+      if (w.days.includes(p.weekday) && minute >= w.start) keep(minute - w.start);
+      if (w.days.includes(yesterday) && minute < w.end) keep(24 * 60 - w.start + minute);
+    }
+  }
+  return best;
+}
+
 /** Whether `now` falls in one of the windows, on the clock of `tz`. No windows = always. */
 export function monitorScheduleActive(windows: ScheduleWindow[], now: Date, tz: string): boolean {
   if (windows.length === 0) return true;

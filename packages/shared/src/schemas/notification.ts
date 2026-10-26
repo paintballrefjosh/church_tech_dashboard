@@ -30,6 +30,7 @@ export const NOTIFICATION_KINDS = [
   "backup.failed",
   "cluster.node_down",
   "asset.overdue",
+  "livestream.problem",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

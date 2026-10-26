@@ -1,5 +1,6 @@
 import { connect as tcpConnect, type Socket } from "node:net";
 import { createHash } from "node:crypto";
+import { createSocket } from "node:dgram";
 import type { ProbeContext, ProbeResult } from "./probes";
 
 /**
@@ -397,5 +398,180 @@ export async function probeObs(ctx: ProbeContext): Promise<ProbeResult> {
     } catch {
       /* already closed */
     }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Blackmagic ATEM switcher (UDP 9910): the switcher sends its whole state when a client says hello; we read it and leave.
+// Read-only: the only packets sent are the hello and the acknowledgements the protocol needs. The streaming key that
+// arrives with the state (SRSU) is never read.
+
+export const ATEM_PORT = 9910;
+const ATEM_HELLO = Buffer.from([0x10, 0x14, 0x53, 0xab, 0, 0, 0, 0, 0, 0x3a, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0]);
+const ATEM_FLAG = { ackRequest: 0x01, newSession: 0x02, ackReply: 0x10 } as const;
+const ATEM_STREAM = { idle: 1, connecting: 2, streaming: 4, stopping: 32 } as const;
+
+export interface AtemState {
+  product: string | null;
+  /** Program input per mix/effect bus (ME 1 = index 0), with its long name when known. */
+  program: Array<{ me: number; input: number; name: string | null }>;
+  /** Null when the switcher has no streaming (only the Mini Pro / Extreme / Constellation ones do). */
+  streaming: { status: "idle" | "connecting" | "streaming" | "stopping" | "error"; service: string | null; bitrate: number | null } | null;
+  recording: { recording: boolean; problem: string | null; minutesLeft: number | null } | null;
+  complete: boolean;
+}
+
+export function emptyAtemState(): AtemState {
+  return { product: null, program: [], streaming: null, recording: null, complete: false };
+}
+
+const cstr = (b: Buffer) => {
+  const z = b.indexOf(0);
+  return (z >= 0 ? b.subarray(0, z) : b).toString("utf8").trim();
+};
+
+/** Fold the commands of one packet's payload (after the 12-byte header) into the state. Pure; unit-tested. */
+export function applyAtemCommands(state: AtemState, payload: Buffer, inputNames: Map<number, string>): void {
+  let off = 0;
+  while (off + 8 <= payload.length) {
+    const len = payload.readUInt16BE(off);
+    if (len < 8 || off + len > payload.length) break;
+    const name = payload.toString("ascii", off + 4, off + 8);
+    const d = payload.subarray(off + 8, off + len);
+    off += len;
+    switch (name) {
+      case "_pin":
+        if (d.length >= 1) state.product = cstr(d.subarray(0, Math.min(40, d.length))) || null;
+        break;
+      case "InPr":
+        if (d.length >= 22) inputNames.set(d.readUInt16BE(0), cstr(d.subarray(2, 22)));
+        break;
+      case "PrgI":
+        if (d.length >= 4) {
+          const me = d.readUInt8(0);
+          state.program = state.program.filter((p) => p.me !== me).concat({ me, input: d.readUInt16BE(2), name: null });
+        }
+        break;
+      case "StRS":
+        if (d.length >= 2) {
+          const v = d.readUInt16BE(0);
+          const err = v & (16 | 32768);
+          const s = v & ~(16 | 32768);
+          const status = err ? "error" : s === ATEM_STREAM.streaming ? "streaming" : s === ATEM_STREAM.connecting ? "connecting" : s === ATEM_STREAM.stopping ? "stopping" : "idle";
+          state.streaming = { service: state.streaming?.service ?? null, bitrate: state.streaming?.bitrate ?? null, status };
+        }
+        break;
+      case "SRSS":
+        if (d.length >= 4) state.streaming = { status: state.streaming?.status ?? "idle", service: state.streaming?.service ?? null, bitrate: d.readUInt32BE(0) };
+        break;
+      case "SRSU":
+        // Service name only (bytes 0-64). The URL and the stream KEY follow it and are deliberately not read.
+        if (d.length >= 1) state.streaming = { status: state.streaming?.status ?? "idle", bitrate: state.streaming?.bitrate ?? null, service: cstr(d.subarray(0, Math.min(64, d.length))) || null };
+        break;
+      case "RTMS":
+        if (d.length >= 2) {
+          const v = d.readUInt16BE(0);
+          const recording = (v & 1) === 1;
+          const e = v & ~(1 | 128);
+          const problem = e & 32768 ? "unknown recording error" : e & 4 ? "the recording disk is full" : e & 8 ? "recording disk error" : e & 16 ? "the recording disk is not formatted" : e & 32 ? "dropping frames" : (e & 2) === 0 ? "no recording disk" : null;
+          const left = d.length >= 8 ? d.readUInt32BE(4) : null;
+          state.recording = { recording, problem, minutesLeft: left === null ? null : Math.floor(left / 60) };
+        }
+        break;
+      case "InCm":
+        state.complete = true;
+        break;
+      default:
+        break;
+    }
+  }
+  for (const p of state.program) p.name = inputNames.get(p.input) ?? null;
+}
+
+/** What one ATEM reading says, and whether it is a problem. Pure; unit-tested. */
+export function judgeAtem(state: AtemState, o: { expectStreaming?: boolean; expectRecording?: boolean }): { ok: boolean; info: string } {
+  const parts: string[] = [];
+  if (state.product) parts.push(state.product);
+  const pgm = state.program.sort((a, b) => a.me - b.me)[0];
+  if (pgm) parts.push(`program: ${pgm.name || `input ${pgm.input}`}`);
+  let ok = true;
+  if (state.streaming) {
+    const s = state.streaming;
+    const rate = s.bitrate ? ` at ${(s.bitrate / 1_000_000).toFixed(1)} Mb/s` : "";
+    parts.push(s.status === "streaming" ? `streaming${s.service ? ` to ${s.service}` : ""}${rate}` : s.status === "error" ? "stream error" : `stream ${s.status}`);
+    if (o.expectStreaming && s.status !== "streaming") ok = false;
+  } else if (o.expectStreaming) {
+    parts.push("no streaming on this model");
+    ok = false;
+  }
+  if (state.recording) {
+    const r = state.recording;
+    parts.push(r.recording ? `recording${r.minutesLeft !== null ? ` (${r.minutesLeft} min left)` : ""}` : "not recording");
+    if (r.problem) parts.push(r.problem);
+    if (o.expectRecording && (!r.recording || (r.problem && r.problem !== "dropping frames"))) ok = false;
+  } else if (o.expectRecording) {
+    parts.push("no recording on this model");
+    ok = false;
+  }
+  return { ok, info: parts.join(", ") || "answered" };
+}
+
+export async function probeAtem(ctx: ProbeContext): Promise<ProbeResult> {
+  const o = ctx.options as { timeoutMs?: number; expectStreaming?: boolean; expectRecording?: boolean };
+  const { host, port } = hostPort(ctx.target, ATEM_PORT);
+  const start = Date.now();
+  const timeoutMs = o.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const socket = createSocket(host.includes(":") ? "udp6" : "udp4");
+  const state = emptyAtemState();
+  const names = new Map<number, string>();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(state.product ? "the switcher stopped sending its state" : "timeout (no answer on UDP 9910)")), timeoutMs);
+      let session = 0;
+      let lastId = -1;
+      const ack = (id: number) => {
+        const b = Buffer.alloc(12);
+        b.writeUInt16BE((ATEM_FLAG.ackReply << 11) | 12, 0);
+        b.writeUInt16BE(session, 2);
+        b.writeUInt16BE(id, 4);
+        socket.send(b, port, host);
+      };
+      socket.on("error", (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+      socket.on("message", (msg: Buffer) => {
+        if (msg.length < 12) return;
+        const flags = msg.readUInt8(0) >> 3;
+        const length = msg.readUInt16BE(0) & 0x07ff;
+        session = msg.readUInt16BE(2);
+        const id = msg.readUInt16BE(10);
+        if (flags & ATEM_FLAG.newSession) {
+          lastId = id;
+          ack(id);
+          return;
+        }
+        if (flags & ATEM_FLAG.ackRequest) {
+          if (lastId < 0 || id === (lastId + 1) % 32768) {
+            lastId = id;
+            ack(id);
+            if (length > 12) applyAtemCommands(state, msg.subarray(12, Math.min(length, msg.length)), names);
+            if (state.complete) {
+              clearTimeout(timer);
+              resolve();
+            }
+          } else {
+            ack(lastId);
+          }
+        }
+      });
+      socket.send(ATEM_HELLO, port, host);
+    });
+    const verdict = judgeAtem(state, o);
+    return { ok: verdict.ok, latencyMs: Date.now() - start, info: verdict.info };
+  } catch (err) {
+    return failure(start, err);
+  } finally {
+    socket.close();
   }
 }

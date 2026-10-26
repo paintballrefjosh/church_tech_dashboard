@@ -2239,6 +2239,10 @@ async function main() {
   const { assetTests } = await import("./assets.mjs");
   await assetTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- livestreams: doors, private links, refused addresses (tests/smoke/livestreams.mjs; never reads a real stream) ----
+  const { livestreamTests } = await import("./livestreams.mjs");
+  await livestreamTests({ test, assert, fetchWithCookies, jar });
+
   // ---- device pictures: infra hosts and UniFi devices choose a device profile (tests/smoke/device-pictures.mjs) ----
   const { devicePictureTests } = await import("./device-pictures.mjs");
   await devicePictureTests({ test, assert, fetchWithCookies, jar });

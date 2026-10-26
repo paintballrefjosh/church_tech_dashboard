@@ -31,6 +31,8 @@ export const URGENT_NOTIFICATION_KINDS: ReadonlyArray<string> = [
   "cisco.device_offline",
   "cluster.node_down",
   "dns.primary_unreachable",
+  // A stream with no sound or picture during a service: also sends its recovery under the same kind.
+  "livestream.problem",
 ];
 
 export function isUrgentNotificationKind(kind: string): boolean {

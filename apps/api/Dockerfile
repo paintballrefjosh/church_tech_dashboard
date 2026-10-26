@@ -42,6 +42,12 @@ ENV NODE_ENV=production
 WORKDIR /app
 # Layers run from the one that changes least to the one that changes most, and each holds one kind of thing, so
 # a code edit rewrites only dist (a few MB) and a registry pull moves only that.
+#   0. ffmpeg and yt-dlp for the livestream checks (docs/livestreams.md); they change only with this list
+RUN apk add --no-cache ffmpeg python3
+COPY apps/api/livestream-tools.txt /tmp/livestream-tools.txt
+RUN python3 -m venv /opt/ytdlp \
+  && /opt/ytdlp/bin/pip install --no-cache-dir --no-deps --require-hashes -r /tmp/livestream-tools.txt \
+  && rm /tmp/livestream-tools.txt && /opt/ytdlp/bin/yt-dlp --version && ffmpeg -hide_banner -version | head -1
 #   1. production dependencies (package.json + node_modules)
 COPY --from=proddeps /app/deploy/package.json /app/package.json
 COPY --from=proddeps /app/deploy/node_modules /app/node_modules

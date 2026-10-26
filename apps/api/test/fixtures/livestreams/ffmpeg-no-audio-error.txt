@@ -1,0 +1,11 @@
+[in#0 @ 0x7cbbc9f650c0] Opening 'http://media.example.invalid/stream' for reading
+Input #0, hls, from 'http://media.example.invalid/stream':
+  Duration: 00:00:12.00, start: 1.480000, bitrate: 0 kb/s
+  Program 0 
+    Metadata:
+      variant_bitrate : 0
+  Stream #0:0[0x0]: Video: h264 (High 4:4:4 Predictive) ([27][0][0][0] / 0x001B), yuv444p, 320x180 [SAR 1:1 DAR 16:9], 25 fps, 25 tbr, 90k tbn, start 1.480000
+    Metadata:
+      variant_bitrate : 0
+[fc#0 @ 0x7cbbc3fc5580] Stream specifier ':a:0' in filtergraph description [0:v:0]null[vo];[0:a:0]anull[ao] matches no streams.
+Error binding filtergraph inputs/outputs: Invalid argument

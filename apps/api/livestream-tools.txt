@@ -1,0 +1,6 @@
+# yt-dlp for the livestream checks (docs/livestreams.md), installed into /opt/ytdlp by apps/api/Dockerfile.
+# Pinned by hash, no dependencies pulled (yt-dlp needs none for what the checks use; yt-dlp-ejs runs YouTube's player
+# script with node, which the image already has). Versions are at least two weeks old when taken (CLAUDE.md
+# ## Dependencies); YouTube changes its pages often, so update this when the checks start saying the page cannot be read.
+yt-dlp==2026.8.19 --hash=sha256:1d57897e94c6665a0a6f9bc54b34e584284e32c034ffab3a7df25d8f7b24eedf
+yt-dlp-ejs==0.8.0 --hash=sha256:79300e5fca7f937a1eeede11f0456862c1b41107ce1d726871e0207424f4bdb4

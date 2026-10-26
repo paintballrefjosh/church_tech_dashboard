@@ -24,6 +24,7 @@ export * from "./schemas/alert-channel";
 export * from "./schemas/renewal";
 export * from "./schemas/location";
 export * from "./schemas/asset";
+export * from "./schemas/livestream";
 export * from "./schemas/unifi-voucher";
 export * from "./schemas/unifi-protect";
 export * from "./schemas/ipam";

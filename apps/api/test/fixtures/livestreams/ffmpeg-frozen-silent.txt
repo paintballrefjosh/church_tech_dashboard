@@ -1,0 +1,61 @@
+ffmpeg stats and -progress period set to 1.
+[in#0 @ 0x723667ba23c0] Opening 'http://media.example.invalid/stream' for reading
+Input #0, hls, from 'http://media.example.invalid/stream':
+  Duration: 00:00:12.00, start: 1.458667, bitrate: 0 kb/s
+  Program 0 
+    Metadata:
+      variant_bitrate : 0
+  Stream #0:0[0x0]: Video: h264 (High) ([27][0][0][0] / 0x001B), yuv420p, 320x180 [SAR 1:1 DAR 16:9], 25 fps, 25 tbr, 90k tbn, start 1.480000
+    Metadata:
+      variant_bitrate : 0
+  Stream #0:1[0x0]: Audio: aac (LC) ([15][0][0][0] / 0x000F), 48000 Hz, stereo, fltp, start 1.458667
+    Metadata:
+      variant_bitrate : 0
+Stream mapping:
+  Stream #0:0 (h264) -> split:default
+  Stream #0:1 (aac) -> ebur128:default
+  blackdetect:default -> Stream #0:0 (wrapped_avframe)
+  astats:default -> Stream #0:1 (pcm_s16le)
+  scale:default -> Stream #1:0 (mjpeg)
+Output #0, null, to 'pipe:':
+  Metadata:
+    encoder         : Lavf62.12.103
+  Stream #0:0: Video: wrapped_avframe, yuv420p(progressive), 320x180 [SAR 1:1 DAR 16:9], q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc62.28.103 wrapped_avframe
+  Stream #0:1: Audio: pcm_s16le, 48000 Hz, stereo, s16, 1536 kb/s
+    Metadata:
+      encoder         : Lavc62.28.103 pcm_s16le
+[Parsed_silencedetect_6 @ 0x72365ed24280] silence_start: 0
+[Parsed_freezedetect_1 @ 0x723663a39740] lavfi.freezedetect.freeze_start: 0.0213333
+Output #1, image2pipe, to 'pipe:1':
+  Metadata:
+    encoder         : Lavf62.12.103
+  Stream #1:0: Video: mjpeg, yuv420p(pc, progressive), 480x270 [SAR 1:1 DAR 16:9], q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc62.28.103 mjpeg
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/200000 buffer size: 0 vbv_delay: N/A
+frame=  126 fps=0.0 q=-0.0 q=6.0 size=N/A time=00:00:05.08 bitrate=N/A speed=44.2x elapsed=0:00:00.11    [in#0/hls @ 0x723667ba23c0] Opening 'http://media.example.invalid/stream' for reading
+[Parsed_astats_7 @ 0x72365ed24380] Channel: 1
+[Parsed_astats_7 @ 0x72365ed24380] RMS level dB: -inf
+[Parsed_astats_7 @ 0x72365ed24380] Channel: 2
+[Parsed_astats_7 @ 0x72365ed24380] RMS level dB: -inf
+[Parsed_silencedetect_6 @ 0x72365ed24280] silence_end: 10 | silence_duration: 10
+[Parsed_ebur128_5 @ 0x72365ed24140] Summary:
+
+  Integrated loudness:
+    I:         -70.0 LUFS
+    Threshold:   0.0 LUFS
+
+  Loudness range:
+    LRA:         0.0 LU
+    Threshold:   0.0 LUFS
+    LRA low:     0.0 LUFS
+    LRA high:    0.0 LUFS
+
+  True peak:
+    Peak:       -inf dBFS
+[out#0/null @ 0x723667aef840] video:104KiB audio:1875KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+[out#1/image2pipe @ 0x723667aef940] video:1KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.000000%
+frame=  250 fps=0.0 q=-0.0 Lq=6.0 size=N/A time=00:00:00.04 bitrate=N/A speed=0.183x elapsed=0:00:00.21    

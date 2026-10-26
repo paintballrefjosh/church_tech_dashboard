@@ -90,4 +90,36 @@ export const CHURCH_TOOLS = [
     permissions: [PERMISSIONS.PROPRESENTER_READ_ANY],
     input: z.object({}),
   }),
+  // ---- Livestreams (docs/livestreams.md): reads only; streams are set up in the web app ----
+  defineTool({
+    name: "livestreams_list",
+    title: "Livestreams",
+    description:
+      "Every livestream that is checked: whether it is live, viewers, the last sound-and-picture sample (loudness, frozen/black picture, silence) and any confirmed problem. A private stream's link is never returned.",
+    cls: "read",
+    method: "GET",
+    path: "/livestreams",
+    permissions: [PERMISSIONS.LIVESTREAMS_READ_ANY],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "livestreams_get",
+    title: "One livestream",
+    description: "One livestream's state, last sample, problems and linked encoder monitor.",
+    cls: "read",
+    method: "GET",
+    path: "/livestreams/:id",
+    permissions: [PERMISSIONS.LIVESTREAMS_READ_ANY],
+    input: z.object({ id: z.string().uuid() }),
+  }),
+  defineTool({
+    name: "livestreams_get_history",
+    title: "Livestream history",
+    description: "A livestream's readings over the last `hours` (default 24, at most 720): live or not, viewers, loudness and problems per sample.",
+    cls: "read",
+    method: "GET",
+    path: "/livestreams/:id/history",
+    permissions: [PERMISSIONS.LIVESTREAMS_READ_ANY],
+    input: z.object({ id: z.string().uuid(), hours: z.number().int().min(1).max(720).optional() }),
+  }),
 ];

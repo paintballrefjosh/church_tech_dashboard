@@ -46,6 +46,7 @@ const NOTES = "Notes";
 const CHECKLISTS = "Checklists";
 const MONITORING = "Monitoring";
 const ASSETS = "Assets and rooms";
+const LIVESTREAMS = "Livestreams";
 const PRINTERS = "Printers";
 const FILES = "Files";
 const OTHER = "Other";
@@ -167,6 +168,19 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   locations: { policy: "data", group: ASSETS, title: "Rooms", label: ["name"] },
   assets: { policy: "data", group: ASSETS, title: "Assets", label: ["tag", "name"] },
   asset_checkouts: { policy: "data", group: ASSETS, title: "Asset check-outs", label: ["holder_name", "out_at"], volatile: ["reminded_for"] },
+
+  // ---- livestreams ----
+  livestreams: {
+    policy: "data", group: LIVESTREAMS, title: "Livestreams", label: ["name"], sensitive: ["stream_url_enc"],
+    // Everything the checker writes: a restored reading would be stale at once, and an alert marker must not be replayed.
+    volatile: [
+      "status_checked_at", "sampled_at", "next_sample_at", "claimed_until", "state", "live", "viewers", "live_title", "live_started_at", "source",
+      "platform_status", "last_error", "last_sample", "sample_problems", "prev_sample_problems", "offline_streak", "unreachable_streak", "problems",
+      "problem_since", "alerted_problem",
+    ],
+  },
+  livestream_snapshots: runtime("Livestream pictures", "The latest still of each stream; the next sample makes a new one."),
+  livestream_checks: runtime("Livestream history", "Readings kept 30 days, written by the checker."),
   alert_channels: {
     policy: "data",
     group: MONITORING,
@@ -245,7 +259,7 @@ export interface RestoreSection {
   hasFiles: boolean;
 }
 
-const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, ASSETS, FILES];
+const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, ASSETS, LIVESTREAMS, FILES];
 
 const SECTION_BLURBS: Record<string, string> = {
   [PEOPLE]: "Users, groups and who can do what, sign-in links, passwords, two-factor secrets and API tokens.",
@@ -257,6 +271,7 @@ const SECTION_BLURBS: Record<string, string> = {
   [MONITORING]: "Everything under the Monitoring menu: service monitors and incidents, infrastructure hosts, UPS devices, Cisco switches and ports, IPAM subnets and hosts, UniFi acknowledgements.",
   [PRINTERS]: "Printers and their SNMP settings.",
   [ASSETS]: "Rooms, the equipment inventory and who has had each item.",
+  [LIVESTREAMS]: "The livestreams that are checked and how (their readings, pictures and history are not kept).",
   [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
 };
 

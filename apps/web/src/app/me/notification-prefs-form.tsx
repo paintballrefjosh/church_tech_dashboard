@@ -100,6 +100,10 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Equipment overdue",
     hint: "An item checked out to you (or one you checked out to someone) is past the date it was due back.",
   },
+  "livestream.problem": {
+    title: "Livestream problem",
+    hint: "A stream whose alerts go to one of your groups is not live when it should be, or has no sound or picture (and when it is back).",
+  },
 };
 
 interface Pref {

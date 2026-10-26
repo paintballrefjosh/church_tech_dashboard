@@ -17,6 +17,8 @@ export const OUTAGE_ALERT_KINDS: ReadonlyArray<string> = [
   "cisco.device_offline",
   "dns.primary_unreachable",
   "cluster.node_down",
+  // A livestream that is not live when it should be, or has no picture or sound; its recovery says "is back".
+  "livestream.problem",
 ];
 
 /** Also sent to an "everything" channel: changes that are worth knowing but are not an outage. */

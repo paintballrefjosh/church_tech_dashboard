@@ -1,4 +1,5 @@
 import {
+  MonitorPlay,
   Activity,
   BookOpen,
   Boxes,
@@ -155,6 +156,7 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "printers", cmd: go("go:printers", "Go to", "Printers", "/printers", Printer, "toner") },
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },
+  { module: "livestreams", cmd: go("go:livestreams", "Go to", "Livestreams", "/livestreams", MonitorPlay, "stream youtube facebook resi live video sound broadcast") },
   { module: "checklists", cmd: go("go:checklists", "Go to", "Checklists", "/checklists", ListChecks, "tasks sunday") },
   { cmd: go("go:status", "Go to", "Service status", "/status", Activity, "is it up") },
   // The report group (Site settings) can open it too; they get there from the notification it sends them.

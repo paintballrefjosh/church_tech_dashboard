@@ -136,6 +136,12 @@ export const PERMISSIONS = {
   ASSETS_WRITE_ANY: "assets:write:any",
   ASSETS_ADMIN: "assets:admin",
   LOCATIONS_ADMIN: "locations:admin",
+
+  // Livestreams (docs/livestreams.md). READ_ANY = see every stream's state, picture and sound, WRITE_ANY = add and edit
+  // streams and check one now, ADMIN = delete streams and set up the platforms' API keys (the `livestreams` settings).
+  LIVESTREAMS_READ_ANY: "livestreams:read:any",
+  LIVESTREAMS_WRITE_ANY: "livestreams:write:any",
+  LIVESTREAMS_ADMIN: "livestreams:admin",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

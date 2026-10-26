@@ -42,6 +42,7 @@ import { RacksModule } from "./racks/racks.module";
 import { AlertsModule } from "./alerts/alerts.module";
 import { RenewalsModule } from "./renewals/renewals.module";
 import { AssetsModule } from "./assets/assets.module";
+import { LivestreamsModule } from "./livestreams/livestreams.module";
 import { ReportsModule } from "./reports/reports.module";
 import { AssistantModule } from "./assistant/assistant.module";
 import { IpamModule } from "./ipam/ipam.module";
@@ -107,6 +108,7 @@ import { AuditInterceptor } from "./audit/audit.interceptor";
     AlertsModule,
     RenewalsModule,
     AssetsModule,
+    LivestreamsModule,
     ReportsModule,
     AssistantModule,
     IpamModule,
