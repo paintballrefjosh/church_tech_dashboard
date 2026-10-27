@@ -482,7 +482,7 @@ export const MONITORING_TOOLS = [
     name: "services_list",
     title: "Monitored services",
     description:
-      "Services watched on infrastructure hosts through templates (HAProxy, keepalived, PostgreSQL, MariaDB, CockroachDB, YugabyteDB, Apache, Kea, Technitium, custom ones): status (up, degraded, down), the latest metrics, members (backends, standbys, subnets) and which checks hold. Give targetId for one host. Secrets are never returned.",
+      "Services watched on infrastructure hosts through templates (HAProxy, keepalived, PostgreSQL, MariaDB, CockroachDB, YugabyteDB, Apache, nginx, Kea, Technitium, Redis/Valkey, RabbitMQ, chrony, Postfix, mdadm, ZFS, systemd failed units, Garage, Meilisearch, custom ones): status (up, degraded, down), the latest metrics, members (backends, standbys, subnets) and which checks hold. Give targetId for one host. Secrets are never returned.",
     cls: "read",
     method: "GET",
     path: "/service-monitoring/instances",
@@ -520,6 +520,41 @@ export const MONITORING_TOOLS = [
     cls: "read",
     method: "GET",
     path: "/service-monitoring/instances/:id/incidents",
+    permissions: [READ],
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "service_groups_list",
+    title: "Service groups",
+    description:
+      "Services on different hosts judged together (a database cluster, a HAProxy + keepalived pair): status (up, degraded, down), how many members are working against the quorum, how many hold the role (exactly one MASTER) and each member's state.",
+    cls: "read",
+    method: "GET",
+    path: "/service-monitoring/groups",
+    permissions: [READ],
+    input: z.object({}),
+  }),
+  defineTool({
+    name: "service_groups_get",
+    title: "One service group",
+    description: "One service group: its rules (quorum, role), its checks and whether an incident is open for each, and its members.",
+    cls: "read",
+    method: "GET",
+    path: "/service-monitoring/groups/:id",
+    permissions: [READ],
+    input: z.object({ id }),
+    link: (r) => {
+      const x = r as { id?: unknown } | null;
+      return typeof x?.id === "string" ? `/monitoring/infra/service-groups/${x.id}` : null;
+    },
+  }),
+  defineTool({
+    name: "service_groups_list_incidents",
+    title: "Service group incidents",
+    description: "The incidents a service group's own rules opened (newest first, 50 at most), open and resolved.",
+    cls: "read",
+    method: "GET",
+    path: "/service-monitoring/groups/:id/incidents",
     permissions: [READ],
     input: z.object({ id }),
   }),

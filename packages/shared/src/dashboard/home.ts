@@ -47,7 +47,8 @@ export function sectionOff<T = never>(state: SectionUnavailableState, reason?: s
   return reason === undefined ? { state } : { state, reason };
 }
 
-export const AREA_KEYS = ["servers", "internet", "wifi", "switches", "dns"] as const;
+/** `services` (service monitoring, docs/service-monitoring.md) is present only when at least one service or group exists. */
+export const AREA_KEYS = ["servers", "internet", "wifi", "switches", "dns", "services"] as const;
 export type AreaKey = (typeof AREA_KEYS)[number];
 const areaKey = z.enum(AREA_KEYS);
 

@@ -1,0 +1,1 @@
+[{"name": "rabbit@87a71a54e806", "type": "disc", "running": true, "mem_used": 135835648, "mem_limit": 40511211110, "mem_alarm": false, "disk_free": 188287778816, "disk_free_limit": 50000000, "disk_free_alarm": false, "fd_used": 44, "fd_total": 1024, "sockets_used": 0, "sockets_total": 0, "proc_used": 484, "proc_total": 1048576, "uptime": 336313, "partitions": []}]

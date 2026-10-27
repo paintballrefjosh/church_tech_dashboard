@@ -183,6 +183,11 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   livestream_checks: runtime("Livestream history", "Readings kept 30 days, written by the checker."),
   // ---- service monitoring (templates on infra hosts) ----
   service_templates: { policy: "data", group: MONITORING, title: "Service templates", label: ["key"] },
+  service_groups: {
+    policy: "data", group: MONITORING, title: "Service groups", label: ["name"],
+    // Written by the service-groups job: a restored reading is stale, and alert state must not reopen or replay incidents.
+    volatile: ["status", "last_evaluated_at", "last_result", "alert_state"],
+  },
   service_logins: { policy: "data", group: MONITORING, title: "Service logins", label: ["name", "username"], sensitive: ["password_enc"] },
   service_instances: {
     policy: "data", group: MONITORING, title: "Monitored services", label: ["name", "template_key"], sensitive: ["secrets_enc"],

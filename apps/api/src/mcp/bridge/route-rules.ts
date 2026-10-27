@@ -127,6 +127,8 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "POST /service-monitoring/templates/:key/fork", status: "excluded", reason: "template authoring is a person's task in the web app (a template can run commands on hosts)" },
   { pattern: "GET|POST|PATCH|DELETE /service-monitoring/logins/**", status: "excluded", reason: "saved logins are credentials, entered in the web app" },
   { pattern: "POST|PATCH|DELETE /service-monitoring/instances/**", status: "excluded", reason: "attaching a template to a host can run commands there and holds secrets: set up and confirmed in the web app" },
+  { pattern: "POST|PUT|DELETE /service-monitoring/groups/**", status: "excluded", reason: "grouping services and setting their rules is curation, done by a person in the web app" },
+  { pattern: "GET /service-monitoring/groups/role-choices", status: "excluded", reason: "a helper for the group form's role picker" },
   { pattern: "POST /service-monitoring/test", status: "excluded", reason: "runs a template against a host (possibly commands) to help a person write it; the poller reads every service on its own clock" },
   { pattern: "POST /service-monitoring/targets/:id/suggestions", status: "excluded", reason: "a live look at a host's units for the add-service dialog" },
   { pattern: "DELETE /renewals/:id", status: "excluded", reason: "no delete tools for records people keep; a renewal that is no longer wanted is removed in the web app" },

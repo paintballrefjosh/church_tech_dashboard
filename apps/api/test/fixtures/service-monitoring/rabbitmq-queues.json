@@ -1,0 +1,1 @@
+[{"consumers":0,"messages":5,"messages_ready":5,"messages_unacknowledged":0,"name":"jobs","state":"running","vhost":"/"},{"consumers":0,"messages":0,"messages_ready":0,"messages_unacknowledged":0,"name":"mail","state":"running","vhost":"/"}]

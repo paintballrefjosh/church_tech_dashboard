@@ -20,6 +20,7 @@ const READING_LABELS: Record<AreaKey, [string, string]> = {
   wifi: ["clients", "devices online"],
   switches: ["ports up", "config drift"],
   dns: ["queries/min", "sync"],
+  services: ["services up", "groups"],
 };
 
 function LedMeter({ label, level, text }: { label: string; level: number | null; text: string }) {

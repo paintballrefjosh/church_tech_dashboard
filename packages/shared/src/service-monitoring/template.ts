@@ -100,7 +100,15 @@ export const collectorSchema = z.discriminatedUnion("transport", [
     transport: z.literal("tcp"),
     host: text(300).optional(),
     port: z.union([z.number().int().min(1).max(65_535), text(100)]),
+    /** Sent once connected (`\r` and `\n` in the template are CR and LF; a value typed into an input never is). */
     send: text(1000).optional(),
+    /**
+     * A Redis/Valkey password, sent BEFORE `send` as `AUTH <password>` in Redis's own length-prefixed framing (RESP), so no
+     * character of it can end the command or start another. Blank = no AUTH.
+     */
+    redisAuth: text(200).optional(),
+    /** Read rows out of what came back (otherwise one row: `connected`, `connect_ms`, `text`). */
+    parse: parserSchema.optional(),
     timeoutSec,
     optional,
   }),
@@ -237,6 +245,7 @@ function collectorSlots(c: ServiceCollector): Array<{ slot: Slot; value: string;
       add("plain", c.host, "host");
       add("plain", c.port, "port");
       add("plain", c.send, "send");
+      add("secret_ok", c.redisAuth, "password");
       break;
     case "snmp":
       add("plain", c.host, "host");
@@ -325,16 +334,17 @@ export function serviceTemplateProblems(raw: unknown): string[] {
         problems.push(`collector ${name}: engine is postgres, mysql, or one {{select}} input offering only those`);
       }
     }
-    if ("parse" in c && c.parse.type === "json" && c.parse.rows && !c.parse.rows.includes("{{")) {
+    const parse = "parse" in c ? c.parse : undefined;
+    if (parse?.type === "json" && parse.rows && !parse.rows.includes("{{")) {
       try {
-        splitPath(c.parse.rows);
+        splitPath(parse.rows);
       } catch (e) {
         if (e instanceof ParseError) problems.push(`collector ${name}: ${e.message}`);
       }
     }
-    if ("parse" in c && c.parse.type === "regex") {
+    if (parse?.type === "regex") {
       try {
-        new RegExp(c.parse.pattern);
+        new RegExp(parse.pattern);
       } catch (e) {
         problems.push(`collector ${name}: the pattern does not read (${(e as Error).message})`);
       }

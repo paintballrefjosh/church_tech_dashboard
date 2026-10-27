@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import {
   PERMISSIONS,
   sectionOff,
@@ -7,6 +8,10 @@ import {
   type Section,
   type SystemsHealth,
 } from "@church/shared";
+import { DB, type Db } from "../../../db/db.module";
+import { infraTargets } from "../../../db/schema/infra";
+import { monitorIncidents } from "../../../db/schema/monitors";
+import { serviceGroups, serviceInstances } from "../../../db/schema/service-monitoring";
 import { SettingsService } from "../../../settings/settings.service";
 import { readMaintenance } from "../../../monitors/maintenance";
 import { MonitorsService } from "../../../monitors/monitors.service";
@@ -40,6 +45,7 @@ const AREA_META: Record<AreaKey, { label: string; href: string }> = {
   wifi: { label: "Wi-Fi", href: "/monitoring/network" },
   switches: { label: "Switches", href: "/monitoring/network-cisco" },
   dns: { label: "DNS", href: "/dns" },
+  services: { label: "Services", href: "/monitoring/infra/service-groups" },
 };
 
 interface AreaResult {
@@ -77,6 +83,7 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
   private readonly cache = new TtlCache();
 
   constructor(
+    @Inject(DB) private readonly db: Db,
     private readonly settings: SettingsService,
     private readonly monitors: MonitorsService,
     private readonly infra: InfraService,
@@ -111,15 +118,17 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
       }
     };
 
-    const [servers, internet, wifi, switches, dns] = await Promise.all([
+    const [servers, internet, wifi, switches, dns, services] = await Promise.all([
       guard("servers", () => this.servers()),
       guard("internet", () => this.internet()),
       canUnifi ? guard("wifi", () => this.wifi()) : Promise.resolve(blank("wifi", "forbidden", null)),
       guard("switches", () => this.switches()),
       guard("dns", () => this.dnsArea()),
+      guard("services", () => this.servicesArea()),
     ]);
 
-    const results = [servers, internet, wifi, switches, dns];
+    // Services is a newer, optional area: an install that uses none does not get an extra "not set up" row on every look.
+    const results = [servers, internet, wifi, switches, dns, services].filter((r) => !(r.area.key === "services" && r.area.state === "unconfigured"));
     const areas = results.map((r) => r.area);
     const totals = { up: 0, down: 0, total: 0 };
     for (const a of areas) {
@@ -305,5 +314,84 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
         ack: null,
       }));
     return { area: { key: "dns", ...meta, state: "ok", up: total - down, down, total, note: null }, problems };
+  }
+
+  /**
+   * Services on hosts (one per service instance that is switched on, on a host that is switched on) plus the groups
+   * across hosts: a group that is down or degraded is a problem of its own, though it adds nothing to the counts.
+   */
+  private async servicesArea(): Promise<AreaResult> {
+    const [instances, groups] = await Promise.all([
+      this.db
+        .select({
+          id: serviceInstances.id,
+          name: serviceInstances.name,
+          status: serviceInstances.status,
+          lastError: serviceInstances.lastError,
+          targetId: serviceInstances.targetId,
+          targetName: infraTargets.name,
+        })
+        .from(serviceInstances)
+        .innerJoin(infraTargets, eq(infraTargets.id, serviceInstances.targetId))
+        .where(and(eq(serviceInstances.enabled, true), eq(infraTargets.enabled, true))),
+      this.db.select({ id: serviceGroups.id, name: serviceGroups.name, status: serviceGroups.status }).from(serviceGroups),
+    ]);
+    if (instances.length === 0 && groups.length === 0) return blank("services", "unconfigured", "none set up");
+    const bad = instances.filter((i) => i.status === "down" || i.status === "degraded");
+    const badGroups = groups.filter((g) => g.status === "down" || g.status === "degraded");
+    const area: Area = {
+      key: "services",
+      ...AREA_META.services,
+      state: "ok",
+      up: instances.filter((i) => i.status === "up").length,
+      down: bad.length,
+      total: instances.length,
+      note: null,
+    };
+    const problems: Problem[] = [];
+    if (bad.length || badGroups.length) {
+      // The open incidents of these services (rule `svc:<instance>:<check>`) and groups, for "since" and the reason.
+      const conds = [];
+      if (bad.length) conds.push(and(inArray(monitorIncidents.targetId, [...new Set(bad.map((b) => b.targetId))]), like(monitorIncidents.ruleId, "svc:%")));
+      if (badGroups.length) conds.push(inArray(monitorIncidents.serviceGroupId, badGroups.map((g) => g.id)));
+      const incidents = await this.db
+        .select({ groupId: monitorIncidents.serviceGroupId, ruleId: monitorIncidents.ruleId, startedAt: monitorIncidents.startedAt, reason: monitorIncidents.reason })
+        .from(monitorIncidents)
+        .where(and(isNull(monitorIncidents.resolvedAt), or(...conds)));
+      const first = new Map<string, { startedAt: Date; reason: string | null }>();
+      const keep = (key: string, inc: { startedAt: Date; reason: string | null }) => {
+        const prev = first.get(key);
+        if (!prev || inc.startedAt < prev.startedAt) first.set(key, inc);
+      };
+      for (const inc of incidents) {
+        if (inc.groupId) keep(`g:${inc.groupId}`, inc);
+        else if (inc.ruleId?.startsWith("svc:")) keep(`i:${inc.ruleId.split(":")[1]}`, inc);
+      }
+      for (const g of badGroups) {
+        const inc = first.get(`g:${g.id}`);
+        problems.push({
+          id: `services:group:${g.id}`,
+          area: "services",
+          name: g.name,
+          detail: inc?.reason ?? (g.status === "degraded" ? "degraded" : "not working"),
+          since: isoOrNull(inc?.startedAt),
+          href: `/monitoring/infra/service-groups/${g.id}`,
+          ack: null,
+        });
+      }
+      for (const i of bad) {
+        const inc = first.get(`i:${i.id}`);
+        problems.push({
+          id: `services:${i.id}`,
+          area: "services",
+          name: `${i.name} on ${i.targetName}`,
+          detail: inc?.reason ?? i.lastError ?? (i.status === "degraded" ? "degraded" : "not working"),
+          since: isoOrNull(inc?.startedAt),
+          href: `/monitoring/infra/${i.targetId}/services/${i.id}`,
+          ack: null,
+        });
+      }
+    }
+    return { area, problems };
   }
 }

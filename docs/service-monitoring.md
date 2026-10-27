@@ -20,7 +20,9 @@ web: a **Services** section on each infra host's page, a page per service (`/mon
 **Service templates** (`/monitoring/infra/service-templates`, linked from the Infrastructure tab) with the Logins tab.
 
 **Built-in templates** (code, never in the database, cannot be changed or deleted; fork one to change it): HAProxy,
-keepalived, PostgreSQL, MariaDB/MySQL, CockroachDB, YugabyteDB, Apache, Kea DHCP, Technitium DNS, and the generic ones:
+keepalived, PostgreSQL, MariaDB/MySQL, CockroachDB, YugabyteDB, Apache, Kea DHCP, Technitium DNS; wave two (2026-10-26,
+`BUILTIN_TEMPLATE_VERSION` 2): Redis/Valkey, nginx, RabbitMQ, chrony, Postfix mail queue, mdadm (software RAID), ZFS pools,
+systemd failed units, Garage, Meilisearch; and the generic ones:
 Prometheus metric, JSON endpoint (one number), systemd unit + port + log pattern, SQL query returns a number. Custom
 templates are rows in `service_templates` (versioned; `forked_from`). The Kea and Technitium fixtures were written from the
 vendors' documentation, not captured from real servers: check them against a real one when one is added.
@@ -78,7 +80,58 @@ nothing is written), smoke `tests/smoke/service-monitoring.mjs` (reaches no real
 Not verified: the HAProxy, keepalived, Apache, Kea, Technitium, CockroachDB and YugabyteDB templates against the church's
 real servers (fixtures only).
 
-**Not built**: service groups across hosts, the home-page `services` section, catalogue wave two.
+**Wave two notes.** Redis/Valkey reads `INFO` over the `tcp` transport, which gained two fields for it: `parse` (rows out of
+the answer, otherwise the old single row) and `redisAuth` (a `secret_ok` slot: the password is sent first as `AUTH` in RESP
+framing, every argument length-prefixed, so it is data and never syntax; `respCommand` in `transports.ts`). The template's
+own `\r\n` escapes are now turned into CR/LF BEFORE values are filled in (they used to be unescaped after, so a value typed
+as the four characters `\r\n` became a line break; render already refuses real line breaks in values). Pgbouncer was left
+out (its console refuses `BEGIN READ ONLY`, which the sql transport always sends), and so were Windows, Samba, SMART (root
+only) and Proxmox Backup Server (no server to capture from). The mdadm and ZFS fixtures were written from the kernel's and
+the zpool manual's formats; everything else was captured (fixtures README), and the Redis template was run for real against
+a throwaway Valkey master and replica (`TEST_SVC_REDIS=host:port:password` opts in).
+
+**Service groups** (migration 0087, `service-groups.service.ts`, rules `packages/shared/src/service-monitoring/groups.ts`,
+pages `/monitoring/infra/service-groups` and `/monitoring/infra/service-groups/<id>`, linked from the Infrastructure tab):
+services on DIFFERENT hosts that make one thing (a database cluster, a keepalived pair). Each service stays judged by its own
+template on its own host; a group adds what only shows across hosts. Rules:
+
+- A service is in at most one group (`service_instances.group_id`, ON DELETE SET NULL); saving a group with a service moves
+  it out of any other.
+- **Quorum**: at least `min_healthy` members WORKING (status up or degraded AND read within max(3 intervals, 3 minutes):
+  `memberIsStale`); blank = all of them. A switched-off service, or one on a switched-off host, is not counted at all, and a
+  group with nobody counted is `unknown` with nothing judged (what it had open is resolved).
+- **Role** (optional): how many working members report a state metric with a value (`role` = `MASTER`), between a fewest and
+  a most. Offered only for a state metric EVERY member's template has (`commonStateMetrics`; the API refuses others, since
+  a member that cannot report it would count as "not MASTER" for ever). Judged only while the quorum holds (no "no MASTER" on
+  top of "too few working").
+- A breach that lasts `for_sec` opens a `monitor_incident` with `service_group_id` set and `rule_id` `group:quorum` /
+  `group:role`, so acknowledging, escalation (it joins the group for the name and link), alert channels, maintenance mode and
+  the assistant's acknowledge card apply. Notices are `infra.alert.opened/resolved` to the monitoring recipients, link
+  `/monitoring/infra/service-groups/<id>`; `alerts` off records but tells nobody. Activity `resourceType` `service_group`.
+- **One open incident per group and rule is the database's rule**: a unique index on `(service_group_id, group_open_rule)`,
+  where `group_open_rule` is the rule id while open and NULL once resolved. Not a partial index: CockroachDB refuses a
+  partial index on a column added in the same transaction (found when the first version of 0087 failed to migrate). A
+  23505 on open means another node opened it: adopt it, tell nobody again.
+- The `service-groups` cluster job (30 s) is the only writer of a group's `status`, `alert_state` and `last_result`
+  (volatile in the backup registry); the pages judge afresh from the members' readings and use the stored state only for
+  "is an incident open".
+- Reads `monitors:read:any`; writes `monitors:write:any`, audited `service.group.create|update|delete`; MCP read tools
+  `service_groups_list`, `service_groups_get`, `service_groups_list_incidents` (writes and the role-choices helper excluded).
+
+**Home page**: a sixth area, `services` (`AREA_KEYS`), only when at least one service or group exists (an install without
+any gets no extra "not set up" row on every look). Counts are the switched-on services on switched-on hosts; a service down
+or degraded, and a GROUP down or degraded, are problems of the area (since = the open incident's start). Front of House has a
+`services` channel (services up of all, groups working); availability history samples kind `service_instance` (degraded
+counts as up), so Glass and Toward Sunday show it.
+
+**Tests (groups, wave two)**: `service-groups.test.ts` (the rules), `service-groups.integration.test.ts` (CockroachDB and
+YugabyteDB: split brain opens ONE incident with two nodes judging at once, `for_sec`, quorum with a stale member, alerts off and
+maintenance, refusals, moving and deleting), `service-templates-wave2.test.ts` (each new template on its fixture, the RESP
+framing against a fake server, a password with a line break refused, opt-in real Redis), smoke "a group of services ...",
+e2e "group services across hosts".
+
+**Not built**: a group across services of DIFFERENT templates sharing a role under different names (the role must be one
+metric key every member has), search for groups, the status page showing groups.
 
 ## 1. The idea
 

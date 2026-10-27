@@ -23,6 +23,7 @@ import { DB, type Db } from "../../../db/db.module";
 import { ciscoDriftEvents, ciscoPortLiveState } from "../../../db/schema/cisco";
 import { infraMetricSamples, infraTargets } from "../../../db/schema/infra";
 import { monitorChecks, monitorIncidents, monitors } from "../../../db/schema/monitors";
+import { serviceGroups, serviceInstances } from "../../../db/schema/service-monitoring";
 import { UnifiService } from "../../../unifi/unifi.service";
 import { DnsService } from "../../../dns/dns.service";
 import { DnsSyncService } from "../../../dns/dns.sync";
@@ -112,10 +113,13 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
       guard("dns", () => this.dnsChannel(ctx.now), off("dns", ["queries/min", "sync"])),
       guard("incidents", () => this.incidents(), [] as Alert[]),
     ]);
+    const services = await guard("services", () => this.servicesChannel(), null);
 
     const channels: Channel[] = [servers, internet];
     if (wifi) channels.push(wifi.channel);
     channels.push(switches, dns);
+    // Like the systems section: no channel when service monitoring is not used.
+    if (services) channels.push(services);
 
     const unifiAlerts: Alert[] = (wifi?.offline ?? []).map((d, i) => ({
       at:
@@ -280,6 +284,29 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
     };
   }
 
+  /** Services up / services counted (switched on, on a host switched on), and how many groups are working. Null = none set up. */
+  private async servicesChannel(): Promise<Channel | null> {
+    const [instances, groups] = await Promise.all([
+      this.db
+        .select({ status: serviceInstances.status })
+        .from(serviceInstances)
+        .innerJoin(infraTargets, eq(infraTargets.id, serviceInstances.targetId))
+        .where(and(eq(serviceInstances.enabled, true), eq(infraTargets.enabled, true))),
+      this.db.select({ status: serviceGroups.status }).from(serviceGroups),
+    ]);
+    if (instances.length === 0 && groups.length === 0) return null;
+    const up = instances.filter((i) => i.status === "up").length;
+    const groupsOk = groups.filter((g) => g.status === "up" || g.status === "degraded").length;
+    return {
+      area: "services",
+      level: instances.length ? switchesLevel(up, instances.length) : null,
+      readings: [
+        { label: "services up", value: instances.length ? `${up} of ${instances.length}` : UNAVAILABLE },
+        { label: "groups", value: groups.length ? `${groupsOk} of ${groups.length} working` : "none" },
+      ],
+    };
+  }
+
   /** The newest incidents (open or resolved) of monitors and hosts, worded in plain sentences. */
   private async incidents(): Promise<Alert[]> {
     const rows = await this.db
@@ -287,20 +314,23 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
         id: monitorIncidents.id,
         monitorId: monitorIncidents.monitorId,
         targetId: monitorIncidents.targetId,
+        serviceGroupId: monitorIncidents.serviceGroupId,
         startedAt: monitorIncidents.startedAt,
         resolvedAt: monitorIncidents.resolvedAt,
         reason: monitorIncidents.reason,
         ruleId: monitorIncidents.ruleId,
         monitorName: monitors.name,
         targetName: infraTargets.name,
+        groupName: serviceGroups.name,
       })
       .from(monitorIncidents)
       .leftJoin(monitors, eq(monitors.id, monitorIncidents.monitorId))
       .leftJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+      .leftJoin(serviceGroups, eq(serviceGroups.id, monitorIncidents.serviceGroupId))
       .orderBy(desc(monitorIncidents.startedAt))
       .limit(MAX_ALERTS);
     return rows.map((r) => {
-      const name = r.monitorName ?? r.targetName ?? "A system";
+      const name = r.monitorName ?? r.targetName ?? r.groupName ?? "A system";
       const what = r.ruleId ? "crossed an alert threshold" : "was down";
       const title = r.resolvedAt
         ? `${name} ${what}, back to normal after ${durationText(r.resolvedAt.getTime() - r.startedAt.getTime())}`
@@ -309,7 +339,13 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
           : r.reason
           ? `${name} is down: ${r.reason}`
           : `${name} is down`;
-      const href = r.monitorId ? `/monitoring/${r.monitorId}` : r.targetId ? `/monitoring/infra/${r.targetId}` : null;
+      const href = r.monitorId
+        ? `/monitoring/${r.monitorId}`
+        : r.targetId
+          ? `/monitoring/infra/${r.targetId}`
+          : r.serviceGroupId
+            ? `/monitoring/infra/service-groups/${r.serviceGroupId}`
+            : null;
       return { at: r.startedAt.toISOString(), title, href };
     });
   }

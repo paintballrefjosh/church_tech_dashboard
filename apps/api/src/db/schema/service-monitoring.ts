@@ -35,6 +35,33 @@ export const serviceLogins = pgTable(
 );
 
 /**
+ * A service group (migration 0087): services on different hosts that make one thing, judged together for a quorum and a
+ * role count (`evaluateServiceGroup` in packages/shared). The last block is written by the `service-groups` job (volatile
+ * in the backup registry); `alert_state` is the per-rule breach state, as on an instance.
+ */
+export const serviceGroups = pgTable(
+  "service_groups",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    minHealthy: integer("min_healthy"),
+    roleRule: jsonb("role_rule"),
+    forSec: integer("for_sec").notNull().default(60),
+    alerts: boolean("alerts").notNull().default(true),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+
+    status: text("status").notNull().default("unknown"),
+    lastEvaluatedAt: timestamp("last_evaluated_at"),
+    lastResult: jsonb("last_result"),
+    alertState: jsonb("alert_state"),
+  },
+  (t) => ({ nameIdx: uniqueIndex("service_groups_name_idx").on(t.name) }),
+);
+
+/**
  * A template attached to a host. `inputs` holds the plain values (a login input holds `{loginId}`), `secrets_enc` the
  * encrypted `secret` inputs by key. The second block is written by the `service-poll` job (volatile in the backup
  * registry); `alert_state` is the per-check breach state (`stepCheckAlerts`) and `counters` the previous counter readings.
@@ -52,6 +79,8 @@ export const serviceInstances = pgTable(
     secretsEnc: jsonb("secrets_enc").$type<Record<string, string>>().notNull().default({}),
     intervalSec: integer("interval_sec").notNull().default(60),
     enabled: boolean("enabled").notNull().default(true),
+    /** At most one group per service. */
+    groupId: uuid("group_id").references(() => serviceGroups.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -69,7 +98,7 @@ export const serviceInstances = pgTable(
     counters: jsonb("counters"),
     alertState: jsonb("alert_state"),
   },
-  (t) => ({ targetIdx: index("service_instances_target_idx").on(t.targetId) }),
+  (t) => ({ targetIdx: index("service_instances_target_idx").on(t.targetId), groupIdx: index("service_instances_group_idx").on(t.groupId) }),
 );
 
 /** One row per instance per poll: every numeric metric by key. Kept 7 days; rollups keep longer (same windows as infra). */

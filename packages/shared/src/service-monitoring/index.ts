@@ -5,3 +5,4 @@ export * from "./engine";
 export * from "./render";
 export * from "./builtins";
 export * from "./api";
+export * from "./groups";

@@ -2,6 +2,7 @@ import { BadRequestException, Body, ConflictException, Controller, Delete, Get, 
 import { z } from "zod";
 import {
   PERMISSIONS,
+  serviceGroupSaveSchema,
   serviceInstanceCreateSchema,
   serviceInstanceUpdateSchema,
   serviceLoginSaveSchema,
@@ -16,6 +17,7 @@ import { Audited } from "../audit/audit.decorator";
 import { InfraCollector } from "../infra/infra-collector";
 import { ServiceMonitoringService } from "./service-monitoring.service";
 import { ServicePoller } from "./service-poller";
+import { ServiceGroupsService } from "./service-groups.service";
 
 function parse<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { flatten: () => unknown } } }, body: unknown): T {
   const parsed = schema.safeParse(body ?? {});
@@ -36,6 +38,7 @@ export class ServiceMonitoringController {
     private readonly services: ServiceMonitoringService,
     private readonly poller: ServicePoller,
     private readonly collector: InfraCollector,
+    private readonly groups: ServiceGroupsService,
   ) {}
 
   // ---- templates ----
@@ -102,6 +105,56 @@ export class ServiceMonitoringController {
   @Audited({ action: "service.login.delete", resourceType: "service_login", resourceIdFromParams: (p) => p.id ?? null })
   deleteLogin(@Param("id", ParseUUIDPipe) id: string) {
     return this.services.deleteLogin(id);
+  }
+
+  // ---- groups (services on different hosts judged together) ----
+
+  @Get("groups")
+  @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
+  listGroups() {
+    return this.groups.list();
+  }
+
+  /** The state metrics the given services share: what a group of them could count as its role. */
+  @Get("groups/role-choices")
+  @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
+  roleChoices(@Query("ids") ids?: string) {
+    const list = (ids ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (list.length > 100 || list.some((x) => !z.string().uuid().safeParse(x).success)) throw new BadRequestException("ids is a comma list of service ids");
+    return this.groups.roleChoices(list);
+  }
+
+  @Get("groups/:id")
+  @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
+  getGroup(@Param("id", ParseUUIDPipe) id: string) {
+    return this.groups.get(id);
+  }
+
+  @Get("groups/:id/incidents")
+  @RequirePermissions(PERMISSIONS.MONITORS_READ_ANY)
+  groupIncidents(@Param("id", ParseUUIDPipe) id: string) {
+    return this.groups.incidents(id);
+  }
+
+  @Post("groups")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "service.group.create", resourceType: "service_group" })
+  createGroup(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    return this.groups.create(parse(serviceGroupSaveSchema, body), user.id);
+  }
+
+  @Put("groups/:id")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "service.group.update", resourceType: "service_group", resourceIdFromParams: (p) => p.id ?? null })
+  updateGroup(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.groups.update(id, parse(serviceGroupSaveSchema, body));
+  }
+
+  @Delete("groups/:id")
+  @RequirePermissions(PERMISSIONS.MONITORS_WRITE_ANY)
+  @Audited({ action: "service.group.delete", resourceType: "service_group", resourceIdFromParams: (p) => p.id ?? null })
+  deleteGroup(@Param("id", ParseUUIDPipe) id: string) {
+    return this.groups.remove(id);
   }
 
   // ---- instances ----

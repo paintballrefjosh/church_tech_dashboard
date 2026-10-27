@@ -13,6 +13,7 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
   let hostId = null;
   let loginId = null;
   let instanceId = null;
+  let groupId = null;
   let templateSaved = false;
   let volunteer = null;
   const commandBody = {
@@ -34,7 +35,9 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
       assert(res.status === 200, `templates ${res.status}`);
       const list = await res.json();
       const byKey = new Map(list.map((t) => [t.key, t]));
-      for (const k of ["haproxy", "postgresql", "mysql", "kea", "technitium", "json-value", "systemd-unit"]) assert(byKey.has(k), `no built-in ${k}`);
+      for (const k of ["haproxy", "postgresql", "mysql", "kea", "technitium", "json-value", "systemd-unit", "redis", "nginx", "rabbitmq", "chrony", "postfix", "mdadm", "zfs", "systemd-failed", "garage", "meilisearch"]) {
+        assert(byKey.has(k), `no built-in ${k}`);
+      }
       assert(byKey.get("haproxy").source === "builtin" && byKey.get("systemd-unit").runsCommands === true, "built-in flags");
       const del = await admin("/api/v1/service-monitoring/templates/haproxy", { method: "DELETE" });
       assert(del.res.status === 409, `deleting a built-in gave ${del.res.status}`);
@@ -104,6 +107,37 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
       assert(unconfirmed.res.status === 409, `adding a command template unconfirmed gave ${unconfirmed.res.status}`);
     });
 
+    await test("service monitoring: a group of services is saved, audited, judged and shown on the home page", async () => {
+      assert(instanceId, "needs the service made above");
+      const name = `[smoke] group ${stamp}`;
+      const tooMany = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name, minHealthy: 2, instanceIds: [instanceId] }) });
+      assert(tooMany.res.status === 400, `a quorum above the members gave ${tooMany.res.status}`);
+      const badRole = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name, role: { metric: "role", value: "MASTER", min: 1, max: 1 }, instanceIds: [instanceId] }) });
+      assert(badRole.res.status === 400, `a role the members cannot report gave ${badRole.res.status}`);
+      const { res } = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name, minHealthy: 1, instanceIds: [instanceId] }) });
+      assert(res.status === 200 || res.status === 201, `create group ${res.status}: ${await res.clone().text()}`);
+      const g = await res.json();
+      groupId = g.id;
+      // Its one service is switched off (its host is), so there is nothing to judge.
+      assert(g.status === "unknown" && g.counted === 0 && g.members.length === 1, `group ${JSON.stringify(g)}`);
+      const dup = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name }) });
+      assert(dup.res.status === 409, `a second group with the name gave ${dup.res.status}`);
+      const inst = await admin(`/api/v1/service-monitoring/instances/${instanceId}`).then(({ res: r }) => r.json());
+      assert(inst.groupId === groupId && inst.groupName === name, "the service names its group");
+      const audit = await admin(`/api/v1/audit?resourceType=service_group`).then(({ res: r }) => r.json());
+      const rows = audit.items ?? audit.rows ?? audit;
+      assert(Array.isArray(rows) && rows.some((r) => r.action === "service.group.create" && r.resourceId === groupId), "no audit row for the group");
+      const home = await admin("/api/v1/dashboard/home").then(({ res: r }) => r.json());
+      if (home.systems.state === "ok") {
+        const area = home.systems.data.areas.find((a) => a.key === "services");
+        assert(area && area.href === "/monitoring/infra/service-groups", `no services area: ${JSON.stringify(home.systems.data.areas.map((a) => a.key))}`);
+      }
+      const upd = await admin(`/api/v1/service-monitoring/groups/${groupId}`, { method: "PUT", ...json({ name, minHealthy: null, instanceIds: [] }) });
+      assert(upd.res.status === 200 && (await upd.res.json()).members.length === 0, "emptying the group");
+      const after = await admin(`/api/v1/service-monitoring/instances/${instanceId}`).then(({ res: r }) => r.json());
+      assert(after.groupId === null, "the service left the group");
+    });
+
     await test("service monitoring: a test run needs the commands confirmed and cannot reach this server", async () => {
       const cmd = await admin("/api/v1/service-monitoring/test", { method: "POST", ...json({ targetId: hostId, templateKey: key, inputs: {}, secrets: {} }) });
       assert(cmd.res.status === 409, `an unconfirmed command test gave ${cmd.res.status}`);
@@ -143,6 +177,12 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
       assert(me.permissions.includes("monitors:read:any"), "the volunteer should read monitoring");
       const read = await fetchWithCookies(`/api/v1/service-monitoring/instances/${instanceId}`, {}, j);
       assert(read.res.status === 200, `volunteer read ${read.res.status}`);
+      if (groupId) {
+        const g = await fetchWithCookies(`/api/v1/service-monitoring/groups/${groupId}`, {}, j);
+        assert(g.res.status === 200, `volunteer group read ${g.res.status}`);
+        const del = await fetchWithCookies(`/api/v1/service-monitoring/groups/${groupId}`, { method: "DELETE" }, j);
+        assert(del.res.status === 403, `volunteer group delete gave ${del.res.status}`);
+      }
       const logins = await fetchWithCookies("/api/v1/service-monitoring/logins", {}, j);
       assert(logins.res.status === 403, `volunteer logins gave ${logins.res.status}`);
       const add = await fetchWithCookies("/api/v1/service-monitoring/instances", { method: "POST", ...json({ targetId: hostId, templateKey: "json-value", name: "x", inputs: {}, secrets: {} }) }, j);
@@ -151,6 +191,7 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
       assert(t.res.status === 403, `volunteer test gave ${t.res.status}`);
     });
   } finally {
+    if (groupId) await admin(`/api/v1/service-monitoring/groups/${groupId}`, { method: "DELETE" });
     if (instanceId) await admin(`/api/v1/service-monitoring/instances/${instanceId}`, { method: "DELETE" });
     if (templateSaved) await admin(`/api/v1/service-monitoring/templates/${key}`, { method: "DELETE" });
     if (loginId) await admin(`/api/v1/service-monitoring/logins/${loginId}`, { method: "DELETE" });

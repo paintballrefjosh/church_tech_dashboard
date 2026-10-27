@@ -34,6 +34,7 @@
   --wifi-0: #7a4cc8; --wifi-1: #8d5fdb; --wifi-2: #6a3db3; --wifi-3: #9a6ee6; --wifi-4: #5f35a3;
   --switches-0: #e29a1f; --switches-1: #f0ac33; --switches-2: #c98612; --switches-3: #f5b947;
   --dns-0: #c23a55; --dns-1: #d44b66; --dns-2: #a92f48;
+  --services-0: #0f8a8f; --services-1: #14a0a6; --services-2: #0b7377;
 }
 
 :global(.dark) .root {
@@ -73,6 +74,7 @@
   --wifi-0: #9a68ee; --wifi-1: #ab7df7; --wifi-2: #8553dd; --wifi-3: #b891fa; --wifi-4: #7646cc;
   --switches-0: #f2b034; --switches-1: #ffc24d; --switches-2: #dc9a1d; --switches-3: #ffd06e;
   --dns-0: #e4506e; --dns-1: #f2647f; --dns-2: #cc3d5b;
+  --services-0: #22bfc4; --services-1: #3fd3d8; --services-2: #17a4a9;
 }
 
 .root {

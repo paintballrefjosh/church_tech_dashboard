@@ -39,6 +39,7 @@ export class AvailabilitySampler implements OnModuleInit {
       ["unifi_device", () => this.sources.unifiDevices()],
       ["cisco_switch", () => this.sources.ciscoSwitches()],
       ["dns_node", () => this.sources.dnsNodes()],
+      ["service_instance", () => this.sources.serviceInstances()],
     ];
     const results = await Promise.all(
       readers.map(async ([kind, read]) => {

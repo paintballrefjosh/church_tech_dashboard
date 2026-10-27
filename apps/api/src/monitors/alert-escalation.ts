@@ -11,7 +11,7 @@ import {
   type EscalationLevel,
 } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
-import { groupMemberships, groups, infraTargets, monitorIncidents, monitors, users } from "../db/schema";
+import { groupMemberships, groups, infraTargets, monitorIncidents, monitors, serviceGroups, users } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { SettingsService } from "../settings/settings.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -94,13 +94,17 @@ export class AlertEscalation implements OnModuleInit {
         reason: monitorIncidents.reason,
         monitorId: monitorIncidents.monitorId,
         targetId: monitorIncidents.targetId,
+        serviceGroupId: monitorIncidents.serviceGroupId,
         monitorName: monitors.name,
         monitorOptions: monitors.options,
         targetName: infraTargets.name,
+        groupName: serviceGroups.name,
+        groupAlerts: serviceGroups.alerts,
       })
       .from(monitorIncidents)
       .leftJoin(monitors, eq(monitors.id, monitorIncidents.monitorId))
       .leftJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+      .leftJoin(serviceGroups, eq(serviceGroups.id, monitorIncidents.serviceGroupId))
       .where(
         and(
           isNull(monitorIncidents.resolvedAt),
@@ -113,15 +117,21 @@ export class AlertEscalation implements OnModuleInit {
     let usual: string[] | null = null;
     for (const inc of open) {
       // A monitor with alerts off never sent the first notice, so there is nothing to remind anyone about.
-      if (monitorAlertsOff(inc.monitorOptions as Record<string, unknown> | null)) continue;
+      if (monitorAlertsOff(inc.monitorOptions as Record<string, unknown> | null) || inc.groupAlerts === false) continue;
       const level = escalationDue(inc, config, now);
       if (!level) continue;
       if (!(await this.claim(inc.id, level, now))) continue;
 
-      const subject = inc.monitorName ?? inc.targetName ?? "An alert";
+      const subject = inc.monitorName ?? inc.targetName ?? inc.groupName ?? "An alert";
       const age = describeMinutes(now.getTime() - inc.startedAt.getTime());
       const reason = inc.reason ? ` ${inc.reason}` : "";
-      const ownLink = inc.monitorId ? `/monitoring/${inc.monitorId}` : inc.targetId ? `/monitoring/infra/${inc.targetId}` : "/monitoring";
+      const ownLink = inc.monitorId
+        ? `/monitoring/${inc.monitorId}`
+        : inc.targetId
+          ? `/monitoring/infra/${inc.targetId}`
+          : inc.serviceGroupId
+            ? `/monitoring/infra/service-groups/${inc.serviceGroupId}`
+            : "/monitoring";
 
       let recipients: string[];
       let link: string;
@@ -145,8 +155,8 @@ export class AlertEscalation implements OnModuleInit {
       await this.activity.record({
         actorUserId: null,
         action: "monitor.incident.escalated",
-        resourceType: inc.monitorId ? "monitor" : "infra_target",
-        resourceId: inc.monitorId ?? inc.targetId ?? inc.id,
+        resourceType: inc.monitorId ? "monitor" : inc.serviceGroupId ? "service_group" : "infra_target",
+        resourceId: inc.monitorId ?? inc.targetId ?? inc.serviceGroupId ?? inc.id,
         title,
         summary: body,
         link: ownLink,

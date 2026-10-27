@@ -18,6 +18,7 @@ function setup(over: Partial<AvailabilitySources> = {}) {
     unifiDevices: async () => [s("unifi_device", "aa:bb", true)],
     ciscoSwitches: async () => [s("cisco_switch", "c1")],
     dnsNodes: async () => [s("dns_node", "ns1")],
+    serviceInstances: async () => [s("service_instance", "svc1", true)],
     ...over,
   };
   const record = vi.fn(async () => undefined);
@@ -32,10 +33,10 @@ describe("AvailabilitySampler", () => {
   it("records one sample per system into the UTC hour start", async () => {
     const { sampler, record } = setup();
     const n = await sampler.sample(new Date("2026-10-10T13:42:17.500Z"));
-    expect(n).toBe(6);
+    expect(n).toBe(7);
     const [samples, hour] = record.mock.calls[0] as unknown as [AvailabilitySample[], Date];
-    expect(samples.map((x) => x.ref)).toEqual(["m1", "m2", "i1", "aa:bb", "c1", "ns1"]);
-    expect(samples.filter((x) => x.down).map((x) => x.ref)).toEqual(["m2", "aa:bb"]);
+    expect(samples.map((x) => x.ref)).toEqual(["m1", "m2", "i1", "aa:bb", "c1", "ns1", "svc1"]);
+    expect(samples.filter((x) => x.down).map((x) => x.ref)).toEqual(["m2", "aa:bb", "svc1"]);
     expect(hour.toISOString()).toBe("2026-10-10T13:00:00.000Z");
   });
 
@@ -45,6 +46,7 @@ describe("AvailabilitySampler", () => {
         throw new Error("controller unreachable");
       },
       dnsNodes: async () => null,
+      serviceInstances: async () => null,
     });
     await sampler.sample(new Date("2026-10-10T00:00:00Z"));
     const [samples] = record.mock.calls[0] as unknown as [AvailabilitySample[]];
@@ -59,6 +61,7 @@ describe("AvailabilitySampler", () => {
       unifiDevices: none,
       ciscoSwitches: none,
       dnsNodes: none,
+      serviceInstances: none,
     });
     expect(await sampler.sample()).toBe(0);
     expect(record).not.toHaveBeenCalled();

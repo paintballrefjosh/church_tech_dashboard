@@ -6,7 +6,7 @@ import type { AreaKey, AvailabilityGrid } from "@church/shared";
 import styles from "./glass.module.css";
 
 /** How many shades each area's jewel has (see the --<area>-<n> tokens in the CSS). */
-const SHADES: Record<AreaKey, number> = { servers: 5, internet: 4, wifi: 5, switches: 4, dns: 3 };
+const SHADES: Record<AreaKey, number> = { servers: 5, internet: 4, wifi: 5, switches: 4, dns: 3, services: 3 };
 
 /** A small stable hash (djb2): the same system and row always get the same shade. */
 export function shadeIndex(ref: string, row: number, count: number): number {

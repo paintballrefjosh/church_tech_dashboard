@@ -79,7 +79,10 @@ Technitium, Apache, keepalived, or anything with a Prometheus/JSON endpoint, a s
 "What runs on this host?", which looks at the host's systemd units over SSH and suggests matching ones), asks for the
 template's inputs, and has a **Test** button that runs it once and shows what the host answered. A failing check opens an
 alert on the host like a threshold rule. Templates and the shared logins (a read-only database user, say) are under
-**Service templates**. Design, rules and what was verified: [service-monitoring.md](service-monitoring.md).
+**Service templates**. Services on different hosts that make one thing (a database cluster, a keepalived pair) can be put in
+a **service group** (the Service groups button on this tab): the group alerts when too few of them are working, or when the
+number holding a role (such as MASTER) is wrong, which no single host can see. Design, rules and what was verified:
+[service-monitoring.md](service-monitoring.md).
 
 ## Retention
 

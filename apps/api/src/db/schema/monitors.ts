@@ -7,8 +7,10 @@ import {
   boolean,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { infraTargets } from "./infra";
+import { serviceGroups } from "./service-monitoring";
 import { users } from "./users";
 import { wikiPages } from "./wiki";
 import { locations } from "./assets";
@@ -113,7 +115,11 @@ export const monitorIncidents = pgTable(
     // Nullable now: an incident belongs to a monitor OR an infra target.
     monitorId: uuid("monitor_id").references(() => monitors.id, { onDelete: "cascade" }),
     targetId: uuid("target_id").references(() => infraTargets.id, { onDelete: "cascade" }),
+    // Or a service group (migration 0087): one open incident per group and rule is the database's rule.
+    serviceGroupId: uuid("service_group_id").references(() => serviceGroups.id, { onDelete: "cascade" }),
     ruleId: text("rule_id"), // infra threshold rule id that fired (null for up/down)
+    /** A service group's incident: its rule id while open, NULL once resolved (the unique index below holds one open per rule). */
+    groupOpenRule: text("group_open_rule"),
     detail: jsonb("detail"), // infra: { metric, threshold, observed }
     startedAt: timestamp("started_at").notNull().defaultNow(),
     resolvedAt: timestamp("resolved_at"),
@@ -128,5 +134,7 @@ export const monitorIncidents = pgTable(
   (t) => ({
     openIdx: index("monitor_incidents_open_idx").on(t.monitorId, t.resolvedAt),
     targetOpenIdx: index("monitor_incidents_target_open_idx").on(t.targetId, t.resolvedAt),
+    groupOpenIdx: uniqueIndex("monitor_incidents_group_open_idx")
+      .on(t.serviceGroupId, t.groupOpenRule),
   }),
 );

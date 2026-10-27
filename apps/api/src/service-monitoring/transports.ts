@@ -281,11 +281,19 @@ function plainValue(v: unknown): unknown {
   return v;
 }
 
+/** One Redis command in RESP framing: every argument length-prefixed, so its bytes are data and never syntax. */
+export function respCommand(args: string[]): string {
+  return `*${args.length}\r\n` + args.map((a) => `$${Buffer.byteLength(a, "utf8")}\r\n${a}\r\n`).join("");
+}
+
 async function tcpRows(c: Extract<ServiceCollector, { transport: "tcp" }>, ctx: InstanceRunContext, timeoutMs: number): Promise<Row[]> {
   const host = renderedHost(c.host, ctx);
   await assertServiceHost(host);
   const port = renderedPort(c.port, ctx, 0);
-  const send = c.send !== undefined ? render(c.send, ctx, "plain") : "";
+  // Escapes are the TEMPLATE's: unescaped before the values go in, so a value can never become a line break.
+  let send = c.send !== undefined ? render(c.send.replace(/\\r/g, "\r").replace(/\\n/g, "\n"), ctx, "plain") : "";
+  const password = c.redisAuth !== undefined ? render(c.redisAuth, ctx, "plain") : "";
+  if (password) send = respCommand(["AUTH", password]) + send;
   const started = Date.now();
   return new Promise<Row[]>((resolve, reject) => {
     const sock = tcpConnect({ host, port });
@@ -305,7 +313,7 @@ async function tcpRows(c: Extract<ServiceCollector, { transport: "tcp" }>, ctx: 
     const timer = setTimeout(() => finish(connectedMs === null ? new TransportError(`no answer on port ${port}`) : null), timeoutMs);
     sock.on("connect", () => {
       connectedMs = Date.now() - started;
-      if (send) sock.write(send.replace(/\\r/g, "\r").replace(/\\n/g, "\n"));
+      if (send) sock.write(send);
       // A banner (or the answer to what was sent) normally comes at once; a silent port is still "connected".
       idle = setTimeout(() => finish(null), 1500);
     });
@@ -391,10 +399,13 @@ export async function runCollector(c: ServiceCollector, ctx: InstanceRunContext,
         rows = await sqlRows(c, ctx, timeoutMs);
         raw = cut(JSON.stringify(rows.slice(0, 50), null, 1));
         break;
-      case "tcp":
-        rows = await tcpRows(c, ctx, timeoutMs);
-        raw = cut(String(rows[0]?.text ?? ""));
+      case "tcp": {
+        const answered = await tcpRows(c, ctx, timeoutMs);
+        const text = String(answered[0]?.text ?? "");
+        raw = cut(text);
+        rows = c.parse ? parseOutput(text, c.parse) : answered;
         break;
+      }
       case "snmp":
         rows = await snmpRows(c, ctx, timeoutMs);
         raw = cut(JSON.stringify(rows[0] ?? {}));

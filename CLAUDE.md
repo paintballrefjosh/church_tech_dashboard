@@ -417,8 +417,19 @@ link-local or one-word container names, also after DNS; no redirects; 5 MB cap. 
 `monitor_incident` on the host (`rule_id` `svc:<instance>:<check>`), notices `infra.alert.opened/resolved`, so ack/escalation/channels/maintenance
 apply; switching a service off or deleting it resolves its incidents. (6) Jobs `service-poll` (10 s, max 4, CLAIMED `claimed_until`),
 `service-rollup`, `service-prune` (raw 7 d, 5 m 90 d, 1 h 365 d); members and counters live on the instance row, not `infra_entities`.
+(7) **Service groups** (migration 0087, `service-groups.service.ts`, pure rules `service-monitoring/groups.ts`, `/monitoring/infra/service-groups`):
+services on different hosts judged together, a quorum (`min_healthy` working; stale = no reading in max(3 intervals, 3 min)) and an optional
+role count ("exactly 1 MASTER") on a state metric EVERY member's template has. A breach opens a `monitor_incident` with `service_group_id`
+(rule `group:quorum|role`); **one open per group and rule is a unique index on `(service_group_id, group_open_rule)`**, the rule id while open
+and NULL once resolved (CockroachDB cannot build a partial index on a column added in the same migration); a 23505 is adopted silently. Job
+`service-groups` (30 s) is the only writer of a group's status/alert state. Code that reads `monitor_incidents` must allow a row with
+neither `monitor_id` nor `target_id` (escalation, week, meters and the assistant join `service_groups` for the name). (8) The home page has a
+`services` area (`AREA_KEYS`) only when a service or group exists. (9) Wave two built-ins (`BUILTIN_TEMPLATE_VERSION` 2): Redis/Valkey, nginx,
+RabbitMQ, chrony, Postfix, mdadm, ZFS, systemd failed units, Garage, Meilisearch. The `tcp` transport has `parse` and `redisAuth` (sent as RESP
+`AUTH`, length-prefixed: never splice a secret into `send`), and unescapes the template's `\r\n` BEFORE filling values.
 Tests: `service-monitoring.test.ts`, `service-monitoring.integration.test.ts` (CockroachDB and YugabyteDB), opt-in `service-sql-transport.test.ts`
-(real PostgreSQL/MariaDB, `TEST_SVC_POSTGRES`/`TEST_SVC_MYSQL`), smoke `tests/smoke/service-monitoring.mjs`, e2e `service-monitoring.spec.ts`.
+(real PostgreSQL/MariaDB, `TEST_SVC_POSTGRES`/`TEST_SVC_MYSQL`), `service-groups.test.ts`, `service-groups.integration.test.ts` (both engines),
+`service-templates-wave2.test.ts` (opt-in `TEST_SVC_REDIS`), smoke `tests/smoke/service-monitoring.mjs`, e2e `service-monitoring.spec.ts`.
 
 **Renewals** (`apps/api/src/renewals/`, page `/renewals` in the IT menu, migration 0079; rules in `packages/shared/src/schemas/renewal.ts`,
 unit-tested in `apps/api/test/renewals.test.ts`): licences, domains, warranties, subscriptions and certificates that lapse on a date. Monitoring
@@ -1740,7 +1751,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
 - **Assistant (chatbot) — phases 1-3 built (2026-10-25/26)** — see ## Assistant and section 0 of [docs/assistant.md](docs/assistant.md); embeddings, replayed evaluation, API-token access and other channels are not built; do not start them without an explicit ask.
-- **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, a home-page section and catalogue wave two are not built.
+- **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, the home-page Services area and catalogue wave two also built (2026-10-26).
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)

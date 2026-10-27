@@ -1,0 +1,70 @@
+# HELP api_s3_error_counter Number of API calls to the various S3 API endpoints that resulted in errors
+# TYPE api_s3_error_counter counter
+api_s3_error_counter{api_endpoint="GetObject",status_code="404"} 4
+api_s3_error_counter{api_endpoint="HeadObject",status_code="404"} 1
+# HELP api_s3_request_counter Number of API calls to the various S3 API endpoints
+# TYPE api_s3_request_counter counter
+api_s3_request_counter{api_endpoint="CompleteMultipartUpload"} 504
+api_s3_request_counter{api_endpoint="CreateMultipartUpload"} 609
+api_s3_request_counter{api_endpoint="DeleteObject"} 1388
+api_s3_request_counter{api_endpoint="GetObject"} 4822
+api_s3_request_counter{api_endpoint="HeadBucket"} 2714
+api_s3_request_counter{api_endpoint="HeadObject"} 3428
+api_s3_request_counter{api_endpoint="ListMultipartUploads"} 603
+api_s3_request_counter{api_endpoint="ListObjects"} 2
+api_s3_request_counter{api_endpoint="ListObjectsV2"} 1573
+api_s3_request_counter{api_endpoint="PutObject"} 824
+api_s3_request_counter{api_endpoint="UploadPart"} 559
+# HELP block_resync_errored_blocks Number of block hashes whose last resync resulted in an error
+# TYPE block_resync_errored_blocks gauge
+block_resync_errored_blocks 0
+# HELP block_resync_queue_length Number of block hashes queued for local check and possible resync
+# TYPE block_resync_queue_length gauge
+block_resync_queue_length 0
+# HELP cluster_available Whether all requests can be served, even if some storage nodes are disconnected
+# TYPE cluster_available gauge
+cluster_available 1
+# HELP cluster_connected_nodes Number of nodes currently connected
+# TYPE cluster_connected_nodes gauge
+cluster_connected_nodes 1
+# HELP cluster_healthy Whether all storage nodes are connected
+# TYPE cluster_healthy gauge
+cluster_healthy 1
+# HELP cluster_known_nodes Number of nodes already seen once in the cluster
+# TYPE cluster_known_nodes gauge
+cluster_known_nodes 1
+# HELP cluster_layout_node_connected Connection status for nodes in the cluster layout
+# TYPE cluster_layout_node_connected gauge
+cluster_layout_node_connected{id="17c53d352e93f367",role_capacity="100000000000",role_gateway="0",role_zone="dc1"} 1
+# HELP cluster_layout_node_disconnected_time Time (in seconds) since last connection to nodes in the cluster layout
+# TYPE cluster_layout_node_disconnected_time gauge
+cluster_layout_node_disconnected_time{id="17c53d352e93f367",role_capacity="100000000000",role_gateway="0",role_zone="dc1"} 0
+# HELP cluster_partitions Number of partitions in the layout
+# TYPE cluster_partitions gauge
+cluster_partitions 256
+# HELP cluster_partitions_all_ok Number of partitions for which all storage nodes are connected
+# TYPE cluster_partitions_all_ok gauge
+cluster_partitions_all_ok 256
+# HELP cluster_partitions_quorum Number of partitions for which we have a quorum of connected nodes
+# TYPE cluster_partitions_quorum gauge
+cluster_partitions_quorum 256
+# HELP cluster_storage_nodes Number of storage nodes declared in the current layout
+# TYPE cluster_storage_nodes gauge
+cluster_storage_nodes 1
+# HELP cluster_storage_nodes_ok Number of storage nodes currently connected
+# TYPE cluster_storage_nodes_ok gauge
+cluster_storage_nodes_ok 1
+# HELP garage_build_info Garage build info
+# TYPE garage_build_info gauge
+garage_build_info{rustversion="1.82.0",version="v2.1.0"} 1
+# HELP garage_local_disk_avail Garage available disk space on each node
+# TYPE garage_local_disk_avail gauge
+garage_local_disk_avail{volume="data"} 3953239523328
+garage_local_disk_avail{volume="metadata"} 188326412288
+# HELP garage_local_disk_total Garage total disk space on each node
+# TYPE garage_local_disk_total gauge
+garage_local_disk_total{volume="data"} 34403459792896
+garage_local_disk_total{volume="metadata"} 314813841408
+# HELP garage_replication_factor Garage replication factor setting
+# TYPE garage_replication_factor gauge
+garage_replication_factor 1

@@ -36,6 +36,7 @@ import {
   serviceInstances,
   serviceLogins,
   serviceMetricRollups,
+  serviceGroups,
   serviceMetricSamples,
   serviceTemplates,
 } from "../db/schema";
@@ -261,6 +262,13 @@ export class ServiceMonitoringService {
     if (targetIds.length) for (const t of await this.db.select().from(infraTargets).where(inArray(infraTargets.id, targetIds))) targets.set(t.id, t);
     const bodies = new Map<string, ServiceTemplateBody | null>();
     for (const k of new Set(rows.map((r) => r.templateKey))) bodies.set(k, await this.templateBody(k));
+    const groupIds = [...new Set(rows.map((r) => r.groupId).filter((g): g is string => !!g))];
+    const groupNames = new Map<string, string>();
+    if (groupIds.length) {
+      for (const g of await this.db.select({ id: serviceGroups.id, name: serviceGroups.name }).from(serviceGroups).where(inArray(serviceGroups.id, groupIds))) {
+        groupNames.set(g.id, g.name);
+      }
+    }
     return rows.map((r) => {
       const body = bodies.get(r.templateKey) ?? null;
       const target = targets.get(r.targetId);
@@ -278,6 +286,8 @@ export class ServiceMonitoringService {
         intervalSec: r.intervalSec,
         enabled: r.enabled,
         runsCommands: body ? templateRunsCommands(body) : false,
+        groupId: r.groupId,
+        groupName: r.groupId ? (groupNames.get(r.groupId) ?? null) : null,
         status,
         lastError: r.lastError,
         lastPolledAt: iso(r.lastPolledAt),

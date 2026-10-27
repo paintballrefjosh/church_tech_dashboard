@@ -128,3 +128,54 @@ test("service monitoring: add a service from the host page, its page, and the te
     await api.delete(`/api/infra/targets/${host.id}`);
   }
 });
+
+test("service monitoring: group services across hosts", async ({ page }) => {
+  await signInAsTestUser(page);
+  const api = page.request;
+  const host = await (await api.post("/api/infra/targets", { data: { name: `${HOST} g`, os: "linux", host: "127.0.0.1", enabled: false } })).json();
+  const group = `[e2e] group ${STAMP}`;
+  let groupId: string | null = null;
+  try {
+    const made = await api.post("/api/service-monitoring/instances", {
+      data: { targetId: host.id, templateKey: "json-value", name: `[e2e] member ${STAMP}`, inputs: { url: "http://127.0.0.1:9/x", path: "a" }, secrets: {} },
+    });
+    expect(made.status()).toBeLessThan(300);
+    const inst = await made.json();
+
+    await page.goto("/monitoring/infra");
+    await page.getByRole("link", { name: "Service groups" }).click();
+    await page.waitForURL("**/monitoring/infra/service-groups");
+    await expect(page.getByRole("heading", { name: "Service groups" })).toBeVisible();
+    await axe(page);
+
+    await page.getByRole("button", { name: "New group" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Name").fill(group);
+    await dialog.getByLabel("Filter services").fill(`[e2e] member ${STAMP}`);
+    await dialog.getByRole("checkbox", { name: new RegExp(`member ${STAMP}`) }).check();
+    // The JSON template reports no state, so no role can be counted.
+    await expect(dialog.getByRole("checkbox", { name: "Count a role" })).toBeDisabled();
+    await axe(page, '[role="dialog"]');
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await page.waitForURL(/\/monitoring\/infra\/service-groups\/[0-9a-f-]{36}$/);
+    groupId = page.url().split("/").pop()!;
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(group);
+    // Its only service is switched off (its host is): nothing to judge, and the member says so.
+    await expect(page.getByText("Nothing to judge")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Services in the group" })).toContainText("not counted");
+    await axe(page);
+
+    await page.goto(`/monitoring/infra/${host.id}/services/${inst.id}`);
+    await expect(page.getByRole("link", { name: group })).toBeVisible();
+
+    await page.goto(`/monitoring/infra/service-groups/${groupId}`);
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.waitForURL("**/monitoring/infra/service-groups");
+    groupId = null;
+    await expect(page.getByRole("link", { name: group })).toHaveCount(0);
+  } finally {
+    if (groupId) await api.delete(`/api/service-monitoring/groups/${groupId}`);
+    await api.delete(`/api/infra/targets/${host.id}`);
+  }
+});

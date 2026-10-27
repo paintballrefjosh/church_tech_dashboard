@@ -106,7 +106,7 @@ export class ActivityService {
     );
 
     if (perms.has(PERMISSIONS.MONITORS_READ_ANY)) {
-      branches.push(inArray(activityEvents.resourceType, ["infra_target", "monitor"]));
+      branches.push(inArray(activityEvents.resourceType, ["infra_target", "monitor", "service_group"]));
     }
     return or(...branches)!;
   }

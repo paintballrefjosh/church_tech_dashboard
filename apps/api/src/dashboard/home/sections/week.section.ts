@@ -14,7 +14,7 @@ import {
   type WeekEventInput,
 } from "@church/shared";
 import { DB, type Db } from "../../../db/db.module";
-import { activityEvents, backupOperations, infraTargets, monitorIncidents, monitors, tickets } from "../../../db/schema";
+import { activityEvents, backupOperations, infraTargets, monitorIncidents, monitors, serviceGroups, tickets } from "../../../db/schema";
 import { AVAILABILITY_KINDS, AvailabilityStore } from "../../../availability/availability.store";
 import { WikiService } from "../../../wiki/wiki.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
@@ -61,14 +61,17 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
         id: monitorIncidents.id,
         monitorId: monitorIncidents.monitorId,
         targetId: monitorIncidents.targetId,
+        serviceGroupId: monitorIncidents.serviceGroupId,
         startedAt: monitorIncidents.startedAt,
         resolvedAt: monitorIncidents.resolvedAt,
         monitorName: monitors.name,
         targetName: infraTargets.name,
+        groupName: serviceGroups.name,
       })
       .from(monitorIncidents)
       .leftJoin(monitors, eq(monitors.id, monitorIncidents.monitorId))
       .leftJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+      .leftJoin(serviceGroups, eq(serviceGroups.id, monitorIncidents.serviceGroupId))
       .where(
         and(
           lt(monitorIncidents.startedAt, to),
@@ -81,8 +84,14 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
     for (const r of rows) {
       spans.push({ start: r.startedAt, end: r.resolvedAt });
       if (r.startedAt.getTime() < from.getTime()) continue;
-      const name = r.monitorName ?? r.targetName ?? "A system";
-      const href = r.monitorId ? `/monitoring/${r.monitorId}` : r.targetId ? `/monitoring/infra/${r.targetId}` : null;
+      const name = r.monitorName ?? r.targetName ?? r.groupName ?? "A system";
+      const href = r.monitorId
+        ? `/monitoring/${r.monitorId}`
+        : r.targetId
+          ? `/monitoring/infra/${r.targetId}`
+          : r.serviceGroupId
+            ? `/monitoring/infra/service-groups/${r.serviceGroupId}`
+            : null;
       events.push({
         kind: "incident",
         title: `${name} went down`,
@@ -90,7 +99,7 @@ export class HomeWeekSection implements SectionBuilder<WeekDigest> {
         at: r.startedAt,
         tone: r.resolvedAt ? "warn" : "bad",
         href,
-        group: r.monitorId ?? r.targetId ?? r.id,
+        group: r.monitorId ?? r.targetId ?? r.serviceGroupId ?? r.id,
         subject: name,
         durationMs: r.resolvedAt ? r.resolvedAt.getTime() - r.startedAt.getTime() : null,
       });

@@ -147,6 +147,14 @@ export function ServiceInstanceClient({ targetId, id }: { targetId: string; id: 
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             {s.templateName} on {s.targetName} · every {s.intervalSec} s · checked {ago(s.lastPolledAt)}
             {s.runsCommands ? " · runs commands over SSH" : ""}
+            {s.groupId ? (
+              <>
+                {" · in the group "}
+                <Link href={`/monitoring/infra/service-groups/${s.groupId}`} className="text-brand-600 hover:underline dark:text-brand-400">
+                  {s.groupName}
+                </Link>
+              </>
+            ) : null}
           </p>
         </div>
         {canWrite ? (

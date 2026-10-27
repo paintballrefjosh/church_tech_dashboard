@@ -89,6 +89,9 @@ export interface ServiceInstance {
   intervalSec: number;
   enabled: boolean;
   runsCommands: boolean;
+  /** The service group it belongs to (at most one). */
+  groupId: string | null;
+  groupName: string | null;
   status: ServiceInstanceStatus;
   lastError: string | null;
   lastPolledAt: string | null;

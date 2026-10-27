@@ -27,7 +27,7 @@ import {
 } from "@church/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { DB, type Db } from "../db/db.module";
-import { assistantAnswers, assistantConversations, assistantMessages, assistantUsageDaily, groupMemberships, groups, infraTargets, monitorIncidents, monitors } from "../db/schema";
+import { assistantAnswers, assistantConversations, assistantMessages, assistantUsageDaily, groupMemberships, groups, infraTargets, monitorIncidents, monitors, serviceGroups } from "../db/schema";
 import { NotificationsService } from "../notifications/notifications.service";
 import { SettingsService } from "../settings/settings.service";
 import { SearchService } from "../search/search.service";
@@ -343,18 +343,25 @@ export class AssistantService implements OnModuleInit {
         let contextUrl: string | null = null;
         if (parsed.payload.kind === "acknowledge_incident") {
           const [inc] = await this.db
-            .select({ resolvedAt: monitorIncidents.resolvedAt, acknowledgedAt: monitorIncidents.acknowledgedAt, reason: monitorIncidents.reason, startedAt: monitorIncidents.startedAt, monitorId: monitorIncidents.monitorId, targetId: monitorIncidents.targetId, monitorName: monitors.name, targetName: infraTargets.name })
+            .select({ resolvedAt: monitorIncidents.resolvedAt, acknowledgedAt: monitorIncidents.acknowledgedAt, reason: monitorIncidents.reason, startedAt: monitorIncidents.startedAt, monitorId: monitorIncidents.monitorId, targetId: monitorIncidents.targetId, serviceGroupId: monitorIncidents.serviceGroupId, monitorName: monitors.name, targetName: infraTargets.name, groupName: serviceGroups.name })
             .from(monitorIncidents)
             .leftJoin(monitors, eq(monitors.id, monitorIncidents.monitorId))
             .leftJoin(infraTargets, eq(infraTargets.id, monitorIncidents.targetId))
+            .leftJoin(serviceGroups, eq(serviceGroups.id, monitorIncidents.serviceGroupId))
             .where(eq(monitorIncidents.id, parsed.payload.incidentId))
             .limit(1);
           if (!inc) throw new BridgeError(404, "There is no incident with that id.");
           if (inc.resolvedAt) throw new BridgeError(409, "That incident is already resolved.");
           if (inc.acknowledgedAt) throw new BridgeError(409, "That incident is already acknowledged.");
-          const what = inc.monitorName ?? inc.targetName ?? "Unknown";
+          const what = inc.monitorName ?? inc.targetName ?? inc.groupName ?? "Unknown";
           context = `${what}: ${inc.reason ?? "no reason recorded"} (open since ${inc.startedAt.toISOString()})`;
-          contextUrl = inc.monitorId ? `/monitoring/${inc.monitorId}` : inc.targetId ? `/monitoring/infra/${inc.targetId}` : null;
+          contextUrl = inc.monitorId
+            ? `/monitoring/${inc.monitorId}`
+            : inc.targetId
+              ? `/monitoring/infra/${inc.targetId}`
+              : inc.serviceGroupId
+                ? `/monitoring/infra/service-groups/${inc.serviceGroupId}`
+                : null;
         }
         const proposal: AssistantProposal = { id: randomUUID(), kind: parsed.payload.kind, status: "proposed", payload: parsed.payload, context, contextUrl, resultUrl: null, decidedAt: null };
         sink(proposal);

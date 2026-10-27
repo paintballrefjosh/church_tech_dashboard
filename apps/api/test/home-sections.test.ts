@@ -15,6 +15,7 @@ import type { TicketsService } from "../src/tickets/tickets.service";
 import type { PlanningCenterService } from "../src/planning-center/planning-center.service";
 import type { ChecklistsService } from "../src/checklists/checklists.service";
 import type { Db } from "../src/db/db.module";
+import { serviceGroups, serviceInstances } from "../src/db/schema";
 import { NOW, TZ } from "./helpers/home-fixtures";
 
 const ctx = (permissions: string[], id = "me"): HomeContext =>
@@ -25,6 +26,25 @@ const settings = (values: Record<string, unknown> = {}) =>
 
 const never = new Promise<never>(() => undefined);
 
+/** A drizzle stand-in for the services area: each query answers the rows given for the table it reads. */
+function fakeDb(rows: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[] } = {}): Db {
+  return {
+    select: () => {
+      let from: unknown;
+      const q = {
+        from: (t: unknown) => ((from = t), q),
+        innerJoin: () => q,
+        where: () => q,
+        then: (ok: (v: unknown[]) => unknown, fail?: (e: unknown) => unknown) =>
+          Promise.resolve(
+            from === serviceInstances ? (rows.instances ?? []) : from === serviceGroups ? (rows.groups ?? []) : (rows.incidents ?? []),
+          ).then(ok, fail),
+      };
+      return q;
+    },
+  } as unknown as Db;
+}
+
 interface SystemFakes {
   infraSummary?: () => Promise<unknown>;
   monitorsSummary?: () => Promise<unknown>;
@@ -32,6 +52,7 @@ interface SystemFakes {
   unifiDevices?: () => Promise<unknown[]>;
   cisco?: () => Promise<unknown[]>;
   dns?: () => Promise<unknown>;
+  services?: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[] };
 }
 
 function systems(f: SystemFakes = {}, values: Record<string, unknown> = {}) {
@@ -94,7 +115,7 @@ function systems(f: SystemFakes = {}, values: Record<string, unknown> = {}) {
           };
     },
   } as unknown as DnsService;
-  return { section: new HomeSystemsSection(settings(values), monitors, infra, unifi, cisco, dns), calls };
+  return { section: new HomeSystemsSection(fakeDb(f.services), settings(values), monitors, infra, unifi, cisco, dns), calls };
 }
 
 const MON = ["monitors:read:any"];
@@ -174,6 +195,29 @@ describe("HomeSystemsSection", () => {
     if (res.state !== "ok") throw new Error("expected ok");
     expect(res.data.areas.map((a) => a.state)).toEqual(["unconfigured", "unconfigured", "unconfigured", "unconfigured", "unconfigured"]);
     expect(res.data.problems).toEqual([]);
+  });
+
+  it("adds a services area with its down services and groups, and the open incident's start and reason", async () => {
+    const { section } = systems({
+      services: {
+        instances: [
+          { id: "i1", name: "haproxy", status: "up", lastError: null, targetId: "s1", targetName: "lb1" },
+          { id: "i2", name: "postgres", status: "down", lastError: "connection refused", targetId: "s2", targetName: "db1" },
+        ],
+        groups: [{ id: "g1", name: "LB pair", status: "down" }],
+        incidents: [
+          { groupId: "g1", ruleId: "group:role", startedAt: new Date("2026-10-08T08:00:00Z"), reason: "No member is MASTER" },
+          { groupId: null, ruleId: "svc:i2:reachable", startedAt: new Date("2026-10-08T07:30:00Z"), reason: "postgres: not reachable" },
+        ],
+      },
+    });
+    const res = await section.build(ctx(MON));
+    if (res.state !== "ok") throw new Error("expected ok");
+    expect(sectionSchema(systemsHealthSchema).safeParse(res).success).toBe(true);
+    expect(res.data.areas.find((a) => a.key === "services")).toMatchObject({ state: "ok", up: 1, down: 1, total: 2 });
+    const byId = Object.fromEntries(res.data.problems.map((p) => [p.id, p]));
+    expect(byId["services:group:g1"]).toMatchObject({ name: "LB pair", detail: "No member is MASTER", since: "2026-10-08T08:00:00.000Z" });
+    expect(byId["services:i2"]).toMatchObject({ name: "postgres on db1", detail: "postgres: not reachable", href: "/monitoring/infra/s2/services/i2" });
   });
 
   it("treats an unreachable DNS primary as an outage", async () => {

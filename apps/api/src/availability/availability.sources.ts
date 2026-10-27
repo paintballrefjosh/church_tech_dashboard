@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { ciscoSwitches, infraTargets, monitors } from "../db/schema";
+import { ciscoSwitches, infraTargets, monitors, serviceInstances } from "../db/schema";
 import { UnifiService } from "../unifi/unifi.service";
 import { DnsService } from "../dns/dns.service";
 import type { AvailabilitySample } from "./availability.store";
@@ -16,6 +16,7 @@ export interface AvailabilitySources {
   unifiDevices(): Promise<AvailabilitySample[] | null>;
   ciscoSwitches(): Promise<AvailabilitySample[] | null>;
   dnsNodes(): Promise<AvailabilitySample[] | null>;
+  serviceInstances(): Promise<AvailabilitySample[] | null>;
 }
 
 export const AVAILABILITY_SOURCES = Symbol("AVAILABILITY_SOURCES");
@@ -90,5 +91,17 @@ export class DefaultAvailabilitySources implements AvailabilitySources {
         down: !HEALTHY_NODE_STATES.has(n.state),
       };
     });
+  }
+
+  /** Services switched on, on hosts switched on, that have been read (unknown = no data). Degraded counts as up. */
+  async serviceInstances(): Promise<AvailabilitySample[]> {
+    const rows = await this.db
+      .select({ id: serviceInstances.id, name: serviceInstances.name, status: serviceInstances.status, host: infraTargets.name })
+      .from(serviceInstances)
+      .innerJoin(infraTargets, eq(infraTargets.id, serviceInstances.targetId))
+      .where(and(eq(serviceInstances.enabled, true), eq(infraTargets.enabled, true)));
+    return rows
+      .filter((r) => r.status === "up" || r.status === "degraded" || r.status === "down")
+      .map((r) => ({ kind: "service_instance" as const, ref: r.id, label: `${r.name} on ${r.host}`, down: r.status === "down" }));
   }
 }

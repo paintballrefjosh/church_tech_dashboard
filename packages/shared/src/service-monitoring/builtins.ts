@@ -8,7 +8,7 @@ import type { ServiceTemplateBody } from "./template";
  *
  * `BUILTIN_TEMPLATE_VERSION` goes up when any built-in changes, so an instance page can say "the template changed".
  */
-export const BUILTIN_TEMPLATE_VERSION = 1;
+export const BUILTIN_TEMPLATE_VERSION = 2;
 
 const port = (def: number) => ({ key: "port", label: "Port", type: "number" as const, default: def });
 const verify = { key: "verify_tls", label: "Check the TLS certificate", type: "bool" as const, default: true, help: "Turn off for a self-signed certificate." };
@@ -604,6 +604,368 @@ const genericSql: ServiceTemplateBody = {
   display: { cards: ["value"], charts: [{ title: "Value", metrics: ["value"] }] },
 };
 
+// Wave two (docs/service-monitoring.md section 0): the services a church's IT person runs next most often.
+
+const redis: ServiceTemplateBody = {
+  name: "Redis / Valkey",
+  description: "Role (master or replica) and the replica's link, clients, memory, operations per second, evictions and the last save.",
+  needs: "The port reachable from the dashboard; the password if `requirepass` is set (sent as AUTH, never in an address or a command line).",
+  detect: { units: ["redis", "redis-server", "valkey", "valkey-server"], ports: [6379] },
+  inputs: [
+    port(6379),
+    { key: "password", label: "Password (if set)", type: "secret" },
+    { key: "expect_role", label: "This server should be", type: "select", options: ["either", "master", "replica"], default: "either" },
+  ],
+  collect: {
+    info: { transport: "tcp", port: "{{port}}", redisAuth: "{{password}}", send: "INFO\\r\\n", parse: { type: "kv", separator: ":" } },
+  },
+  metrics: {
+    version: { label: "Version", from: "info", field: "redis_version", kind: "state" },
+    raw_role: { label: "Role as reported", from: "info", field: "role", kind: "state" },
+    role: { label: "Role", expr: "raw_role == 'slave' ? 'replica' : raw_role", kind: "state" },
+    link: { label: "Link to the master", from: "info", field: "master_link_status", kind: "state" },
+    uptime_s: { label: "Up for", from: "info", field: "uptime_in_seconds", unit: "s" },
+    clients: { label: "Clients", from: "info", field: "connected_clients" },
+    blocked: { label: "Blocked clients", from: "info", field: "blocked_clients" },
+    replicas: { label: "Replicas connected", from: "info", field: "connected_slaves" },
+    used_mb: { label: "Memory used", from: "info", value: "num(used_memory) / 1048576", agg: "first", unit: "MB" },
+    max_mb: { label: "Memory limit", from: "info", value: "num(maxmemory) / 1048576", agg: "first", unit: "MB" },
+    memory_pct: { label: "Memory used of the limit", expr: "max_mb > 0 ? used_mb / max_mb * 100 : null", unit: "%" },
+    ops: { label: "Operations per second", from: "info", field: "instantaneous_ops_per_sec", unit: "/s" },
+    evicted: { label: "Keys evicted per second", from: "info", field: "evicted_keys", kind: "counter", unit: "/s" },
+    rejected: { label: "Connections refused per second", from: "info", field: "rejected_connections", kind: "counter", unit: "/s" },
+    save_status: { label: "Last save", from: "info", field: "rdb_last_bgsave_status", kind: "state" },
+    aof_status: { label: "Last append-only write", from: "info", field: "aof_last_write_status", kind: "state" },
+  },
+  checks: [
+    { id: "no_info", expr: "uptime_s == null", severity: "critical", for: 60, text: "No answer to INFO (a wrong or missing password?)" },
+    { id: "link_down", expr: "role == 'replica' && link != 'up'", severity: "critical", for: 60, text: "The replica's link to its master is {{link}}" },
+    { id: "save_failed", expr: "save_status != null && save_status != 'ok'", severity: "warning", for: 0, text: "The last save failed ({{save_status}})" },
+    { id: "aof_failed", expr: "aof_status != null && aof_status != 'ok'", severity: "warning", for: 0, text: "The last append-only write failed ({{aof_status}})" },
+    { id: "memory", expr: "memory_pct > 90", severity: "warning", for: 300, text: "{{memory_pct}}% of the memory limit used" },
+    { id: "rejected", expr: "rejected > 0", severity: "warning", for: 60, text: "Refusing connections ({{rejected}} per second)" },
+    { id: "wrong_role", expr: "inputs.expect_role != 'either' && role != inputs.expect_role", severity: "warning", for: 120, text: "This server is {{role}}" },
+  ],
+  display: {
+    cards: ["role", "clients", "used_mb", "ops", "save_status"],
+    charts: [
+      { title: "Clients", metrics: ["clients", "blocked"] },
+      { title: "Memory", metrics: ["used_mb"] },
+      { title: "Operations", metrics: ["ops", "evicted"] },
+    ],
+  },
+};
+
+const nginx: ServiceTemplateBody = {
+  name: "nginx",
+  description: "Connections (active, reading, writing, waiting), requests per second and dropped connections, from stub_status.",
+  needs: "A `location /nginx_status { stub_status; allow <dashboard>; deny all; }`.",
+  detect: { units: ["nginx"], ports: [80] },
+  inputs: [
+    { key: "scheme", label: "Scheme", type: "select", options: ["http", "https"], default: "http" },
+    port(80),
+    { key: "path", label: "Status address", type: "string", default: "/nginx_status" },
+    verify,
+  ],
+  collect: {
+    status: {
+      transport: "http",
+      url: "{{scheme}}://{{host}}:{{port}}{{path}}",
+      verifyTls: "{{verify_tls}}",
+      parse: {
+        type: "regex",
+        pattern:
+          "Active connections:\\s*(?<active>\\d+)\\s+server accepts handled requests\\s+(?<accepts>\\d+)\\s+(?<handled>\\d+)\\s+(?<requests>\\d+)\\s+Reading:\\s*(?<reading>\\d+)\\s+Writing:\\s*(?<writing>\\d+)\\s+Waiting:\\s*(?<waiting>\\d+)",
+      },
+    },
+  },
+  metrics: {
+    active: { label: "Active connections", from: "status", field: "active", agg: "first" },
+    reading: { label: "Reading", from: "status", field: "reading", agg: "first" },
+    writing: { label: "Writing", from: "status", field: "writing", agg: "first" },
+    waiting: { label: "Waiting (keep-alive)", from: "status", field: "waiting", agg: "first" },
+    requests: { label: "Requests per second", from: "status", field: "requests", agg: "first", kind: "counter", unit: "/s" },
+    // Accepted but never handled: nginx ran out of worker_connections.
+    dropped: { label: "Dropped connections per second", from: "status", value: "num(accepts) - num(handled)", agg: "first", kind: "counter", unit: "/s" },
+  },
+  checks: [{ id: "dropped", expr: "dropped > 0", severity: "warning", for: 60, text: "Dropping connections ({{dropped}} per second): raise worker_connections" }],
+  display: {
+    cards: ["active", "requests", "writing", "waiting"],
+    charts: [
+      { title: "Connections", metrics: ["active", "reading", "writing", "waiting"] },
+      { title: "Requests per second", metrics: ["requests"] },
+    ],
+  },
+};
+
+const rabbitmq: ServiceTemplateBody = {
+  name: "RabbitMQ",
+  description: "Messages waiting and unacknowledged, connections and consumers, nodes running and their memory and disk alarms, the fullest queues.",
+  needs: "The management plugin (port 15672) and a user with the `monitoring` tag.",
+  detect: { units: ["rabbitmq-server", "rabbitmq"], ports: [15672] },
+  inputs: [
+    { key: "scheme", label: "Scheme", type: "select", options: ["http", "https"], default: "http" },
+    port(15672),
+    { key: "user", label: "User (tag: monitoring)", type: "string", required: true },
+    { key: "password", label: "Password", type: "secret", required: true },
+    { key: "max_ready", label: "Alert when one queue has more waiting than", type: "number", default: 1000 },
+    verify,
+  ],
+  collect: {
+    overview: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/api/overview", auth: { user: "{{user}}", password: "{{password}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json" } },
+    nodes: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/api/nodes", auth: { user: "{{user}}", password: "{{password}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json" } },
+    queues: {
+      transport: "http",
+      url: "{{scheme}}://{{host}}:{{port}}/api/queues?columns=name,vhost,messages,messages_ready,messages_unacknowledged,consumers,state",
+      auth: { user: "{{user}}", password: "{{password}}" },
+      verifyTls: "{{verify_tls}}",
+      parse: { type: "json" },
+    },
+  },
+  metrics: {
+    version: { label: "Version", from: "overview", field: "rabbitmq_version", kind: "state" },
+    messages: { label: "Messages", from: "overview", field: "queue_totals.messages" },
+    ready: { label: "Waiting", from: "overview", field: "queue_totals.messages_ready" },
+    unacked: { label: "Unacknowledged", from: "overview", field: "queue_totals.messages_unacknowledged" },
+    connections: { label: "Connections", from: "overview", field: "object_totals.connections" },
+    consumers: { label: "Consumers", from: "overview", field: "object_totals.consumers" },
+    queues: { label: "Queues", from: "overview", field: "object_totals.queues" },
+    nodes: { label: "Nodes", from: "nodes", agg: "count" },
+    nodes_down: { label: "Nodes not running", from: "nodes", where: "running != true", agg: "count" },
+    alarms: { label: "Nodes with an alarm", from: "nodes", where: "mem_alarm == true || disk_free_alarm == true", agg: "count" },
+    memory_pct: { label: "Fullest node memory", from: "nodes", value: "mem_used / mem_limit * 100", agg: "max", unit: "%" },
+    fullest_ready: { label: "Most waiting in one queue", from: "queues", field: "messages_ready", agg: "max" },
+  },
+  members: {
+    label: "Queues",
+    from: "queues",
+    key: "name",
+    ok: "state == 'running' && messages_ready <= inputs.max_ready",
+    columns: { vhost: "vhost", waiting: "messages_ready", unacknowledged: "messages_unacknowledged", consumers: "consumers", state: "state" },
+  },
+  checks: [
+    { id: "node_down", expr: "nodes_down > 0", severity: "critical", for: 60, text: "{{nodes_down}} node(s) not running" },
+    { id: "alarm", expr: "alarms > 0", severity: "critical", for: 0, text: "A memory or disk alarm is blocking publishers on {{alarms}} node(s)" },
+    { id: "backlog", expr: "fullest_ready > inputs.max_ready", severity: "warning", for: 600, text: "A queue has {{fullest_ready}} messages waiting" },
+  ],
+  display: {
+    cards: ["ready", "unacked", "consumers", "nodes", "alarms"],
+    charts: [
+      { title: "Messages", metrics: ["ready", "unacked"] },
+      { title: "Connections and consumers", metrics: ["connections", "consumers"] },
+    ],
+  },
+};
+
+const chrony: ServiceTemplateBody = {
+  name: "chrony (time sync)",
+  description: "Whether the clock is synchronised, how far off it is, and its stratum, from chronyc tracking.",
+  needs: "The host's SSH login; chronyc tracking needs no root.",
+  detect: { units: ["chrony", "chronyd"] },
+  inputs: [{ key: "max_offset_ms", label: "Alert when the clock is off by more than (ms)", type: "number", default: 100 }],
+  collect: { tracking: { transport: "ssh", command: "chronyc -c tracking", parse: { type: "csv", header: false } } },
+  metrics: {
+    source: { label: "Synchronised to", from: "tracking", field: "c2", kind: "state" },
+    stratum: { label: "Stratum", from: "tracking", field: "c3", agg: "first" },
+    offset_ms: { label: "Clock offset", from: "tracking", value: "abs(num(c5)) * 1000", agg: "first", unit: "ms" },
+    skew_ppm: { label: "Skew", from: "tracking", field: "c10", agg: "first", unit: "ppm" },
+    leap: { label: "Leap status", from: "tracking", field: "c14", kind: "state" },
+  },
+  checks: [
+    { id: "unsynchronised", expr: "leap == 'Not synchronised' || stratum >= 16", severity: "critical", for: 300, text: "The clock is not synchronised" },
+    { id: "offset", expr: "offset_ms > inputs.max_offset_ms", severity: "warning", for: 300, text: "The clock is {{offset_ms}} ms off" },
+  ],
+  display: { cards: ["leap", "offset_ms", "stratum", "source"], charts: [{ title: "Clock offset", metrics: ["offset_ms"] }] },
+};
+
+const postfix: ServiceTemplateBody = {
+  name: "Postfix mail queue",
+  description: "Messages in the queue: deferred (delivery failing), active and on hold, from postqueue -j.",
+  needs: "The host's SSH login (any user may read the queue unless authorized_mailq_users says otherwise).",
+  detect: { units: ["postfix", "postfix@-"] },
+  inputs: [{ key: "max_deferred", label: "Alert above this many deferred", type: "number", default: 20 }],
+  collect: { queue: { transport: "ssh", command: "postqueue -j", parse: { type: "lines" } } },
+  metrics: {
+    queued: { label: "Messages queued", from: "queue", where: "startsWith(line, '{')", agg: "count" },
+    deferred: { label: "Deferred", from: "queue", where: "contains(line, '\"queue_name\": \"deferred\"')", agg: "count" },
+    active: { label: "Being delivered", from: "queue", where: "contains(line, '\"queue_name\": \"active\"')", agg: "count" },
+    hold: { label: "On hold", from: "queue", where: "contains(line, '\"queue_name\": \"hold\"')", agg: "count" },
+  },
+  checks: [{ id: "deferred", expr: "deferred > inputs.max_deferred", severity: "warning", for: 900, text: "{{deferred}} messages deferred (mail is not going out)" }],
+  display: { cards: ["queued", "deferred", "hold"], charts: [{ title: "Queue", metrics: ["deferred", "active", "hold"] }] },
+};
+
+const mdadm: ServiceTemplateBody = {
+  name: "Linux software RAID (mdadm)",
+  description: "Every md array: its disks working of the total, and whether it is rebuilding, from /proc/mdstat.",
+  needs: "The host's SSH login; /proc/mdstat needs no root.",
+  detect: { units: ["mdmonitor", "mdadm"] },
+  inputs: [],
+  collect: {
+    arrays: {
+      transport: "ssh",
+      command: "cat /proc/mdstat",
+      parse: {
+        type: "regex",
+        pattern:
+          "^(?<array>md\\w+) : (?<state>\\w+)(?: \\((?<mode>[^)]+)\\))? (?<level>\\w+)[^\\n]*\\n\\s+\\d+ blocks[^\\n]*?\\[(?<total>\\d+)/(?<working>\\d+)\\] \\[(?<map>[U_]+)\\](?:\\n\\s+\\[[^\\]]*\\]\\s+(?<sync>\\w+)\\s*=\\s*(?<sync_pct>[\\d.]+)%)?",
+      },
+    },
+  },
+  metrics: {
+    arrays: { label: "Arrays", from: "arrays", agg: "count" },
+    degraded: { label: "Degraded", from: "arrays", where: "num(working) < num(total)", agg: "count" },
+    syncing: { label: "Rebuilding or checking", from: "arrays", where: "sync != null", agg: "count" },
+  },
+  members: {
+    label: "Arrays",
+    from: "arrays",
+    key: "array",
+    ok: "num(working) == num(total)",
+    columns: { level: "level", "disks working": "working", disks: "total", map: "map", rebuilding: "sync != null ? sync + ' ' + sync_pct + '%' : ''" },
+  },
+  checks: [{ id: "degraded", expr: "degraded > 0", severity: "critical", for: 60, text: "{{degraded}} array(s) degraded: a disk has failed or is missing" }],
+  display: { cards: ["arrays", "degraded", "syncing"] },
+};
+
+const zfs: ServiceTemplateBody = {
+  name: "ZFS pools",
+  description: "Every pool's health and how full it is, from zpool list.",
+  needs: "The host's SSH login; zpool list needs no root on most systems.",
+  detect: { units: ["zfs-zed", "zfs.target", "zfs-import-cache"] },
+  inputs: [{ key: "max_full_pct", label: "Alert when a pool is fuller than (%)", type: "number", default: 80 }],
+  collect: {
+    pools: { transport: "ssh", command: "zpool list -H -p -o name,size,alloc,free,frag,cap,health", parse: { type: "csv", delimiter: "\t", header: false } },
+  },
+  metrics: {
+    pools: { label: "Pools", from: "pools", agg: "count" },
+    unhealthy: { label: "Not ONLINE", from: "pools", where: "c7 != 'ONLINE'", agg: "count" },
+    fullest_pct: { label: "Fullest pool", from: "pools", field: "c6", agg: "max", unit: "%" },
+  },
+  members: {
+    label: "Pools",
+    from: "pools",
+    key: "c1",
+    ok: "c7 == 'ONLINE' && num(c6) <= inputs.max_full_pct",
+    columns: { health: "c7", "used %": "c6", "size GB": "round(num(c2) / 1073741824, 1)", "free GB": "round(num(c4) / 1073741824, 1)", "fragmented %": "c5" },
+  },
+  checks: [
+    { id: "unhealthy", expr: "unhealthy > 0", severity: "critical", for: 0, text: "{{unhealthy}} pool(s) not ONLINE" },
+    { id: "full", expr: "fullest_pct > inputs.max_full_pct", severity: "warning", for: 600, text: "A pool is {{fullest_pct}}% full" },
+  ],
+  display: { cards: ["pools", "unhealthy", "fullest_pct"], charts: [{ title: "Fullest pool", metrics: ["fullest_pct"] }] },
+};
+
+const systemdFailed: ServiceTemplateBody = {
+  name: "systemd failed units",
+  description: "Any unit on the host that has failed (a crashed service, a timer's job that went wrong).",
+  needs: "The host's SSH login; nothing needs root.",
+  inputs: [{ key: "ignore", label: "Ignore units whose name contains (optional)", type: "string", default: "" }],
+  collect: { failed: { transport: "ssh", command: "systemctl list-units --failed --plain --no-legend --no-pager", parse: { type: "lines" } } },
+  metrics: {
+    failed: { label: "Failed units", from: "failed", where: "inputs.ignore == '' || !contains(f1, inputs.ignore)", agg: "count" },
+  },
+  members: { label: "Failed units", from: "failed", where: "inputs.ignore == '' || !contains(f1, inputs.ignore)", key: "f1", ok: "false", columns: { load: "f2", active: "f3", sub: "f4" } },
+  checks: [{ id: "failed", expr: "failed > 0", severity: "warning", for: 60, text: "{{failed}} unit(s) failed" }],
+  display: { cards: ["failed"] },
+};
+
+const garage: ServiceTemplateBody = {
+  name: "Garage (S3 store)",
+  description: "Cluster health, nodes connected, partitions with quorum, block resync errors and free disk, from Garage's /metrics.",
+  needs: "The admin port (3903) and the metrics_token (or admin_token) from garage.toml.",
+  detect: { units: ["garage"], ports: [3903] },
+  inputs: [
+    { key: "scheme", label: "Scheme", type: "select", options: ["http", "https"], default: "http" },
+    port(3903),
+    { key: "token", label: "Metrics token", type: "secret" },
+    { key: "min_free_pct", label: "Alert when free data disk is below (%)", type: "number", default: 10 },
+    verify,
+  ],
+  collect: {
+    metrics: {
+      transport: "prometheus",
+      url: "{{scheme}}://{{host}}:{{port}}/metrics",
+      headers: { authorization: "Bearer {{token}}" },
+      verifyTls: "{{verify_tls}}",
+      keep: ["cluster_", "garage_", "block_resync_errored_blocks", "block_resync_queue_length", "api_s3_error_counter", "api_s3_request_counter"],
+    },
+  },
+  metrics: {
+    version: { label: "Version", from: "metrics", where: "__name__ == 'garage_build_info'", field: "version", kind: "state" },
+    healthy: { label: "Healthy", from: "metrics", where: "__name__ == 'cluster_healthy'", field: "value", agg: "first" },
+    available: { label: "Available", from: "metrics", where: "__name__ == 'cluster_available'", field: "value", agg: "first" },
+    nodes_connected: { label: "Nodes connected", from: "metrics", where: "__name__ == 'cluster_connected_nodes'", field: "value", agg: "first" },
+    nodes_known: { label: "Nodes known", from: "metrics", where: "__name__ == 'cluster_known_nodes'", field: "value", agg: "first" },
+    storage_ok: { label: "Storage nodes up", from: "metrics", where: "__name__ == 'cluster_storage_nodes_ok'", field: "value", agg: "first" },
+    storage_total: { label: "Storage nodes", from: "metrics", where: "__name__ == 'cluster_storage_nodes'", field: "value", agg: "first" },
+    partitions: { label: "Partitions", from: "metrics", where: "__name__ == 'cluster_partitions'", field: "value", agg: "first" },
+    partitions_quorum: { label: "Partitions with quorum", from: "metrics", where: "__name__ == 'cluster_partitions_quorum'", field: "value", agg: "first" },
+    resync_errors: { label: "Blocks failing to resync", from: "metrics", where: "__name__ == 'block_resync_errored_blocks'", field: "value", agg: "first" },
+    resync_queue: { label: "Blocks waiting to resync", from: "metrics", where: "__name__ == 'block_resync_queue_length'", field: "value", agg: "first" },
+    data_free: { from: "metrics", where: "__name__ == 'garage_local_disk_avail' && volume == 'data'", field: "value", agg: "first" },
+    data_total: { from: "metrics", where: "__name__ == 'garage_local_disk_total' && volume == 'data'", field: "value", agg: "first" },
+    free_pct: { label: "Data disk free", expr: "data_total > 0 ? data_free / data_total * 100 : null", unit: "%" },
+    requests: { label: "S3 requests per second", from: "metrics", where: "__name__ == 'api_s3_request_counter'", field: "value", agg: "sum", kind: "counter", unit: "/s" },
+    errors_5xx: { label: "S3 server errors per second", from: "metrics", where: "__name__ == 'api_s3_error_counter' && startsWith(status_code, '5')", field: "value", agg: "sum", kind: "counter", unit: "/s" },
+  },
+  checks: [
+    { id: "unavailable", expr: "available == 0", severity: "critical", for: 60, text: "The cluster cannot serve requests (no quorum)" },
+    { id: "unhealthy", expr: "available == 1 && healthy == 0", severity: "warning", for: 300, text: "{{storage_ok}} of {{storage_total}} storage nodes up" },
+    { id: "resync", expr: "resync_errors > 0", severity: "warning", for: 600, text: "{{resync_errors}} block(s) failing to resync" },
+    { id: "disk", expr: "free_pct < inputs.min_free_pct", severity: "warning", for: 600, text: "Only {{free_pct}}% of the data disk free" },
+  ],
+  display: {
+    cards: ["healthy", "storage_ok", "partitions_quorum", "free_pct", "resync_errors"],
+    charts: [
+      { title: "S3 requests", metrics: ["requests", "errors_5xx"] },
+      { title: "Resync queue", metrics: ["resync_queue"] },
+    ],
+  },
+};
+
+const meilisearch: ServiceTemplateBody = {
+  name: "Meilisearch",
+  description: "Health, documents per index, whether it is indexing, tasks waiting and failed, and the database size.",
+  needs: "A key that may read stats and tasks (the master key, or an API key with stats.get and tasks.get).",
+  detect: { units: ["meilisearch"], ports: [7700] },
+  inputs: [
+    { key: "scheme", label: "Scheme", type: "select", options: ["http", "https"], default: "http" },
+    port(7700),
+    { key: "key", label: "API key", type: "secret" },
+    { key: "max_waiting", label: "Alert above this many tasks waiting", type: "number", default: 1000 },
+    verify,
+  ],
+  collect: {
+    health: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/health", verifyTls: "{{verify_tls}}", parse: { type: "json" } },
+    stats: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/stats", headers: { authorization: "Bearer {{key}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json" } },
+    indexes: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/stats", headers: { authorization: "Bearer {{key}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json", rows: "indexes.*" } },
+    waiting: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/tasks?statuses=enqueued,processing&limit=1", headers: { authorization: "Bearer {{key}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json" } },
+    failed: { transport: "http", url: "{{scheme}}://{{host}}:{{port}}/tasks?statuses=failed&limit=1", headers: { authorization: "Bearer {{key}}" }, verifyTls: "{{verify_tls}}", parse: { type: "json" }, optional: true },
+  },
+  metrics: {
+    status: { label: "Health", from: "health", field: "status", kind: "state" },
+    db_mb: { label: "Database size", from: "stats", value: "databaseSize / 1048576", agg: "first", unit: "MB" },
+    indexes: { label: "Indexes", from: "indexes", agg: "count" },
+    documents: { label: "Documents", from: "indexes", field: "numberOfDocuments", agg: "sum" },
+    indexing: { label: "Indexes being updated", from: "indexes", where: "isIndexing == true", agg: "count" },
+    waiting: { label: "Tasks waiting", from: "waiting", field: "total", agg: "first" },
+    failed: { label: "Tasks failed per second", from: "failed", field: "total", agg: "first", kind: "counter", unit: "/s" },
+  },
+  members: { label: "Indexes", from: "indexes", key: "_key", ok: "true", columns: { documents: "numberOfDocuments", indexing: "isIndexing ? 'yes' : 'no'" } },
+  checks: [
+    { id: "unhealthy", expr: "status != 'available'", severity: "critical", for: 60, text: "Meilisearch says {{status}}" },
+    { id: "backlog", expr: "waiting > inputs.max_waiting", severity: "warning", for: 600, text: "{{waiting}} tasks waiting" },
+  ],
+  display: {
+    cards: ["status", "documents", "waiting", "db_mb"],
+    charts: [
+      { title: "Tasks waiting", metrics: ["waiting"] },
+      { title: "Documents", metrics: ["documents"] },
+    ],
+  },
+};
+
 export const BUILTIN_TEMPLATES: Record<string, ServiceTemplateBody> = {
   haproxy,
   keepalived,
@@ -614,6 +976,16 @@ export const BUILTIN_TEMPLATES: Record<string, ServiceTemplateBody> = {
   apache,
   kea,
   technitium,
+  redis,
+  nginx,
+  rabbitmq,
+  chrony,
+  postfix,
+  mdadm,
+  zfs,
+  "systemd-failed": systemdFailed,
+  garage,
+  meilisearch,
   "prometheus-metric": genericPrometheus,
   "json-value": genericJson,
   "systemd-unit": genericSystemd,

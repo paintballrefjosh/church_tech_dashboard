@@ -49,6 +49,7 @@
   --ch-wifi: #a77bff;
   --ch-switches: #ff9a3c;
   --ch-dns: #2fd0e0;
+  --ch-services: #ffd23c;
   --scene-ring: 0 0 0 5px #c8cdd5, 0 0 0 6px var(--edge), 0 14px 26px -14px rgba(30, 35, 42, 0.45);
 }
 

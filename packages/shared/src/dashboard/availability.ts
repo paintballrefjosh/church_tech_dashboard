@@ -28,6 +28,7 @@ export const AVAILABILITY_AREAS: ReadonlyArray<{
   { area: "wifi", kind: "unifi_device", label: "Wi-Fi and network", href: "/monitoring/network", detailHref: null },
   { area: "switches", kind: "cisco_switch", label: "Switches", href: "/monitoring/network-cisco", detailHref: null },
   { area: "dns", kind: "dns_node", label: "DNS", href: "/dns", detailHref: null },
+  { area: "services", kind: "service_instance", label: "Services", href: "/monitoring/infra/service-groups", detailHref: null },
 ];
 
 /** Start of the UTC hour containing `at`, in milliseconds. */
