@@ -16,6 +16,7 @@ import {
   ciscoVlanDb,
   ipamSubnets,
   ipamHosts,
+  serviceGroups,
   serviceInstances,
   assets,
   locations,
@@ -175,7 +176,7 @@ export class DbSearchSources implements SearchSources {
    * DB and is handled by `syncUnifi`.
    */
   private async buildMonitoringDbDocs(): Promise<SearchDoc[]> {
-    const [monRows, targetRows, entityRows, switchRows, portRows, macRows, arpRows, vlanRows, ipamSubnetRows, ipamHostRows, serviceRows] =
+    const [monRows, targetRows, entityRows, switchRows, portRows, macRows, arpRows, vlanRows, ipamSubnetRows, ipamHostRows, serviceRows, groupRows] =
       await Promise.all([
         this.db.select().from(monitors),
         this.db.select().from(infraTargets),
@@ -190,6 +191,9 @@ export class DbSearchSources implements SearchSources {
         this.db
           .select({ id: serviceInstances.id, name: serviceInstances.name, targetId: serviceInstances.targetId, templateKey: serviceInstances.templateKey, updatedAt: serviceInstances.updatedAt })
           .from(serviceInstances),
+        this.db
+          .select({ id: serviceGroups.id, name: serviceGroups.name, description: serviceGroups.description, updatedAt: serviceGroups.updatedAt })
+          .from(serviceGroups),
       ]);
 
     const swName = new Map(switchRows.map((s) => [s.id, s.hostname]));
@@ -338,6 +342,20 @@ export class DbSearchSources implements SearchSources {
         body: [r.templateKey, targetName.get(r.targetId)].filter(Boolean).join(" · "),
         extra: { targetId: r.targetId, template: r.templateKey },
         url: `/monitoring/infra/${r.targetId}/services/${r.id}`,
+        updatedAt: r.updatedAt.toISOString(),
+      });
+    }
+
+    for (const r of groupRows) {
+      docs.push({
+        id: searchDocId("service_group", r.id),
+        kind: "service_group",
+        resourceId: r.id,
+        ownerUserId: null,
+        title: r.name,
+        body: r.description,
+        extra: {},
+        url: `/monitoring/infra/service-groups/${r.id}`,
         updatedAt: r.updatedAt.toISOString(),
       });
     }

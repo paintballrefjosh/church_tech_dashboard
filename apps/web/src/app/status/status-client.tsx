@@ -105,7 +105,7 @@ export function StatusClient({ initial, source = "/api/status" }: { initial: Pub
 
       {page.items.length === 0 ? (
         <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
-          Nothing is listed here yet. An administrator chooses which services appear when editing a monitor.
+          Nothing is listed here yet. An administrator chooses what appears when editing a monitor or a service group.
         </p>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-300 dark:divide-slate-800 dark:border-slate-800" data-testid="status-list">

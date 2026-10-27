@@ -40,6 +40,7 @@ export class AvailabilitySampler implements OnModuleInit {
       ["cisco_switch", () => this.sources.ciscoSwitches()],
       ["dns_node", () => this.sources.dnsNodes()],
       ["service_instance", () => this.sources.serviceInstances()],
+      ["service_group", () => this.sources.serviceGroups()],
     ];
     const results = await Promise.all(
       readers.map(async ([kind, read]) => {

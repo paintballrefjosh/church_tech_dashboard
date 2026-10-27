@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   commonStateMetrics,
   evaluateServiceGroup,
+  groupCheckForSec,
   memberIsStale,
+  roleFor,
+  roleRuleProblem,
   serviceGroupRuleId,
   serviceGroupSaveSchema,
   stepGroupAlerts,
@@ -13,7 +16,7 @@ const NOW = new Date("2026-10-26T12:00:00Z");
 const ago = (s: number) => new Date(NOW.getTime() - s * 1000).toISOString();
 
 function m(id: string, status: ServiceGroupMemberInput["status"], over: Partial<ServiceGroupMemberInput> = {}): ServiceGroupMemberInput {
-  return { id, status, intervalSec: 60, lastPolledAt: ago(30), states: {}, ...over };
+  return { id, templateKey: "keepalived", status, intervalSec: 60, lastPolledAt: ago(30), states: {}, ...over };
 }
 
 const MASTER = { metric: "role", value: "MASTER", min: 1, max: 1 };
@@ -116,6 +119,86 @@ describe("evaluateServiceGroup", () => {
   });
 });
 
+describe("a role across templates that name it differently", () => {
+  const PRIMARY = {
+    metric: "role",
+    value: "primary",
+    min: 1,
+    max: 1,
+    byTemplate: { patroni: { metric: "role", value: "leader" }, repmgr: { metric: "node_role", value: "primary" } },
+  };
+
+  it("each member is read by its own template's state and value", () => {
+    expect(roleFor(PRIMARY, "patroni")).toEqual({ metric: "role", value: "leader" });
+    expect(roleFor(PRIMARY, "other")).toEqual({ metric: "role", value: "primary" });
+    const r = evaluateServiceGroup(
+      { minHealthy: 1, role: PRIMARY },
+      [
+        m("a", "up", { templateKey: "patroni", states: { role: "Leader" } }),
+        m("b", "up", { templateKey: "repmgr", states: { node_role: "standby", role: "primary" } }),
+      ],
+      NOW,
+    );
+    expect(r.roleCount).toBe(1);
+    expect(r.memberState.b!.role).toBe("standby");
+    expect(r.checks[1]).toMatchObject({ breaching: false, text: "1 member is primary (exactly 1 wanted)" });
+  });
+
+  it("two templates both claiming the role is split brain", () => {
+    const r = evaluateServiceGroup(
+      { minHealthy: 1, role: PRIMARY },
+      [m("a", "up", { templateKey: "patroni", states: { role: "leader" } }), m("b", "up", { templateKey: "repmgr", states: { node_role: "primary" } })],
+      NOW,
+    );
+    expect(r.checks[1]).toMatchObject({ breaching: true, text: "2 members are primary (exactly 1 wanted)" });
+  });
+
+  it("refuses a rule a template cannot report", () => {
+    const templates = [
+      { key: "patroni", name: "Patroni", metrics: [{ metric: "role" }] },
+      { key: "repmgr", name: "repmgr", metrics: [{ metric: "node_role" }] },
+    ];
+    expect(roleRuleProblem(PRIMARY, templates)).toBeNull();
+    expect(roleRuleProblem({ ...PRIMARY, byTemplate: { patroni: PRIMARY.byTemplate.patroni } }, templates)).toBe('"role" is not a state the repmgr template reports');
+  });
+
+  it("the schema keeps byTemplate optional, so rules saved before it still read", () => {
+    expect(serviceGroupSaveSchema.parse({ name: "x", role: MASTER }).role).toEqual(MASTER);
+    expect(serviceGroupSaveSchema.safeParse({ name: "x", role: { ...MASTER, byTemplate: { t: { metric: "Bad!", value: "x" } } } }).success).toBe(false);
+  });
+});
+
+describe("the redundancy warning", () => {
+  const three = (down: number) => ["a", "b", "c"].map((id, i) => m(id, i < down ? "down" : "up"));
+
+  it("is only judged when asked for, breaches while a member is lost but the quorum holds", () => {
+    expect(evaluateServiceGroup({ minHealthy: 2, role: null }, three(1), NOW).checks.map((c) => c.id)).toEqual(["quorum"]);
+    const one = evaluateServiceGroup({ minHealthy: 2, role: null, redundancyAfterMin: 15 }, three(1), NOW);
+    expect(one.status).toBe("degraded");
+    expect(one.checks[1]).toEqual({ id: "redundancy", severity: "warning", breaching: true, text: "1 member is not working; 2 of 3 carry it" });
+    const fine = evaluateServiceGroup({ minHealthy: 2, role: null, redundancyAfterMin: 15 }, three(0), NOW);
+    expect(fine.checks[1]).toMatchObject({ breaching: false, text: "Every member working" });
+    // Below the quorum the quorum check speaks instead.
+    const two = evaluateServiceGroup({ minHealthy: 2, role: null, redundancyAfterMin: 15 }, three(2), NOW);
+    expect(two.checks.map((c) => [c.id, c.breaching])).toEqual([
+      ["quorum", true],
+      ["redundancy", false],
+    ]);
+  });
+
+  it("waits its own minutes, not the group's seconds", () => {
+    const g = { forSec: 60, redundancyAfterMin: 15 };
+    expect(groupCheckForSec(g, "quorum")).toBe(60);
+    expect(groupCheckForSec(g, "redundancy")).toBe(900);
+    const result = evaluateServiceGroup({ minHealthy: 2, role: null, redundancyAfterMin: 15 }, three(1), NOW);
+    const hold = (c: Parameters<typeof groupCheckForSec>[1]) => groupCheckForSec(g, c);
+    const a = stepGroupAlerts(result, {}, hold, NOW);
+    expect(a.transitions).toEqual([]);
+    expect(stepGroupAlerts(result, a.state, hold, new Date(NOW.getTime() + 600_000)).transitions).toEqual([]);
+    expect(stepGroupAlerts(result, a.state, hold, new Date(NOW.getTime() + 900_000)).transitions).toEqual([{ id: "redundancy", action: "open" }]);
+  });
+});
+
 describe("stepGroupAlerts", () => {
   const breach = { counted: 2, checks: [{ id: "quorum" as const, severity: "critical" as const, breaching: true, text: "x" }] };
   const fine = { counted: 2, checks: [{ id: "quorum" as const, severity: "critical" as const, breaching: false, text: "x" }] };
@@ -160,6 +243,9 @@ describe("serviceGroupSaveSchema", () => {
       forSec: 60,
       alerts: true,
       instanceIds: [],
+      redundancyAfterMin: null,
+      showOnStatus: false,
+      statusName: null,
     });
     expect(serviceGroupSaveSchema.safeParse({ name: "x", role: { metric: "role", value: "MASTER", min: 2, max: 1 } }).success).toBe(false);
     expect(serviceGroupSaveSchema.safeParse({ name: "x", role: { metric: "Role!", value: "MASTER", min: 1, max: 1 } }).success).toBe(false);

@@ -114,12 +114,25 @@ export async function serviceMonitoringTests({ test, assert, fetchWithCookies, j
       assert(tooMany.res.status === 400, `a quorum above the members gave ${tooMany.res.status}`);
       const badRole = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name, role: { metric: "role", value: "MASTER", min: 1, max: 1 }, instanceIds: [instanceId] }) });
       assert(badRole.res.status === 400, `a role the members cannot report gave ${badRole.res.status}`);
-      const { res } = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name, minHealthy: 1, instanceIds: [instanceId] }) });
+      const choices = await admin(`/api/v1/service-monitoring/groups/role-choices?ids=${instanceId}`).then(({ res: r }) => r.json());
+      assert(Array.isArray(choices.common) && choices.templates.length === 1 && Array.isArray(choices.templates[0].metrics), `role choices ${JSON.stringify(choices)}`);
+      const statusName = `[smoke] status ${stamp}`;
+      const { res } = await admin("/api/v1/service-monitoring/groups", {
+        method: "POST",
+        ...json({ name, minHealthy: 1, instanceIds: [instanceId], redundancyAfterMin: 15, showOnStatus: true, statusName }),
+      });
       assert(res.status === 200 || res.status === 201, `create group ${res.status}: ${await res.clone().text()}`);
       const g = await res.json();
       groupId = g.id;
       // Its one service is switched off (its host is), so there is nothing to judge.
       assert(g.status === "unknown" && g.counted === 0 && g.members.length === 1, `group ${JSON.stringify(g)}`);
+      assert(g.redundancyAfterMin === 15 && g.showOnStatus === true && g.statusName === statusName, `saved fields ${JSON.stringify(g)}`);
+      assert(g.availability && "day" in g.availability && "week" in g.availability, "availability is reported");
+      // The status page lists it by its status name only: never its services or hosts.
+      const st = await admin("/api/v1/status").then(({ res: r }) => r.json());
+      const listed = st.items.find((i) => i.id === groupId);
+      assert(listed && listed.name === statusName && listed.state === "unknown", `status page item ${JSON.stringify(listed)}`);
+      assert(!JSON.stringify(st).includes(name), "the status page shows the group's own name although a status name is set");
       const dup = await admin("/api/v1/service-monitoring/groups", { method: "POST", ...json({ name }) });
       assert(dup.res.status === 409, `a second group with the name gave ${dup.res.status}`);
       const inst = await admin(`/api/v1/service-monitoring/instances/${instanceId}`).then(({ res: r }) => r.json());

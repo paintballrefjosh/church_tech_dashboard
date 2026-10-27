@@ -21,6 +21,12 @@ interface Incident {
   acknowledgedAt: string | null;
 }
 
+const CHECK_LABEL: Record<ServiceGroup["checks"][number]["id"], string> = { quorum: "Enough working", role: "Role", redundancy: "Spare" };
+
+function pct(v: number | null): string {
+  return v === null ? "-" : `${v}%`;
+}
+
 export function ServiceGroupClient({ id }: { id: string }) {
   const router = useRouter();
   const canWrite = useCanWrite();
@@ -68,6 +74,12 @@ export function ServiceGroupClient({ id }: { id: string }) {
             {g.working} of {g.counted} working · {rulesText(g)} · alerts after {g.forSec} s · judged {ago(g.lastEvaluatedAt)}
           </p>
           {g.description ? <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{g.description}</p> : null}
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid="group-availability">
+            {g.availability.week === null
+              ? "No record of how it has done yet (one sample a minute)"
+              : `Working ${pct(g.availability.day)} of the last day, ${pct(g.availability.week)} of the last week`}
+            {g.showOnStatus ? <span className="text-slate-500 dark:text-slate-400"> · on the status page as {g.statusName || g.name}</span> : null}
+          </p>
         </div>
         {canWrite ? (
           <div className="flex flex-wrap gap-2">
@@ -95,12 +107,13 @@ export function ServiceGroupClient({ id }: { id: string }) {
             {g.checks.map((c) => (
               <li key={c.id} className="flex items-start gap-2">
                 {c.breaching ? (
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
+                  <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${c.severity === "warning" ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`} aria-hidden />
                 ) : (
                   <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden />
                 )}
                 <span>
-                  <span className="font-medium">{c.id === "quorum" ? "Enough working" : "Role"}</span>: {c.text}
+                  <span className="font-medium">{CHECK_LABEL[c.id]}</span>
+                  {c.severity === "warning" ? <span className="text-slate-500 dark:text-slate-400"> (warning)</span> : null}: {c.text}
                   {c.breaching && !c.open ? <span className="text-slate-500 dark:text-slate-400"> (waiting for it to last)</span> : null}
                 </span>
               </li>
@@ -124,7 +137,7 @@ export function ServiceGroupClient({ id }: { id: string }) {
                   <th className="py-1 pr-3 font-medium">Host</th>
                   <th className="py-1 pr-3 font-medium">State</th>
                   <th className="py-1 pr-3 font-medium">Counts as working</th>
-                  {g.role ? <th className="py-1 pr-3 font-medium">{g.role.metric.replace(/_/g, " ")}</th> : null}
+                  {g.role ? <th className="py-1 pr-3 font-medium">{g.role.byTemplate ? "Role" : g.role.metric.replace(/_/g, " ")}</th> : null}
                   <th className="py-1 pr-3 font-medium">Checked</th>
                 </tr>
               </thead>

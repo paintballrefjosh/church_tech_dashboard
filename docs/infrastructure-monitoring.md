@@ -81,7 +81,9 @@ template's inputs, and has a **Test** button that runs it once and shows what th
 alert on the host like a threshold rule. Templates and the shared logins (a read-only database user, say) are under
 **Service templates**. Services on different hosts that make one thing (a database cluster, a keepalived pair) can be put in
 a **service group** (the Service groups button on this tab): the group alerts when too few of them are working, or when the
-number holding a role (such as MASTER) is wrong, which no single host can see. Design, rules and what was verified:
+number holding a role (such as MASTER) is wrong, which no single host can see. Services of different templates can count
+one role under their own names, a group can warn when it has lost its spare for some minutes, and it can be listed on the
+status page by a plain name. Design, rules and what was verified:
 [service-monitoring.md](service-monitoring.md).
 
 ## Retention

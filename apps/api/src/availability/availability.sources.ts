@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { ciscoSwitches, infraTargets, monitors, serviceInstances } from "../db/schema";
+import { ciscoSwitches, infraTargets, monitors, serviceGroups, serviceInstances } from "../db/schema";
 import { UnifiService } from "../unifi/unifi.service";
 import { DnsService } from "../dns/dns.service";
 import type { AvailabilitySample } from "./availability.store";
@@ -17,6 +17,7 @@ export interface AvailabilitySources {
   ciscoSwitches(): Promise<AvailabilitySample[] | null>;
   dnsNodes(): Promise<AvailabilitySample[] | null>;
   serviceInstances(): Promise<AvailabilitySample[] | null>;
+  serviceGroups(): Promise<AvailabilitySample[] | null>;
 }
 
 export const AVAILABILITY_SOURCES = Symbol("AVAILABILITY_SOURCES");
@@ -103,5 +104,16 @@ export class DefaultAvailabilitySources implements AvailabilitySources {
     return rows
       .filter((r) => r.status === "up" || r.status === "degraded" || r.status === "down")
       .map((r) => ({ kind: "service_instance" as const, ref: r.id, label: `${r.name} on ${r.host}`, down: r.status === "down" }));
+  }
+
+  /**
+   * Service groups as the `service-groups` job last judged them (every 30 s). A group with nobody to judge (unknown) records
+   * nothing; degraded counts as up. Not part of any home-page area (its members already are): the group's own page reads it.
+   */
+  async serviceGroups(): Promise<AvailabilitySample[]> {
+    const rows = await this.db.select({ id: serviceGroups.id, name: serviceGroups.name, status: serviceGroups.status }).from(serviceGroups);
+    return rows
+      .filter((r) => r.status === "up" || r.status === "degraded" || r.status === "down")
+      .map((r) => ({ kind: "service_group" as const, ref: r.id, label: r.name, down: r.status === "down" }));
   }
 }

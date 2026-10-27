@@ -130,8 +130,29 @@ maintenance, refusals, moving and deleting), `service-templates-wave2.test.ts` (
 framing against a fake server, a password with a line break refused, opt-in real Redis), smoke "a group of services ...",
 e2e "group services across hosts".
 
-**Not built**: a group across services of DIFFERENT templates sharing a role under different names (the role must be one
-metric key every member has), search for groups, the status page showing groups.
+**Groups, part two** (2026-10-27, migration 0088):
+- **A role read differently per template**: `role.byTemplate` maps a template key to the state and value that template
+  reports for the role (Patroni `role` = `leader`, repmgr `node_role` = `primary`); a member whose template is not in the map
+  uses `role.metric` / `role.value`, so rules saved before it read as before. `role.value` is then only the word the group
+  shows. Saving is refused unless EVERY member's template reports the state the rule reads for it (`roleRuleProblem`).
+  `GET .../groups/role-choices` now answers `{common, templates: [{key, name, metrics}]}`; the form shows the plain fields
+  for one template and a row per template for several.
+- **Redundancy warning** (`redundancy_after_min`, optional): a third check, `redundancy`, severity `warning`, breaching while
+  some counted member is not working but the quorum holds, opened after ITS OWN minutes (`groupCheckForSec`), not the group's
+  `for_sec`. Same incident path (`group:redundancy`, notice `infra.alert.opened` like an infra warning threshold). It never
+  makes the group `down`.
+- **Status page** (`show_on_status`, `status_name`): `StatusService` lists chosen groups beside monitors, by name only
+  (never members, hosts or the reason): `down` while the job judged it down or a quorum/role incident is open (`since` = that
+  incident's start), `up` when up or degraded (a lost spare still works: the redundancy incident is ignored here), otherwise
+  `unknown`. The public status page gets the same items, as for monitors.
+- **Search**: kind `service_group` (a DB-backed monitoring kind, `monitors:read:any`), title the name, body the description,
+  url the group's page; picked up by the 120 s monitoring reconcile like services.
+- **History**: the availability sampler records kind `service_group` each minute from the job's last status (degraded = up,
+  unknown = nothing); it belongs to no home-page area (the members already count there) but the week's health strip reads
+  every kind. The group's page shows the share working over the last day and week (`availability`).
+
+**Not built**: alerts on a trend across a group's history (for example "down more than 1% this week"); a group holding uptime
+monitors as well as services.
 
 ## 1. The idea
 

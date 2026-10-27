@@ -4,12 +4,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../src/db/schema";
 import { ServiceMonitoringService } from "../src/service-monitoring/service-monitoring.service";
 import { ServiceGroupsService } from "../src/service-monitoring/service-groups.service";
+import { StatusService } from "../src/monitors/status.service";
+import { DefaultAvailabilitySources } from "../src/availability/availability.sources";
 
 /**
  * Service groups against a real database (docs/service-monitoring.md): a group of keepalived services on two hosts opens ONE
  * incident (with `service_group_id`) when nobody is MASTER for its time, two nodes judging at once still open one and tell
  * people once, the end resolves it, alerts off tells nobody, and deleting the group takes its incidents and leaves the
- * services. Members' readings are written straight into `service_instances` (the poller is tested elsewhere).
+ * services. Members' readings are written straight into `service_instances` (the poller is tested elsewhere). Part two: a role
+ * read differently per template, the redundancy warning on its own clock, the status page and the availability history.
  * Run on CockroachDB and YugabyteDB; it empties the service tables.
  */
 
@@ -24,6 +27,8 @@ describe.skipIf(!url)("service groups against a real database", () => {
   let userId: string;
   let a: string;
   let b: string;
+  let c: string;
+  let status: StatusService;
   const settings: Record<string, unknown> = {};
 
   beforeAll(async () => {
@@ -42,6 +47,7 @@ describe.skipIf(!url)("service groups against a real database", () => {
         .id as string;
     a = await ins(h1, "keepalived");
     b = await ins(h2, "keepalived");
+    c = (await q(`INSERT INTO service_instances (target_id, template_key, name, inputs) VALUES ($1, 'mysql', 'mariadb', '{}'::jsonb) RETURNING id`, [h1])).rows[0].id;
 
     const infra = { getCredential: async () => null, monitoringRecipientIds: async () => [userId] };
     const services = new ServiceMonitoringService(db as never, infra as never);
@@ -51,6 +57,7 @@ describe.skipIf(!url)("service groups against a real database", () => {
     const settingsSvc = { get: async (k: string) => settings[k] };
     make = () => new ServiceGroupsService(db as never, jobs as never, services, infra as never, notifications as never, activity as never, settingsSvc as never);
     groups = make();
+    status = new StatusService(db as never, { get: async () => undefined } as never);
   });
 
   afterAll(async () => {
@@ -63,6 +70,7 @@ describe.skipIf(!url)("service groups against a real database", () => {
   beforeEach(async () => {
     sent.length = 0;
     await q(`DELETE FROM service_groups`);
+    await q(`DELETE FROM availability_hourly WHERE kind = 'service_group'`);
   });
 
   /** As the poller would leave them: up, read just now, holding these roles. */
@@ -70,11 +78,9 @@ describe.skipIf(!url)("service groups against a real database", () => {
     await q(`UPDATE service_instances SET status = 'up', last_polled_at = now(), last_states = jsonb_build_object('role', $2::text) WHERE id = $1`, [a, roles[0]]);
     await q(`UPDATE service_instances SET status = 'up', last_polled_at = now(), last_states = jsonb_build_object('role', $2::text) WHERE id = $1`, [b, roles[1]]);
   };
-  const pair = (over: Partial<{ alerts: boolean; forSec: number }> = {}) =>
-    groups.create(
-      { name: "Load balancer pair", description: "", minHealthy: 1, role: { metric: "role", value: "MASTER", min: 1, max: 1 }, forSec: 0, alerts: true, instanceIds: [a, b], ...over },
-      userId,
-    );
+  const base = { description: "", minHealthy: null, role: null, forSec: 0, alerts: true, redundancyAfterMin: null, showOnStatus: false, statusName: null };
+  const pair = (over: Partial<{ alerts: boolean; forSec: number; minHealthy: number | null; redundancyAfterMin: number | null; showOnStatus: boolean; statusName: string | null }> = {}) =>
+    groups.create({ ...base, name: "Load balancer pair", minHealthy: 1, role: { metric: "role", value: "MASTER", min: 1, max: 1 }, instanceIds: [a, b], ...over }, userId);
   const openIncidents = async (groupId: string) =>
     (await q(`SELECT rule_id, reason, target_id, monitor_id FROM monitor_incidents WHERE service_group_id = $1 AND resolved_at IS NULL`, [groupId])).rows;
 
@@ -152,9 +158,9 @@ describe.skipIf(!url)("service groups against a real database", () => {
   it("refuses a role the members cannot report, a quorum above the member count and a second group with the same name", async () => {
     await read(["MASTER", "BACKUP"]);
     await expect(
-      groups.create({ name: "x", description: "", minHealthy: null, role: { metric: "nope", value: "MASTER", min: 1, max: 1 }, forSec: 0, alerts: true, instanceIds: [a, b] }, userId),
-    ).rejects.toThrow(/not a state every member/);
-    await expect(groups.create({ name: "x", description: "", minHealthy: 3, role: null, forSec: 0, alerts: true, instanceIds: [a, b] }, userId)).rejects.toThrow(/more than the 2/);
+      groups.create({ ...base, name: "x", role: { metric: "nope", value: "MASTER", min: 1, max: 1 }, instanceIds: [a, b] }, userId),
+    ).rejects.toThrow(/"nope" is not a state the .* template reports/);
+    await expect(groups.create({ ...base, name: "x", minHealthy: 3, instanceIds: [a, b] }, userId)).rejects.toThrow(/more than the 2/);
     await pair();
     await expect(pair()).rejects.toThrow(/already exists/);
   });
@@ -162,16 +168,91 @@ describe.skipIf(!url)("service groups against a real database", () => {
   it("a service moves between groups, and deleting a group takes its incidents and leaves its services", async () => {
     await read(["BACKUP", "BACKUP"]);
     const g = await pair();
-    const other = await groups.create({ name: "Other", description: "", minHealthy: null, role: null, forSec: 0, alerts: true, instanceIds: [b] }, userId);
+    const other = await groups.create({ ...base, name: "Other", instanceIds: [b] }, userId);
     expect((await groups.get(g.id)).members.map((m) => m.id)).toEqual([a]);
     expect((await groups.get(other.id)).members.map((m) => m.id)).toEqual([b]);
 
-    await groups.update(g.id, { name: "Load balancer pair", description: "", minHealthy: null, role: null, forSec: 0, alerts: true, instanceIds: [a] });
+    await groups.update(g.id, { ...base, name: "Load balancer pair", instanceIds: [a] });
     await q(`UPDATE service_instances SET status = 'down' WHERE id = $1`, [a]);
     await groups.evaluateAll();
     expect(await openIncidents(g.id)).toHaveLength(1);
     await groups.remove(g.id);
     expect(Number((await q(`SELECT count(*) AS n FROM monitor_incidents WHERE service_group_id = $1`, [g.id])).rows[0].n)).toBe(0);
     expect((await q(`SELECT group_id FROM service_instances WHERE id = $1`, [a])).rows[0].group_id).toBeNull();
+  });
+
+  it("a role read differently per template: refused where a template cannot report it, counted by each one's own words", async () => {
+    await read(["MASTER", "BACKUP"]);
+    await q(`UPDATE service_instances SET status = 'up', last_polled_at = now(), last_states = jsonb_build_object('galera_state', 'Synced') WHERE id = $1`, [c]);
+    const choices = await groups.roleChoices([a, c]);
+    expect(choices.common).toEqual([]);
+    expect(choices.templates.map((t) => t.key).sort()).toEqual(["keepalived", "mysql"]);
+    // Without saying how MariaDB (template "mysql") reports it, "role" is refused for that template.
+    await expect(
+      groups.create({ ...base, name: "Mixed", role: { metric: "role", value: "MASTER", min: 1, max: 1 }, instanceIds: [a, c] }, userId),
+    ).rejects.toThrow(/"role" is not a state the .* template reports/);
+    const role = { metric: "role", value: "holder", min: 1, max: 1, byTemplate: { keepalived: { metric: "role", value: "MASTER" }, mysql: { metric: "galera_state", value: "Synced" } } };
+    const g = await groups.create({ ...base, name: "Mixed", role, instanceIds: [a, c] }, userId);
+    // Both hold "the role" in their own words: two where one is wanted.
+    expect(g.roleCount).toBe(2);
+    expect(g.members.map((m) => m.role).sort()).toEqual(["MASTER", "Synced"]);
+    await groups.evaluateAll();
+    expect((await openIncidents(g.id)).map((r) => r.reason)).toEqual(["Mixed: 2 members are holder (exactly 1 wanted)"]);
+    await q(`UPDATE service_instances SET last_states = jsonb_build_object('galera_state', 'Donor') WHERE id = $1`, [c]);
+    await groups.evaluateAll();
+    expect(await openIncidents(g.id)).toEqual([]);
+  });
+
+  it("the redundancy warning waits its own minutes, and does not make the group down on the status page", async () => {
+    await read(["MASTER", "BACKUP"]);
+    await q(`UPDATE service_instances SET status = 'down' WHERE id = $1`, [b]);
+    const g = await pair({ redundancyAfterMin: 5, showOnStatus: true, statusName: "Front door" });
+    const t0 = new Date();
+    // Judged at a later time, as if the poller had kept reading the members until then.
+    const at = async (ms: number) => {
+      const when = new Date(t0.getTime() + ms);
+      await q(`UPDATE service_instances SET last_polled_at = $1 WHERE id IN ($2, $3)`, [when.toISOString(), a, b]);
+      await groups.evaluateAll(when);
+    };
+    await at(0);
+    await at(240_000);
+    expect(await openIncidents(g.id)).toEqual([]);
+    await at(301_000);
+    expect((await openIncidents(g.id)).map((r) => r.rule_id)).toEqual(["group:redundancy"]);
+    expect(sent.map((x) => x.kind)).toEqual(["infra.alert.opened"]);
+    const item = (await status.page()).items.find((i) => i.id === g.id);
+    expect(item).toEqual({ id: g.id, name: "Front door", state: "up", since: null, acknowledged: false });
+
+    await read(["MASTER", "BACKUP"]);
+    await at(330_000);
+    expect(await openIncidents(g.id)).toEqual([]);
+    expect(sent.map((x) => x.kind)).toEqual(["infra.alert.opened", "infra.alert.resolved"]);
+  });
+
+  it("the status page lists only groups chosen for it, by name, down with the open incident's start", async () => {
+    await read(["BACKUP", "BACKUP"]);
+    const shown = await pair({ showOnStatus: true });
+    await groups.create({ ...base, name: "Hidden group", instanceIds: [c] }, userId);
+    await groups.evaluateAll();
+    const page = await status.page();
+    const mine = page.items.filter((i) => [shown.id].includes(i.id) || i.name === "Hidden group");
+    const [inc] = await openIncidents(shown.id);
+    expect(inc).toBeTruthy();
+    const started = (await q(`SELECT extract(epoch FROM started_at) * 1000 AS ms FROM monitor_incidents WHERE service_group_id = $1`, [shown.id])).rows[0].ms;
+    expect(mine).toEqual([{ id: shown.id, name: "Load balancer pair", state: "down", since: new Date(Number(started)).toISOString(), acknowledged: false }]);
+    // Names only: never a member, a host or the reason.
+    expect(JSON.stringify(page)).not.toMatch(/grp-test-lb|keepalived|MASTER/);
+  });
+
+  it("samples groups into the availability history and reports the day and the week", async () => {
+    await read(["MASTER", "BACKUP"]);
+    const g = await pair();
+    await groups.evaluateAll();
+    const sources = new DefaultAvailabilitySources(drizzle(pool, { schema }) as never, {} as never, {} as never);
+    expect((await sources.serviceGroups()).filter((x) => x.ref === g.id)).toEqual([{ kind: "service_group", ref: g.id, label: "Load balancer pair", down: false }]);
+    const hour = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+    const old = new Date(hour.getTime() - 3 * 86_400_000);
+    await q(`INSERT INTO availability_hourly (kind, ref, hour, label, samples, down) VALUES ('service_group', $1, $2, 'x', 60, 0), ('service_group', $1, $3, 'x', 60, 30)`, [g.id, hour.toISOString(), old.toISOString()]);
+    expect((await groups.get(g.id)).availability).toEqual({ day: 100, week: 75 });
   });
 });

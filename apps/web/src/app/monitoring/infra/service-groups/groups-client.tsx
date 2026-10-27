@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import type { ServiceGroup, ServiceGroupSave, ServiceInstance } from "@church/shared";
+import type { ServiceGroup, ServiceGroupRoleChoices, ServiceGroupSave, ServiceInstance } from "@church/shared";
 import { DialogFrame } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
 import { ToastStack, inputCls, useCanWrite, useToasts } from "../../network-cisco/cisco-ui";
@@ -102,14 +102,21 @@ export function ServiceGroupsClient() {
 }
 
 /** "2 of 3 needed; exactly 1 MASTER", in words. */
-export function rulesText(g: Pick<ServiceGroup, "minHealthy" | "role" | "counted">): string {
+export function rulesText(g: Pick<ServiceGroup, "minHealthy" | "role" | "counted" | "redundancyAfterMin">): string {
   const parts = [g.minHealthy === null ? "all working" : `${g.minHealthy} working needed`];
   if (g.role) {
     const r = g.role;
     const want = r.max === null ? `at least ${r.min}` : r.min === r.max ? `exactly ${r.min}` : `${r.min} to ${r.max}`;
     parts.push(`${want} ${r.value}`);
   }
+  if (g.redundancyAfterMin) parts.push(`warn after ${g.redundancyAfterMin} min without a spare`);
   return parts.join("; ");
+}
+
+/** One template's way of reporting the role, as typed in the form. */
+interface RoleMapRow {
+  metric: string;
+  value: string;
 }
 
 /** Add or change a group: name, members (services from any host), quorum, an optional role rule, alerts. */
@@ -125,6 +132,8 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
   const minId = useId();
   const maxId = useId();
   const filterId = useId();
+  const redundancyId = useId();
+  const statusNameId = useId();
   const [services, setServices] = useState<ServiceInstance[] | null>(null);
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
@@ -137,8 +146,13 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
   const [max, setMax] = useState(group?.role ? (group.role.max === null ? "" : String(group.role.max)) : "1");
   const [forSec, setForSec] = useState(String(group?.forSec ?? 60));
   const [alerts, setAlerts] = useState(group?.alerts ?? true);
+  const [redundancy, setRedundancy] = useState(group?.redundancyAfterMin ? String(group.redundancyAfterMin) : "");
+  const [showOnStatus, setShowOnStatus] = useState(group?.showOnStatus ?? false);
+  const [statusName, setStatusName] = useState(group?.statusName ?? "");
   const [filter, setFilter] = useState("");
-  const [choices, setChoices] = useState<Array<{ metric: string; label: string }>>([]);
+  const [choices, setChoices] = useState<ServiceGroupRoleChoices>({ common: [], templates: [] });
+  /** Per template key, when the members' templates differ: which state and value each reports for the role. */
+  const [roleMap, setRoleMap] = useState<Record<string, RoleMapRow>>(group?.role?.byTemplate ?? {});
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -147,9 +161,13 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
   }, []);
   const memberKey = [...members].sort().join(",");
   useEffect(() => {
-    if (!memberKey) return setChoices([]);
-    void svcGet<Array<{ metric: string; label: string }>>(`/groups/role-choices?ids=${memberKey}`).then((c) => setChoices(c ?? []));
+    if (!memberKey) return setChoices({ common: [], templates: [] });
+    void svcGet<ServiceGroupRoleChoices>(`/groups/role-choices?ids=${memberKey}`).then((c) => setChoices(c ?? { common: [], templates: [] }));
   }, [memberKey]);
+  // Several templates: each says how it reports the role (Patroni "leader", repmgr "primary"); one template: the plain fields.
+  const mixed = choices.templates.length > 1;
+  const roleOffered = mixed ? choices.templates.every((t) => t.metrics.length > 0) : choices.common.length > 0;
+  const mapFor = (key: string): RoleMapRow => roleMap[key] ?? { metric: choices.templates.find((t) => t.key === key)?.metrics.some((m) => m.metric === metric) ? metric : "", value: "" };
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -165,6 +183,17 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
     });
   }
 
+  function roleInput(): NonNullable<ServiceGroupSave["role"]> {
+    const base = { value: value.trim(), min: Number(min), max: max.trim() ? Number(max) : null };
+    if (!mixed) return { metric, ...base };
+    const byTemplate: Record<string, RoleMapRow> = {};
+    for (const t of choices.templates) {
+      const row = mapFor(t.key);
+      byTemplate[t.key] = { metric: row.metric, value: row.value.trim() || value.trim() };
+    }
+    return { metric: byTemplate[choices.templates[0]!.key]!.metric, ...base, byTemplate };
+  }
+
   async function save() {
     setSaving(true);
     setErr(null);
@@ -172,10 +201,13 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
       name: name.trim(),
       description: description.trim(),
       minHealthy: quorum.trim() ? Number(quorum) : null,
-      role: useRole ? { metric, value: value.trim(), min: Number(min), max: max.trim() ? Number(max) : null } : null,
+      role: useRole ? roleInput() : null,
       forSec: Number(forSec) || 0,
       alerts,
       instanceIds: [...members],
+      redundancyAfterMin: redundancy.trim() ? Number(redundancy) : null,
+      showOnStatus,
+      statusName: statusName.trim() || null,
     };
     try {
       const saved = group ? await svcSend<ServiceGroup>(`/groups/${group.id}`, "PUT", input) : await svcSend<ServiceGroup>("/groups", "POST", input);
@@ -188,7 +220,7 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
     }
   }
 
-  const roleOk = !useRole || (metric && value.trim());
+  const roleOk = !useRole || (value.trim() && (mixed ? choices.templates.every((t) => mapFor(t.key).metric) : metric));
   return (
     <DialogFrame
       onClose={onClose}
@@ -283,14 +315,68 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
         <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
           <legend className="px-1">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={useRole} onChange={(e) => setUseRole(e.target.checked)} className="h-4 w-4" disabled={!useRole && choices.length === 0} />
+              <input type="checkbox" checked={useRole} onChange={(e) => setUseRole(e.target.checked)} className="h-4 w-4" disabled={!useRole && !roleOffered} />
               Count a role
             </label>
           </legend>
-          {!useRole && choices.length === 0 ? (
-            <p className={helpCls}>Only offered when every service in the group reports the same state (keepalived&apos;s role, a database&apos;s primary or standby).</p>
+          {!useRole && !roleOffered ? (
+            <p className={helpCls}>
+              Only offered when every service in the group reports a state (keepalived&apos;s role, a database&apos;s primary or standby). Services of different
+              templates may name it differently.
+            </p>
           ) : null}
-          {useRole ? (
+          {useRole && mixed ? (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <label htmlFor={valueId} className={labelCls}>
+                    Role, as the group shows it
+                  </label>
+                  <input id={valueId} className={inputCls} placeholder="primary" value={value} onChange={(e) => setValue(e.target.value)} maxLength={100} />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor={minId} className={labelCls}>
+                    Fewest
+                  </label>
+                  <input id={minId} className={inputCls} type="number" min={0} max={100} value={min} onChange={(e) => setMin(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor={maxId} className={labelCls}>
+                    Most
+                  </label>
+                  <input id={maxId} className={inputCls} type="number" min={0} max={100} placeholder="no limit" value={max} onChange={(e) => setMax(e.target.value)} />
+                </div>
+              </div>
+              <p className={helpCls}>The services use different templates: say how each one reports the role. A blank value means the same word as above.</p>
+              <ul className="space-y-2" aria-label="How each template reports the role">
+                {choices.templates.map((t) => {
+                  const row = mapFor(t.key);
+                  const set = (patch: Partial<RoleMapRow>) => setRoleMap((prev) => ({ ...prev, [t.key]: { ...row, ...patch } }));
+                  return (
+                    <li key={t.key} className="grid items-end gap-2 sm:grid-cols-3">
+                      <span className="text-sm font-medium sm:pb-2">{t.name}</span>
+                      <label className="space-y-1">
+                        <span className={labelCls}>State</span>
+                        <select className={inputCls} value={row.metric} onChange={(e) => set({ metric: e.target.value })} aria-label={`State ${t.name} reports the role in`}>
+                          <option value="">Choose…</option>
+                          {t.metrics.map((m) => (
+                            <option key={m.metric} value={m.metric}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1">
+                        <span className={labelCls}>Reported as</span>
+                        <input className={inputCls} placeholder={value || "primary"} value={row.value} onChange={(e) => set({ value: e.target.value })} maxLength={100} aria-label={`Value ${t.name} reports for the role`} />
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+          {useRole && !mixed ? (
             <div className="grid gap-3 sm:grid-cols-4">
               <div className="space-y-1">
                 <label htmlFor={metricId} className={labelCls}>
@@ -298,12 +384,12 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
                 </label>
                 <select id={metricId} className={inputCls} value={metric} onChange={(e) => setMetric(e.target.value)}>
                   <option value="">Choose…</option>
-                  {choices.map((c) => (
+                  {choices.common.map((c) => (
                     <option key={c.metric} value={c.metric}>
                       {c.label}
                     </option>
                   ))}
-                  {metric && !choices.some((c) => c.metric === metric) ? <option value={metric}>{metric} (not shared by every member)</option> : null}
+                  {metric && !choices.common.some((c) => c.metric === metric) ? <option value={metric}>{metric} (not shared by every member)</option> : null}
                 </select>
               </div>
               <div className="space-y-1">
@@ -328,10 +414,49 @@ export function GroupFormModal({ group, onClose, onSaved }: { group: ServiceGrou
           ) : null}
         </fieldset>
 
+        <div className="space-y-1">
+          <label htmlFor={redundancyId} className={labelCls}>
+            Warn when a spare is lost for (minutes)
+          </label>
+          <input
+            id={redundancyId}
+            className={`${inputCls} sm:max-w-[12rem]`}
+            type="number"
+            min={1}
+            max={10080}
+            placeholder="never"
+            value={redundancy}
+            onChange={(e) => setRedundancy(e.target.value)}
+            aria-describedby={`${redundancyId}-help`}
+          />
+          <p id={`${redundancyId}-help`} className={helpCls}>
+            A warning when some service is not working although enough others are, so the group is one loss from an outage. Blank = no warning.
+          </p>
+        </div>
+
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={alerts} onChange={(e) => setAlerts(e.target.checked)} className="h-4 w-4" />
           Send alerts (off: problems are still recorded, nobody is told)
         </label>
+
+        <fieldset className="space-y-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+          <legend className="px-1 text-sm font-medium">Status page</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={showOnStatus} onChange={(e) => setShowOnStatus(e.target.checked)} className="h-4 w-4" />
+            Show on the status page (everyone who signs in can see it)
+          </label>
+          {showOnStatus ? (
+            <div className="space-y-1">
+              <label htmlFor={statusNameId} className={labelCls}>
+                Name on the status page
+              </label>
+              <input id={statusNameId} className={inputCls} value={statusName} onChange={(e) => setStatusName(e.target.value)} maxLength={120} placeholder={name || "For example: Database"} aria-describedby={`${statusNameId}-help`} />
+              <p id={`${statusNameId}-help`} className={helpCls}>
+                Plain words for staff and volunteers; blank uses the group&apos;s name. Only the name and whether it works are shown, never its services or hosts.
+              </p>
+            </div>
+          ) : null}
+        </fieldset>
 
         {err ? (
           <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">

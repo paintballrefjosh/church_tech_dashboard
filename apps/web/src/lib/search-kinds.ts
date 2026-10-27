@@ -37,6 +37,7 @@ export type SearchKind =
   | "ipam_subnet"
   | "ipam_host"
   | "service_instance"
+  | "service_group"
   | "dns_record"
   | "asset";
 
@@ -106,6 +107,7 @@ export const KIND_META: Record<SearchKind, KindMeta> = {
   ipam_subnet: meta("Subnet", Boxes, "indigo"),
   ipam_host: meta("IP", Network, "indigo"),
   service_instance: meta("Service", Activity, "indigo"),
+  service_group: meta("Service group", Activity, "indigo"),
   dns_record: meta("DNS", Globe, "indigo"),
   asset: meta("Item", Package, "emerald"),
 };
@@ -142,6 +144,8 @@ export function hrefForHit(h: SearchHit): string {
       return `/ipam`;
     case "service_instance":
       return `/monitoring/infra`;
+    case "service_group":
+      return `/monitoring/infra/service-groups/${h.resourceId}`;
     case "dns_record":
       return `/dns?view=records`;
     case "asset":

@@ -340,7 +340,7 @@ degrades to reminders with one log line; saving a group name that does not exist
 The second group's notice links to `/status` because they may have no Monitoring access. `escalation_level`/`escalated_at` and
 `flapping_since` are `volatile` in the backup registry (a restore must not replay or inherit them). (4) *The status page*
 (`GET /status`, any signed-in user, no permission string by design; `StatusService`) lists monitors with `show_on_status` (and
-enabled) under `status_name`, and carries NAME, STATE, SINCE, ACKNOWLEDGED, the maintenance window and the admin's
+enabled) under `status_name` (and service groups with `show_on_status`, by name only), and carries NAME, STATE, SINCE, ACKNOWLEDGED, the maintenance window and the admin's
 `monitoring.status_notice` only: **never add a target, address, error text or threshold to it**, a unit test asserts none
 leaks. Tests: `alert-rules.test.ts`, `alert-escalation.integration.test.ts` (CockroachDB and YugabyteDB), smoke
 `tests/smoke/alerts.mjs`, e2e `status.spec.ts`; the worker's flap behaviour was checked for real against a stopped and
@@ -423,7 +423,11 @@ role count ("exactly 1 MASTER") on a state metric EVERY member's template has. A
 (rule `group:quorum|role`); **one open per group and rule is a unique index on `(service_group_id, group_open_rule)`**, the rule id while open
 and NULL once resolved (CockroachDB cannot build a partial index on a column added in the same migration); a 23505 is adopted silently. Job
 `service-groups` (30 s) is the only writer of a group's status/alert state. Code that reads `monitor_incidents` must allow a row with
-neither `monitor_id` nor `target_id` (escalation, week, meters and the assistant join `service_groups` for the name). (8) The home page has a
+neither `monitor_id` nor `target_id` (escalation, week, meters and the assistant join `service_groups` for the name). Part two
+(migration 0088): `role.byTemplate` reads the role per template (`roleFor`; every member's template must report its state,
+`roleRuleProblem`), an optional `redundancy` WARNING after `redundancy_after_min` minutes of a lost spare (its own clock,
+`groupCheckForSec`; never makes the group down), `show_on_status`/`status_name` (names only on the status page), search kind
+`service_group`, and availability samples of kind `service_group` (no home area; the group page's day/week figures). (8) The home page has a
 `services` area (`AREA_KEYS`) only when a service or group exists. (9) Wave two built-ins (`BUILTIN_TEMPLATE_VERSION` 2): Redis/Valkey, nginx,
 RabbitMQ, chrony, Postfix, mdadm, ZFS, systemd failed units, Garage, Meilisearch. The `tcp` transport has `parse` and `redisAuth` (sent as RESP
 `AUTH`, length-prefixed: never splice a secret into `send`), and unescapes the template's `\r\n` BEFORE filling values.
@@ -966,7 +970,7 @@ Indexed kinds (see `SearchKind` in
   bus missed.
 - **Monitoring (DB-backed):** `monitor`, `infra_target`, `infra_entity`,
   `cisco_switch`, `cisco_port`, `cisco_mac`, `cisco_arp`, `cisco_vlan`,
-  `ipam_subnet`, `ipam_host`. Each node reconciles these from the database
+  `ipam_subnet`, `ipam_host`, `service_instance`, `service_group`. Each node reconciles these from the database
   itself (`syncMonitoringDbSources()`): on startup, on a timer
   (`SEARCH_MONITORING_SYNC_MS`, default 120s, so poller churn is picked up
   without a manual reindex), and from Reindex. Not event-driven, so two nodes
@@ -1751,7 +1755,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
 - **Assistant (chatbot) — phases 1-3 built (2026-10-25/26)** — see ## Assistant and section 0 of [docs/assistant.md](docs/assistant.md); embeddings, replayed evaluation, API-token access and other channels are not built; do not start them without an explicit ask.
-- **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, the home-page Services area and catalogue wave two also built (2026-10-26).
+- **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, the home-page Services area and catalogue wave two also built (2026-10-26); group roles per template, the redundancy warning, groups on the status page, in search and in the availability history (2026-10-27).
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)

@@ -21,6 +21,7 @@ export type SearchKind =
   | "ipam_subnet"
   | "ipam_host"
   | "service_instance"
+  | "service_group"
   | "dns_record"
   | "asset";
 
@@ -41,6 +42,7 @@ export const MONITORING_KINDS: SearchKind[] = [
   "ipam_subnet",
   "ipam_host",
   "service_instance",
+  "service_group",
 ];
 export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
 /**

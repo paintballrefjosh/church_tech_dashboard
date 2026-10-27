@@ -4,7 +4,7 @@ import { DB, type Db } from "../db/db.module";
 import { availabilityHourly } from "../db/schema";
 import { TtlCache } from "../dashboard/home/cache";
 
-export const AVAILABILITY_KINDS = ["monitor", "infra_target", "unifi_device", "cisco_switch", "dns_node", "service_instance"] as const;
+export const AVAILABILITY_KINDS = ["monitor", "infra_target", "unifi_device", "cisco_switch", "dns_node", "service_instance", "service_group"] as const;
 export type AvailabilityKind = (typeof AVAILABILITY_KINDS)[number];
 
 export interface AvailabilitySample {

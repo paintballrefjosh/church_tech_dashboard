@@ -155,6 +155,9 @@ test("service monitoring: group services across hosts", async ({ page }) => {
     await dialog.getByRole("checkbox", { name: new RegExp(`member ${STAMP}`) }).check();
     // The JSON template reports no state, so no role can be counted.
     await expect(dialog.getByRole("checkbox", { name: "Count a role" })).toBeDisabled();
+    await dialog.getByLabel("Warn when a spare is lost for (minutes)").fill("20");
+    await dialog.getByRole("checkbox", { name: /Show on the status page/ }).check();
+    await dialog.getByLabel("Name on the status page").fill(`[e2e] shown ${STAMP}`);
     await axe(page, '[role="dialog"]');
     await dialog.getByRole("button", { name: "Save" }).click();
     await page.waitForURL(/\/monitoring\/infra\/service-groups\/[0-9a-f-]{36}$/);
@@ -164,6 +167,13 @@ test("service monitoring: group services across hosts", async ({ page }) => {
     await expect(page.getByText("Nothing to judge")).toBeVisible();
     await expect(page.getByRole("region", { name: "Services in the group" })).toContainText("not counted");
     await axe(page);
+    await expect(page.getByTestId("group-availability")).toContainText(`on the status page as [e2e] shown ${STAMP}`);
+    await expect(page.getByText("warn after 20 min without a spare")).toBeVisible();
+
+    // The status page shows it under that name, and nothing of its services.
+    await page.goto("/status");
+    await expect(page.getByTestId("status-list")).toContainText(`[e2e] shown ${STAMP}`);
+    await expect(page.getByTestId("status-list")).not.toContainText(`member ${STAMP}`);
 
     await page.goto(`/monitoring/infra/${host.id}/services/${inst.id}`);
     await expect(page.getByRole("link", { name: group })).toBeVisible();

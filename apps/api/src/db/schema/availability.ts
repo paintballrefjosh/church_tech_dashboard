@@ -4,7 +4,7 @@ import { pgTable, text, timestamp, integer, primaryKey, index } from "drizzle-or
  * Hourly availability samples per system, written by the availability sampler (Phase 5) and read
  * by the Glass look and the week rail. `samples` counts the checks taken in the hour, `down` how
  * many of them found the system down. `kind` is monitor | infra_target | unifi_device |
- * cisco_switch | dns_node | service_instance; `ref` is that kind's own id. Rebuilt by the sampler, never backed up.
+ * cisco_switch | dns_node | service_instance | service_group; `ref` is that kind's own id. Rebuilt by the sampler, never backed up.
  */
 export const availabilityHourly = pgTable(
   "availability_hourly",

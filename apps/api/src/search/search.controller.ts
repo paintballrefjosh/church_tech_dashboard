@@ -23,6 +23,7 @@ export const SEARCH_KINDS: SearchKind[] = [
   "ipam_subnet",
   "ipam_host",
   "service_instance",
+  "service_group",
   "dns_record",
   "asset",
 ];
