@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   KeyRound,
@@ -1037,7 +1038,8 @@ function DrawerShell({
   wide?: boolean;
 }) {
   const dialogRef = useModal<HTMLDivElement>(onClose);
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
@@ -1074,6 +1076,7 @@ function DrawerShell({
         </header>
         {children}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

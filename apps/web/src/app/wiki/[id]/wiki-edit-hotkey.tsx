@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Pencil } from "lucide-react";
 
 /**
@@ -64,7 +65,8 @@ export function WikiEditHotkey({ pageId, canEdit }: { pageId: string; canEdit: b
   const left = Math.min(pos.x, window.innerWidth - 176);
   const top = Math.min(pos.y, window.innerHeight - 96);
 
-  return (
+  // In a portal: inside the wiki's frosted card surfaces, "fixed" would be measured from the card, not the window.
+  return createPortal(
     <div
       ref={popupRef}
       role="dialog"
@@ -92,6 +94,7 @@ export function WikiEditHotkey({ pageId, canEdit }: { pageId: string; canEdit: b
           Cancel
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

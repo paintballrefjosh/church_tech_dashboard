@@ -4,6 +4,7 @@ import { Command, defaultFilter } from "cmdk";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
 import { Search } from "lucide-react";
 import { KIND_META, hrefForHit } from "@/lib/search-kinds";
@@ -54,6 +55,8 @@ export function CommandPalette({ access }: { access: Access }) {
   const [me, setMe] = useState<PaletteUser | null>(null);
   const [alertsPaused, setAlertsPaused] = useState<boolean | null>(null);
   const [pending, setPending] = useState<RunCommand | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -360,7 +363,10 @@ export function CommandPalette({ access }: { access: Access }) {
           </div>
         </Command.Dialog>
       ) : null}
-      {/* What an action did, shown after the palette has closed. */}
+      {/* What an action did, shown after the palette has closed. In a portal: the top bar can sit inside a frosted card
+          surface, which would make "fixed" mean "inside the top bar". Only after mount, so the server and first client render agree. */}
+      {mounted
+        ? createPortal(
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
         {toast ? (
           <div
@@ -375,7 +381,10 @@ export function CommandPalette({ access }: { access: Access }) {
             {toast.text}
           </div>
         ) : null}
-      </div>
+      </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

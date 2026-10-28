@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Lock, Plus, Search, Trash2, ShieldCheck, UsersRound, X } from "lucide-react";
 import { useModal } from "@/components/modal";
 
@@ -363,7 +364,8 @@ function GroupDrawer({
     : memberPool;
 
   const dialogRef = useModal<HTMLDivElement>(onClose);
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
@@ -553,7 +555,8 @@ function GroupDrawer({
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

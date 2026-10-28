@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   Printer as PrinterIcon,
   RefreshCw,
@@ -444,7 +445,8 @@ function PrinterFormDrawer({
   }
 
   const dialogRef = useModal<HTMLDivElement>(onClose);
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
@@ -632,7 +634,8 @@ function PrinterFormDrawer({
           </button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

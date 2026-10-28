@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import { Pencil, Power, Trash2, AlertTriangle, CircleCheck, Download, KeyRound, Loader2, RefreshCw, X } from "lucide-react";
@@ -924,7 +925,8 @@ function SudoTerminalDialog({
   const panelRef = useModal<HTMLDivElement>(() => {
     if (!busy) onClose();
   });
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={() => !busy && onClose()}
@@ -1044,7 +1046,8 @@ function SudoTerminalDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1067,7 +1070,8 @@ function RunUpdatesModal({
   const panelRef = useModal<HTMLDivElement>(() => {
     if (!busy) onCancel();
   });
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => !busy && onCancel()}
@@ -1166,7 +1170,8 @@ function RunUpdatesModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
