@@ -34,7 +34,11 @@ export async function homeSnapshotTests({ test, assert, fetchWithCookies, jar })
     }
     if (snap.systems.state === "ok") {
       const d = snap.systems.data;
-      assert(Array.isArray(d.areas) && d.areas.length === 5, "systems: five areas");
+      // Five fixed areas, plus Services once a service or service group exists.
+      const keys = Array.isArray(d.areas) ? d.areas.map((a) => a.key) : [];
+      const fixed = ["servers", "internet", "wifi", "switches", "dns"];
+      assert(fixed.every((k) => keys.includes(k)), `systems: the five fixed areas (${keys.join(", ")})`);
+      assert(keys.length === fixed.length || (keys.length === fixed.length + 1 && keys.includes("services")), `systems: no unexpected area (${keys.join(", ")})`);
       assert(Array.isArray(d.problems), "systems: problems");
       assert(typeof d.maintenanceMode === "boolean" && typeof d.canWrite === "boolean", "systems: flags");
     }
