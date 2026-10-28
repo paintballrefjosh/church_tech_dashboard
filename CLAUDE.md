@@ -568,7 +568,7 @@ status colours `-700` in light with a `dark:` partner (`-600` on white fails); t
 (2) *Every control has a name*: an icon-only button needs `aria-label` (say what it acts on: `Remove <thing>`), a blank table heading needs `sr-only` text (`Column.srLabel`
 in `DataTable`), a form field needs a real `<label htmlFor>` (the Settings fields tie label, description and input together). (3) *Landmarks*: two `<nav>`s on a page need
 different `aria-label`s; each page has one `<main>`; `SkipLink` (first Tab stop) focuses it. (4) *Hand-built dialogs* use `DialogFrame`/`useModal`
-(`components/modal.tsx`): focus goes in, Tab stays in, Escape closes, focus returns to the opener; give the panel `role="dialog"`, `aria-modal` and a name. (5) A
+(`components/modal.tsx`): focus goes in, Tab stays in, Escape closes, focus returns to the opener; give the panel `role="dialog"`, `aria-modal` and a name. `DialogFrame` renders into `document.body`: the animated background gives cards a `backdrop-filter`, which traps a `fixed` overlay inside the card (a dialog opened from a card dimmed only that card and later cards drew over it), so a hand-built overlay inside a card needs a portal too. (5) A
 horizontally scrolling table wrapper with nothing focusable inside needs `tabIndex={0} role="region" aria-label="..."`, or a keyboard user cannot scroll it. (6) Click
 targets are at least 24 px (WCAG 2.2). (7) Ctrl+K belongs to the command palette alone (the top-bar search used to answer it too), and the palette hands focus back to
 what had it. (8) `prefers-reduced-motion` switches off the app's transitions and pulses (`globals.css`); spinners keep turning. axe finds about a third of real

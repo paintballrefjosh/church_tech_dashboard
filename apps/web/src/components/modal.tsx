@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -79,6 +80,10 @@ export function useModal<T extends HTMLElement>(onClose: () => void, options: { 
  * A dialog frame (`DialogFrame`) for the hand-built dialogs: the dimmed overlay and the panel, with the behaviour of `useModal` and the
  * markup a screen reader needs. Clicking the dimmed area closes it (unless `closeOnBackdrop` is false). Mount it only while it
  * is open. `label` names the dialog; use `labelledBy` instead when the panel has a visible title with an id.
+ *
+ * It renders into `document.body`: the animated background gives cards a `backdrop-filter`, and an element with one becomes
+ * the containing block of its `fixed` descendants, so a dialog opened from inside a card was dimmed and placed within that
+ * card only, and the cards below it drew on top.
  */
 export function DialogFrame({
   onClose,
@@ -102,7 +107,8 @@ export function DialogFrame({
   children: ReactNode;
 }) {
   const ref = useModal<HTMLDivElement>(onClose, { escape });
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className={overlayClassName}
       onMouseDown={(e) => {
@@ -112,6 +118,7 @@ export function DialogFrame({
       <div ref={ref} role="dialog" aria-modal="true" aria-label={labelledBy ? undefined : label} aria-labelledby={labelledBy} data-testid={testId} className={className}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
