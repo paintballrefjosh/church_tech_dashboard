@@ -282,3 +282,23 @@ describe.skipIf(!realRedis)("Redis/Valkey template on a real server (TEST_SVC_RE
     expect(result.values.uptime_s).toBeGreaterThan(0);
   });
 });
+
+// The tablet server's whole metrics page passed the 5 MB cap on a real cluster; the template asks for its four names only.
+const realYugabyte = process.env.TEST_SVC_YUGABYTE;
+describe.skipIf(!realYugabyte)("YugabyteDB template on a real node (TEST_SVC_YUGABYTE=host)", () => {
+  it("reads the master and a small tablet server answer", async () => {
+    const t = BUILTIN_TEMPLATES.yugabytedb!;
+    const vars = { master_port: "7000", tserver_port: "9000", scheme: "http", verify_tls: "false" };
+    const outcomes: Record<string, CollectorOutcome> = {};
+    for (const [k, c] of Object.entries(t.collect)) {
+      const r = await runCollector(c, ctx(realYugabyte!, vars));
+      expect(r.error, k).toBe(null);
+      outcomes[k] = { rows: r.rows, error: null };
+    }
+    expect(outcomes.tserver!.rows.length).toBeLessThan(200);
+    const result = evaluateService(t, outcomes, serviceExprInputs(t, {}), {}, Date.now());
+    expect(result.values.rpc_connections).toBeGreaterThan(0);
+    expect(typeof result.values.clock_skew_ms).toBe("number");
+    expect(result.values.tservers_alive).toBeGreaterThan(0);
+  });
+});

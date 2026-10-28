@@ -80,6 +80,15 @@ nothing is written), smoke `tests/smoke/service-monitoring.mjs` (reaches no real
 Not verified: the HAProxy, keepalived, Apache, Kea, Technitium, CockroachDB and YugabyteDB templates against the church's
 real servers (fixtures only).
 
+**YugabyteDB tablet server (2026-10-28).** The template read the tablet server's whole `/prometheus-metrics`, which lists every
+table and tablet: 1.2 MB on an empty single node, and past the transport's 5 MB cap on the church's cluster, so its `tserver`
+reading failed ("the answer is larger than 5 MB") and RPC connections, clock skew and follower lag stayed empty. It now asks for
+its four names only (`?metrics=...&show_help=false`, under 1 KB on that node; the server matches names loosely, so `keep` still
+picks them exactly; `BUILTIN_TEMPLATE_VERSION` 3). The cap stays: a page that big is the wrong page, not a limit to raise. Run for
+real against a throwaway 2024.2 node (`TEST_SVC_YUGABYTE=host` opts in). The service page also showed one failed optional
+reading twice, as a red last error and an amber "readings that failed" line: red is now only for a service that could not be
+read at all.
+
 **Wave two notes.** Redis/Valkey reads `INFO` over the `tcp` transport, which gained two fields for it: `parse` (rows out of
 the answer, otherwise the old single row) and `redisAuth` (a `secret_ok` slot: the password is sent first as `AUTH` in RESP
 framing, every argument length-prefixed, so it is data and never syntax; `respCommand` in `transports.ts`). The template's

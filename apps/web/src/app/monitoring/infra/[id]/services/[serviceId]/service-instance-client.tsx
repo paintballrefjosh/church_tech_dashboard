@@ -189,8 +189,10 @@ export function ServiceInstanceClient({ targetId, id }: { targetId: string; id: 
         </div>
       ) : null}
 
-      {s.lastError ? <p className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300">{s.lastError}</p> : null}
-      {Object.keys(s.collectorErrors).length ? (
+      {/* One failure, one box: red when the service could not be read at all, amber per reading when only some failed (the
+          last error then says the same thing again, marked "(optional)"). */}
+      {s.lastError && (s.status === "down" || !Object.keys(s.collectorErrors).length) ? <p className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300">{s.lastError}</p> : null}
+      {s.status !== "down" && Object.keys(s.collectorErrors).length ? (
         <ul className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200" aria-label="Readings that failed">
           {Object.entries(s.collectorErrors).map(([k, e]) => (
             <li key={k}>

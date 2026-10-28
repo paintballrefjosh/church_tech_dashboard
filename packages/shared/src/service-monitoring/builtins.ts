@@ -8,7 +8,7 @@ import type { ServiceTemplateBody } from "./template";
  *
  * `BUILTIN_TEMPLATE_VERSION` goes up when any built-in changes, so an instance page can say "the template changed".
  */
-export const BUILTIN_TEMPLATE_VERSION = 2;
+export const BUILTIN_TEMPLATE_VERSION = 3;
 
 const port = (def: number) => ({ key: "port", label: "Port", type: "number" as const, default: def });
 const verify = { key: "verify_tls", label: "Check the TLS certificate", type: "bool" as const, default: true, help: "Turn off for a self-signed certificate." };
@@ -332,7 +332,9 @@ const yugabyte: ServiceTemplateBody = {
     },
     tserver: {
       transport: "prometheus",
-      url: "{{scheme}}://{{host}}:{{tserver_port}}/prometheus-metrics",
+      // Ask for these names only: the whole page lists every table and tablet (1.2 MB on an empty node), past the 5 MB cap on a
+      // real cluster. The server matches loosely, so `keep` still picks the exact names. Measured on 2024.2.
+      url: "{{scheme}}://{{host}}:{{tserver_port}}/prometheus-metrics?metrics=rpc_connections_alive,hybrid_clock_skew,server_uptime_ms,follower_lag_ms&show_help=false",
       verifyTls: "{{verify_tls}}",
       keep: ["rpc_connections_alive", "hybrid_clock_skew", "server_uptime_ms", "follower_lag_ms"],
       optional: true,

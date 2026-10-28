@@ -433,7 +433,7 @@ RabbitMQ, chrony, Postfix, mdadm, ZFS, systemd failed units, Garage, Meilisearch
 `AUTH`, length-prefixed: never splice a secret into `send`), and unescapes the template's `\r\n` BEFORE filling values.
 Tests: `service-monitoring.test.ts`, `service-monitoring.integration.test.ts` (CockroachDB and YugabyteDB), opt-in `service-sql-transport.test.ts`
 (real PostgreSQL/MariaDB, `TEST_SVC_POSTGRES`/`TEST_SVC_MYSQL`), `service-groups.test.ts`, `service-groups.integration.test.ts` (both engines),
-`service-templates-wave2.test.ts` (opt-in `TEST_SVC_REDIS`), smoke `tests/smoke/service-monitoring.mjs`, e2e `service-monitoring.spec.ts`.
+`service-templates-wave2.test.ts` (opt-in `TEST_SVC_REDIS`, `TEST_SVC_YUGABYTE`), smoke `tests/smoke/service-monitoring.mjs`, e2e `service-monitoring.spec.ts`.
 
 **Renewals** (`apps/api/src/renewals/`, page `/renewals` in the IT menu, migration 0079; rules in `packages/shared/src/schemas/renewal.ts`,
 unit-tested in `apps/api/test/renewals.test.ts`): licences, domains, warranties, subscriptions and certificates that lapse on a date. Monitoring
