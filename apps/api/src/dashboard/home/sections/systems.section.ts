@@ -253,7 +253,8 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
   }
 
   private async switches(): Promise<AreaResult> {
-    const list = await this.cisco.list();
+    // A switch with monitoring off is not being watched, so it is neither up nor down here.
+    const list = (await this.cisco.list()).filter((s) => s.enabled !== false);
     if (list.length === 0) return blank("switches", "unconfigured", "none set up");
     const down = list.filter((s) => s.reachable === false);
     const area: Area = {

@@ -15,7 +15,7 @@ import {
   type CiscoPortRow,
 } from "@church/shared";
 import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
-import { useCanWrite, StatusPill, computeStatus, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
+import { useCanWrite, StatusPill, computeStatus, fmtTime, MonitoringToggle, ToastStack, useToasts, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 import { PortViewToggle, usePortView } from "@/components/port-view-toggle";
 import { SwitchFaceplate } from "@/components/switch-faceplate";
@@ -166,6 +166,7 @@ export default function CiscoSwitchDetailPage() {
   // id. Several can be under way at once; the server makes the pushes to this one switch take turns.
   const [pushingPorts, setPushingPorts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   const [view, setView] = usePortView();
   const { models } = useSwitchModels();
 
@@ -400,6 +401,15 @@ export default function CiscoSwitchDetailPage() {
       {sw ? (
         <div className="flex flex-wrap items-center gap-3">
           <StatusPill status={computeStatus(sw)} />
+          <MonitoringToggle
+            sw={sw}
+            canWrite={canWrite}
+            onChanged={(u) => {
+              showToast(true, `Monitoring ${u.enabled === false ? "off" : "on"} for ${u.hostname}.`, u.enabled === false);
+              void load();
+            }}
+            onError={(text) => showToast(false, text)}
+          />
           <span className="text-lg font-semibold">{sw.hostname}</span>
           <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{sw.ipAddress}</span>
           {sw.model ? <span className="text-xs text-slate-500 dark:text-slate-400">{sw.model}</span> : null}
@@ -418,7 +428,9 @@ export default function CiscoSwitchDetailPage() {
                   setStatus({ ok: true, text: "Re-importing the port baseline from the switch…" });
                   setTimeout(() => void load(), 5000);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                disabled={sw.enabled === false}
+                title={sw.enabled === false ? "Monitoring is off for this switch" : undefined}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <DownloadCloud className="h-4 w-4" aria-hidden /> Re-import ports
               </button>
@@ -438,6 +450,16 @@ export default function CiscoSwitchDetailPage() {
               </button>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {sw && sw.enabled === false ? (
+        <div
+          role="status"
+          className="rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+        >
+          Monitoring is off for this switch: it is not polled, raises no alerts and is not logged in to, so port states and
+          drift below are from the last poll{sw.lastPolledAt ? ` (${fmtTime(sw.lastPolledAt)})` : ""}. Pushes to the switch are refused until it is switched on.
         </div>
       ) : null}
 
@@ -630,6 +652,7 @@ export default function CiscoSwitchDetailPage() {
           </div>
         </Modal>
       ) : null}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

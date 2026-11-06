@@ -23,6 +23,8 @@ export interface SwitchFormState {
   location: string;
   checkPortState: boolean;
   checkPortChannels: boolean;
+  /** Monitoring on/off: off = not polled, no alerts, no logins. */
+  enabled: boolean;
   alertPrefs: CiscoAlertPrefs;
   /** The switch view choice: "auto", "off" or "model:<id>" (only an existing switch has one). */
   viewChoice: string;
@@ -38,6 +40,7 @@ export const EMPTY_SWITCH_FORM: SwitchFormState = {
   location: "",
   checkPortState: true,
   checkPortChannels: false,
+  enabled: true,
   alertPrefs: { ...NO_ALERTS },
   viewChoice: "auto",
 };
@@ -54,6 +57,7 @@ export function formFromSwitch(s: CiscoSwitch): SwitchFormState {
     location: s.location ?? "",
     checkPortState: s.checkPortState,
     checkPortChannels: s.checkPortChannels ?? false,
+    enabled: s.enabled !== false,
     alertPrefs: { ...NO_ALERTS, ...s.alertPrefs },
     viewChoice: s.switchViewOff ? "off" : s.switchModelId ? `model:${s.switchModelId}` : "auto",
   };
@@ -100,6 +104,8 @@ export function SwitchFormModal({
         location: form.location.trim() || undefined,
         checkPortState: form.checkPortState,
         checkPortChannels: form.checkPortChannels,
+        // A new switch is always monitored; the choice only exists when editing.
+        ...(editing ? { enabled: form.enabled } : {}),
         alertPrefs: form.alertPrefs,
       };
       if (form.password) body.password = form.password;
@@ -160,6 +166,24 @@ export function SwitchFormModal({
             <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className={`w-full ${inputCls}`} />
           </Field>
         </div>
+
+        {editing ? (
+          <label className="flex items-start gap-2 rounded-md border border-slate-200 p-2.5 dark:border-slate-800">
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700"
+            />
+            <span>
+              <span className="block font-medium">Monitoring</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                Untick to leave this switch alone: it is not polled, raises no alerts and the dashboard does not log in to it
+                (no backups, drift checks or pushes) until you tick it again. Everything already stored stays.
+              </span>
+            </span>
+          </label>
+        ) : null}
 
         {editing && models ? (
           <div className="space-y-1">

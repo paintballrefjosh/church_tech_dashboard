@@ -57,7 +57,7 @@ export class SecurityPostureService {
         })
         .from(apiTokens)
         .where(and(isNull(apiTokens.revokedAt), or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now)))),
-      this.db.select({ c: sql<number>`count(*)` }).from(ciscoSwitches).where(isNull(ciscoSwitches.knownHostKey)),
+      this.db.select({ c: sql<number>`count(*)` }).from(ciscoSwitches).where(and(isNull(ciscoSwitches.knownHostKey), eq(ciscoSwitches.enabled, true))),
       this.db
         // Epoch milliseconds: raw aggregates do not go through Drizzle's timestamp mapping (see CLAUDE.md, Database).
         .select({ at: sql<string | number | null>`extract(epoch FROM max(${backups.createdAt})) * 1000` })

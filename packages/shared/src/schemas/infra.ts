@@ -480,6 +480,8 @@ export const infraUpdateRunSchema = z.object({
   packageManager: z.string().nullable(),
   fullUpgrade: z.boolean(),
   includePhased: z.boolean(),
+  /** Unused packages were removed after the upgrade (apt/dnf/yum autoremove). */
+  cleanup: z.boolean().optional(),
   rebootRequested: z.boolean(),
   rebootRequired: z.boolean().nullable(),
   rebootTriggered: z.boolean(),
@@ -510,6 +512,13 @@ export const createInfraUpdateRunSchema = z.object({
    * regression safety net; this is explicitly opting out of it.
    */
   includePhased: z.boolean().default(false),
+  /**
+   * After a SUCCESSFUL upgrade, remove packages that were installed as dependencies and nothing needs any more
+   * (`apt-get autoremove -y`; `dnf`/`yum autoremove -y`). Other package managers have no safe equivalent and ignore
+   * it. Off by default: it deletes software, and a package someone installed by hand and never marked as wanted
+   * can go with it.
+   */
+  cleanup: z.boolean().default(false),
   /**
    * The login's sudo password, supplied for this run only after a run stopped with `needs_sudo`. Never stored
    * or audited; sent to the host over the SSH channel's stdin.

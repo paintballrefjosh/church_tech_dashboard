@@ -75,7 +75,9 @@ export class DefaultAvailabilitySources implements AvailabilitySources {
   async ciscoSwitches(): Promise<AvailabilitySample[]> {
     const rows = await this.db
       .select({ id: ciscoSwitches.id, hostname: ciscoSwitches.hostname, reachable: ciscoSwitches.reachable })
-      .from(ciscoSwitches);
+      .from(ciscoSwitches)
+      // A switch with monitoring off is not being watched: no sample ("no data"), never "down".
+      .where(eq(ciscoSwitches.enabled, true));
     return rows.map((r) => ({ kind: "cisco_switch" as const, ref: r.id, label: r.hostname, down: !r.reachable }));
   }
 

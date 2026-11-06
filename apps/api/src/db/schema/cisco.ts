@@ -16,6 +16,8 @@ export const ciscoSwitches = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     hostname: text("hostname").notNull().unique(),
+    // Monitoring switch: off = not polled, no alerts, no SSH logins of any kind (reads of what is stored still work).
+    enabled: boolean("enabled").notNull().default(true),
     ipAddress: text("ip_address").notNull(),
     username: text("username").notNull(),
     passwordEnc: text("password_enc"), // encrypted SSH password; write-only over the API

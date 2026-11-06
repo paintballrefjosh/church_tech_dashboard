@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Loader2, X } from "lucide-react";
 import type { CiscoSwitch } from "@church/shared";
 import { DialogFrame, useModal } from "@/components/modal";
+import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 
 /** True when the current user holds the monitoring admin tier ("network admin"). */
 export function useCanWrite(): boolean {
@@ -24,9 +25,11 @@ export function useCanWrite(): boolean {
   return can;
 }
 
-export type SwStatus = "green" | "yellow" | "orange" | "red";
+export type SwStatus = "green" | "yellow" | "orange" | "red" | "off";
 
 export function computeStatus(sw: CiscoSwitch): SwStatus {
+  // Monitoring switched off: nothing is being checked, so any stored reading says nothing about the switch now.
+  if (sw.enabled === false) return "off";
   if (!sw.reachable) return "red";
   if (sw.configDrift) return "orange";
   if (sw.checkPortState && (sw.portsDownEnabled ?? 0) > 0) return "yellow";
@@ -38,6 +41,7 @@ const STATUS_CFG: Record<SwStatus, { label: string; cls: string; dot: string }> 
   yellow: { label: "Port down", cls: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500" },
   orange: { label: "Drift", cls: "text-orange-700 dark:text-orange-300", dot: "bg-orange-500" },
   red: { label: "Down", cls: "text-rose-700 dark:text-rose-300", dot: "bg-rose-500" },
+  off: { label: "Monitoring off", cls: "text-slate-600 dark:text-slate-400", dot: "bg-slate-400 dark:bg-slate-500" },
 };
 
 export function StatusPill({ status }: { status: SwStatus }) {
@@ -47,6 +51,78 @@ export function StatusPill({ status }: { status: SwStatus }) {
       <span className={`h-2 w-2 rounded-full ${c.dot}`} aria-hidden />
       {c.label}
     </span>
+  );
+}
+
+/**
+ * The monitoring on/off pill for a switch. Someone who may change switches gets a switch that saves at once (the same
+ * PATCH the edit form uses); everyone else sees the state as plain text. Off: the switch is not polled, raises no alerts and
+ * is not logged in to.
+ */
+export function MonitoringToggle({
+  sw,
+  canWrite,
+  onChanged,
+  onError,
+}: {
+  sw: CiscoSwitch;
+  canWrite: boolean;
+  /** The saved switch, so the parent can show it without waiting for its next refresh. */
+  onChanged: (updated: CiscoSwitch) => void;
+  onError?: (text: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const on = sw.enabled !== false;
+  const label = on ? "On" : "Off";
+  if (!canWrite) {
+    return (
+      <span className={`inline-block min-w-[4.5rem] text-xs font-medium ${on ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400"}`}>
+        {label}
+      </span>
+    );
+  }
+  async function flip() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/cisco/switches/${sw.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: !on }),
+      });
+      if (!r.ok) {
+        onError?.(`Could not turn monitoring ${on ? "off" : "on"} for ${sw.hostname} (${r.status})`);
+        return;
+      }
+      onChanged((await r.json()) as CiscoSwitch);
+      window.dispatchEvent(new Event(MONITORING_HEALTH_REFRESH));
+    } catch {
+      onError?.(`Could not turn monitoring ${on ? "off" : "on"} for ${sw.hostname}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`Monitoring ${on ? "on" : "off"} for ${sw.hostname}`}
+      title={on ? "Monitoring is on. Click to stop polling this switch and silence its alerts." : "Monitoring is off. Click to start polling this switch again."}
+      disabled={busy}
+      onClick={() => void flip()}
+      className={`inline-flex min-w-[4.5rem] items-center gap-1.5 rounded-full border px-1.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+        on
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+          : "border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+      }`}
+    >
+      <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full ${on ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-600"}`} aria-hidden>
+        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${on ? "translate-x-3.5" : "translate-x-0.5"}`} />
+      </span>
+      {label}
+    </button>
   );
 }
 
@@ -69,6 +145,8 @@ export interface Toast {
   id: number;
   ok: boolean;
   text: string;
+  /** Grey instead of green/red: something was done on purpose that is not a success to celebrate (monitoring switched off). */
+  neutral?: boolean;
 }
 
 /** Toasts for the outcome of an action: each leaves after `TOAST_MS`, or when it is clicked. Render with `ToastStack`. */
@@ -85,9 +163,9 @@ export function useToasts() {
   }, []);
 
   const show = useCallback(
-    (ok: boolean, text: string) => {
+    (ok: boolean, text: string, neutral = false) => {
       const id = ++nextId.current;
-      setToasts((list) => [...list, { id, ok, text }].slice(-6));
+      setToasts((list) => [...list, { id, ok, text, neutral }].slice(-6));
       timers.current.set(id, setTimeout(() => dismiss(id), TOAST_MS));
     },
     [dismiss],
@@ -118,7 +196,9 @@ export function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: 
           onClick={() => onDismiss(t.id)}
           title="Click to dismiss"
           className={`pointer-events-auto rounded-md border px-3 py-2 text-left text-sm shadow-lg ${
-            t.ok
+            t.neutral
+              ? "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              : t.ok
               ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
               : "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-300"
           }`}

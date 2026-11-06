@@ -299,6 +299,18 @@ failing that removes the file and returns `sudo -l -U` plus the relevant sudoers
 free text in `infra_update_runs.status`, so no migration. Tests: `apps/api/test/sudo-access.test.ts` runs the
 real scripts against a fake `sudo`; the real messages were also checked in a Debian container and over SSH.
 
+**Removing unused packages after an update** (`createInfraUpdateRunSchema.cleanup`, `infra_update_runs.cleanup`, migration 0089, a checkbox in the
+Run updates dialog): after a SUCCESSFUL upgrade `upgradeScript` runs `apt-get -y autoremove` (dnf/yum `autoremove`; other managers print "not supported" and skip).
+A failing autoremove fails the run (exit code), its output follows the upgrade's in the same log, and it is off by default because it deletes software.
+Test: `apps/api/test/infra-update-cleanup.test.ts`.
+
+**Switching a Cisco switch off** (`cisco_switches.enabled`, migration 0090; the Monitoring pill in the switch list, the same pill on the switch page, and a
+checkbox in Edit switch; all use `PATCH /cisco/switches/:id {enabled}`): `pollAll` skips it, `pollSwitch` returns at once and `pinnedConn` refuses, so no
+SSH login happens at all (no backups, drift checks, pushes); the poll, re-import, collect, backup, drift-push and port-toggle routes answer 409
+(`requireMonitored`). It shows as "Monitoring off" and is left out of the tab badge, the home Systems area, the dashboard tile, the availability
+samples ("no data", never "down") and the Security overview's host-key check. Stored ports, backups and drift stay readable. Switching it back on clears
+`last_polled_at`, so the next poll is a quiet first one (no alerts for changes made while it was off).
+
 **Switching an infra host off** (`infra_targets.enabled`, the toggle beside Edit on the host page): the collector
 does not poll it, and `poll-now`, `discover-services` and update runs answer 409. Its open incidents stay recorded
 but are left out of `openAlerts` and the open-incident list (nothing is polling it to resolve them); the summary

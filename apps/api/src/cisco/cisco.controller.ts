@@ -10,6 +10,7 @@ import {
   Query,
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from "@nestjs/common";
 import {
@@ -51,6 +52,12 @@ export class CiscoController {
     private readonly poller: CiscoPoller,
     private readonly vlans: CiscoVlansService,
   ) {}
+
+  /** A switch with monitoring switched off is left alone: no polling, and no on-demand logins or pushes either. */
+  private async requireMonitored(id: string): Promise<void> {
+    const sw = await this.cisco.getById(id);
+    if (sw.enabled === false) throw new ConflictException("Monitoring is switched off for this switch: switch it on first");
+  }
 
   // ---- switches ----
   @Get("switches")
@@ -117,7 +124,8 @@ export class CiscoController {
   @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.switch.poll", resourceType: "cisco_switch" })
-  poll(@Param("id") id: string) {
+  async poll(@Param("id") id: string) {
+    await this.requireMonitored(id);
     void this.poller.pollSwitchById(id).catch(() => undefined);
     return { ok: true, started: true };
   }
@@ -126,7 +134,8 @@ export class CiscoController {
   @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.switch.discover", resourceType: "cisco_switch" })
-  discover(@Param("id") id: string) {
+  async discover(@Param("id") id: string) {
+    await this.requireMonitored(id);
     // Force a fresh baseline (clears desired ports + open drift, then re-seeds).
     void this.poller.reimportPorts(id).catch(() => undefined);
     return { ok: true, started: true };
@@ -135,7 +144,8 @@ export class CiscoController {
   @Post("switches/:id/collect-l2")
   @OperationalOnly()
   @RequirePermissions(WRITE)
-  collectL2(@Param("id") id: string) {
+  async collectL2(@Param("id") id: string) {
+    await this.requireMonitored(id);
     void this.poller.pollSwitchById(id).catch(() => undefined);
     return { ok: true, started: true };
   }
@@ -178,7 +188,8 @@ export class CiscoController {
   @OperationalOnly()
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.backup.trigger", resourceType: "cisco_switch" })
-  triggerFull(@Param("id") id: string) {
+  async triggerFull(@Param("id") id: string) {
+    await this.requireMonitored(id);
     void this.poller.triggerManualBackup(id).catch(() => undefined);
     return { ok: true, started: true };
   }
@@ -229,6 +240,7 @@ export class CiscoController {
 
   /** Push the expected (desired) value(s) to the device, then resolve. */
   private async pushDrift(id: string, driftId?: string): Promise<{ ok: true; count: number }> {
+    await this.requireMonitored(id);
     const open = await this.cisco.openDrift(id, driftId);
     if (open.length) {
       const names = await this.vlans.desiredNames(id);
@@ -299,6 +311,7 @@ export class CiscoController {
   @RequirePermissions(WRITE)
   @Audited({ action: "cisco.port.toggle", resourceType: "cisco_switch" })
   async togglePort(@Param("id") id: string, @Param("portRowId") portRowId: string, @Body() body: unknown) {
+    await this.requireMonitored(id);
     const enabled = Boolean((body as { enabled?: boolean })?.enabled);
     const row = await this.cisco.updatePort(id, portRowId, { adminEnabled: enabled });
     void this.poller

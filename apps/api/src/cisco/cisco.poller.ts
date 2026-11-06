@@ -130,7 +130,7 @@ export class CiscoPoller implements OnModuleInit {
   }
 
   async pollAll(): Promise<void> {
-    const rows = await this.db.select().from(ciscoSwitches);
+    const rows = await this.db.select().from(ciscoSwitches).where(eq(ciscoSwitches.enabled, true));
     let idx = 0;
     const workers = Array.from({ length: Math.min(CONCURRENCY, rows.length) }, async () => {
       while (idx < rows.length) {
@@ -179,6 +179,7 @@ export class CiscoPoller implements OnModuleInit {
 
   /** Connection settings for a write to the switch: refuses to send credentials to a host not yet recognised. */
   private pinnedConn(sw: SwitchRow) {
+    if (!sw.enabled) throw new Error(`Monitoring is switched off for ${sw.hostname}: switch it on first.`);
     if (!sw.knownHostKey) {
       throw new Error(
         `The SSH host key of ${sw.hostname} has not been recorded yet. Let the switch be polled once (or press Poll), then try again.`,
@@ -210,6 +211,8 @@ export class CiscoPoller implements OnModuleInit {
   }
 
   async pollSwitch(sw: SwitchRow): Promise<void> {
+    // Switched off means the dashboard stays away from the switch: no polling and no logging in.
+    if (!sw.enabled) return;
     let cfg: ReturnType<CiscoPoller["conn"]>;
     try {
       cfg = this.conn(sw);

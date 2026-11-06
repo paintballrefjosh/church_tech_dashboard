@@ -10,6 +10,9 @@ import {
   fmtTime,
   useCanWrite,
   StatusLine,
+  MonitoringToggle,
+  ToastStack,
+  useToasts,
   Modal,
   cardCls,
   type SwStatus,
@@ -27,6 +30,8 @@ export default function CiscoDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [polling, setPolling] = useState<string | null>(null);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  // The outcome of switching monitoring on or off, as a toast in the lower right.
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   // Hovering a row shows the switch's picture with its ports coloured by state, following the mouse.
   const { models } = useSwitchModels();
   const { rowProps, card: hoverCard } = useSwitchHoverPreview(models);
@@ -68,7 +73,7 @@ export default function CiscoDashboardPage() {
 
   if (!switches) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
 
-  const counts: Record<SwStatus, number> = { green: 0, yellow: 0, orange: 0, red: 0 };
+  const counts: Record<SwStatus, number> = { green: 0, yellow: 0, orange: 0, red: 0, off: 0 };
   for (const s of switches) counts[computeStatus(s)]++;
 
   const tiles: Array<{ label: string; value: number; tone: string }> = [
@@ -77,11 +82,13 @@ export default function CiscoDashboardPage() {
     { label: "Port down", value: counts.yellow, tone: "text-amber-700 dark:text-amber-400" },
     { label: "Config drift", value: counts.orange, tone: "text-orange-700 dark:text-orange-400" },
     { label: "Unreachable", value: counts.red, tone: "text-rose-600 dark:text-rose-400" },
+    // Only shown once something is switched off, so a fleet with everything on looks as before.
+    ...(counts.off > 0 ? [{ label: "Monitoring off", value: counts.off, tone: "text-slate-600 dark:text-slate-400" }] : []),
   ];
 
   return (
     <div className="space-y-5">
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className={`grid grid-cols-2 gap-3 ${tiles.length > 5 ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
         {tiles.map((t) => (
           <div key={t.label} className={cardCls}>
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{t.label}</div>
@@ -111,7 +118,8 @@ export default function CiscoDashboardPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
-                <th className="px-3 py-2">Status</th>
+                <th className="w-40 px-3 py-2">Status</th>
+                <th className="w-32 px-3 py-2">Monitoring</th>
                 <th className="px-3 py-2">Hostname</th>
                 <th className="px-3 py-2">IP</th>
                 <th className="px-3 py-2">Model</th>
@@ -139,7 +147,7 @@ export default function CiscoDashboardPage() {
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {switches.map((s) => (
                 <tr key={s.id} {...rowProps(s)} className="align-middle hover:bg-slate-50 dark:hover:bg-slate-900">
-                  <td className="px-3 py-2">
+                  <td className="w-40 px-3 py-2">
                     {computeStatus(s) === "yellow" ? (
                       // "Port down" links straight to the switch's port page.
                       <Link
@@ -160,6 +168,17 @@ export default function CiscoDashboardPage() {
                     ) : (
                       <StatusPill status={computeStatus(s)} />
                     )}
+                  </td>
+                  <td className="w-32 px-3 py-2">
+                    <MonitoringToggle
+                      sw={s}
+                      canWrite={canWrite}
+                      onChanged={(u) => {
+                        setSwitches((cur) => (cur ? cur.map((x) => (x.id === u.id ? { ...x, ...u } : x)) : cur));
+                        showToast(true, `Monitoring ${u.enabled === false ? "off" : "on"} for ${u.hostname}.`, u.enabled === false);
+                      }}
+                      onError={(text) => showToast(false, text)}
+                    />
                   </td>
                   <td className="px-3 py-2 font-medium">
                     <Link
@@ -199,7 +218,8 @@ export default function CiscoDashboardPage() {
                         <button
                           type="button"
                           onClick={() => void poll(s)}
-                          disabled={polling === s.id}
+                          disabled={polling === s.id || s.enabled === false}
+                          title={s.enabled === false ? "Monitoring is off for this switch" : undefined}
                           className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50 disabled:opacity-50 dark:border-slate-700 dark:text-brand-300 dark:hover:bg-brand-900/30"
                         >
                           <RefreshCw className={`h-3.5 w-3.5 ${polling === s.id ? "animate-spin" : ""}`} aria-hidden />
@@ -225,6 +245,7 @@ export default function CiscoDashboardPage() {
       )}
       <p className="text-[11px] text-slate-500 dark:text-slate-400">Auto-refreshes every 15s. Hover a switch to see its ports.</p>
       {hoverCard}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       {form ? (
         <SwitchFormModal

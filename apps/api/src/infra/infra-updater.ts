@@ -176,7 +176,7 @@ export class InfraUpdaterService implements OnModuleInit {
    * this and when regardless of how the run turns out.
    */
   async start(targetId: string, user: AuthenticatedUser, input: CreateInfraUpdateRunInput): Promise<InfraUpdateRun> {
-    const { reboot, fullUpgrade, includePhased } = input;
+    const { reboot, fullUpgrade, includePhased, cleanup } = input;
     const [target] = await this.db.select().from(infraTargets).where(eq(infraTargets.id, targetId)).limit(1);
     if (!target) throw new NotFoundException("Infrastructure target not found");
 
@@ -203,13 +203,13 @@ export class InfraUpdaterService implements OnModuleInit {
 
     const [run] = await this.db
       .insert(infraUpdateRuns)
-      .values({ targetId, triggeredByUserId: user.id, rebootRequested: reboot, fullUpgrade, includePhased, nodeId: this.node.identity.nodeId })
+      .values({ targetId, triggeredByUserId: user.id, rebootRequested: reboot, fullUpgrade, includePhased, cleanup, nodeId: this.node.identity.nodeId })
       .returning();
     if (!run) throw new Error("Insert failed");
 
     // The sudo password lives only in this call chain: it is not written to the run row or logged.
     const sudo = { password: input.sudoPassword ?? null, enable: input.enablePasswordlessSudo };
-    void this.execute(run.id, target, reboot, fullUpgrade, includePhased, sudo).catch((err) => {
+    void this.execute(run.id, target, reboot, fullUpgrade, includePhased, cleanup, sudo).catch((err) => {
       this.logger.error(`update run ${run.id} on ${target.name} crashed: ${(err as Error).message}`);
     });
 
@@ -222,6 +222,7 @@ export class InfraUpdaterService implements OnModuleInit {
     rebootRequested: boolean,
     fullUpgrade: boolean,
     includePhased: boolean,
+    cleanup: boolean,
     sudo: { password: string | null; enable: boolean },
   ): Promise<void> {
     const credential = await this.infra.getCredential(target.id);
@@ -261,7 +262,7 @@ export class InfraUpdaterService implements OnModuleInit {
       }
 
       if (!blocked) {
-        const res = await sshExec(ctx, upgradeScript(havePassword, fullUpgrade, includePhased), {
+        const res = await sshExec(ctx, upgradeScript(havePassword, fullUpgrade, includePhased, cleanup), {
           execTimeoutMs: UPGRADE_TIMEOUT_MS,
           stdin: sudoPassword ? `${sudoPassword}\n` : undefined,
         });
@@ -441,6 +442,7 @@ function toRun(row: typeof infraUpdateRuns.$inferSelect, triggeredByName: string
     packageManager: row.packageManager,
     fullUpgrade: row.fullUpgrade,
     includePhased: row.includePhased,
+    cleanup: row.cleanup,
     rebootRequested: row.rebootRequested,
     rebootRequired: row.rebootRequired,
     rebootTriggered: row.rebootTriggered,
@@ -466,7 +468,7 @@ function toRun(row: typeof infraUpdateRuns.$inferSelect, triggeredByName: string
 // after a library upgrade — a common, easy-to-miss source of an apt upgrade
 // silently hanging until it hits UPGRADE_TIMEOUT_MS.
 
-function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhased: boolean): string {
+export function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhased: boolean, cleanup: boolean): string {
   // Plain `upgrade` never removes/replaces a package, so a kernel/dependency
   // -driven bump shows as "kept back" forever unless the operator opts into
   // `full-upgrade` (apt's modern spelling of dist-upgrade). Other package
@@ -524,6 +526,32 @@ function upgradeScript(havePassword: boolean, fullUpgrade: boolean, includePhase
     // Capture immediately — `echo M_EXIT` below would otherwise overwrite $?
     // with its own (always-0) exit status before we get to read it.
     "UPGRADE_EXIT=$?",
+    // Optional tidy-up, only after an upgrade that worked: a failed upgrade is not a time to remove software. A failing
+    // autoremove makes the run fail, so it is seen, but its output follows the upgrade's in the same log.
+    ...(cleanup
+      ? [
+          'if [ "$UPGRADE_EXIT" = "0" ]; then',
+          '  echo "--- removing unused packages ---"',
+          '  case "$PM" in',
+          "    apt)",
+          "      $SUDO env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -y autoremove 2>&1",
+          "      UPGRADE_EXIT=$?",
+          "      ;;",
+          "    dnf)",
+          "      $SUDO dnf -y autoremove 2>&1",
+          "      UPGRADE_EXIT=$?",
+          "      ;;",
+          "    yum)",
+          "      $SUDO yum -y autoremove 2>&1",
+          "      UPGRADE_EXIT=$?",
+          "      ;;",
+          "    *)",
+          '      echo "unused-package removal is not supported for $PM; skipped"',
+          "      ;;",
+          "  esac",
+          "fi",
+        ]
+      : []),
   ].join("\n"),
   "echo M_EXIT",
   "echo $UPGRADE_EXIT",

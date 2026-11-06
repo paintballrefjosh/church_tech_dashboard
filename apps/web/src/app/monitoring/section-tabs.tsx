@@ -202,7 +202,9 @@ async function loadHealth(): Promise<HealthMap> {
   if (Array.isArray(cisco)) {
     let critical = 0;
     let degraded = 0;
-    for (const sw of cisco as Array<{ reachable?: boolean; configDrift?: boolean; checkPortState?: boolean; portsDownEnabled?: number }>) {
+    for (const sw of cisco as Array<{ enabled?: boolean; reachable?: boolean; configDrift?: boolean; checkPortState?: boolean; portsDownEnabled?: number }>) {
+      // Monitoring switched off: not being watched, so neither a problem nor healthy.
+      if (sw.enabled === false) continue;
       if (sw.reachable === false) critical++;
       else if (sw.configDrift || (sw.checkPortState && (sw.portsDownEnabled ?? 0) > 0)) degraded++;
     }

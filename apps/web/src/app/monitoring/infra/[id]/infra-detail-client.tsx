@@ -176,6 +176,7 @@ export function InfraDetailClient({
     reboot: boolean,
     fullUpgrade: boolean,
     includePhased: boolean,
+    cleanup: boolean,
     sudo?: { password: string; enablePasswordlessSudo: boolean },
   ) {
     setStarting(true);
@@ -190,6 +191,7 @@ export function InfraDetailClient({
           reboot,
           fullUpgrade,
           includePhased,
+          cleanup,
           ...(sudo ? { sudoPassword: sudo.password, enablePasswordlessSudo: sudo.enablePasswordlessSudo } : {}),
         }),
       });
@@ -531,7 +533,7 @@ export function InfraDetailClient({
           busy={starting}
           err={runErr}
           onCancel={() => setRunModalOpen(false)}
-          onConfirm={(reboot, fullUpgrade, includePhased) => void startRun(reboot, fullUpgrade, includePhased)}
+          onConfirm={(reboot, fullUpgrade, includePhased, cleanup) => void startRun(reboot, fullUpgrade, includePhased, cleanup)}
         />
       ) : null}
 
@@ -546,7 +548,7 @@ export function InfraDetailClient({
             setSudoErr(null);
           }}
           onSubmit={(password, enable) =>
-            void startRun(sudoRun.rebootRequested, sudoRun.fullUpgrade, sudoRun.includePhased, {
+            void startRun(sudoRun.rebootRequested, sudoRun.fullUpgrade, sudoRun.includePhased, sudoRun.cleanup ?? false, {
               password,
               enablePasswordlessSudo: enable,
             })
@@ -835,6 +837,11 @@ function UpdateRunHistory({ runs }: { runs: InfraUpdateRun[] }) {
                   incl. phased
                 </span>
               ) : null}
+              {r.cleanup ? (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  cleanup
+                </span>
+              ) : null}
               {r.rebootTriggered ? (
                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                   rebooted
@@ -1062,11 +1069,12 @@ function RunUpdatesModal({
   busy: boolean;
   err: string | null;
   onCancel: () => void;
-  onConfirm: (reboot: boolean, fullUpgrade: boolean, includePhased: boolean) => void;
+  onConfirm: (reboot: boolean, fullUpgrade: boolean, includePhased: boolean, cleanup: boolean) => void;
 }) {
   const [reboot, setReboot] = useState(true);
   const [fullUpgrade, setFullUpgrade] = useState(false);
   const [includePhased, setIncludePhased] = useState(false);
+  const [cleanup, setCleanup] = useState(false);
   const panelRef = useModal<HTMLDivElement>(() => {
     if (!busy) onCancel();
   });
@@ -1149,6 +1157,23 @@ function RunUpdatesModal({
             </span>
           </span>
         </label>
+        <label className="mt-2 flex items-start gap-2 rounded-md border border-slate-200 p-2.5 text-sm dark:border-slate-800">
+          <input
+            type="checkbox"
+            checked={cleanup}
+            onChange={(e) => setCleanup(e.target.checked)}
+            disabled={busy}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 dark:text-brand-400 dark:border-slate-700 dark:bg-slate-900"
+          />
+          <span>
+            <span className="block font-medium">Remove unused packages afterwards</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              Runs <span className="font-mono">apt autoremove -y</span> (or the dnf/yum equivalent) once the upgrade has
+              succeeded, clearing old kernels and dependencies nothing needs any more. It deletes software, so
+              leave it off if something on the host relies on a package that was only ever installed as a dependency.
+            </span>
+          </span>
+        </label>
         {err ? <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{err}</p> : null}
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -1161,7 +1186,7 @@ function RunUpdatesModal({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(reboot, fullUpgrade, includePhased)}
+            onClick={() => onConfirm(reboot, fullUpgrade, includePhased, cleanup)}
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
           >

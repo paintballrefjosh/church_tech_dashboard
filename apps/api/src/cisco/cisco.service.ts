@@ -159,6 +159,12 @@ export class CiscoService {
     if (input.location !== undefined) patch.location = input.location?.trim() || null;
     if (input.checkPortState !== undefined) patch.checkPortState = input.checkPortState;
     if (input.checkPortChannels !== undefined) patch.checkPortChannels = input.checkPortChannels;
+    if (input.enabled !== undefined) {
+      patch.enabled = input.enabled;
+      // Switched back on: do not wait out an interval measured from a poll made before it was off, and let that first
+      // poll be a quiet one (port changes and config edits made while it was off are not news).
+      if (input.enabled && !current.enabled) patch.lastPolledAt = null;
+    }
     // Blank/omitted password = keep the stored credential.
     if (input.password && input.password.length > 0) patch.passwordEnc = encryptSecret(input.password);
     await this.db.update(ciscoSwitches).set(patch).where(eq(ciscoSwitches.id, id));
@@ -920,6 +926,7 @@ function toSwitch(row: SwitchRow): CiscoSwitch {
     model: row.model ?? null,
     location: row.location ?? null,
     reachable: row.reachable,
+    enabled: row.enabled,
     uptime: row.uptime ?? null,
     lastPolledAt: row.lastPolledAt ? row.lastPolledAt.toISOString() : null,
     lastError: row.lastError ?? null,

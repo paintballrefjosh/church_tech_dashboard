@@ -624,6 +624,20 @@
       "when": 1793128011977,
       "tag": "0088_service_groups_status",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1793128012977,
+      "tag": "0089_infra_update_runs_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1793128013977,
+      "tag": "0090_cisco_switch_enabled",
+      "breakpoints": true
     }
   ]
 }

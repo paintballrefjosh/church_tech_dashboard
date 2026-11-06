@@ -31,6 +31,8 @@ export const ciscoSwitchSchema = z.object({
   model: z.string().nullable(),
   location: z.string().nullable(),
   reachable: z.boolean(),
+  /** Monitoring switch: off = the switch is not polled, raises no alerts and is not logged in to. Absent on old rows = on. */
+  enabled: z.boolean().optional(),
   uptime: z.string().nullable(),
   lastPolledAt: z.string().datetime().nullable(),
   lastError: z.string().nullable(),
@@ -78,6 +80,7 @@ export const updateCiscoSwitchSchema = z.object({
   location: z.string().max(128).nullable().optional(),
   checkPortState: z.boolean().optional(),
   checkPortChannels: z.boolean().optional(),
+  enabled: z.boolean().optional(),
   alertPrefs: ciscoAlertPrefsSchema.partial().optional(),
 });
 export type UpdateCiscoSwitchInput = z.infer<typeof updateCiscoSwitchSchema>;

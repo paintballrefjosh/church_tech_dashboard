@@ -212,6 +212,8 @@ export const infraUpdateRuns = pgTable(
     // upgrade correctly defers a package still in its phase-in window; this
     // is the operator explicitly asking to bypass that and take it anyway.
     includePhased: boolean("include_phased").notNull().default(false), // the operator's checkbox
+    // Remove packages nothing needs any more once the upgrade has succeeded (apt/dnf/yum autoremove).
+    cleanup: boolean("cleanup").notNull().default(false), // the operator's checkbox
     rebootRequested: boolean("reboot_requested").notNull().default(false), // the operator's checkbox
     rebootRequired: boolean("reboot_required"), // re-checked AFTER the upgrade completes
     rebootTriggered: boolean("reboot_triggered").notNull().default(false),

@@ -288,7 +288,8 @@ function buildOverviewRows(
 
   // Switches (Cisco). A switch is "up" when reachable, "down" otherwise.
   if (Array.isArray(cisco)) {
-    const switches = cisco as Array<{ reachable?: boolean }>;
+    // A switch with monitoring off is not being watched, so it is left out of the count.
+    const switches = (cisco as Array<{ reachable?: boolean; enabled?: boolean }>).filter((s) => s.enabled !== false);
     const down = switches.filter((s) => s.reachable === false).length;
     rows.push({
       key: "cisco",
