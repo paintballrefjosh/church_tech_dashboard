@@ -15,7 +15,7 @@ import {
   type LookId,
 } from "@lampstand/shared";
 import { headers } from "next/headers";
-import { SettingsForm } from "../settings-form";
+import { SettingsForm } from "@/components/settings-form";
 import { findCategory } from "../categories";
 import { OAuthCallbackHint } from "./oauth-callback-hint";
 import { AssistantPanel } from "./assistant-panel";

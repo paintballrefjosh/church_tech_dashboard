@@ -5,8 +5,12 @@ interface SettingsListResponse {
   items: Array<{ key: string; value: unknown }>;
 }
 
-/** The Signage settings named by `keys`, from the catalogue, with their saved values. `null` when the caller may not read them. */
-export async function loadSignageSettings(keys: readonly string[]) {
+/**
+ * The settings named by `keys`, from the catalogue, with their saved values, for a module's own settings page (see
+ * docs/module-settings.md). `null` when the caller may not read them (the API answers 403 unless they administer the
+ * category). Secrets are masked here, on the server, so a saved password never reaches the page.
+ */
+export async function loadModuleSettings(keys: readonly string[]) {
   const known = keys.map((k) => KNOWN_SETTINGS.find((s) => s.key === k)).filter((s): s is (typeof KNOWN_SETTINGS)[number] => !!s);
   const res = await apiFetch("/api/v1/settings");
   if (!res.ok) return null;

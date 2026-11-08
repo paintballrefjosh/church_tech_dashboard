@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { apiFetch } from "@/lib/api";
 
 /**
- * Admin "Test connection" proxy. The settings UI POSTs the relevant subset of
- * its form values to /api/admin/test/<category>; this maps the slug to the
- * concrete API endpoint that runs the probe. Keeping the mapping here means
+ * "Test connection" proxy, shared by Admin settings and every module's own settings page. The settings UI POSTs the relevant subset of
+ * its form values to /api/settings/test/<target>; this maps the target to the
+ * concrete API endpoint that runs the probe (the API authorises each one). Keeping the mapping here means
  * the front-end never needs to know the internal route shape.
  */
 const ROUTES: Record<string, string> = {
@@ -16,11 +16,11 @@ const ROUTES: Record<string, string> = {
   dns: "/api/v1/dns/test",
 };
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ category: string }> }) {
-  const { category } = await ctx.params;
-  const upstream = ROUTES[category];
+export async function POST(req: NextRequest, ctx: { params: Promise<{ target: string }> }) {
+  const { target } = await ctx.params;
+  const upstream = ROUTES[target];
   if (!upstream) {
-    return NextResponse.json({ ok: false, message: `unknown test category: ${category}` }, { status: 400 });
+    return NextResponse.json({ ok: false, message: `unknown test target: ${target}` }, { status: 400 });
   }
   const body = await req.text();
   const res = await apiFetch(upstream, { method: "POST", body });

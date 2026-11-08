@@ -64,7 +64,7 @@ export function AttachmentSettings({ allowed, custom }: { allowed: string[]; cus
 
   async function post(key: string, value: unknown): Promise<string | null> {
     try {
-      const r = await fetch(`/admin/settings/save/${encodeURIComponent(key)}`, {
+      const r = await fetch(`/api/settings/save/${encodeURIComponent(key)}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ value }),

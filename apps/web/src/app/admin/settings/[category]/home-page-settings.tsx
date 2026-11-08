@@ -27,7 +27,7 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
 }
 
 async function saveSetting(key: string, value: unknown): Promise<string | null> {
-  const r = await fetch(`/admin/settings/save/${encodeURIComponent(key)}`, {
+  const r = await fetch(`/api/settings/save/${encodeURIComponent(key)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ value }),

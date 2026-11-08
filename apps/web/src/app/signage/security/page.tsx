@@ -1,9 +1,8 @@
 import { ShieldCheck } from "lucide-react";
 import { SIGNAGE_SECURITY_KEYS } from "@lampstand/shared";
-import { PageTitle } from "@/components/page-title";
-import { SettingsForm } from "../../admin/settings/settings-form";
-import { SettingsSubnav } from "../settings/settings-sections";
-import { loadSignageSettings } from "../settings/load-settings";
+import { loadModuleSettings } from "@/lib/load-module-settings";
+import { ModuleSettingsPage, SettingsFormSection } from "@/components/module-settings";
+import { SIGNAGE_SETTINGS_NAV } from "../settings/nav";
 
 export const dynamic = "force-dynamic";
 
@@ -12,16 +11,22 @@ export const dynamic = "force-dynamic";
  * its settings are applied; the Devices page marks Pis whose settings differ.
  */
 export default async function SignageSecurityPage() {
-  const s = await loadSignageSettings(SIGNAGE_SECURITY_KEYS);
+  const s = await loadModuleSettings(SIGNAGE_SECURITY_KEYS);
   return (
-    <div className="space-y-6">
-      <PageTitle icon={ShieldCheck}>Security settings</PageTitle>
-      <SettingsSubnav />
-      <p className="text-sm text-slate-600 dark:text-slate-300">
-        How each Pi is locked down once it is set up. A change reaches a Pi when its settings are applied again (Devices: &quot;Apply settings again&quot;); until then the Pi is marked as differing. Every change is checked by a second login before it is kept, so a
-        setting that would lock the dashboard out is undone by the Pi itself after two minutes.
-      </p>
-      {s ? <SettingsForm known={s.known} current={s.current} category="signage" /> : <p className="text-sm text-slate-600 dark:text-slate-300">Only a Signage admin can change these.</p>}
-    </div>
+    <ModuleSettingsPage title="Security settings" icon={ShieldCheck} nav={SIGNAGE_SETTINGS_NAV}>
+      <SettingsFormSection
+        id="sig-lockdown"
+        title="Pi lock-down"
+        description={
+          <>
+            How each Pi is locked down once it is set up. A change reaches a Pi when its settings are applied again (Devices: &quot;Apply settings again&quot;); until then the Pi is marked as differing. Every change is checked by a second login before it is kept, so a
+            setting that would lock the dashboard out is undone by the Pi itself after two minutes.
+          </>
+        }
+        settings={s}
+        category="signage"
+        deniedText="Only a Signage admin can change these."
+      />
+    </ModuleSettingsPage>
   );
 }

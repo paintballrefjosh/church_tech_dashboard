@@ -15,7 +15,7 @@ type Known = {
 /**
  * Per-category "Test connection" buttons. Each entry knows how to translate
  * the form's flat `values` map (keyed by full setting keys like "smtp.host")
- * into the body expected by /api/admin/test/<target>; `target` defaults to the
+ * into the body expected by /api/settings/test/<target>; `target` defaults to the
  * category slug. A category can carry several (Monitoring tests both UniFi and
  * DNS). Categories not listed don't show a Test button.
  */
@@ -74,8 +74,10 @@ const TEST_HANDLERS: Record<string, TestHandler[]> = {
 
 /**
  * Renders a flat list of setting fields. Callers pre-filter `known` to the
- * category they want (see /admin/settings/[category]/page.tsx); the form
- * itself doesn't know or care about category groupings.
+ * keys they want (the Admin category page, or a module's own settings page
+ * through `loadModuleSettings`); the form itself doesn't know or care about
+ * groupings. Saves go to /api/settings/save/<key>, which the API authorises
+ * per category (a module admin may save their module's keys).
  */
 export function SettingsForm({
   known,
@@ -153,7 +155,7 @@ export function SettingsForm({
     try {
       const payload = handler.build(values);
       const target = handler.target ?? category;
-      const r = await fetch(`/api/admin/test/${encodeURIComponent(target)}`, {
+      const r = await fetch(`/api/settings/test/${encodeURIComponent(target)}`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -239,7 +241,7 @@ export function SettingsForm({
   }
 
   function saveOne(key: string, value: unknown): Promise<Response> {
-    return fetch(`/admin/settings/save/${encodeURIComponent(key)}`, {
+    return fetch(`/api/settings/save/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ value }),
