@@ -2243,6 +2243,10 @@ async function main() {
   const { livestreamTests } = await import("./livestreams.mjs");
   await livestreamTests({ test, assert, fetchWithCookies, jar });
 
+  // ---- signage: screens, playlists, schedules, events, doors (tests/smoke/signage.mjs; never reaches a Pi or a TV) ----
+  const { signageTests } = await import("./signage.mjs");
+  await signageTests({ test, assert, fetchWithCookies, jar });
+
   // ---- service monitoring: templates, confirmations, secrets, doors (tests/smoke/service-monitoring.mjs; reaches no real service) ----
   const { serviceMonitoringTests } = await import("./service-monitoring.mjs");
   await serviceMonitoringTests({ test, assert, fetchWithCookies, jar });

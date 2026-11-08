@@ -44,6 +44,7 @@ const ROUTES = [
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
   "/checklists", "/printers", "/propresenter", "/planning-center", "/dns", "/ipam", "/cabinets", "/device-profiles", "/status",
   "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/infra/service-templates", "/monitoring/infra/service-groups", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/reports/monthly", "/assistant", "/assets", "/assets/import", "/rooms", "/livestreams",
+  "/signage", "/signage/schedules", "/signage/events", "/signage/playlists", "/signage/media", "/signage/power", "/signage/devices", "/signage/devices?tab=found", "/signage/settings", "/signage/security",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
   "/me", "/me/security", "/me/api-tokens",
@@ -65,6 +66,9 @@ const DETAILS: Array<{ list: string; href: RegExp; suffixes?: string[] }> = [
   { list: "/assets", href: /^\/assets\/[0-9a-f-]{36}$/ },
   { list: "/rooms", href: /^\/rooms\/[0-9a-f-]{36}$/ },
   { list: "/livestreams", href: /^\/livestreams\/[0-9a-f-]{36}$/ },
+  { list: "/signage", href: /^\/signage\/screens\/[0-9a-f-]{36}$/ },
+  { list: "/signage/playlists", href: /^\/signage\/playlists\/[0-9a-f-]{36}$/ },
+  { list: "/signage/devices?tab=all", href: /^\/signage\/devices\/[0-9a-f-]{36}$/ },
   { list: "/admin/checklists/services", href: /^\/admin\/checklists\/services\/[0-9a-f-]{36}$/ },
   { list: "/admin/settings", href: /^\/admin\/settings\/[a-z_-]+$/ },
 ];
