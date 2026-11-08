@@ -27,6 +27,8 @@ export interface WriteOptions {
   id: string;
   name: string;
   includeFiles: boolean;
+  /** Also the Signage renditions, thumbnails and agent releases (only together with `includeFiles`). */
+  includeSignageMedia?: boolean;
   createdBy: string | null;
   appVersion: string | null;
   secretFingerprint: string;
@@ -78,6 +80,7 @@ export async function writeArchive(deps: WriteDeps, out: Writable, opts: WriteOp
   const schemaMigrations = await appliedMigrations(deps.db);
   const tableCounts: Record<string, number> = {};
   const attachmentRows: Array<{ key: string; contentType: string | null }> = [];
+  const withSignage = opts.includeFiles && opts.includeSignageMedia === true;
 
   const manifest: Manifest = {
     format: ARCHIVE_FORMAT,
@@ -89,6 +92,7 @@ export async function writeArchive(deps: WriteDeps, out: Writable, opts: WriteOp
     schemaMigrations,
     secretFingerprint: opts.secretFingerprint,
     includeFiles: opts.includeFiles,
+    includeSignageMedia: opts.includeFiles && opts.includeSignageMedia === true,
     createdBy: opts.createdBy,
     tables: tables.map((t) => ({ name: t.name, columns: t.columns.map((c) => ({ name: c.name, type: c.type })), pk: t.pk })),
   };
@@ -119,6 +123,10 @@ export async function writeArchive(deps: WriteDeps, out: Writable, opts: WriteOp
             bytes += line.length;
             if (table.name === "attachments") {
               attachmentRows.push({ key: String(row.storage_key), contentType: (row.content_type as string | null) ?? null });
+            } else if (withSignage && table.name === "signage_media") {
+              for (const k of [row.storage_key, row.thumb_key]) if (typeof k === "string" && k) attachmentRows.push({ key: k, contentType: signageContentType(k) });
+            } else if (withSignage && table.name === "signage_agent_releases" && typeof row.storage_key === "string" && row.storage_key) {
+              attachmentRows.push({ key: row.storage_key, contentType: "application/gzip" });
             }
             if (bytes >= PART_BYTES) await flush();
           }
@@ -139,7 +147,11 @@ export async function writeArchive(deps: WriteDeps, out: Writable, opts: WriteOp
   let fileBytes = 0;
   if (opts.includeFiles) {
     const index: FileIndexEntry[] = [];
+    const seen = new Set<string>();
     for (const row of attachmentRows) {
+      // Two signage media rows can share one rendition; a tar must name each file once.
+      if (seen.has(row.key)) continue;
+      seen.add(row.key);
       const stat = await deps.store.stat(row.key);
       if (!stat) missingFiles.push(row.key);
       else index.push({ key: row.key, size: stat.size, contentType: row.contentType });
@@ -201,4 +213,10 @@ export async function storeBackup(deps: WriteDeps, key: string, opts: WriteOptio
     await deps.store.remove([key]).catch(() => undefined);
     throw err;
   }
+}
+
+/** The type a Signage file is stored with, from its name (renditions are always one of these). */
+function signageContentType(key: string): string {
+  const ext = key.slice(key.lastIndexOf(".") + 1).toLowerCase();
+  return { mp4: "video/mp4", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gz: "application/gzip" }[ext] ?? "application/octet-stream";
 }

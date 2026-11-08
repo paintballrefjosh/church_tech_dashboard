@@ -46,6 +46,19 @@ export interface PostureFacts {
   auditRetentionDays: number;
   /** The status page is also published without sign-in (`monitoring.status_public`). */
   publicStatus?: boolean;
+  /** Signage (only when at least one Pi is set up or a setup password is saved; docs/signage.md section 6). */
+  signage?: {
+    devices: number;
+    passwordLogin: boolean;
+    rootLogin: boolean;
+    onlyDashboard: boolean;
+    restrictKey: boolean;
+    setupPasswordSaved: boolean;
+    /** Pis found more than a week ago, still not set up or dismissed. */
+    staleFound: number;
+    /** Set-up Pis whose host key changed (the dashboard refuses them until someone trusts the new key). */
+    hostKeyMismatch: number;
+  };
 }
 
 export interface PostureCheck {
@@ -214,6 +227,33 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
       detail: "The first poll records the key; until then a connection could be to an impostor. Check the switch is reachable.",
       fix: { label: "Open Cisco", href: "/monitoring/network-cisco" },
     });
+  }
+
+  if (f.signage) {
+    const g = f.signage;
+    const fix = { label: "Open Signage security settings", href: "/signage/security" };
+    const pis = plural(g.devices, "signage Pi");
+    if (g.devices > 0 && g.passwordLogin) {
+      add({ id: "signage-password-login", title: "Signage Pis accept password logins", severity: "warn", detail: `SSH on ${pis} still takes a password, so anyone on that network who learns it can log in. The dashboard only needs its key.`, fix });
+    }
+    if (g.devices > 0 && g.rootLogin) {
+      add({ id: "signage-root-login", title: "Signage Pis allow root to log in over SSH", severity: "warn", detail: `Root may log in directly on ${pis}. The dashboard never needs it.`, fix });
+    }
+    if (g.devices > 0 && !g.onlyDashboard) {
+      add({ id: "signage-any-source", title: "Signage Pis take SSH from any address", severity: "warn", detail: `SSH on ${pis} answers every address, not only the dashboard's servers and the extra ones listed.`, fix });
+    }
+    if (g.devices > 0 && !g.restrictKey) {
+      add({ id: "signage-unrestricted-key", title: "The dashboard's key opens a full shell on signage Pis", severity: "warn", detail: "With the key restricted, it can only run signage-ctl; unrestricted, a copy of it is a login to every Pi.", fix });
+    }
+    if (g.setupPasswordSaved) {
+      add({ id: "signage-setup-password", title: "A setup password for new Pis is saved", severity: "info", detail: "The Imager password is stored (encrypted) so new Pis can be set up without typing it. Remove it when no more Pis are coming.", fix: { label: "Open Signage settings", href: "/signage/settings" } });
+    }
+    if (g.staleFound > 0) {
+      add({ id: "signage-found", title: `${plural(g.staleFound, "Pi")} found over a week ago and never set up`, severity: "info", detail: "A Raspberry Pi answered a discovery scan and nobody set it up or dismissed it. Check it is one of yours.", fix: { label: "Open Signage devices", href: "/signage/devices?tab=found" } });
+    }
+    if (g.hostKeyMismatch > 0) {
+      add({ id: "signage-host-key", title: `${plural(g.hostKeyMismatch, "signage Pi")} presented a different host key`, severity: "warn", detail: "The dashboard refused to log in. A reinstalled Pi does this; so would something pretending to be it. Trust the new key only once you know which.", fix: { label: "Open Signage devices", href: "/signage/devices?tab=attention" } });
+    }
   }
 
   // ---- running the site ----

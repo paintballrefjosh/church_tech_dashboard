@@ -357,6 +357,31 @@ describe.skipIf(!url)("backup and restore against a real database", () => {
     expect(out.storageFiles!.get(KEY1)).toBe(png(10).length);
   });
 
+  it("signage media goes in only when asked, is put back when missing and is never removed", async () => {
+    const media = "signage/media/aaaa.mp4";
+    const thumb = "signage/thumbs/aaaa.jpg";
+    await db.insert(schema.signageMedia).values({ name: "Welcome", originalName: "welcome.mov", status: "ready", storageKey: media, thumbKey: thumb, sha256: "aaaa" });
+    await store.put(media, png(30), "video/mp4");
+    await store.put(thumb, png(5), "image/jpeg");
+
+    await backup();
+    let info = await inspectArchive(gunzipped(await store.get("backups/bk-1.tar.gz")));
+    expect(info.fileCount).toBe(2);
+    expect(info.manifest.includeSignageMedia).toBe(false);
+
+    await storeBackup({ db, store }, "backups/bk-1.tar.gz", { ...options, includeSignageMedia: true });
+    info = await inspectArchive(gunzipped(await store.get("backups/bk-1.tar.gz")));
+    expect(info.fileCount).toBe(4);
+    expect(info.manifest.includeSignageMedia).toBe(true);
+
+    // The rendition is gone and an unrelated one has appeared: the restore puts the first back and leaves the second.
+    await store.remove([media]);
+    await store.put("signage/media/other.mp4", png(7), "video/mp4");
+    const out = await compare();
+    expect(out.report.files).toMatchObject({ added: 1, removed: 0 });
+    expect(out.report.files!.samples.added).toEqual([media]);
+  });
+
   it("every table that has a sequence default is in the registry", () => {
     const withSequences = Object.values(TABLE_REGISTRY).flatMap((t) => t.sequences ?? []).map((s) => s.sequence);
     expect(withSequences).toContain("tickets_number_seq");

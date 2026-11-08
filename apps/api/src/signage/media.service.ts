@@ -42,6 +42,8 @@ export class SignageMediaService implements OnModuleInit {
     // The job leader converts one file per tick; the row's claim also keeps a file from being converted twice across a
     // leader handover (a dead node's claim lapses after CLAIM_MIN).
     this.jobs.register({ name: "signage-media", everyMs: 10_000, initialDelayMs: 20_000, schedule: "fixed-delay", run: () => this.tick() });
+    // After a restore the rows may name files storage does not have (a backup without signage media), or have them again.
+    this.jobs.register({ name: "signage-media-check", everyMs: 3_600_000, initialDelayMs: 120_000, run: () => this.markMissing().then(() => undefined) });
   }
 
   private async dtos(rows: MediaRow[]): Promise<SignageMedia[]> {
@@ -223,17 +225,31 @@ export class SignageMediaService implements OnModuleInit {
     }
   }
 
-  /** Media whose stored file is gone (after a restore without the files) is marked missing. */
+  /**
+   * Media whose stored file is gone (after a restore without the signage media) is marked `missing`, so the library says
+   * to upload it again and screens skip it; one whose file is back (a later restore with the media) is `ready` again.
+   * Returns how many rows changed.
+   */
   async markMissing(): Promise<number> {
-    const rows = await this.db.select().from(signageMedia).where(eq(signageMedia.status, "ready"));
+    const rows = await this.db.select().from(signageMedia).where(inArray(signageMedia.status, ["ready", "missing"]));
     const { client, bucket } = getS3();
     let n = 0;
     for (const r of rows) {
       if (!r.storageKey) continue;
+      let present = true;
       try {
         await client.statObject(bucket, r.storageKey);
-      } catch {
-        await this.db.update(signageMedia).set({ status: "missing", error: "The file is not in storage (restored from a backup without signage media): upload it again." }).where(eq(signageMedia.id, r.id));
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        // Only a definite "not there": a storage outage must not mark the whole library missing.
+        if (code !== "NotFound" && code !== "NoSuchKey" && code !== "NoSuchObject") continue;
+        present = false;
+      }
+      if (!present && r.status === "ready") {
+        await this.db.update(signageMedia).set({ status: "missing", error: "The file is not in storage (restored from a backup without signage media): upload it again.", updatedAt: new Date() }).where(and(eq(signageMedia.id, r.id), eq(signageMedia.status, "ready")));
+        n++;
+      } else if (present && r.status === "missing") {
+        await this.db.update(signageMedia).set({ status: "ready", error: null, updatedAt: new Date() }).where(and(eq(signageMedia.id, r.id), eq(signageMedia.status, "missing")));
         n++;
       }
     }

@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
-import { evaluatePosture, type PostureFacts, type PostureReport } from "@church/shared";
+import { SIGNAGE_KEYS, evaluatePosture, readSignageSecurity, type PostureFacts, type PostureReport } from "@church/shared";
 import { DB, type Db } from "../db/db.module";
-import { apiTokens, backupSchedules, backups, ciscoSwitches, groupMemberships, groups, users } from "../db/schema";
+import { apiTokens, backupSchedules, backups, ciscoSwitches, groupMemberships, groups, signageDevices, signageFound, users } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
 import { readMaintenance } from "../monitors/maintenance";
 
@@ -142,6 +142,40 @@ export class SecurityPostureService {
       },
       auditRetentionDays: typeof retention === "number" && retention >= 0 ? Math.floor(retention) : 365,
       publicStatus: await flag("monitoring.status_public"),
+      signage: await this.signage(now),
+    };
+  }
+
+  /** Only when Signage is in use: a set-up Pi, or a saved setup password. */
+  private async signage(now: Date): Promise<PostureFacts["signage"]> {
+    const [dev] = await this.db
+      .select({ total: sql<number>`count(*) FILTER (WHERE ${signageDevices.status} = 'active')`, mismatch: sql<number>`count(*) FILTER (WHERE ${signageDevices.hostKeyMismatch} = true)` })
+      .from(signageDevices);
+    const saved = String((await this.settings.get(SIGNAGE_KEYS.setupPassword)) ?? "") !== "";
+    const devices = n(dev?.total);
+    if (!devices && !saved) return undefined;
+    const [stale] = await this.db
+      .select({ c: sql<number>`count(*)` })
+      .from(signageFound)
+      .where(
+        and(
+          isNull(signageFound.dismissedAt),
+          sql`${signageFound.firstSeenAt} < ${new Date(now.getTime() - 7 * DAY_MS)}`,
+          sql`NOT EXISTS (SELECT 1 FROM signage_devices d WHERE d.known_host_key = ${signageFound.hostKey})`,
+        ),
+      );
+    const values = new Map<string, unknown>();
+    for (const key of Object.values(SIGNAGE_KEYS)) values.set(key, await this.settings.get(key));
+    const sec = readSignageSecurity((k) => values.get(k));
+    return {
+      devices,
+      passwordLogin: sec.passwordLogin,
+      rootLogin: sec.rootLogin,
+      onlyDashboard: sec.onlyDashboard,
+      restrictKey: sec.restrictKey,
+      setupPasswordSaved: saved,
+      staleFound: n(stale?.c),
+      hostKeyMismatch: n(dev?.mismatch),
     };
   }
 }

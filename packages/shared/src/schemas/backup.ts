@@ -26,6 +26,8 @@ export const backupCreateSchema = z
     name: z.string().trim().min(1).max(120).optional(),
     /** Include the uploaded files (wiki attachments, note images). Default true. */
     includeFiles: z.boolean().default(true),
+    /** Also the Signage pictures and videos (they can be large). Only with `includeFiles`. Default false. */
+    includeSignageMedia: z.boolean().default(false),
   })
   .strict();
 export type BackupCreate = z.infer<typeof backupCreateSchema>;
@@ -65,6 +67,8 @@ export const backupScheduleInputSchema = z
     /** How many of this schedule's backups to keep; older ones are deleted. */
     keep: z.number().int().min(1).max(365).default(7),
     includeFiles: z.boolean().default(true),
+    /** Also the Signage pictures and videos. Only with `includeFiles`. */
+    includeSignageMedia: z.boolean().default(false),
     /** Copy this schedule's backups to the offsite bucket, when offsite copies are switched on. */
     offsite: z.boolean().default(true),
   })
@@ -85,6 +89,7 @@ export interface BackupSchedule {
   timezone: string;
   keep: number;
   includeFiles: boolean;
+  includeSignageMedia: boolean;
   offsite: boolean;
   lastRunAt: string | null;
   lastStatus: "ok" | "failed" | null;
@@ -104,6 +109,7 @@ export interface BackupSummary {
   finishedAt: string | null;
   sizeBytes: number | null;
   includeFiles: boolean;
+  includeSignageMedia: boolean;
   fileCount: number;
   fileBytes: number;
   /** Rows per table, as stored. */

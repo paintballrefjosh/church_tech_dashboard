@@ -27,6 +27,12 @@ export const OBJECT_STORE = Symbol("OBJECT_STORE");
 export const BACKUP_PREFIX = "backups/";
 /** Where uploaded files live; what a backup's `files` section covers. */
 export const FILES_PREFIX = "attachments/";
+/**
+ * Signage files a backup may also carry when it was asked to ("Include signage media"): the renditions screens play, their
+ * thumbnails and uploaded agent releases. Never `signage/uploads/` (originals, deleted once converted). A restore writes
+ * these when missing but never removes one: a backup without signage media says nothing about what should be there.
+ */
+export const SIGNAGE_FILE_PREFIXES = ["signage/media/", "signage/thumbs/", "signage/releases/"] as const;
 
 function isNotFound(err: unknown): boolean {
   const code = (err as { code?: string }).code;

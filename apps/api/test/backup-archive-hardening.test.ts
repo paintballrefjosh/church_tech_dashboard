@@ -71,7 +71,7 @@ describe("readTar against hostile headers", () => {
 
 describe("isSafeFileKey", () => {
   it("accepts the keys the app writes", () => {
-    for (const k of ["attachments/note/6b1f2f9e-0000-4000-8000-000000000000.png", "attachments/wiki_page/a-b.c.docx", "attachments/x/y z.txt"]) {
+    for (const k of ["attachments/note/6b1f2f9e-0000-4000-8000-000000000000.png", "attachments/wiki_page/a-b.c.docx", "attachments/x/y z.txt", "signage/media/ab12.mp4", "signage/thumbs/ab12.jpg", "signage/releases/signage-agent-1.0.0.tar.gz"]) {
       expect(isSafeFileKey(k)).toBe(true);
     }
   });
@@ -79,6 +79,11 @@ describe("isSafeFileKey", () => {
   it("refuses anything outside the uploads folder or able to climb out of it", () => {
     for (const k of [
       "backups/2026-01-01.tar.gz",
+      // Signage originals are deleted once converted, and nothing else under signage/ is ever a backed-up file.
+      "signage/uploads/x",
+      "signage/media/",
+      "signage/media/../../backups/x.tar.gz",
+      "signage/screenshots/a.jpg",
       "attachments",
       "attachments/",
       "/attachments/a",

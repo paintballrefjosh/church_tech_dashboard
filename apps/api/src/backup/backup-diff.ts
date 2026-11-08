@@ -19,7 +19,7 @@ import { keepRowsStillInUse, skipRowsWithMissingParents, type KeptRows, type Ski
 import { canonicalJson, keyOf, keyValues, keysPredicate, rowFingerprint, selectList, shorten, type Row } from "./row-codec";
 import { appliedMigrations, readPage } from "./backup-writer";
 import { readArchive, type ArchiveEvent, type FileIndexEntry, type Manifest } from "./archive";
-import { FILES_PREFIX, type ObjectStore } from "./object-store";
+import { FILES_PREFIX, SIGNAGE_FILE_PREFIXES, type ObjectStore } from "./object-store";
 
 const id = (name: string) => sql.identifier(name);
 const SAMPLES = 15;
@@ -399,10 +399,11 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
   } else if (!manifest.includeFiles) {
     warnings.push("This backup has no uploaded files: attachments restored from it may point at files that are missing.");
   } else if (fileIndex) {
-    storageFiles = new Map((await deps.store.list(FILES_PREFIX)).map((o) => [o.key, o.size]));
+    storageFiles = await listRestorable(deps.store, manifest.includeSignageMedia === true);
     const wanted = new Map(fileIndex.map((f) => [f.key, f.size]));
     const added = fileIndex.filter((f) => storageFiles!.get(f.key) !== f.size);
-    const removed = [...storageFiles].filter(([k]) => !wanted.has(k));
+    // Only uploaded files are ever removed; signage files a backup lacks are left alone (see SIGNAGE_FILE_PREFIXES).
+    const removed = [...storageFiles].filter(([k]) => k.startsWith(FILES_PREFIX) && !wanted.has(k));
     files = {
       added: added.length,
       addedBytes: added.reduce((n, f) => n + f.size, 0),
@@ -521,3 +522,11 @@ function describeYou(userId: string | null, plans: Map<string, TablePlan>): Back
 }
 
 export type { BackupDiffRow };
+
+/** What storage holds that a restore of this backup may write: uploads, and the signage files when the backup has them. */
+export async function listRestorable(store: ObjectStore, signage: boolean): Promise<Map<string, number>> {
+  const prefixes = signage ? [FILES_PREFIX, ...SIGNAGE_FILE_PREFIXES] : [FILES_PREFIX];
+  const out = new Map<string, number>();
+  for (const prefix of prefixes) for (const o of await store.list(prefix)) out.set(o.key, o.size);
+  return out;
+}

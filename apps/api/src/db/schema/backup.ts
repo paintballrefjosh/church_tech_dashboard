@@ -21,6 +21,8 @@ export const backupSchedules = pgTable("backup_schedules", {
   timezone: text("timezone").notNull(),
   keepCount: integer("keep_count").notNull().default(7),
   includeFiles: boolean("include_files").notNull().default(true),
+  /** Also the Signage media files (migration 0092). */
+  includeSignageMedia: boolean("include_signage_media").notNull().default(false),
   /** Copy this schedule's backups to the offsite bucket (when offsite copies are on). */
   offsite: boolean("offsite").notNull().default(true),
   lastRunAt: timestamp("last_run_at", { withTimezone: true }),
@@ -51,6 +53,7 @@ export const backups = pgTable(
     sizeBytes: bigint("size_bytes", { mode: "number" }),
     sha256: text("sha256"),
     includeFiles: boolean("include_files").notNull().default(true),
+    includeSignageMedia: boolean("include_signage_media").notNull().default(false),
     fileCount: integer("file_count").notNull().default(0),
     fileBytes: bigint("file_bytes", { mode: "number" }).notNull().default(0),
     /** `{ table: rows }` */

@@ -1,7 +1,7 @@
 import { createGunzip } from "node:zlib";
 import { pipeline, Transform, type Readable } from "node:stream";
 import { readTar } from "./tar";
-import { FILES_PREFIX } from "./object-store";
+import { FILES_PREFIX, SIGNAGE_FILE_PREFIXES } from "./object-store";
 import type { Row } from "./row-codec";
 
 /**
@@ -36,6 +36,8 @@ export interface Manifest {
   /** Fingerprint of the AUTH_SECRET in force; encrypted settings need the same one to be readable. */
   secretFingerprint: string;
   includeFiles: boolean;
+  /** Signage media files are in `files` too (absent in archives from before it existed = false). */
+  includeSignageMedia?: boolean;
   createdBy: string | null;
   tables: ManifestTable[];
 }
@@ -77,9 +79,8 @@ const damaged = (what: string) => new Error(`The backup is damaged: ${what}.`);
 export function isSafeFileKey(key: unknown): key is string {
   return (
     typeof key === "string" &&
-    key.length > FILES_PREFIX.length &&
     key.length <= 1024 &&
-    key.startsWith(FILES_PREFIX) &&
+    [FILES_PREFIX, ...SIGNAGE_FILE_PREFIXES].some((prefix) => key.length > prefix.length && key.startsWith(prefix)) &&
     !/[\u0000-\u001f\u007f\\]/.test(key) &&
     !key.split("/").some((segment) => segment === "." || segment === "..")
   );

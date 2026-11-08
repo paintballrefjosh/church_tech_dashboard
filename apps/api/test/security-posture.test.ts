@@ -156,4 +156,20 @@ describe("security posture", () => {
     expect([...sev].sort((a, b) => rank[a] - rank[b])).toEqual(sev);
     expect(r.counts.critical + r.counts.warn + r.counts.info + r.counts.ok).toBe(r.checks.length);
   });
+
+  it("signage: nothing while unused; each loosened setting warns once Pis are set up", () => {
+    const tight = { devices: 3, passwordLogin: false, rootLogin: false, onlyDashboard: true, restrictKey: true, setupPasswordSaved: false, staleFound: 0, hostKeyMismatch: 0 };
+    expect(evaluatePosture(facts({ signage: tight })).checks.filter((c) => c.id.startsWith("signage-"))).toEqual([]);
+    expect(evaluatePosture(facts()).checks.filter((c) => c.id.startsWith("signage-"))).toEqual([]);
+    const loose = evaluatePosture(facts({ signage: { ...tight, passwordLogin: true, rootLogin: true, onlyDashboard: false, restrictKey: false, hostKeyMismatch: 1 } }));
+    for (const id of ["signage-password-login", "signage-root-login", "signage-any-source", "signage-unrestricted-key", "signage-host-key"]) {
+      expect(byId(loose, id)?.severity).toBe("warn");
+    }
+    expect(byId(loose, "signage-password-login")?.fix?.href).toBe("/signage/security");
+    // No Pi set up yet: the settings are not in force anywhere, so they are not a finding.
+    expect(byId(evaluatePosture(facts({ signage: { ...tight, devices: 0, passwordLogin: true, setupPasswordSaved: true } })), "signage-password-login")).toBeUndefined();
+    const notes = evaluatePosture(facts({ signage: { ...tight, setupPasswordSaved: true, staleFound: 2 } }));
+    expect(byId(notes, "signage-setup-password")?.severity).toBe("info");
+    expect(byId(notes, "signage-found")).toMatchObject({ severity: "info", title: "2 Pis found over a week ago and never set up" });
+  });
 });

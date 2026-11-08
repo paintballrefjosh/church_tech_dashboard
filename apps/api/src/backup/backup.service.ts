@@ -39,7 +39,7 @@ import { SearchService } from "../search/search.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { gunzipped, readArchive } from "./archive";
 import { storeBackup } from "./backup-writer";
-import { computeDiff, type DiffContext, type DiffOutput } from "./backup-diff";
+import { computeDiff, listRestorable, type DiffContext, type DiffOutput } from "./backup-diff";
 import { restoreSections, tablesInSections } from "./table-registry";
 import { applyRestore } from "./backup-restore";
 import { inspectArchive } from "./backup-inspect";
@@ -206,6 +206,7 @@ export class BackupService implements OnModuleInit {
       finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
       sizeBytes: r.sizeBytes === null ? null : Number(r.sizeBytes),
       includeFiles: r.includeFiles,
+      includeSignageMedia: r.includeSignageMedia,
       fileCount: r.fileCount,
       fileBytes: Number(r.fileBytes),
       tableCounts: counts,
@@ -359,6 +360,7 @@ export class BackupService implements OnModuleInit {
     name: string;
     kind: BackupRow["kind"];
     includeFiles: boolean;
+    includeSignageMedia?: boolean;
     userId: string | null;
     scheduleId?: string | null;
     tracker?: Tracker | null;
@@ -375,6 +377,7 @@ export class BackupService implements OnModuleInit {
       createdBy: input.userId,
       s3Key: key,
       includeFiles: input.includeFiles,
+      includeSignageMedia: input.includeFiles && input.includeSignageMedia === true,
       appVersion: process.env.BUILD_ID ?? null,
       secretFingerprint: secretFingerprint(),
       nodeId: this.node.identity.nodeId,
@@ -392,6 +395,7 @@ export class BackupService implements OnModuleInit {
           id,
           name: input.name,
           includeFiles: input.includeFiles,
+          includeSignageMedia: input.includeSignageMedia === true,
           createdBy: input.userId,
           appVersion: process.env.BUILD_ID ?? null,
           secretFingerprint: secretFingerprint(),
@@ -431,7 +435,7 @@ export class BackupService implements OnModuleInit {
     }
     this.background("backup", async () => {
       try {
-        const { backupId, row } = await this.makeBackup({ name, kind: "manual", includeFiles: input.includeFiles, userId: user.id, tracker });
+        const { backupId, row } = await this.makeBackup({ name, kind: "manual", includeFiles: input.includeFiles, includeSignageMedia: input.includeSignageMedia, userId: user.id, tracker });
         await tracker.succeed({ backupId, sizeBytes: row.sizeBytes });
       } catch (err) {
         await tracker.fail(message(err));
@@ -533,6 +537,7 @@ export class BackupService implements OnModuleInit {
             status: "ready",
             finishedAt: sql`now()`,
             includeFiles: info.manifest.includeFiles,
+            includeSignageMedia: info.manifest.includeSignageMedia === true,
             fileCount: info.fileCount,
             fileBytes: info.fileBytes,
             tableCounts: info.tableCounts,
@@ -759,7 +764,7 @@ export class BackupService implements OnModuleInit {
   /** Put back the files the backup has and storage lacks; verify each against the checksum the backup recorded. */
   private async restoreFiles(row: BackupRow, out: DiffOutput, tracker: Tracker): Promise<number> {
     if (!out.manifest.includeFiles || !out.fileIndex) return 0;
-    const storage = new Map((await this.store.list(FILES_PREFIX)).map((o) => [o.key, o.size]));
+    const storage = await listRestorable(this.store, out.manifest.includeSignageMedia === true);
     const index = new Map(out.fileIndex.map((f) => [f.key, f]));
     const written = new Map<string, { sha256: string; wasNew: boolean }>();
     const todo = out.fileIndex.filter((f) => storage.get(f.key) !== f.size).length;
@@ -878,6 +883,7 @@ export class BackupService implements OnModuleInit {
       timezone: r.timezone,
       keep: r.keepCount,
       includeFiles: r.includeFiles,
+      includeSignageMedia: r.includeSignageMedia,
       offsite: r.offsite,
       lastRunAt: r.lastRunAt ? r.lastRunAt.toISOString() : null,
       lastStatus: (r.lastStatus as BackupSchedule["lastStatus"]) ?? null,
@@ -910,6 +916,7 @@ export class BackupService implements OnModuleInit {
       timezone: input.timezone,
       keepCount: input.keep,
       includeFiles: input.includeFiles,
+      includeSignageMedia: input.includeSignageMedia,
       offsite: input.offsite,
     };
     const [r] = await this.db
@@ -932,6 +939,7 @@ export class BackupService implements OnModuleInit {
       timezone: input.timezone ?? cur.timezone,
       keepCount: input.keep ?? cur.keepCount,
       includeFiles: input.includeFiles ?? cur.includeFiles,
+      includeSignageMedia: input.includeSignageMedia ?? cur.includeSignageMedia,
       offsite: input.offsite ?? cur.offsite,
     };
     const [r] = await this.db
@@ -975,7 +983,7 @@ export class BackupService implements OnModuleInit {
   private async runScheduled(s: ScheduleRow, tracker: Tracker, userId: string | null): Promise<void> {
     const stamp = new Intl.DateTimeFormat("en-GB", { timeZone: s.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date());
     try {
-      const { backupId, row } = await this.makeBackup({ name: `${s.name} - ${stamp}`, kind: "scheduled", includeFiles: s.includeFiles, userId, scheduleId: s.id, tracker });
+      const { backupId, row } = await this.makeBackup({ name: `${s.name} - ${stamp}`, kind: "scheduled", includeFiles: s.includeFiles, includeSignageMedia: s.includeSignageMedia, userId, scheduleId: s.id, tracker });
       await this.db
         .update(backupSchedules)
         .set({ lastRunAt: sql`now()`, lastStatus: "ok", lastError: null, nextRunAt: s.enabled ? this.nextRun(s) : null, updatedAt: sql`now()` })
