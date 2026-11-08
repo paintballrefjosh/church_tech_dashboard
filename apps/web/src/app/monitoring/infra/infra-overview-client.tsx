@@ -145,13 +145,13 @@ function TargetCard({ target, hoverProps }: { target: InfraTarget; hoverProps: H
         aria-label={off ? `${target.name} (monitoring disabled)` : undefined}
         className={`block rounded-md border p-4 transition ${
           off
-            ? "border-dashed border-slate-300 bg-slate-100/70 opacity-60 grayscale hover:opacity-90 dark:border-slate-700 dark:bg-slate-900/60"
+            ? "border-dashed border-slate-300 bg-slate-50 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900/60 dark:hover:border-slate-600"
             : "border-slate-300 hover:border-brand-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
         }`}
       >
         <div className="flex items-center gap-2">
-          <meta.Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-          <span className="min-w-0 flex-1 truncate font-medium">{target.name}</span>
+          <meta.Icon className={`h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400 ${off ? "opacity-50" : ""}`} aria-hidden />
+          <span className={`min-w-0 flex-1 truncate font-medium ${off ? "text-slate-500 dark:text-slate-400" : ""}`}>{target.name}</span>
           <StatusPill status={target.status} enabled={target.enabled} />
         </div>
         <div className="mt-0.5 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
