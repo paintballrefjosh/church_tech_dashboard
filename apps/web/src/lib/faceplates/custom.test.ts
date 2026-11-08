@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { choiceToDevice, choiceToInput, currentChoice, installedModules, layoutFromSwitchModel, matchSwitchModel, matchSwitchModelDetail, resolveSwitchView, switchViewSentence } from "./custom";
 import { slotForPort } from "./layouts";
 

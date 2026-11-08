@@ -12,7 +12,7 @@ import {
   updateCannedReplySchema,
   updateTicketCategorySchema,
   updateTicketSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();

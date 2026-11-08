@@ -10,7 +10,7 @@ import {
   type Renewal,
   type RenewalCategory,
   type RenewalState,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useCanWrite, inputCls, cardCls, Modal, Field, useToasts, ToastStack } from "../monitoring/network-cisco/cisco-ui";
 
 const STATE_CLS: Record<RenewalState, string> = {

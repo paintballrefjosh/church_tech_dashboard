@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { User, ShieldCheck, Bell, CalendarDays, KeySquare } from "lucide-react";
-import { NOTIFICATION_KINDS, type LookId, type NotificationKind } from "@church/shared";
+import { NOTIFICATION_KINDS, type LookId, type NotificationKind } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

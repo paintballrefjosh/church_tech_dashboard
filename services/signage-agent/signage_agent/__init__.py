@@ -1,4 +1,4 @@
-"""The church dashboard's signage agent for Raspberry Pi OS (docs/signage.md section 10).
+"""Lampstand's signage agent for Raspberry Pi OS (docs/signage.md section 10).
 
 It has no network listener: the dashboard reaches the Pi over SSH only and runs `signage-ctl`. The daemon
 (`signage-agent`) plays the manifest, drives the TV and keeps the media folder tidy.

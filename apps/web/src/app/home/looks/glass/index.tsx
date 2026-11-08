@@ -14,7 +14,7 @@ import {
   type NextService,
   type Section,
   type SummaryTone,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { LookProps } from "../../look-props";
 import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";

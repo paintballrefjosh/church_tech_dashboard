@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { ALERT_KEYS, statusOverall, type StatusItem, type StatusPage } from "@church/shared";
+import { ALERT_KEYS, statusOverall, type StatusItem, type StatusPage } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { monitorIncidents, monitors, serviceGroups } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

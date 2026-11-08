@@ -8,7 +8,7 @@ import {
   type Section,
   type TicketDigest,
   type TicketSlaMap,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { SettingsService } from "../../../settings/settings.service";
 import { TicketsService } from "../../../tickets/tickets.service";

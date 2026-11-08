@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { KeyRound, PackageOpen } from "lucide-react";
-import type { SignageAgentRelease, SignageKeyInfo } from "@church/shared";
+import type { SignageAgentRelease, SignageKeyInfo } from "@lampstand/shared";
 import { sendJson } from "@/components/assets-ui";
 import { ErrorLine, bytes, btnCls, dangerCls, primaryCls, useSignageJson, when } from "../signage-ui";
 

@@ -30,8 +30,8 @@ import type {
   CiscoTopologyNode,
   CiscoTopologyEdge,
   CiscoAlertPrefs,
-} from "@church/shared";
-import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shared";
+} from "@lampstand/shared";
+import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@lampstand/shared";
 import { CiscoVlansService } from "./cisco-vlans.service";
 import { parseVlanScope } from "./vlan-drift";
 import { redactConfig } from "./config-redact";

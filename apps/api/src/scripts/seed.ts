@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import type { Pool } from "pg";
-import { createPool } from "@church/shared/db";
+import { createPool } from "@lampstand/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
@@ -9,7 +9,7 @@ import {
   DEFAULT_GROUPS,
   DEFAULT_GROUP_DESCRIPTIONS,
   DEFAULT_GROUP_MODULE_ACCESS,
-} from "@church/shared";
+} from "@lampstand/shared";
 import * as schema from "../db/schema";
 import { databaseUrl } from "../db/connection";
 

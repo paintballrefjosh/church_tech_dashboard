@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { NeedAction } from "@church/shared";
+import type { NeedAction } from "@lampstand/shared";
 
 /** How long the "Done" state (with Undo) stays before the page is asked to refresh. */
 export const UNDO_WINDOW_MS = 5000;

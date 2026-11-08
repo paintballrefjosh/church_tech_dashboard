@@ -1,7 +1,7 @@
 import { Injectable, type CanActivate, type ExecutionContext, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { decode } from "@auth/core/jwt";
-import { crossOriginWriteRefused, parseOriginList } from "@church/shared";
+import { crossOriginWriteRefused, parseOriginList } from "@lampstand/shared";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { SESSION_ONLY_KEY, READ_ONLY_PER_OPERATION_KEY } from "./session-only.decorator";
 import { OPERATIONAL_ONLY_KEY } from "./operational-only.decorator";

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { desc, inArray } from "drizzle-orm";
-import { PERMISSIONS, sectionOff, sectionOk, type Section, type WikiDigest } from "@church/shared";
+import { PERMISSIONS, sectionOff, sectionOk, type Section, type WikiDigest } from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { wikiRevisions } from "../../../db/schema";
 import { WikiService } from "../../../wiki/wiki.service";

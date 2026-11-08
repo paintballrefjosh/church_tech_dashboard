@@ -1,4 +1,4 @@
-import type { RackItemView, SwitchModel } from "@church/shared";
+import type { RackItemView, SwitchModel } from "@lampstand/shared";
 import { installedModules, resolveSwitchView, switchModelImageUrl, type InstalledModule } from "./faceplates/custom";
 
 export type RackSide = "front" | "rear";

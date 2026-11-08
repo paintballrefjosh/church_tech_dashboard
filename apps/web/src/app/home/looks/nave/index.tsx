@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BookOpen, CalendarDays, FileText, ListChecks, Ticket } from "lucide-react";
-import { summarize } from "@church/shared";
+import { summarize } from "@lampstand/shared";
 import { NaveArches, type NaveGlow } from "@/components/nave-arches";
 import type { LookProps } from "../../look-props";
 import { useSectionHidden } from "../../home-look-context";

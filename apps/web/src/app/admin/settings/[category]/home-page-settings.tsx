@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { DASHBOARD_LOOKS, LOOK_IDS, type LookId } from "@church/shared";
+import { DASHBOARD_LOOKS, LOOK_IDS, type LookId } from "@lampstand/shared";
 
 export interface HomePageSettingsProps {
   timezone: string;

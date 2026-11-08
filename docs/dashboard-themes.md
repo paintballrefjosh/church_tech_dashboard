@@ -170,7 +170,7 @@ actions: Action[] }`, where an `Action` names an existing endpoint the web may c
   `dashboard.stream_monitor_ids` (json array of monitor ids for the "Stream" readiness check; empty
   means the check is left out).
 - Backups: `dashboard_prefs` is `data` in group `SETTINGS` in `backup/table-registry.ts`.
-- Device cookie `church_home_look` (`HttpOnly`, `SameSite=Lax`, no `Secure`, per the HTTPS-upstream
+- Device cookie `lampstand_home_look` (`HttpOnly`, `SameSite=Lax`, no `Secure`, per the HTTPS-upstream
   rule), set by a tiny web route when "Use on this device only" is ticked; read in `page.tsx`.
 
 ### Web layout

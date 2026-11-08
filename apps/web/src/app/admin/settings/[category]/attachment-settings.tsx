@@ -8,7 +8,7 @@ import {
   DEFAULT_ATTACHMENT_TYPES,
   MAX_CUSTOM_ATTACHMENT_EXTENSIONS,
   normaliseCustomExtension,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const GROUPS = ["Images", "Video", "Audio", "Documents", "Text", "Archives"] as const;
 
@@ -18,7 +18,7 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
 
 /**
  * Which file types people may upload as attachments (wiki pages, notes, tickets). The checklist comes
- * from a closed catalogue in @church/shared, each type verified against the file's own bytes on upload.
+ * from a closed catalogue in @lampstand/shared, each type verified against the file's own bytes on upload.
  * "Other file extensions" is free text but unverified, so it is download-only and the dangerous
  * extensions (html, svg, exe, ...) are refused; the same rules run on the server.
  */

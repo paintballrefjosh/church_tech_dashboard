@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availabilityCell, bucketAvailability, type AvailabilityRow } from "@church/shared";
+import { availabilityCell, bucketAvailability, type AvailabilityRow } from "@lampstand/shared";
 
 const NOW = new Date("2026-10-11T14:25:00Z");
 const row = (kind: string, ref: string, label: string, hour: string, samples: number, down: number): AvailabilityRow => ({

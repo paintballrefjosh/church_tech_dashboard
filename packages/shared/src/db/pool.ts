@@ -257,7 +257,7 @@ export function createPool(opts: CreatePoolOptions): Pool {
   const config: PoolConfig = {
     connectionString: url,
     max: opts.max ?? 10,
-    application_name: `church-${opts.name}`,
+    application_name: `lampstand-${opts.name}`,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
     keepAlive: true,

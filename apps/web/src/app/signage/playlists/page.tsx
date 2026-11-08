@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ListVideo, Plus } from "lucide-react";
-import type { SignagePlaylist } from "@church/shared";
+import type { SignagePlaylist } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { Modal } from "../../monitoring/network-cisco/cisco-ui";

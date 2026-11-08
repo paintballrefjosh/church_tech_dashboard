@@ -1,5 +1,5 @@
 import { Agent } from "undici";
-import type { DnsRecordData } from "@church/shared";
+import type { DnsRecordData } from "@lampstand/shared";
 
 /**
  * Minimal typed client for the Technitium DNS Server HTTP API

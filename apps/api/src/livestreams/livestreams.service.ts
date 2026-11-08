@@ -14,7 +14,7 @@ import {
   type LivestreamSample,
   type LivestreamState,
   type UpdateLivestreamInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { groups, livestreamChecks, livestreamSnapshots, livestreams, monitorChecks, monitors } from "../db/schema";
 import { encryptSecret } from "../settings/crypto";

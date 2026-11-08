@@ -10,7 +10,7 @@ case "$fs" in
     if [ "${GARAGE_ALLOW_NETWORK_META:-}" != "1" ]; then
       echo "garage: the metadata directory ($meta) is on a network filesystem ($fs)." >&2
       echo "garage: its LMDB database can be corrupted there. Set GARAGE_META_DIR in .env to a" >&2
-      echo "garage: folder on local disk (e.g. /var/lib/church-garage-meta) and start again." >&2
+      echo "garage: folder on local disk (e.g. /var/lib/lampstand-garage-meta) and start again." >&2
       echo "garage: (GARAGE_ALLOW_NETWORK_META=1 overrides this; do not, unless you know why.)" >&2
       exit 1
     fi

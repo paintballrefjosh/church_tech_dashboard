@@ -1,4 +1,4 @@
-import type { HomeSnapshot, Section } from "@church/shared";
+import type { HomeSnapshot, Section } from "@lampstand/shared";
 
 const off = <T>(): Section<T> => ({ state: "unavailable", reason: "not loaded" });
 

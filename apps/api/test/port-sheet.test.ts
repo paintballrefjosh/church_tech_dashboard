@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ciscoSheetRows, comparePortNames, unifiSheetRows, unifiSubnetCidr, type CiscoPortRow, type VlanLookup } from "@church/shared";
+import { ciscoSheetRows, comparePortNames, unifiSheetRows, unifiSubnetCidr, type CiscoPortRow, type VlanLookup } from "@lampstand/shared";
 
 const lookup: VlanLookup = {
   name: (id) => ({ 10: "Staff", 20: "Voice", 99: "Mgmt" })[id] ?? null,

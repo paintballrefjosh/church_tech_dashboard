@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
-import { acquireLease, releaseLease } from "@church/shared/db";
+import { acquireLease, releaseLease } from "@lampstand/shared/db";
 import { DB_POOL } from "../db/db.module";
 
 /**
@@ -19,7 +19,7 @@ export interface LeaseStore {
 
 export const LEASE_STORE = Symbol("LEASE_STORE");
 
-// The SQL lives in @church/shared/db so the migrate script and the monitor worker
+// The SQL lives in @lampstand/shared/db so the migrate script and the monitor worker
 // use exactly the same statements. Re-exported for existing importers.
 export { acquireLease, releaseLease };
 

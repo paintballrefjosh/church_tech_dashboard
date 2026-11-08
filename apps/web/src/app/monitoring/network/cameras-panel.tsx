@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Cctv } from "lucide-react";
-import type { UnifiCamerasReply } from "@church/shared";
+import type { UnifiCamerasReply } from "@lampstand/shared";
 import { usePoll } from "@/lib/use-poll";
 
 /** UniFi Protect cameras, while reading them is switched on (Monitoring settings). Renders nothing when it is off. */

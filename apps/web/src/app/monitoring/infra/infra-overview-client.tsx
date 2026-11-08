@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type HTMLAttributes } from "react";
 import { Server as ServerIcon } from "lucide-react";
-import type { InfraTarget, InfraSummary } from "@church/shared";
+import type { InfraTarget, InfraSummary } from "@lampstand/shared";
 import { OS_META, capabilityLabels, StatusPill, Gauge } from "./infra-ui";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useSwitchModels } from "@/lib/use-switch-models";

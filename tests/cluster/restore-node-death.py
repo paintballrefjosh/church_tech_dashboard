@@ -14,7 +14,7 @@ It restarts node 2 afterwards.   Usage: tests/cluster/restore-node-death.py
 import json, os, subprocess, sys, time, urllib.parse, urllib.request, http.cookiejar
 
 HOST = os.environ.get("SIM_HOST") or subprocess.check_output(["hostname", "-I"], text=True).split()[0]
-SIM_DIR = os.path.expanduser(os.environ.get("SIM_DIR", "~/church-sim"))
+SIM_DIR = os.path.expanduser(os.environ.get("SIM_DIR", "~/lampstand-sim"))
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PASSWORD = "regression-smoke-pwd-1"
 EMAIL = "regression-test@local"

@@ -118,18 +118,24 @@ AUTH_SECRET_VALUE="${AUTH_SECRET:-$(env_get AUTH_SECRET)}"
 # form (the bundled cluster database's password); `derive <name>` is the Garage namespace, whose
 # strings must never change (they are the live access key). Garage only accepts its own key
 # format: GK + 24 hex characters, and a 64-hex secret.
-derive_ns() { [[ -n "$AUTH_SECRET_VALUE" ]] && printf '%s' "church-dashboard/$1/v1:$AUTH_SECRET_VALUE" | sha256_hex || true; }
+#
+# The namespace the strings are mixed with is DERIVE_PREFIX. New installs have `DERIVE_PREFIX=lampstand` written to
+# .env by install.sh. An install made before the rename to Lampstand (2026-11-08) has no such line and keeps
+# `church-dashboard`, because the database password and Garage's key were created from it and are stored: changing
+# the prefix on a running install would lock the app out of both. Do not add the line to an existing install.
+DERIVE_PREFIX_VALUE="${DERIVE_PREFIX:-$(env_get DERIVE_PREFIX)}"; DERIVE_PREFIX_VALUE="${DERIVE_PREFIX_VALUE:-church-dashboard}"
+derive_ns() { [[ -n "$AUTH_SECRET_VALUE" ]] && printf '%s' "$DERIVE_PREFIX_VALUE/$1/v1:$AUTH_SECRET_VALUE" | sha256_hex || true; }
 derive() { derive_ns "garage/$1"; }
 
 DB_MODE="${DB_MODE:-$(env_get DB_MODE)}"
 DB_MODE="${DB_MODE:-bundled}"
 DATABASE_URL="${DATABASE_URL:-$(env_get DATABASE_URL)}"
-BUNDLED_URL="postgresql://root@cockroach-1:26257/church?sslmode=disable"
+BUNDLED_URL="postgresql://root@cockroach-1:26257/lampstand?sslmode=disable"
 
 case "$DB_MODE" in
   bundled)
     if [[ "$DEPLOY_MODE" == cluster ]]; then
-      # Secure mode: the app signs in as the `church` user (password derived from AUTH_SECRET)
+      # Secure mode: the app signs in as the `lampstand` user (password derived from AUTH_SECRET)
       # and verifies the node's certificate against the cluster CA.
       if [[ -n "$DATABASE_URL" && "$DATABASE_URL" != *"@cockroach:"* ]]; then
         die "DB_MODE=bundled, but DATABASE_URL points somewhere else. Set DB_MODE=external to use that database, or remove DATABASE_URL."
@@ -138,7 +144,7 @@ case "$DB_MODE" in
       [[ -n "$NODE_ADDR" ]] || die "DEPLOY_MODE=cluster with DB_MODE=bundled needs NODE_ADDR in .env: the address the other nodes reach this one on."
       [[ -n "$CLUSTER_PEERS" ]] || die "DEPLOY_MODE=cluster with DB_MODE=bundled needs CLUSTER_PEERS in .env: the other nodes' addresses, comma separated."
       DB_PASSWORD="$(derive_ns db/password)"
-      DATABASE_URL="postgresql://church:${DB_PASSWORD}@cockroach:26257/church?sslmode=verify-full&sslrootcert=/certs/ca.crt"
+      DATABASE_URL="postgresql://lampstand:${DB_PASSWORD}@cockroach:26257/lampstand?sslmode=verify-full&sslrootcert=/certs/ca.crt"
       CLUSTER_JOIN="${NODE_ADDR}:${CLUSTER_DB_PORT}"
       for _i in "${!PEER_HOSTS[@]}"; do CLUSTER_JOIN+=",${PEER_HOSTS[$_i]}:${PEER_DB[$_i]}"; done
       PROFILE="cluster-db"
@@ -152,7 +158,7 @@ case "$DB_MODE" in
     fi
     ;;
   external)
-    [[ -n "$DATABASE_URL" ]] || die "DB_MODE=external needs DATABASE_URL in .env (e.g. postgresql://user:pass@yb-host:5433/church)."
+    [[ -n "$DATABASE_URL" ]] || die "DB_MODE=external needs DATABASE_URL in .env (e.g. postgresql://user:pass@yb-host:5433/lampstand)."
     if [[ "$DATABASE_URL" == *"@cockroach-1:"* ]]; then
       die "DB_MODE=external, but DATABASE_URL points at the bundled cockroach-1. Use DB_MODE=bundled, or point DATABASE_URL at your database."
     fi
@@ -233,7 +239,7 @@ case "$S3_MODE" in
     die "S3_MODE must be 'bundled' or 'external' (got '$S3_MODE')."
     ;;
 esac
-S3_BUCKET_VALUE="${S3_BUCKET:-$(env_get S3_BUCKET)}"; S3_BUCKET_VALUE="${S3_BUCKET_VALUE:-$(env_get MINIO_BUCKET)}"; S3_BUCKET_VALUE="${S3_BUCKET_VALUE:-church-files}"
+S3_BUCKET_VALUE="${S3_BUCKET:-$(env_get S3_BUCKET)}"; S3_BUCKET_VALUE="${S3_BUCKET_VALUE:-$(env_get MINIO_BUCKET)}"; S3_BUCKET_VALUE="${S3_BUCKET_VALUE:-lampstand-files}"
 
 if [[ "${1:-}" == "--db-mode" ]]; then
   echo "$DB_MODE"

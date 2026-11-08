@@ -4,7 +4,7 @@ import { Suspense, useCallback, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Cpu, Radar, ScanEye, Trash2 } from "lucide-react";
-import type { SignageDevice, SignageDiscoverySubnet, SignageFoundPi, SignageIdentifyResult, SignageScreen } from "@church/shared";
+import type { SignageDevice, SignageDiscoverySubnet, SignageFoundPi, SignageIdentifyResult, SignageScreen } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";

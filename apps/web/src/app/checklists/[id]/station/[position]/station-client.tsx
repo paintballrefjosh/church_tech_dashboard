@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, Circle } from "lucide-react";
-import type { ChecklistEventTask } from "@church/shared";
+import type { ChecklistEventTask } from "@lampstand/shared";
 
 /**
  * Touch-friendly single-station checklist for the tablet at that station. Large

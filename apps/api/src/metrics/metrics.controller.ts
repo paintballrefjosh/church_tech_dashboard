@@ -1,6 +1,6 @@
 import { Controller, Get, Header } from "@nestjs/common";
 import client from "prom-client";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 
 client.collectDefaultMetrics();

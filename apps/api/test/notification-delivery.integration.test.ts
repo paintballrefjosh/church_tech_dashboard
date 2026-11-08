@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import type { NotificationDelivery } from "@church/shared";
+import type { NotificationDelivery } from "@lampstand/shared";
 import { NotificationsService } from "../src/notifications/notifications.service";
 import { NotificationDeliveryService } from "../src/notifications/notification-delivery.service";
 import { NotificationRelease } from "../src/notifications/notification-release";

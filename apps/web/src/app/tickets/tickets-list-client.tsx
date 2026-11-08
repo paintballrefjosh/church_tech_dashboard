@@ -8,8 +8,8 @@ import type {
   TicketPriority,
   TicketSlaMap,
   TicketStatus,
-} from "@church/shared";
-import { TICKET_PRIORITIES, TICKET_STATUSES } from "@church/shared";
+} from "@lampstand/shared";
+import { TICKET_PRIORITIES, TICKET_STATUSES } from "@lampstand/shared";
 import { PriorityBadge, SlaBadge, StatusBadge, STATUS_LABEL } from "./ticket-badges";
 
 /**

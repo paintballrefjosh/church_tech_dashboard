@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Readable } from "node:stream";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, PayloadTooLargeException } from "@nestjs/common";
 import { desc, eq, sql } from "drizzle-orm";
-import type { SignageAgentRelease } from "@church/shared";
+import type { SignageAgentRelease } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { signageAgentReleases, signageDevices } from "../db/schema";
 import { getS3 } from "../attachments/s3.client";

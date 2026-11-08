@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { crossOriginWriteRefused, parseOriginList } from "@church/shared";
+import { crossOriginWriteRefused, parseOriginList } from "@lampstand/shared";
 
 const SESSION_COOKIE_CANDIDATES = [
   "authjs.session-token",

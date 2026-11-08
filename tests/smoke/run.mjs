@@ -1831,7 +1831,7 @@ async function main() {
   await test("POST /api/v1/dns/zones/:zone/records refuses the reserved sync comment", async () => {
     const { res } = await dnsWrite("POST", {
       name: "printer",
-      comments: "managed-by:church-dashboard",
+      comments: "managed-by:lampstand",
       data: { type: "A", ipAddress: "10.0.0.5" },
     });
     assert(res.status === 400, `status ${res.status}`);

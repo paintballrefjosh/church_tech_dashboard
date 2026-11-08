@@ -10,7 +10,7 @@ if [ -z "$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY" ]; then
     echo "entrypoint: AUTH_SECRET is not set" >&2
     exit 1
   fi
-  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update(process.env.AUTH_SECRET + ":church-dashboard/server-actions/runtime-key/v1").digest("base64"))')"
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update(process.env.AUTH_SECRET + ":lampstand/server-actions/runtime-key/v1").digest("base64"))')"
   export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 fi
 exec "$@"

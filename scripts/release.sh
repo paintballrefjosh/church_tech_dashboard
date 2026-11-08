@@ -3,9 +3,9 @@
 # Build the api, web and monitor images once, tagged with the build id, so every node of
 # a cluster can run exactly the same build instead of each building its own.
 #
-#   scripts/release.sh                         build here, tagged church-<service>:<build id>
+#   scripts/release.sh                         build here, tagged lampstand-<service>:<build id>
 #   scripts/release.sh --prod                  the same, for the prod compose file
-#   scripts/release.sh --push registry/church  also push (registry/church-api:<id>, ...)
+#   scripts/release.sh --push registry/lampstand  also push (registry/lampstand-api:<id>, ...)
 #   scripts/release.sh --push                  the same, to IMAGE_REGISTRY from .env / the environment
 #   scripts/release.sh --save images.tar       also write them to a tar for `docker load`
 #
@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --push)
       if [[ -n "${2:-}" && "$2" != -* ]]; then PUSH="$2"; shift 2
       else PUSH="${IMAGE_REGISTRY:-$(sed -n 's/^IMAGE_REGISTRY=//p' .env 2>/dev/null | tail -n 1 | sed -E 's/[[:space:]]+#.*$//; s/^"(.*)"$/\1/')}"
-        [[ -n "$PUSH" ]] || { echo "release.sh: --push needs a registry prefix (registry.example.org/church) or IMAGE_REGISTRY in .env" >&2; exit 2; }
+        [[ -n "$PUSH" ]] || { echo "release.sh: --push needs a registry prefix (registry.example.org/lampstand) or IMAGE_REGISTRY in .env" >&2; exit 2; }
         shift; fi ;;
     --save) SAVE="${2:?--save needs a file name}"; shift 2 ;;
     -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
@@ -56,11 +56,11 @@ if [[ -n "$PUSH" && "$ID" == *-* ]]; then
   exit 1
 fi
 PUSH="${PUSH%/}"
-PREFIX="${PUSH:-church}"
+PREFIX="${PUSH:-lampstand}"
 API="${PREFIX}-api:${ID}"
 WEB="${PREFIX}-web:${ID}"
 MON="${PREFIX}-monitor:${ID}"
-# `registry/church` -> registry/church-api:<id>; plain `church` -> church-api:<id>.
+# `registry/lampstand` -> registry/lampstand-api:<id>; plain `lampstand` -> lampstand-api:<id>.
 
 echo "building $ID ..."
 API_IMAGE="$API" WEB_IMAGE="$WEB" MONITOR_IMAGE="$MON" BUILD_ID="$ID" \

@@ -65,7 +65,7 @@ describe.skipIf(!url)("alert dispatch against a real database", () => {
     expect(fannedOut[0]![0]!.email).toBeUndefined();
     expect(received).toHaveLength(1);
     expect(received[0]!.body).toMatchObject({ kind: "monitor.incident.opened", url: "https://dash.test/monitoring/x", site: "Test Church" });
-    expect(String(received[0]!.headers["x-church-signature"])).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(String(received[0]!.headers["x-lampstand-signature"])).toMatch(/^sha256=[0-9a-f]{64}$/);
     // Sent: a second run sends nothing more.
     expect(await dispatch.runOnce()).toMatchObject({ sent: 0 });
     expect(received).toHaveLength(1);

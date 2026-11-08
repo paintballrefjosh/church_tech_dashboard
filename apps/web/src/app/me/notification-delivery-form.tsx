@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Save } from "lucide-react";
-import { DEFAULT_NOTIFICATION_DELIVERY, formatClock, parseClock, type NotificationDelivery } from "@church/shared";
+import { DEFAULT_NOTIFICATION_DELIVERY, formatClock, parseClock, type NotificationDelivery } from "@lampstand/shared";
 
 interface Loaded extends NotificationDelivery {
   timeZone: string;

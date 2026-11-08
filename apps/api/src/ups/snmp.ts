@@ -1,5 +1,5 @@
 import * as snmp from "net-snmp";
-import type { UpsStatus, UpsBatteryState, UpsOutputSource } from "@church/shared";
+import type { UpsStatus, UpsBatteryState, UpsOutputSource } from "@lampstand/shared";
 
 // UPS-MIB (RFC 1628) OIDs. Scalars are walked at their base OID (the agent
 // returns the single `.0` leaf), tables are walked and reduced.

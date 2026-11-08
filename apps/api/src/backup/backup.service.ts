@@ -25,8 +25,8 @@ import {
   type BackupStorageInfo,
   type BackupSummary,
   type RestoreRequest,
-} from "@church/shared";
-import { RESTORE_LEASE_NAME } from "@church/shared/db";
+} from "@lampstand/shared";
+import { RESTORE_LEASE_NAME } from "@lampstand/shared/db";
 import { DB, type Db } from "../db/db.module";
 import { backupOperations, backupSchedules, backups, groupMemberships, groups, users } from "../db/schema";
 import { LeaseService, type Mutex } from "../cluster/lease.service";
@@ -70,7 +70,18 @@ type ScheduleRow = typeof backupSchedules.$inferSelect;
 
 export function secretFingerprint(): string {
   const secret = process.env.AUTH_SECRET ?? "";
+  return createHash("sha256").update(`lampstand/backup-fingerprint/v1:${secret}`).digest("hex").slice(0, 16);
+}
+
+/** The fingerprint backups made before the rename to Lampstand (2026-11-08) carry. It is the same secret, so they still match. */
+function legacySecretFingerprint(): string {
+  const secret = process.env.AUTH_SECRET ?? "";
   return createHash("sha256").update(`church-dashboard/backup-fingerprint/v1:${secret}`).digest("hex").slice(0, 16);
+}
+
+/** Every fingerprint that says "made with this AUTH_SECRET". */
+export function acceptedSecretFingerprints(): string[] {
+  return [secretFingerprint(), legacySecretFingerprint()];
 }
 
 /** Writes an operation's progress to its row, at most about once a second, with a heartbeat while it is quiet. */
@@ -595,6 +606,7 @@ export class BackupService implements OnModuleInit {
         backup: { id: row.id, name: row.name, createdAt: row.createdAt.toISOString() },
         archive: this.archiveOf(row),
         secretFingerprint: secretFingerprint(),
+        acceptedSecretFingerprints: acceptedSecretFingerprints(),
         userId,
         scope,
       },
@@ -679,7 +691,7 @@ export class BackupService implements OnModuleInit {
     await tracker.phase("Checking the backup");
     for await (const event of readArchive(this.archiveOf(row)(), { parseRows: false })) {
       if (event.type === "manifest") {
-        if (event.manifest.secretFingerprint !== secretFingerprint() && !req.acceptSecretMismatch) {
+        if (!acceptedSecretFingerprints().includes(event.manifest.secretFingerprint) && !req.acceptSecretMismatch) {
           throw new Error(
             "This backup was made with a different AUTH_SECRET, so saved passwords and tokens in it cannot be read here. Tick \"Go ahead anyway\" to restore it and enter them again.",
           );

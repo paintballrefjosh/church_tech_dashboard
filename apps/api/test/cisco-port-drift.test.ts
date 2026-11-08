@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normaliseDuplex, normaliseSpeed, speedLabel, ciscoPortInputSchema } from "@church/shared";
+import { normaliseDuplex, normaliseSpeed, speedLabel, ciscoPortInputSchema } from "@lampstand/shared";
 import { driftFieldsFor, sameValue } from "../src/cisco/cisco.poller";
 import { parseRunningConfig, type CfgPort } from "../src/cisco/parsers";
 import type { ciscoPorts } from "../src/db/schema";

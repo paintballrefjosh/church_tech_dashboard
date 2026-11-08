@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parse } from "yaml";
 import { ArrowLeft, Copy, Download, FlaskConical, Loader2, Save, Trash2 } from "lucide-react";
-import { templateCommands, type InfraTarget, type ServiceInputValue, type ServiceTemplate, type ServiceTestResult } from "@church/shared";
+import { templateCommands, type InfraTarget, type ServiceInputValue, type ServiceTemplate, type ServiceTestResult } from "@lampstand/shared";
 import { GoneNotice } from "@/components/gone-notice";
 import { buildDiff, collapseUnchanged } from "@/lib/wiki-diff";
 import { ToastStack, inputCls, useCanWrite, useToasts } from "../../../network-cisco/cisco-ui";

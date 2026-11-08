@@ -5,7 +5,7 @@ import {
   isSingleTenant,
   isWorkspaceMember,
   microsoftSignInDecision,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 describe("googleSignInDecision", () => {
   it("accepts a verified address", () => {

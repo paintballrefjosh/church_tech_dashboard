@@ -68,7 +68,7 @@ export class AuthTokensService {
       expiresAt,
     });
 
-    const siteName = ((await this.settings.get("site.name")) as string) || "Church Dashboard";
+    const siteName = ((await this.settings.get("site.name")) as string) || "Lampstand";
     // Both invite and reset land on the same /set-password page — it reads the
     // token from the query string and posts it to /auth/tokens/consume.
     const path = "/set-password";

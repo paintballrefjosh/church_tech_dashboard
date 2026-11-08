@@ -7,7 +7,7 @@ import {
   isManagedVlan,
   normaliseVlanList,
   parseVlanList,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { computeVlanDrift, desiredNameFromObserved, effectiveVlanName, parseVlanScope, vlanScope } from "../src/cisco/vlan-drift";
 import { buildPushCommands, findCliError } from "../src/cisco/push-commands";
 import { parseVlans } from "../src/cisco/parsers";

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertOctagon, AlertTriangle, CheckCircle2, Info, ShieldCheck } from "lucide-react";
-import type { PostureCheck, PostureReport, PostureSeverity } from "@church/shared";
+import type { PostureCheck, PostureReport, PostureSeverity } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

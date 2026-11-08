@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
-import type { HomeSnapshot, NextService } from "@church/shared";
+import type { HomeSnapshot, NextService } from "@lampstand/shared";
 import { RelativeTime } from "../../parts/relative-time";
 import type { LookProps } from "../../look-props";
 import { dueWhen, eventWhen, useNow } from "./format";

@@ -1,5 +1,5 @@
 import { Controller, Post, Patch, Delete, Param, Body, BadRequestException } from "@nestjs/common";
-import { PERMISSIONS, createWikiFolderSchema, updateWikiFolderSchema } from "@church/shared";
+import { PERMISSIONS, createWikiFolderSchema, updateWikiFolderSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { WikiFoldersService } from "./wiki-folders.service";

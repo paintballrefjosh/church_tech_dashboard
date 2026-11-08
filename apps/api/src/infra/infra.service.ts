@@ -29,7 +29,7 @@ import type {
   InfraStatus,
   InfraEntityKind,
   InfraAuthType,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { DecryptedCredential } from "./collectors/types";
 
 const MAX_POINTS = 500;

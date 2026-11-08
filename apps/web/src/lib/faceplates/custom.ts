@@ -1,4 +1,4 @@
-import type { SetSwitchViewInput, SwitchModel } from "@church/shared";
+import type { SetSwitchViewInput, SwitchModel } from "@lampstand/shared";
 import { faceplateForModel, type FaceplatePortSpec, type FaceplateLayout, type FaceplateOverlay } from "./layouts";
 
 /** Where a model's picture is served from. `?v=` is the attachment id, so a replaced picture is a new URL (the API caches for a day). */

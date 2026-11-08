@@ -27,7 +27,7 @@ function tarEntry(name, data) {
   return Buffer.concat([tarHeader(name, octal12(data.length)), data, Buffer.alloc(pad)]);
 }
 const tarEnd = () => Buffer.alloc(BLOCK * 2);
-const MANIFEST = { format: "church-dashboard-backup", version: 1, id: "smoke", name: "[smoke] hostile", createdAt: new Date().toISOString(), appVersion: null, schemaMigrations: 1, secretFingerprint: "x", includeFiles: true, createdBy: null, tables: [] };
+const MANIFEST = { format: "lampstand-backup", version: 1, id: "smoke", name: "[smoke] hostile", createdAt: new Date().toISOString(), appVersion: null, schemaMigrations: 1, secretFingerprint: "x", includeFiles: true, createdBy: null, tables: [] };
 
 /**
  * Backup smoke tests (admin > Backups), run from run.mjs. Everything here is non-destructive: it

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ApiTokenAdminSummary, ApiTokenSummary } from "@church/shared";
+import type { ApiTokenAdminSummary, ApiTokenSummary } from "@lampstand/shared";
 import { TokenTable, confirmRevoke, readApiError } from "@/components/api-tokens";
 
 export function AdminTokensClient({ initialTokens }: { initialTokens: ApiTokenAdminSummary[] }) {

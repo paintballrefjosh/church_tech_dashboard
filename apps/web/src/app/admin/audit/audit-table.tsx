@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import type { AuditEntry } from "@church/shared";
+import type { AuditEntry } from "@lampstand/shared";
 
 export function AuditTable({ items }: { items: AuditEntry[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);

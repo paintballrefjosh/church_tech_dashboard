@@ -78,15 +78,15 @@ fresh() {
   mkdir -p "$W/local/data/upgrade"
   local n port=9001
   for n in "$@"; do
-    mkdir -p "$W/homes/$n"; git clone -q "$W/origin.git" "$W/homes/$n/church-dashboard" 2>/dev/null
-    printf 'NODE_ID=%s\nEXTERNAL_PORT=%s\n%s' "$n" "$port" "$([[ $n == witness ]] && echo NODE_ROLE=data)" >"$W/homes/$n/church-dashboard/.env"
+    mkdir -p "$W/homes/$n"; git clone -q "$W/origin.git" "$W/homes/$n/lampstand" 2>/dev/null
+    printf 'NODE_ID=%s\nEXTERNAL_PORT=%s\n%s' "$n" "$port" "$([[ $n == witness ]] && echo NODE_ROLE=data)" >"$W/homes/$n/lampstand/.env"
     port=$((port + 1))
   done
   ( cd "$W/dev" && echo two >f && printf '%s\n' "$STUB" >scripts/upgrade.sh && git commit -q -am second && git push -q origin master 2>/dev/null )
   NEW=$(git -C "$W/dev" rev-parse HEAD); OLD=$(git -C "$W/local" rev-parse HEAD)
 }
 nodes_file() { printf '%s\n' "$@" >"$W/local/data/upgrade/nodes"; }
-head_of() { git -C "$W/homes/$1/church-dashboard" rev-parse HEAD; }
+head_of() { git -C "$W/homes/$1/lampstand" rev-parse HEAD; }
 calls() { cat "$W/run/calls" 2>/dev/null; }
 # up_ args : run in the local checkout; output in $W/out, exit code in $W/rc
 up_() {
@@ -129,25 +129,25 @@ up_ --yes
 check "exits 0 although the nodes' own upgrade.sh is broken" test "$(rc)" = 0
 check "every node is on the new commit" bash -c "[[ \$(head_of alpha) == $NEW && \$(head_of beta) == $NEW ]]"
 check "the old script never ran" bash -c "! grep -q 'old upgrade.sh ran' '$W/out'"
-check "a remote node ran the copy from git, rooted in its checkout" bash -c "[[ \$(cat '$W/run/via.alpha') == 'data/upgrade/upgrade.next.sh $W/homes/alpha/church-dashboard' ]]"
+check "a remote node ran the copy from git, rooted in its checkout" bash -c "[[ \$(cat '$W/run/via.alpha') == 'data/upgrade/upgrade.next.sh $W/homes/alpha/lampstand' ]]"
 check "the local node did too" bash -c "[[ \$(cat '$W/run/via.main') == 'data/upgrade/upgrade.next.sh $W/local' ]]"
-check "the copy is the target's file" bash -c "cmp -s '$W/homes/beta/church-dashboard/data/upgrade/upgrade.next.sh' <(git -C '$W/dev' show $NEW:scripts/upgrade.sh)"
+check "the copy is the target's file" bash -c "cmp -s '$W/homes/beta/lampstand/data/upgrade/upgrade.next.sh' <(git -C '$W/dev' show $NEW:scripts/upgrade.sh)"
 check "the copy's folder is git-ignored in the real repo (it must not change the build id)" git -C "$REPO" check-ignore -q data/upgrade/upgrade.next.sh
 
 echo "== a node that cannot fetch the target uses its own upgrade.sh"
 fresh alpha; nodes_file local u@alpha
-git -C "$W/homes/alpha/church-dashboard" remote set-url origin "$W/nowhere.git"
+git -C "$W/homes/alpha/lampstand" remote set-url origin "$W/nowhere.git"
 up_ --yes
 check "the run goes on with the node's own copy" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh ]] && grep -q '^alpha ' <<<\"$(calls)\""
 
 echo "== --rollback uses each node's own upgrade.sh (there is no target)"
 fresh alpha; nodes_file local u@alpha
 up_ --yes --rollback
-check "no copy is fetched" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh && ! -e '$W/homes/alpha/church-dashboard/data/upgrade/upgrade.next.sh' ]]"
+check "no copy is fetched" bash -c "[[ \$(cut -d' ' -f1 '$W/run/via.alpha') == scripts/upgrade.sh && ! -e '$W/homes/alpha/lampstand/data/upgrade/upgrade.next.sh' ]]"
 
 echo "== a node whose checkout is on the target but whose containers are old is upgraded"
 fresh alpha beta; nodes_file local u@alpha u@beta
-for n in alpha beta; do git -C "$W/homes/$n/church-dashboard" pull -q origin master 2>/dev/null; done
+for n in alpha beta; do git -C "$W/homes/$n/lampstand" pull -q origin master 2>/dev/null; done
 touch "$W/run/stale.beta"
 up_ --yes
 check "exits 0" test "$(rc)" = 0
@@ -203,10 +203,10 @@ echo "== refusals"
 fresh alpha beta; nodes_file local u@alpha u@beta
 FAKE_SSH_DOWN=beta up_ --yes
 check "an unreachable node stops everything before any upgrade" bash -c "[[ \$(rc) != 0 ]] && grep -q 'cannot reach u@beta' '$W/out' && [[ -z \$(calls) ]]"
-echo dirty >>"$W/homes/alpha/church-dashboard/f"
+echo dirty >>"$W/homes/alpha/lampstand/f"
 up_ --yes
 check "a node with uncommitted changes is refused" bash -c "[[ \$(rc) != 0 ]] && grep -q 'uncommitted changes' '$W/out' && [[ -z \$(calls) ]]"
-git -C "$W/homes/alpha/church-dashboard" checkout -q f
+git -C "$W/homes/alpha/lampstand" checkout -q f
 nodes_file local local
 up_ --yes
 check "'local' twice is refused" grep -q "more than once" "$W/out"
@@ -221,7 +221,7 @@ up_ --yes --rollback --to "$NEW"
 check "--to with --rollback is refused" grep -q "either --to or --rollback" "$W/out"
 
 echo "== images from a registry (IMAGE_REGISTRY)"
-REG=ghcr.io/o/church
+REG=ghcr.io/o/lampstand
 publish() { # a build id: the three images are in the registry
   mkdir -p "$W/run/published"; local s
   for s in api web monitor; do : >"$W/run/published/$(printf '%s' "$REG-$s:$1" | tr '/:' '__')"; done

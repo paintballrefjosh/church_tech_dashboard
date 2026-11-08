@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { Location, LocationUsage } from "@church/shared";
+import type { Location, LocationUsage } from "@lampstand/shared";
 import { Modal, Field, inputCls } from "../monitoring/network-cisco/cisco-ui";
 import { sendJson } from "@/components/assets-ui";
 

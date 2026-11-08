@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, apiTokenCreateSchema, apiTokenListQuerySchema, type ApiTokenCreate } from "@church/shared";
+import { PERMISSIONS, apiTokenCreateSchema, apiTokenListQuerySchema, type ApiTokenCreate } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";

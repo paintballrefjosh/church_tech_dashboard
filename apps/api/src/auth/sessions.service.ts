@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
-import { describeUserAgent, type UserAgentInfo } from "@church/shared";
+import { describeUserAgent, type UserAgentInfo } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { userSessions } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

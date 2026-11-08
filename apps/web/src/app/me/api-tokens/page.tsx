@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { KeySquare } from "lucide-react";
-import { MODULES, type ApiTokenPolicy, type ApiTokenSummary } from "@church/shared";
+import { MODULES, type ApiTokenPolicy, type ApiTokenSummary } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

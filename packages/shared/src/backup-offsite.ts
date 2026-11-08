@@ -40,18 +40,19 @@ export function normaliseOffsitePrefix(raw: string): { ok: true; prefix: string 
 
 const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 
-/** `church-dashboard-20261016T031500Z-1a2b3c4d.tar.gz`: sorts by time, and says what it is when seen alone. */
+/** `lampstand-20261016T031500Z-1a2b3c4d.tar.gz`: sorts by time, and says what it is when seen alone. */
 export function offsiteObjectName(createdAt: Date, backupId: string): string {
   const d = createdAt;
   const stamp = `${pad(d.getUTCFullYear(), 4)}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
-  return `church-dashboard-${stamp}-${backupId.replace(/-/g, "").slice(0, 8)}.tar.gz`;
+  return `lampstand-${stamp}-${backupId.replace(/-/g, "").slice(0, 8)}.tar.gz`;
 }
 
 export function offsiteObjectKey(prefix: string, createdAt: Date, backupId: string): string {
   return `${prefix}${offsiteObjectName(createdAt, backupId)}`;
 }
 
-const NAME_RE = /^church-dashboard-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z-[0-9a-f]{8}\.tar\.gz$/;
+/** Copies made before the rename to Lampstand (2026-11-08) are named `church-dashboard-...`: still ours, still counted and pruned. */
+const NAME_RE = /^(?:lampstand|church-dashboard)-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z-[0-9a-f]{8}\.tar\.gz$/;
 
 /** Whether a key in the folder is one of ours (and not something else somebody keeps there). */
 export function isOffsiteArchiveKey(prefix: string, key: string): boolean {
@@ -73,7 +74,9 @@ export function offsiteKeyTime(prefix: string, key: string): Date | null {
  */
 export function offsiteKeysToDelete(prefix: string, keys: string[], keep: number): string[] {
   if (!Number.isFinite(keep) || keep <= 0) return [];
-  const ours = keys.filter((k) => isOffsiteArchiveKey(prefix, k)).sort();
+  // Oldest first by the time in the name (the two prefixes do not sort together as text).
+  const stamp = (k: string): number => offsiteKeyTime(prefix, k)?.getTime() ?? 0;
+  const ours = keys.filter((k) => isOffsiteArchiveKey(prefix, k)).sort((a, b) => stamp(a) - stamp(b) || (a < b ? -1 : a > b ? 1 : 0));
   return ours.length <= keep ? [] : ours.slice(0, ours.length - keep);
 }
 

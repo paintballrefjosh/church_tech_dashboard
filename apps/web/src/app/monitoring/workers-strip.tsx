@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Server } from "lucide-react";
-import { checkBuilds, type MonitorWorker } from "@church/shared";
+import { checkBuilds, type MonitorWorker } from "@lampstand/shared";
 import { ago, useMonitorWorkers } from "./use-monitor-workers";
 
 /**

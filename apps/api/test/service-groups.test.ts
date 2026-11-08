@@ -10,7 +10,7 @@ import {
   serviceGroupSaveSchema,
   stepGroupAlerts,
   type ServiceGroupMemberInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const NOW = new Date("2026-10-26T12:00:00Z");
 const ago = (s: number) => new Date(NOW.getTime() - s * 1000).toISOString();

@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { eq, sql } from "drizzle-orm";
-import { DEFAULT_GROUPS, type ClusterDatabaseInfo, type ClusterJobInfo, type ClusterNodeInfo, type ClusterStatus, type ClusterStoreInfo } from "@church/shared";
+import { DEFAULT_GROUPS, type ClusterDatabaseInfo, type ClusterJobInfo, type ClusterNodeInfo, type ClusterStatus, type ClusterStoreInfo } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { clusterLeases, clusterNodes, groupMemberships, groups } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

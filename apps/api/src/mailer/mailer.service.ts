@@ -157,7 +157,7 @@ export class MailerService {
         await transporter.sendMail({
           from,
           to: overrides.to,
-          subject: "Church Dashboard — SMTP test",
+          subject: "Lampstand — SMTP test",
           text: `If you're reading this, SMTP is wired up correctly.\nServer: ${host}:${port}`,
         });
         return { ok: true, message: `Connected and sent a test email to ${overrides.to}` };

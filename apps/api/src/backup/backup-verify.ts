@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { finished } from "node:stream/promises";
 import type { Readable } from "node:stream";
-import { VERIFY_MAX_PROBLEMS } from "@church/shared";
+import { VERIFY_MAX_PROBLEMS } from "@lampstand/shared";
 import type { ArchiveEvent, Manifest } from "./archive";
 import { gunzipped } from "./archive";
 import { inspectArchive } from "./backup-inspect";

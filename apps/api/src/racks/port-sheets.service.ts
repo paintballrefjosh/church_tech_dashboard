@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ServiceUnavailableException } from "@nestjs/common";
 import { asc, eq, isNotNull } from "drizzle-orm";
-import { ciscoSheetRows, unifiSheetRows, type PortSheet, type UnifiPortLike, type UnifiOverrideLike, type VlanLookup } from "@church/shared";
+import { ciscoSheetRows, unifiSheetRows, type PortSheet, type UnifiPortLike, type UnifiOverrideLike, type VlanLookup } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { ciscoSwitches, ciscoVlanDb, ipamSubnets } from "../db/schema";
 import { CiscoService } from "../cisco/cisco.service";

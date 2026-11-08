@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PERMISSIONS, sectionOff, sectionOk, type ChecklistDigest, type Section } from "@church/shared";
+import { PERMISSIONS, sectionOff, sectionOk, type ChecklistDigest, type Section } from "@lampstand/shared";
 import { ChecklistsService } from "../../../checklists/checklists.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
 

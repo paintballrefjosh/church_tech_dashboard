@@ -6,7 +6,7 @@ import {
   TICKET_CATEGORY_COLORS,
   type TicketCategory,
   type TicketCategoryColor,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { TagBadge } from "@/components/tag-badge";
 
 export function CategoriesAdminClient({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const PC_READ = PERMISSIONS.PLANNING_CENTER_READ_ANY;

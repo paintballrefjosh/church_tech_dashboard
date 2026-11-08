@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
-import { PERMISSIONS, createRenewalSchema, updateRenewalSchema } from "@church/shared";
+import { PERMISSIONS, createRenewalSchema, updateRenewalSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { RenewalsService } from "./renewals.service";

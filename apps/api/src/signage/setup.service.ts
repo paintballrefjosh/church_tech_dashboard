@@ -11,7 +11,7 @@ import {
   type SignageRunStatus,
   type SignageSetupInput,
   type SignageSetupRun,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { signageDevices, signageFound, signageSetupRuns } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
@@ -29,7 +29,7 @@ type RunRow = typeof signageSetupRuns.$inferSelect;
 /** A run holds its row this long and renews it while it works; a dead node's run is taken over after it lapses. */
 const CLAIM_MIN = 15;
 const MAX_PARALLEL = 4;
-const BUNDLE_TMP = "/tmp/church-signage-agent.tgz";
+const BUNDLE_TMP = "/tmp/lampstand-signage-agent.tgz";
 
 interface RunSecrets {
   username?: string;

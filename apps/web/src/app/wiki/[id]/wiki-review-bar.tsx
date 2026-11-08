@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CircleCheck, ClipboardCheck } from "lucide-react";
-import { describeWikiAge } from "@church/shared";
+import { describeWikiAge } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 
 export interface ReviewInfo {

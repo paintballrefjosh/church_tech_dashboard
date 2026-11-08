@@ -1,5 +1,5 @@
 import { Controller, Get, NotFoundException } from "@nestjs/common";
-import { ALERT_KEYS, publicStatusPage, type PublicStatusPage } from "@church/shared";
+import { ALERT_KEYS, publicStatusPage, type PublicStatusPage } from "@lampstand/shared";
 import { Public } from "../auth/public.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { TtlCache } from "../dashboard/home/cache";

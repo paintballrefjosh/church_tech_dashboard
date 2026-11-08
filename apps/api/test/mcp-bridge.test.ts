@@ -186,7 +186,7 @@ describe("ApiBridge.call", () => {
     expect(seen[0]!.headers).toMatchObject({
       authorization: "Bearer cdt_abc",
       "content-type": "application/json",
-      cookie: "church_rv=77",
+      cookie: "lampstand_rv=77",
     });
     expect(out.url).toBe(`https://dash.example.org/things/${ID}`);
   });

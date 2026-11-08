@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, type ComponentType } from "react";
-import type { LookId } from "@church/shared";
+import type { LookId } from "@lampstand/shared";
 import type { LookProps } from "./look-props";
 import { HomeLookContext, type HomeLookContextValue } from "./home-look-context";
 

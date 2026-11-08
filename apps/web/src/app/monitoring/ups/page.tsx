@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Plus, RefreshCw, Trash2, Plug } from "lucide-react";
-import type { Ups, UpsSummary } from "@church/shared";
+import type { Ups, UpsSummary } from "@lampstand/shared";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime } from "../network-cisco/cisco-ui";
 import { usePoll } from "@/lib/use-poll";

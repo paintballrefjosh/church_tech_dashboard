@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatVlanList, normaliseVlanList, parseVlanList, type CiscoSwitchVlan } from "@church/shared";
+import { formatVlanList, normaliseVlanList, parseVlanList, type CiscoSwitchVlan } from "@lampstand/shared";
 import { inputCls } from "./cisco-ui";
 
 const label = (v: CiscoSwitchVlan) => `${v.vlanId} · ${v.name}`;

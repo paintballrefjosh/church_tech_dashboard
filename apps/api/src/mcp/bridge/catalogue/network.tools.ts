@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DNS_STATS_RANGES, PERMISSIONS, createRenewalSchema, dnsHealthMonitorsSchema, updateRenewalSchema } from "@church/shared";
+import { DNS_STATS_RANGES, PERMISSIONS, createRenewalSchema, dnsHealthMonitorsSchema, updateRenewalSchema } from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();

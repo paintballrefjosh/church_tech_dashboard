@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Patch, Delete, Param, Body, BadRequestException, Logger } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createGroupSchema, updateGroupSchema, MODULE_TIERS } from "@church/shared";
+import { PERMISSIONS, createGroupSchema, updateGroupSchema, MODULE_TIERS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { GroupsService } from "./groups.service";

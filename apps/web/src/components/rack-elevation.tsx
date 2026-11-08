@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { RACK_ITEM_STYLE_LABELS, pictureFitsSlot, topU, type RackItemStyle, type RackItemView, type SwitchModel } from "@church/shared";
+import { RACK_ITEM_STYLE_LABELS, pictureFitsSlot, topU, type RackItemStyle, type RackItemView, type SwitchModel } from "@lampstand/shared";
 import { rackItemPicture, type RackPicture, type RackSide } from "@/lib/rack-pictures";
 
 /**

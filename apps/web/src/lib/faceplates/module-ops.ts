@@ -1,4 +1,4 @@
-import type { SwitchModel, SwitchModelModule } from "@church/shared";
+import type { SwitchModel, SwitchModelModule } from "@lampstand/shared";
 
 /**
  * Placing add-on modules on a switch model's picture. A placement is a box on the host's port-side picture, as fractions

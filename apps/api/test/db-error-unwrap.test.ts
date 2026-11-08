@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDbError, dbErrorCode } from "@church/shared/db";
+import { classifyDbError, dbErrorCode } from "@lampstand/shared/db";
 
 /** What drizzle-orm 0.45 throws: its own error with pg's in `cause`. */
 function drizzleWrapped(code: string) {

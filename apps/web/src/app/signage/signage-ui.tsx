@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, CalendarRange, Clapperboard, Cpu, ListVideo, Power, Settings, Tv, type LucideIcon } from "lucide-react";
-import { PERMISSIONS, type SignageDeviceProblem, type SignagePlaylist, type SignageScreen, type SignageScreenGroup } from "@church/shared";
+import { PERMISSIONS, type SignageDeviceProblem, type SignagePlaylist, type SignageScreen, type SignageScreenGroup } from "@lampstand/shared";
 import { can, useViewer, type Viewer } from "@/components/assets-ui";
 
 /** Every page of the module, its settings included (docs/signage.md section 6: you stay within the module). */

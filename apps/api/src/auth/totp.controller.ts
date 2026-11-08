@@ -41,7 +41,7 @@ export class TotpController {
   async enroll(@CurrentUser() user: AuthenticatedUser) {
     if (user.totpEnabled) throw new ForbiddenException("TOTP already enrolled");
     const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(user.email, "Church Dashboard", secret);
+    const otpauth = authenticator.keyuri(user.email, "Lampstand", secret);
     const qrSvg = await QRCode.toString(otpauth, { type: "svg", margin: 1 });
 
     // Generate one-shot recovery codes alongside the secret. Plain values

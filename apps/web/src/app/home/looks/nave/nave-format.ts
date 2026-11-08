@@ -6,7 +6,7 @@ import {
   type NeedItem,
   type NextService,
   type SystemsHealth,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 type Team = NonNullable<NextService["team"]>;
 

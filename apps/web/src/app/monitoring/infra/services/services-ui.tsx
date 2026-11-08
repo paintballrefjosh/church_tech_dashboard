@@ -16,7 +16,7 @@ import {
   type ServiceTemplate,
   type ServiceTemplateBody,
   type ServiceTestResult,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DialogFrame } from "@/components/modal";
 import { errorText } from "@/components/assets-ui";
 import { inputCls } from "../../network-cisco/cisco-ui";

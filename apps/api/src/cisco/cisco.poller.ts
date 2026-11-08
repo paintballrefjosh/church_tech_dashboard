@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleInit, Inject } from "@nestjs/common";
 import { and, eq, inArray, isNull, desc, sql } from "drizzle-orm";
-import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@church/shared";
+import { normaliseDuplex, normaliseSpeed, normaliseVlanList } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import {
   ciscoSwitches,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { monthTitle, type MonthlyReport } from "@church/shared";
+import { monthTitle, type MonthlyReport } from "@lampstand/shared";
 
 function lastMonth(): string {
   const d = new Date();

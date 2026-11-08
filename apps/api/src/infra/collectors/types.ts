@@ -1,4 +1,4 @@
-import type { InfraOptions, InfraEntityKind } from "@church/shared";
+import type { InfraOptions, InfraEntityKind } from "@lampstand/shared";
 
 /** Decrypted credential handed to a collector (never persisted in this shape). */
 export interface DecryptedCredential {

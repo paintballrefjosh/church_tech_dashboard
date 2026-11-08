@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { WIKI_STARTER_TEMPLATES, WIKI_TEMPLATE_VARIABLES, type WikiTemplate } from "@church/shared";
+import { WIKI_STARTER_TEMPLATES, WIKI_TEMPLATE_VARIABLES, type WikiTemplate } from "@lampstand/shared";
 import { TemplatesClient } from "./templates-client";
 
 export const dynamic = "force-dynamic";

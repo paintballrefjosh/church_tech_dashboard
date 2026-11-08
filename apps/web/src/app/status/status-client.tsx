@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, CircleHelp, CircleX, TriangleAlert, Wrench, Zap } from "lucide-react";
-import { STATUS_OVERALL_TEXT, type PublicStatusPage, type StatusOverall } from "@church/shared";
+import { STATUS_OVERALL_TEXT, type PublicStatusPage, type StatusOverall } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 
 const POLL_MS = 30_000;

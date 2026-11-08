@@ -16,7 +16,7 @@ import {
   updateSignageScheduleSchema,
   updateSignageScreenGroupSchema,
   updateSignageScreenSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";

@@ -6,7 +6,7 @@ import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { ArrowLeft, FileEdit } from "lucide-react";
 import { EditWikiForm } from "./edit-wiki-form";
-import type { WikiPage } from "@church/shared";
+import type { WikiPage } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

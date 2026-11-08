@@ -18,7 +18,7 @@ import {
   validateSettingValue,
   SIGNAGE_KEYS,
   type DeviceProblemInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 describe("signage discovery rules", () => {
   it("recognises Raspberry Pi MAC prefixes in any spelling", () => {

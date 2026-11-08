@@ -8,9 +8,9 @@ describe("resolveS3Config", () => {
     const c = resolveS3Config({
       MINIO_ENDPOINT: "minio:9000",
       MINIO_REGION: "us-east-1",
-      MINIO_ROOT_USER: "churchadmin",
+      MINIO_ROOT_USER: "lampstandadmin",
       MINIO_ROOT_PASSWORD: "pw",
-      MINIO_BUCKET: "church-files",
+      MINIO_BUCKET: "lampstand-files",
       MINIO_USE_SSL: "false",
     });
     expect(c).toMatchObject({
@@ -18,8 +18,8 @@ describe("resolveS3Config", () => {
       port: 9000,
       useSSL: false,
       region: "us-east-1",
-      bucket: "church-files",
-      accessKey: "churchadmin",
+      bucket: "lampstand-files",
+      accessKey: "lampstandadmin",
       secretKey: "pw",
       pathStyle: true,
     });
@@ -27,7 +27,7 @@ describe("resolveS3Config", () => {
 
   it("defaults to the bundled store and bucket when only credentials are given", () => {
     const c = resolveS3Config(creds);
-    expect(c).toMatchObject({ endPoint: "minio", port: 9000, useSSL: false, bucket: "church-files", region: "us-east-1" });
+    expect(c).toMatchObject({ endPoint: "minio", port: 9000, useSSL: false, bucket: "lampstand-files", region: "us-east-1" });
   });
 
   it("prefers the S3_* name over the MINIO_* one, setting by setting", () => {

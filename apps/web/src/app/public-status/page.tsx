@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Radio } from "lucide-react";
-import type { PublicStatusPage } from "@church/shared";
+import type { PublicStatusPage } from "@lampstand/shared";
 import { StatusClient } from "../status/status-client";
 
 export const dynamic = "force-dynamic";

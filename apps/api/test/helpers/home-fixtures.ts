@@ -6,7 +6,7 @@ import {
   type SummaryInput,
   type SystemsHealth,
   type TicketDigest,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { PrimarySections } from "../../src/dashboard/home/home.types";
 
 export const TZ = "Europe/London";

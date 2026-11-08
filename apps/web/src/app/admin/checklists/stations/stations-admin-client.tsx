@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2, MonitorSpeaker } from "lucide-react";
-import type { ChecklistStation } from "@church/shared";
+import type { ChecklistStation } from "@lampstand/shared";
 
 /**
  * Manage the first-class list of stations (Camera, FOH, ProPresenter, Lights,

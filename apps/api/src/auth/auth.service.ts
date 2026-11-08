@@ -24,7 +24,7 @@ import {
   tierRank,
   type ModuleTier,
   API_TOKEN_PREFIX,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 /**
  * `loadUserById` runs on every authenticated HTTP request and every Socket.IO

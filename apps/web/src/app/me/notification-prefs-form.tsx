@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Save, Bell, Mail, Smartphone } from "lucide-react";
-import type { NotificationKind } from "@church/shared";
+import type { NotificationKind } from "@lampstand/shared";
 
 // Human-readable labels for the catalogue. Anything not listed here falls
 // back to the raw kind id so a new kind shows up immediately even before we

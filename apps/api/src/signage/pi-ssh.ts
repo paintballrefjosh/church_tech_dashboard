@@ -223,7 +223,7 @@ export async function peekSsh(host: string, port: number, timeoutMs: number): Pr
     conn.connect({
       host,
       port,
-      username: "church-signage-probe",
+      username: "lampstand-signage-probe",
       readyTimeout: timeoutMs,
       hostVerifier: (k: Buffer) => {
         key = createHash("sha256").update(k).digest("base64");

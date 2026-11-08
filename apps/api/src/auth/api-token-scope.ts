@@ -1,4 +1,4 @@
-import { permissionsFor } from "@church/shared";
+import { permissionsFor } from "@lampstand/shared";
 import type { AuthenticatedUser } from "./current-user.decorator";
 
 /** The limits a token puts on its owner. */

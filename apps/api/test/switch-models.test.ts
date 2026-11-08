@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSwitchModelSchema, setSwitchViewSchema, switchModelModulesSchema, switchModelPortsSchema, updateSwitchModelSchema } from "@church/shared";
+import { createSwitchModelSchema, setSwitchViewSchema, switchModelModulesSchema, switchModelPortsSchema, updateSwitchModelSchema } from "@lampstand/shared";
 import { imageSize } from "../src/switch-models/image-size";
 
 function png(w: number, h: number): Buffer {

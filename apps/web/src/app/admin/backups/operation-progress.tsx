@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import type { BackupOperation } from "@church/shared";
+import type { BackupOperation } from "@lampstand/shared";
 
 /** What a running operation is doing, with a bar when it knows how far along it is. */
 export function OperationProgress({ op, title }: { op: BackupOperation; title?: string }) {

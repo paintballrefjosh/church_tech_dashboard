@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { MonitorForm } from "../../monitor-form";
-import type { Monitor } from "@church/shared";
+import type { Monitor } from "@lampstand/shared";
 
 export default async function EditMonitorPage({
   params,

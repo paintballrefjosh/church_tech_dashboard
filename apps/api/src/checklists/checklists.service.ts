@@ -39,7 +39,7 @@ import {
   type ServicePositionInput,
   type CreateChecklistStationInput,
   type UpdateChecklistStationInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PlanningCenterService } from "../planning-center/planning-center.service";

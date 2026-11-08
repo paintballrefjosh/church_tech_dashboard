@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import type { ServiceGroup, ServiceGroupRoleChoices, ServiceGroupSave, ServiceInstance } from "@church/shared";
+import type { ServiceGroup, ServiceGroupRoleChoices, ServiceGroupSave, ServiceInstance } from "@lampstand/shared";
 import { DialogFrame } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
 import { ToastStack, inputCls, useCanWrite, useToasts } from "../../network-cisco/cisco-ui";

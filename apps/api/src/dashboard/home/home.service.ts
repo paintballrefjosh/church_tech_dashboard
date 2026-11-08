@@ -6,7 +6,7 @@ import {
   type HomeSnapshot,
   type NeedItem,
   type Section,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { SettingsService } from "../../settings/settings.service";
 import type { AuthenticatedUser } from "../../auth/current-user.decorator";
 import type { HomeContext, PrimarySections } from "./home.types";

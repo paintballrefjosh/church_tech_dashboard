@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Settings } from "lucide-react";
-import type { TileConfigField } from "@church/shared";
+import type { TileConfigField } from "@lampstand/shared";
 
 /**
  * Cog-icon popover that lets a user tune a tile's runtime config (e.g. how

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
-import type { ChecklistEvent } from "@church/shared";
+import type { ChecklistEvent } from "@lampstand/shared";
 
 type View = "calendar" | "list";
 type Range = "upcoming" | "past" | "all";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { Modal } from "../network-cisco/cisco-ui";
 import { choiceToDevice, choiceToInput, currentChoice, resolveSwitchView } from "@/lib/faceplates/custom";
 import { pickableProfiles, ProfilePictures } from "@/components/device-picture";

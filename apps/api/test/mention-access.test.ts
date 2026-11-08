@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { MAX_MENTIONS, MentionsService } from "../src/mentions/mentions.service";
 import { mayReadComment } from "../src/tickets/ticket-events";
 

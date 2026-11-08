@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { sectionOk, type ActivityItem, type Section } from "@church/shared";
+import { sectionOk, type ActivityItem, type Section } from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { ActivityService } from "../../../activity/activity.service";
 import type { HomeContext, SectionBuilder } from "../home.types";

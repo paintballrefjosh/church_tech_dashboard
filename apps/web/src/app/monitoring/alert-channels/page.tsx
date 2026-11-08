@@ -9,7 +9,7 @@ import {
   type AlertChannel,
   type AlertChannelEvents,
   type AlertChannelType,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useCanWrite, inputCls, cardCls, fmtTime, Modal, Field, useToasts, ToastStack } from "../network-cisco/cisco-ui";
 
 const EVENTS_LABEL: Record<AlertChannelEvents, string> = {
@@ -41,7 +41,7 @@ const HELP: Record<AlertChannelType, string> = {
   slack: "In Slack, add an Incoming Webhook to the channel and paste its address (https://hooks.slack.com/...).",
   teams: "In Teams, add the Workflows template \"Post to a channel when a webhook request is received\" and paste the address it gives.",
   discord: "In the Discord channel's settings, Integrations > Webhooks > New Webhook, then copy its address.",
-  webhook: "The alert is POSTed as JSON (kind, severity, title, body, url, site, at). With a signing secret, X-Church-Signature is sha256=HMAC(secret, timestamp + \".\" + body) and X-Church-Timestamp the timestamp.",
+  webhook: "The alert is POSTed as JSON (kind, severity, title, body, url, site, at). With a signing secret, X-Lampstand-Signature is sha256=HMAC(secret, timestamp + \".\" + body) and X-Lampstand-Timestamp the timestamp.",
   twilio: "Text messages cost money per message: use Outages, not Everything. The auth token is on the Twilio console next to the Account SID.",
 };
 

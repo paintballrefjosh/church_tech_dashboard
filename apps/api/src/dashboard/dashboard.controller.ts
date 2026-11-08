@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Put, BadRequestException } from "@nestjs/common";
-import { dashboardLayoutSchema, TILE_CATALOGUE, updateDashboardPrefsSchema } from "@church/shared";
+import { dashboardLayoutSchema, TILE_CATALOGUE, updateDashboardPrefsSchema } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { DashboardService } from "./dashboard.service";
 import { Audited, SkipAudit } from "../audit/audit.decorator";

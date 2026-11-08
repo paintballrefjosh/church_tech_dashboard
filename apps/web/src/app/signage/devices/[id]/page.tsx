@@ -4,7 +4,7 @@ import { use, useCallback, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Cpu, KeyRound, RefreshCw } from "lucide-react";
-import { SIGNAGE_TV_INPUTS, type SignageCommandInput, type SignageCommandResult, type SignageDevice, type SignageScreen, type SignageSetupRun } from "@church/shared";
+import { SIGNAGE_TV_INPUTS, type SignageCommandInput, type SignageCommandResult, type SignageDevice, type SignageScreen, type SignageSetupRun } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { GoneNotice } from "@/components/gone-notice";
 import { sendJson } from "@/components/assets-ui";

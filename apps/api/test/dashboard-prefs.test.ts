@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BadRequestException } from "@nestjs/common";
-import { DASHBOARD_LOOKS, LOOK_IDS, PERMISSIONS, updateDashboardPrefsSchema } from "@church/shared";
+import { DASHBOARD_LOOKS, LOOK_IDS, PERMISSIONS, updateDashboardPrefsSchema } from "@lampstand/shared";
 import {
   assertThemeAvailable,
   availableLooks,

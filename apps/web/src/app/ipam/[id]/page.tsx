@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, RefreshCw, Pencil, Check, X } from "lucide-react";
-import type { IpamSubnet, IpamHost, DnsSyncStatus, DnsSyncHostState } from "@church/shared";
+import type { IpamSubnet, IpamHost, DnsSyncStatus, DnsSyncHostState } from "@lampstand/shared";
 import { useCanWrite, cardCls, fmtTime, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
 import { usePoll } from "@/lib/use-poll";
 

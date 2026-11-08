@@ -1,6 +1,6 @@
 "use client";
 
-import { formatWeekdayInZone, type HomeSnapshot, type NextService } from "@church/shared";
+import { formatWeekdayInZone, type HomeSnapshot, type NextService } from "@lampstand/shared";
 import { Countdown } from "../../parts/countdown";
 import { LookPickerButton } from "../../picker/look-picker";
 import { countdownTarget, dayAndMonth, serviceStart, whenPhrase } from "./model";

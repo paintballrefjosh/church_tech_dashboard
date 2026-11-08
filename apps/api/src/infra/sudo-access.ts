@@ -109,12 +109,15 @@ export function validSudoUser(user: string): boolean {
  * after anything else that mentions the login (cloud-init's `90-` files, a `%sudo` rule pulled in later).
  */
 export function sudoersFileFor(user: string, dir = "/etc/sudoers.d"): string {
-  return `${dir}/zz-church-dashboard-${safeName(user)}`;
+  return `${dir}/zz-lampstand-${safeName(user)}`;
 }
 
-/** The name the first version of the setup used; removed when the setup runs again. */
-export function legacySudoersFileFor(user: string, dir = "/etc/sudoers.d"): string {
-  return `${dir}/90-church-dashboard-${safeName(user)}`;
+/**
+ * The names earlier versions of the setup used (the first version's `90-`, then `zz-church-dashboard-` until the rename to
+ * Lampstand on 2026-11-08); removed when the setup runs again, so a host never keeps two rules for one login.
+ */
+export function legacySudoersFilesFor(user: string, dir = "/etc/sudoers.d"): [string, string] {
+  return [`${dir}/90-church-dashboard-${safeName(user)}`, `${dir}/zz-church-dashboard-${safeName(user)}`];
 }
 
 const safeName = (user: string): string => user.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -143,12 +146,13 @@ const SETUP_STATES: readonly SetupState[] = ["ok", "already", "denied", "bad_pas
 export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d", mainFile = "/etc/sudoers"): string {
   if (!validSudoUser(user)) throw new Error(`Cannot set up passwordless sudo for the login name "${user}"`);
   const file = sudoersFileFor(user, dir);
-  // Arguments: 1 login, 2 file, 3 directory, 4 main sudoers file, 5 file name of the first version.
+  const legacy = legacySudoersFilesFor(user, dir);
+  // Arguments: 1 login, 2 file, 3 directory, 4 main sudoers file, 5 and 6 file names earlier versions used.
   // No single quotes in here: it is passed to `sh -c '...'`.
   const inner = [
     // A rule in a directory sudo never reads would look installed and do nothing.
     'grep -qE "^[#@]includedir[[:space:]]+$3" "$4" || { echo "sudo does not read $3 on this host (no includedir line in $4)" >&2; exit 3; }',
-    'rm -f "$5"',
+    'rm -f "$5" "$6"',
     "try_rule() {",
     '  T="$2~"; umask 0227',
     '  { printf "%s ALL=(ALL) NOPASSWD: ALL\n" "$1"; [ -z "$3" ] || printf "%s\n" "$3"; } > "$T"',
@@ -176,7 +180,7 @@ export function sudoersSetupScript(user: string, dir = "/etc/sudoers.d", mainFil
     "elif ! command -v sudo >/dev/null 2>&1; then STATE=no_sudo",
     "elif sudo -n true 2>/dev/null; then STATE=already",
     "else",
-    `  OUT=$(sudo -S -p '' sh -c '${inner}' sh "$U" "$F" '${dir}' '${mainFile}' '${legacySudoersFileFor(user, dir)}' 2>&1); RC=$?`,
+    `  OUT=$(sudo -S -p '' sh -c '${inner}' sh "$U" "$F" '${dir}' '${mainFile}' '${legacy[0]}' '${legacy[1]}' 2>&1); RC=$?`,
     '  if [ "$RC" -eq 0 ]; then',
     // Forget the cached credentials first, or the check below would pass on the password just given.
     "    sudo -k 2>/dev/null",

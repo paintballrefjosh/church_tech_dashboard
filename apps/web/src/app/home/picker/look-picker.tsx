@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Check, LayoutTemplate, Palette, X } from "lucide-react";
-import { DASHBOARD_LOOKS, type LookId } from "@church/shared";
+import { DASHBOARD_LOOKS, type LookId } from "@lampstand/shared";
 import { useHomeLook } from "../home-look-context";
 
 /**

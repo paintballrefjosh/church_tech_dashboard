@@ -136,7 +136,7 @@ await test("the session cookie is accepted by every other node (no stickiness)",
 // API's "read your own writes" cookie to the browser, or the next request, on another node, never asks that node to
 // catch up. Plain handlers, the shared forwarder and the streamed uploads each take a different path in the web.
 await test("changes made through the web routes (plain, forwarded, uploaded) carry the consistency cookie", async () => {
-  const hasRv = (r) => (r.headers.getSetCookie?.() ?? []).some((c) => c.startsWith("church_rv="));
+  const hasRv = (r) => (r.headers.getSetCookie?.() ?? []).some((c) => c.startsWith("lampstand_rv="));
   const mk = await req(A, "/api/notes", jar, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: `rv ${token}`, body: "" }) });
   assert(mk.status === 200 || mk.status === 201, `create gave ${mk.status}`);
   assert(hasRv(mk), "POST /api/notes (plain handler) dropped the consistency cookie");

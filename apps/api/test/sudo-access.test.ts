@@ -9,7 +9,7 @@ import {
   parseSudoProbe,
   scrubSecret,
   sudoProbeScript,
-  legacySudoersFileFor,
+  legacySudoersFilesFor,
   sudoersFileFor,
   sudoersSetupScript,
   validSudoUser,
@@ -36,7 +36,7 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
-rule_active() { ls "$state"/zz-church-dashboard-* >/dev/null 2>&1; }
+rule_active() { ls "$state"/zz-lampstand-* >/dev/null 2>&1; }
 case "$FAKE_SUDO_MODE" in
   denied)
     echo "$(id -un) is not in the sudoers file.  This incident will be reported." >&2; exit 1 ;;
@@ -155,71 +155,72 @@ maybe("sudoersSetupScript", () => {
 
   it("writes a validated drop-in and leaves no temp file", () => {
     // The fake sudo grants the ticket on the right password, which makes the final `sudo -n true` pass.
-    const r = run(script("churchmon"), "password", "secret\n");
+    const r = run(script("lampstandmon"), "password", "secret\n");
     expect(setupOf(r.out)?.state).toBe("ok");
-    const file = sudoersFileFor("churchmon", dir);
-    expect(readFileSync(file, "utf8")).toBe("churchmon ALL=(ALL) NOPASSWD: ALL\n");
+    const file = sudoersFileFor("lampstandmon", dir);
+    expect(readFileSync(file, "utf8")).toBe("lampstandmon ALL=(ALL) NOPASSWD: ALL\n");
     expect(existsSync(`${file}~`)).toBe(false);
   });
 
   it("does nothing when passwordless sudo already works", () => {
-    const r = run(script("churchmon"), "nopasswd");
+    const r = run(script("lampstandmon"), "nopasswd");
     expect(setupOf(r.out)?.state).toBe("already");
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(false);
   });
 
   it("reports a wrong password and writes nothing", () => {
-    const r = run(script("churchmon"), "password", "nope\n");
+    const r = run(script("lampstandmon"), "password", "nope\n");
     expect(setupOf(r.out)?.state).toBe("bad_password");
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(false);
   });
 
   it("reports denied for a login that may not use sudo", () => {
-    const r = run(script("churchmon"), "denied", "secret\n");
+    const r = run(script("lampstandmon"), "denied", "secret\n");
     const res = setupOf(r.out);
     expect(res?.state).toBe("denied");
     expect(looksDenied(res?.message ?? "")).toBe(true);
   });
 
   it("removes its file and says what sudo applies when another rule still demands a password", () => {
-    const r = run(script("churchmon"), "asks", "secret\n");
+    const r = run(script("lampstandmon"), "asks", "secret\n");
     const res = setupOf(r.out);
     expect(res?.state).toBe("inactive");
-    expect(res?.message).toContain("still asks churchmon for a password");
+    expect(res?.message).toContain("still asks lampstandmon for a password");
     expect(res?.message).toContain("(fake) what sudo says applies");
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
-    expect(existsSync(`${sudoersFileFor("churchmon", dir)}~`)).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(false);
+    expect(existsSync(`${sudoersFileFor("lampstandmon", dir)}~`)).toBe(false);
   });
 
-  it("replaces the file name the first version used", () => {
-    const legacy = legacySudoersFileFor("churchmon", dir);
-    writeFileSync(legacy, "churchmon ALL=(ALL) NOPASSWD: ALL\n");
-    run(script("churchmon"), "password", "secret\n");
-    expect(existsSync(legacy)).toBe(false);
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(true);
+  it("replaces the file names earlier versions used", () => {
+    const legacy = legacySudoersFilesFor("lampstandmon", dir);
+    expect(legacy.map((f) => f.slice(dir.length + 1))).toEqual(["90-church-dashboard-lampstandmon", "zz-church-dashboard-lampstandmon"]);
+    for (const f of legacy) writeFileSync(f, "lampstandmon ALL=(ALL) NOPASSWD: ALL\n");
+    run(script("lampstandmon"), "password", "secret\n");
+    for (const f of legacy) expect(existsSync(f)).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(true);
   });
 
   it("refuses a host whose sudoers does not read the directory", () => {
-    const r = run(script("churchmon", false), "password", "secret\n");
+    const r = run(script("lampstandmon", false), "password", "secret\n");
     const res = setupOf(r.out);
     expect(res?.state).toBe("failed");
     expect(res?.message).toContain("does not read");
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(false);
   });
 
   it("refuses to install a rule visudo rejects", () => {
-    const r = run(script("churchmon"), "password", "secret\n", { FAKE_VISUDO_RC: "1" });
+    const r = run(script("lampstandmon"), "password", "secret\n", { FAKE_VISUDO_RC: "1" });
     const res = setupOf(r.out);
     expect(res?.state).toBe("failed");
     expect(res?.message).toContain("visudo rejected");
-    expect(existsSync(sudoersFileFor("churchmon", dir))).toBe(false);
-    expect(existsSync(`${sudoersFileFor("churchmon", dir)}~`)).toBe(false);
+    expect(existsSync(sudoersFileFor("lampstandmon", dir))).toBe(false);
+    expect(existsSync(`${sudoersFileFor("lampstandmon", dir)}~`)).toBe(false);
   });
 });
 
 describe("helpers", () => {
   it("only lets plain login names into a sudoers rule", () => {
-    for (const ok of ["churchmon", "svc_monitor", "a.b-c"]) expect(validSudoUser(ok)).toBe(true);
+    for (const ok of ["lampstandmon", "svc_monitor", "a.b-c"]) expect(validSudoUser(ok)).toBe(true);
     for (const bad of ["root", "", "a b", "a;rm", "x'y", "9lives", "a\nb", "$(id)", "DOM\\user"]) {
       expect(validSudoUser(bad)).toBe(false);
     }
@@ -228,7 +229,7 @@ describe("helpers", () => {
 
   it("names the drop-in so sudo does not skip it", () => {
     // sudoers.d ignores names containing a dot or ending in ~
-    expect(sudoersFileFor("first.last")).toBe("/etc/sudoers.d/zz-church-dashboard-first_last");
+    expect(sudoersFileFor("first.last")).toBe("/etc/sudoers.d/zz-lampstand-first_last");
   });
 
   it("recognises the ways sudo says no", () => {

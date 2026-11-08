@@ -1,13 +1,13 @@
 import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
 import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
-import { mergeMonitorSecretOptions } from "@church/shared";
+import { mergeMonitorSecretOptions } from "@lampstand/shared";
 import { checkRunbookPage } from "../wiki/runbook";
 import { checkLocation } from "../assets/locations.service";
 import { clusterNodes, monitors, monitorChecks, monitorIncidents } from "../db/schema";
 import { NODE_LIVE_SEC } from "../cluster/node.service";
-import { MONITOR_WORKER_WINDOW_MIN } from "@church/shared";
-import type { CreateMonitorInput, MonitorWorkers, UpdateMonitorInput } from "@church/shared";
+import { MONITOR_WORKER_WINDOW_MIN } from "@lampstand/shared";
+import type { CreateMonitorInput, MonitorWorkers, UpdateMonitorInput } from "@lampstand/shared";
 
 @Injectable()
 export class MonitorsService {

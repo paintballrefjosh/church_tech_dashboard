@@ -63,13 +63,13 @@ check "AUTH_SECRET still unchanged" test "$(val "$d/.env" AUTH_SECRET)" = "$s1"
 echo "== single server, production, own database with an awkward password, own S3, behind a load balancer"
 d=$(fresh b)
 a=$(answers b SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 \
-  DB_NAME=church DB_USER=church 'DB_PASSWORD=p@ss#w/rd$1 x' DB_SSL=verify-full \
-  S3_MODE=external S3_ENDPOINT=https://s3.example.org S3_BUCKET=church-files S3_ACCESS_KEY=AKIAEXAMPLE S3_SECRET_KEY=abc/def+ghi= S3_REGION=garage S3_PATH_STYLE=yes \
+  DB_NAME=lampstand DB_USER=lampstand 'DB_PASSWORD=p@ss#w/rd$1 x' DB_SSL=verify-full \
+  S3_MODE=external S3_ENDPOINT=https://s3.example.org S3_BUCKET=lampstand-files S3_ACCESS_KEY=AKIAEXAMPLE S3_SECRET_KEY=abc/def+ghi= S3_REGION=garage S3_PATH_STYLE=yes \
   EXTERNAL_PORT=8100 BEHIND_LB=yes 'TRUSTED_PROXIES=10.0.0.0/24 192.168.1.5/32' STACK=production CONFIRM=yes)
 run "$d" "$a" >"$WORK/b.out"; rc=$?
 check "exits 0" test $rc -eq 0
 url=$(val "$d/.env" DATABASE_URL)
-check "password is percent-encoded in the URL" test "$url" = 'postgresql://church:p%40ss%23w%2Frd%241%20x@db.example.org:5433/church?sslmode=verify-full'
+check "password is percent-encoded in the URL" test "$url" = 'postgresql://lampstand:p%40ss%23w%2Frd%241%20x@db.example.org:5433/lampstand?sslmode=verify-full'
 check "DB_MODE external" has "$d/.env" DB_MODE=external
 check "S3 external with keys" bash -c "grep -qx S3_ACCESS_KEY=AKIAEXAMPLE '$d/.env' && grep -qx 'S3_SECRET_KEY=abc/def+ghi=' '$d/.env' && grep -qx S3_PATH_STYLE=true '$d/.env'"
 check "trusted proxies written" has "$d/.env" 'TRUSTED_PROXIES=10.0.0.0/24 192.168.1.5/32'
@@ -81,8 +81,8 @@ echo "== several servers installed over SSH from the first machine"
 d=$(fresh ssh)
 a=$(answers ssh SETUP=cluster CLUSTER_ROLE=first DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8100 TRUSTED_PROXIES= \
   NODES=3 NODE_1_ID=node-a NODE_1_ADDR=10.0.0.11 NODE_2_ID=node-b NODE_2_ADDR=10.0.0.12 NODE_3_ID=node-c NODE_3_ADDR=10.0.0.13 \
-  CLUSTER_S3_CAPACITY=100G REMOTE_MODE=ssh REMOTE_DIR=church-dashboard SSH_KEY= SSH_USER=deploy SSH_PORT=2222 SSH_SAME=yes \
-  NODE_2_SSH_HOST=b.example.org NODE_3_SSH_HOST=10.0.0.13 REMOTE_GARAGE_META_DIR=/var/lib/church-garage-meta CONFIRM=yes)
+  CLUSTER_S3_CAPACITY=100G REMOTE_MODE=ssh REMOTE_DIR=lampstand SSH_KEY= SSH_USER=deploy SSH_PORT=2222 SSH_SAME=yes \
+  NODE_2_SSH_HOST=b.example.org NODE_3_SSH_HOST=10.0.0.13 REMOTE_GARAGE_META_DIR=/var/lib/lampstand-garage-meta CONFIRM=yes)
 run "$d" "$a" >"$WORK/ssh.out"; rc=$?
 check "exits 0" test $rc -eq 0
 check "the summary names the ssh target of each other machine" bash -c "grep -q 'ssh deploy@b.example.org' '$WORK/ssh.out' && grep -q 'ssh deploy@10.0.0.13' '$WORK/ssh.out'"
@@ -91,34 +91,34 @@ check "nothing is contacted on a dry run" bash -c "! grep -q 'connecting' '$WORK
 d=$(fresh ssh2)
 a=$(answers ssh2 SETUP=cluster CLUSTER_ROLE=first DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8100 TRUSTED_PROXIES= \
   NODES=2 WITNESS=no NODE_1_ID=a NODE_1_ADDR=10.0.0.11 NODE_2_ID=b NODE_2_ADDR=10.0.0.12 CLUSTER_S3_CAPACITY=100G \
-  REMOTE_MODE=ssh REMOTE_DIR=church-dashboard SSH_KEY= SSH_USER=deploy SSH_PORT=22 SSH_SAME=no NODE_2_SSH_HOST=10.0.0.12 NODE_2_SSH_USER=ops NODE_2_SSH_PORT=2200 REMOTE_GARAGE_META_DIR= CONFIRM=yes)
+  REMOTE_MODE=ssh REMOTE_DIR=lampstand SSH_KEY= SSH_USER=deploy SSH_PORT=22 SSH_SAME=no NODE_2_SSH_HOST=10.0.0.12 NODE_2_SSH_USER=ops NODE_2_SSH_PORT=2200 REMOTE_GARAGE_META_DIR= CONFIRM=yes)
 run "$d" "$a" >"$WORK/ssh2.out"; rc=$?
 check "a different user and port per machine" bash -c "[ $rc -eq 0 ] && grep -q 'ssh ops@10.0.0.12' '$WORK/ssh2.out' && grep -qx NODE_2_SSH_PORT=2200 '$d/.install-answers'"
 
 echo "== own database as a three node cluster: every host in one URL"
 d=$(fresh m)
 a=$(answers m SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte 'DB_HOST=db1.example.org, db2.example.org:5434,10.0.0.3' DB_PORT=5433 \
-  DB_NAME=church DB_USER=church DB_PASSWORD=pw DB_SSL=verify-full S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+  DB_NAME=lampstand DB_USER=lampstand DB_PASSWORD=pw DB_SSL=verify-full S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
 run "$d" "$a" >/dev/null; rc=$?
 check "exits 0" test $rc -eq 0
-check "every host is in the URL, with the default port where none was given" has "$d/.env" 'DATABASE_URL=postgresql://church:pw@db1.example.org:5433,db2.example.org:5434,10.0.0.3:5433/church?sslmode=verify-full'
+check "every host is in the URL, with the default port where none was given" has "$d/.env" 'DATABASE_URL=postgresql://lampstand:pw@db1.example.org:5433,db2.example.org:5434,10.0.0.3:5433/lampstand?sslmode=verify-full'
 d=$(fresh m2)
-a=$(answers m2 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/church?sslmode=require' DB_TEST=no \
+a=$(answers m2 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/lampstand?sslmode=require' DB_TEST=no \
   S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
 run "$d" "$a" >/dev/null; rc=$?
-check "a pasted multi-host URL is kept as it is" has "$d/.env" 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/church?sslmode=require'
+check "a pasted multi-host URL is kept as it is" has "$d/.env" 'DATABASE_URL=postgresql://u:p@a.example.org:5433,b.example.org:5433,c.example.org:5433/lampstand?sslmode=require'
 
 echo "== database encryption choices"
 d=$(fresh tls)
-a=$(answers tls SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=pw DB_SSL=no-verify S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+a=$(answers tls SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=lampstand DB_USER=c DB_PASSWORD=pw DB_SSL=no-verify S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
 run "$d" "$a" >/dev/null
 check "no-verify (encrypt, do not check the certificate) is written as such" bash -c "grep -q '^DATABASE_URL=.*sslmode=no-verify' '$d/.env'"
 d=$(fresh tls2)
-a=$(answers tls2 SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=pw DB_SSL=require S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+a=$(answers tls2 SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=lampstand DB_USER=c DB_PASSWORD=pw DB_SSL=require S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
 run "$d" "$a" >"$WORK/tls2.out"
 check "an old answer of 'require' becomes verify-full, with a warning (that is what the app always did with it)" bash -c "grep -q '^DATABASE_URL=.*sslmode=verify-full' '$d/.env' && grep -q 'DB_SSL=require is now verify-full' '$WORK/tls2.out'"
 d=$(fresh tls3)
-a=$(answers tls3 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@db.example.org:5433/church?sslmode=require' DB_TEST=no S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
+a=$(answers tls3 SETUP=single DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@db.example.org:5433/lampstand?sslmode=require' DB_TEST=no S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production CONFIRM=yes)
 run "$d" "$a" >"$WORK/tls3.out"
 check "a pasted sslmode=require is flagged: it verifies in this app" grep -q 'means VERIFY the certificate' "$WORK/tls3.out"
 
@@ -157,13 +157,13 @@ check "the first node lists both peers" has "$d/.env" CLUSTER_PEERS=10.0.0.12,10
 
 echo "== several servers, own database and own store (shape D)"
 d=$(fresh d)
-a=$(answers d REMOTE_MODE=manual SETUP=cluster CLUSTER_ROLE=first DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://church:pw@db.example.org:5433/church?sslmode=require' DB_TEST=no \
-  S3_MODE=external S3_ENDPOINT=s3.example.org S3_BUCKET=church-files S3_ACCESS_KEY=k S3_SECRET_KEY=s S3_REGION=garage S3_PATH_STYLE=yes \
+a=$(answers d REMOTE_MODE=manual SETUP=cluster CLUSTER_ROLE=first DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://lampstand:pw@db.example.org:5433/lampstand?sslmode=require' DB_TEST=no \
+  S3_MODE=external S3_ENDPOINT=s3.example.org S3_BUCKET=lampstand-files S3_ACCESS_KEY=k S3_SECRET_KEY=s S3_REGION=garage S3_PATH_STYLE=yes \
   EXTERNAL_PORT=8100 TRUSTED_PROXIES=10.1.0.0/16 NODES=2 NODE_1_ID=web-1 NODE_2_ID=web-2 CONFIRM=yes)
 run "$d" "$a" >/dev/null; rc=$?
 check "exits 0" test $rc -eq 0
 check "cluster mode and node id only" bash -c "grep -qx DEPLOY_MODE=cluster '$d/.env' && grep -qx NODE_ID=web-1 '$d/.env' && ! grep -q '^NODE_ADDR=' '$d/.env' && ! grep -q '^CLUSTER_PEERS=' '$d/.env'"
-check "node 2 shares the database URL" has "$d/data/cluster-packages/preview-web-2.env" 'DATABASE_URL=postgresql://church:pw@db.example.org:5433/church?sslmode=require'
+check "node 2 shares the database URL" has "$d/data/cluster-packages/preview-web-2.env" 'DATABASE_URL=postgresql://lampstand:pw@db.example.org:5433/lampstand?sslmode=require'
 check "node 2 has its own id" has "$d/data/cluster-packages/preview-web-2.env" NODE_ID=web-2
 
 echo "== bundled object store on a network file system (only when this checkout is on one)"
@@ -191,13 +191,13 @@ refuse() { # name key=value ... (applied on top of the shape A answers)
 }
 refuse "a port out of range" EXTERNAL_PORT=99999
 refuse "a bad load balancer address" BEHIND_LB=yes TRUSTED_PROXIES=not-an-ip
-refuse "localhost as the database host" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=localhost DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
-refuse "a database URL pointing at localhost" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@localhost:5433/church'
-refuse "localhost among several database hosts" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db1.example.org,localhost DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
-refuse "localhost among the hosts of a pasted URL" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,127.0.0.1:5433/church'
-refuse "a malformed host in the list" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte 'DB_HOST=db1.example.org,bad host' DB_PORT=5433 DB_NAME=church DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
+refuse "localhost as the database host" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=localhost DB_PORT=5433 DB_NAME=lampstand DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
+refuse "a database URL pointing at localhost" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@localhost:5433/lampstand'
+refuse "localhost among several database hosts" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db1.example.org,localhost DB_PORT=5433 DB_NAME=lampstand DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
+refuse "localhost among the hosts of a pasted URL" DB_MODE=external DB_INPUT=url 'DATABASE_URL=postgresql://u:p@a.example.org:5433,127.0.0.1:5433/lampstand'
+refuse "a malformed host in the list" DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte 'DB_HOST=db1.example.org,bad host' DB_PORT=5433 DB_NAME=lampstand DB_USER=c DB_PASSWORD=x DB_SSL=verify-full
 refuse "an ssh user with a space" SETUP=cluster CLUSTER_ROLE=first NODES=2 WITNESS=no NODE_1_ID=a NODE_1_ADDR=10.0.0.11 NODE_2_ID=b NODE_2_ADDR=10.0.0.12 CLUSTER_S3_CAPACITY=1G TRUSTED_PROXIES= REMOTE_MODE=ssh REMOTE_DIR=x SSH_KEY= 'SSH_USER=bad user' SSH_PORT=22 SSH_SAME=yes NODE_2_SSH_HOST=10.0.0.12
-refuse "an S3 secret with a space" S3_MODE=external S3_ENDPOINT=s3.example.org S3_BUCKET=church-files S3_ACCESS_KEY=k 'S3_SECRET_KEY=a b' S3_REGION=r S3_PATH_STYLE=yes
+refuse "an S3 secret with a space" S3_MODE=external S3_ENDPOINT=s3.example.org S3_BUCKET=lampstand-files S3_ACCESS_KEY=k 'S3_SECRET_KEY=a b' S3_REGION=r S3_PATH_STYLE=yes
 refuse "an unknown choice" STACK=turbo
 d=$(fresh dup)
 a=$(answers dup REMOTE_MODE=manual SETUP=cluster CLUSTER_ROLE=first DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8100 TRUSTED_PROXIES= NODES=2 WITNESS=no NODE_1_ID=same NODE_1_ADDR=10.0.0.1 NODE_2_ID=same NODE_2_ADDR=10.0.0.2 CLUSTER_S3_CAPACITY=1G CONFIRM=yes)
@@ -252,7 +252,7 @@ check "the earlier port is the default, and kept" bash -c "grep -qx EXTERNAL_POR
 check "the earlier stack choice (standard) is the default, not the installer's own" has "$d/.install-answers" STACK=standard
 # a secret keeps the saved one on Enter
 d=$(fresh prev2)
-printf '%s\n' SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=church DB_USER=church DB_PASSWORD=sekrit DB_SSL=no-verify DB_TEST=no S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production REUSE_SECRET=no CONFIRM=yes >"$WORK/prev2.ans"
+printf '%s\n' SETUP=single DB_MODE=external DB_INPUT=parts DB_ENGINE=yugabyte DB_HOST=db.example.org DB_PORT=5433 DB_NAME=lampstand DB_USER=lampstand DB_PASSWORD=sekrit DB_SSL=no-verify DB_TEST=no S3_MODE=bundled EXTERNAL_PORT=8100 BEHIND_LB=no STACK=production REUSE_SECRET=no CONFIRM=yes >"$WORK/prev2.ans"
 (cd "$d" && NO_COLOR=1 ./install.sh --dry-run --answers "$WORK/prev2.ans" >/dev/null 2>&1)
 # again: choose "again" (2), SETUP 1, DB 2 (external), input 1 (parts), engine 1, host Enter, port Enter, name Enter, user Enter,
 # password: Enter keeps it, ssl Enter (no-verify was chosen: 2nd... default is the saved one), test: n, files 1, port Enter, lb Enter, stack Enter, confirm Enter

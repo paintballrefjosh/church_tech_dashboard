@@ -16,8 +16,8 @@ import {
   type AlertEvent,
   type CreateAlertChannelInput,
   type UpdateAlertChannelInput,
-} from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+} from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 import { DB, type Db } from "../db/db.module";
 import { alertChannels } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
@@ -174,7 +174,7 @@ export class AlertChannelsService {
 
   /** Post `event` to channel `r`; records the outcome on the row; throws (BadRequest, with the reason) on failure. */
   private async deliver(r: Row, event: AlertEvent): Promise<void> {
-    const siteName = String((await this.settings.get("site.name")) || "Church Dashboard");
+    const siteName = String((await this.settings.get("site.name")) || "Lampstand");
     try {
       const secret = r.secret ? decryptStoredSecret(r.secret, "alert channel secret") : null;
       const requests = buildAlertRequests({ type: r.type as AlertChannelType, config: (r.config as Record<string, unknown>) ?? {}, secret }, event, {
@@ -189,7 +189,7 @@ export class AlertChannelsService {
         await this.refuseLinkLocal(req.url);
         const res = await fetch(req.url, {
           method: req.method,
-          headers: { ...req.headers, "user-agent": "church-dashboard-alerts" },
+          headers: { ...req.headers, "user-agent": "lampstand-alerts" },
           body: req.body,
           redirect: "manual",
           signal: AbortSignal.timeout(SEND_TIMEOUT_MS),

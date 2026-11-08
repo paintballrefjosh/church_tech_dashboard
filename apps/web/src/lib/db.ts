@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { createPool, databaseUrlFromEnv } from "@church/shared/db";
+import { createPool, databaseUrlFromEnv } from "@lampstand/shared/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./db-schema";
 

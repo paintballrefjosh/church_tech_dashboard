@@ -8,7 +8,7 @@ import {
   type Readiness,
   type ReadinessInput,
   type Section,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { monitors } from "../../../db/schema";
 import { SettingsService } from "../../../settings/settings.service";

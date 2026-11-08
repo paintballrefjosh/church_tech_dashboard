@@ -19,14 +19,14 @@
 #      compares the database with the file on EVERY node with the app's own comparison: the result must be identical.
 #   5. signs in as the restored test user and reads notes, tickets, wiki, checklists and monitors.
 #
-# Run it after a release, or monthly: `0 3 1 * * cd /path/to/church-dashboard && tests/cluster/verify-restore.sh`.
+# Run it after a release, or monthly: `0 3 1 * * cd /path/to/lampstand && tests/cluster/verify-restore.sh`.
 # It needs docker, the dev stack running (unless --archive), and a cluster built from the current source
 # (`tests/cluster/sim.sh sync` then rebuild a node, or `down` and `up`). Never run it against anything but the
 # throwaway cluster: the restore replaces everything in it.
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 SIM="tests/cluster/sim.sh"
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 export SIM_DIR
 HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 export SIM_HOST="$HOST"

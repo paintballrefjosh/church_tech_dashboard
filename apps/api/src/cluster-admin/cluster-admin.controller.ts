@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Delete, Get, Param } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { ClusterAdminService } from "./cluster-admin.service";

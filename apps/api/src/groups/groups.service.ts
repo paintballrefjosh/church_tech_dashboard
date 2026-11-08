@@ -8,7 +8,7 @@ import {
   findModule,
   permissionsFor,
   type ModuleTier,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const ADMIN_GROUP_NAME = "admin";
 
@@ -200,7 +200,7 @@ export class GroupsService {
     const grp = await this.getById(groupId);
     if (grp.name === ADMIN_GROUP_NAME) {
       // Mirror the auth-side short-circuit.
-      const { ALL_PERMISSIONS } = await import("@church/shared");
+      const { ALL_PERMISSIONS } = await import("@lampstand/shared");
       return [...ALL_PERMISSIONS];
     }
     const set = new Set<string>();

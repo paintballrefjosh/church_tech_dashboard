@@ -2,7 +2,7 @@
 
 import { useId, useMemo } from "react";
 import { parse, stringify } from "yaml";
-import { BUILTIN_TEMPLATES, serviceTemplateProblems, templateCommands, templateRunsCommands, type ServiceTemplateBody } from "@church/shared";
+import { BUILTIN_TEMPLATES, serviceTemplateProblems, templateCommands, templateRunsCommands, type ServiceTemplateBody } from "@lampstand/shared";
 import { ConfirmCommandsBox, labelCls } from "../services/services-ui";
 
 /**

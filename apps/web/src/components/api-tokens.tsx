@@ -8,7 +8,7 @@ import {
   type ApiTokenCreated,
   type ApiTokenPolicy,
   type ApiTokenSummary,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 
 /**

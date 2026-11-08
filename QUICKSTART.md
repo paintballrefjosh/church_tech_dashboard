@@ -16,8 +16,8 @@ More: [Prerequisites](./INSTALL.md#prerequisites).
 ## 2. Get the code
 
 ```bash
-git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
-cd church-dashboard
+git clone https://github.com/paintballrefjosh/lampstand lampstand
+cd lampstand
 make init-env      # writes .env with a random AUTH_SECRET
 ```
 
@@ -35,8 +35,8 @@ The default needs no changes. For any other option, edit `.env` as shown.
 | Bundled CockroachDB, single node | You're trying it out or running a small install: everything lives in one stack | Nothing. It's the default. |
 | Bundled CockroachDB, 3 nodes | You want the production compose file. All three nodes run on this one host, so it uses more memory without real host-level resilience. | Set a real `MEILI_MASTER_KEY` in `.env` (the object store's keys are derived from `AUTH_SECRET`). |
 | Several nodes, each with its own bundled CockroachDB (a cluster behind your load balancer) | You need more than one machine serving the app, with real failover | Not a quick start: follow [Shape C](./INSTALL.md#shape-c-bundled-database-on-every-node) in INSTALL.md (`DEPLOY_MODE=cluster` and `scripts/cluster.sh`). |
-| External YugabyteDB | You already run YugabyteDB, or want to avoid CockroachDB's licence terms | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:5433/church`. Create the `church` database first; on 2024.2 LTS the user must be allowed to enable `pgcrypto`. |
-| External CockroachDB | You already run a CockroachDB cluster | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:26257/church`. Create the `church` database first. |
+| External YugabyteDB | You already run YugabyteDB, or want to avoid CockroachDB's licence terms | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:5433/lampstand`. Create the `lampstand` database first; on 2024.2 LTS the user must be allowed to enable `pgcrypto`. |
+| External CockroachDB | You already run a CockroachDB cluster | `DB_MODE=external` and `DATABASE_URL=postgresql://user:pass@host:26257/lampstand`. Create the `lampstand` database first. |
 
 CockroachDB's licence terms changed in late 2024; check they suit you before choosing a
 Cockroach option. For an external database, `host` must be reachable from inside the

@@ -1,4 +1,4 @@
-import { createPool } from "@church/shared/db";
+import { createPool } from "@lampstand/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 // DATABASE_URL (or the old COCKROACH_URL). The shared factory adds an error

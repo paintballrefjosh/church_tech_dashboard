@@ -4,7 +4,7 @@ import { pgTable, text, timestamp, uuid, index, primaryKey } from "drizzle-orm/p
  * A user-defined tag. Names are unique (case-insensitive) so "Worship" and
  * "worship" collapse to one row — keeps tag lists tidy on the UI.
  *
- * Color is one of a fixed palette (see TAG_COLORS in @church/shared) so we
+ * Color is one of a fixed palette (see TAG_COLORS in @lampstand/shared) so we
  * never end up with a sea of subtly-different greys.
  */
 export const tags = pgTable(

@@ -24,7 +24,7 @@ import {
   updateServiceSchema,
   createStationSchema,
   updateStationSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";

@@ -346,7 +346,7 @@ scraping with Prometheus would be less work.
 
 - Portable SQL only (CockroachDB and YugabyteDB); migrations additive; every table gets a backup-registry decision.
 - No bare timers: `ClusterJobs`; baselines in `job_state`.
-- Open database pools for the `sql` transport only through `createPool` from `@church/shared/db`, with a client-side query
+- Open database pools for the `sql` transport only through `createPool` from `@lampstand/shared/db`, with a client-side query
   timeout and a read-only login; never reuse the app's own pool for monitored databases.
 - No `any`; Zod schemas in `packages/shared` for the template format and every route.
 - Update `CLAUDE.md` (Access control / monitoring section) and `docs/infrastructure-monitoring.md` when it ships.

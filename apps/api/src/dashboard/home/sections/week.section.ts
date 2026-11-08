@@ -12,7 +12,7 @@ import {
   type Section,
   type WeekDigest,
   type WeekEventInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { activityEvents, backupOperations, infraTargets, monitorIncidents, monitors, serviceGroups, tickets } from "../../../db/schema";
 import { AVAILABILITY_KINDS, AvailabilityStore } from "../../../availability/availability.store";

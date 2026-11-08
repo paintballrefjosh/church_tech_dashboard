@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { HomeInclude, HomeSnapshot } from "@church/shared";
+import type { HomeInclude, HomeSnapshot } from "@lampstand/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 
 /** The window event the Monitoring pages dispatch after a mutation (see monitoring/section-tabs.tsx). */

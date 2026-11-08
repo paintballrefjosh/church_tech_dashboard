@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import type { InfraMetricPoint } from "@church/shared";
+import type { InfraMetricPoint } from "@lampstand/shared";
 
 /**
  * A single-metric line chart over a time window. Recharts needs a real width to

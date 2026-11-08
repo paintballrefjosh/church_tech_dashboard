@@ -19,7 +19,7 @@ import {
   type RackItemStyle,
   type RackItemView,
   type RackSourceKind,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useCanWrite, StatusLine, inputCls, cardCls, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 import { RackElevation } from "@/components/rack-elevation";
 import { errorText, useSwitchModels } from "@/lib/use-switch-models";

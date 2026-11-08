@@ -1,5 +1,5 @@
-import type { Ticket, TicketPriority, TicketSlaMap, TicketStatus } from "@church/shared";
-import { ticketSlaStatus } from "@church/shared";
+import type { Ticket, TicketPriority, TicketSlaMap, TicketStatus } from "@lampstand/shared";
+import { ticketSlaStatus } from "@lampstand/shared";
 
 export const STATUS_LABEL: Record<TicketStatus, string> = {
   open: "Open",

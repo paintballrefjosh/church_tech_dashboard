@@ -24,8 +24,8 @@ NET=ybnet; SUBNET=10.97.1.0/24
 HOSTS=(10.97.1.11 10.97.1.12 10.97.1.13)
 PROXY=10.97.1.50
 PORTS=(5441 5442 5443)            # the proxy's listener for yb1, yb2, yb3
-URL_ALL="postgresql://yugabyte:yugabyte@${PROXY}:${PORTS[0]},${PROXY}:${PORTS[1]},${PROXY}:${PORTS[2]}/church?sslmode=disable"
-URL_FIRST_ONLY="postgresql://yugabyte:yugabyte@${PROXY}:${PORTS[0]}/church?sslmode=disable"
+URL_ALL="postgresql://yugabyte:yugabyte@${PROXY}:${PORTS[0]},${PROXY}:${PORTS[1]},${PROXY}:${PORTS[2]}/lampstand?sslmode=disable"
+URL_FIRST_ONLY="postgresql://yugabyte:yugabyte@${PROXY}:${PORTS[0]}/lampstand?sslmode=disable"
 pass=0; failn=0
 check() { local what=$1; shift; if "$@" >/dev/null 2>&1; then pass=$((pass + 1)); echo "  ok    $what"; else failn=$((failn + 1)); echo "  FAIL  $what"; fi; }
 node_run() { docker run --rm --net "$NET" -v "$REPO":/w -w /w -u "$(id -u):$(id -g)" -e HOME=/tmp "$@"; }
@@ -45,7 +45,7 @@ for i in 2 3; do
   docker run -d --name "yb$i" --net "$NET" --ip "${HOSTS[$((i - 1))]}" "$IMG" bin/yugabyted start --advertise_address="${HOSTS[$((i - 1))]}" --join="${HOSTS[0]}" --background=false >/dev/null
 done
 until [[ "$(ysql yb1 "${HOSTS[0]}" 'select count(*) from yb_servers()')" == 3 ]]; do sleep 2; done
-ysql yb1 "${HOSTS[0]}" 'CREATE DATABASE church' >/dev/null
+ysql yb1 "${HOSTS[0]}" 'CREATE DATABASE lampstand' >/dev/null
 check "three nodes in the cluster" test "$(ysql yb1 "${HOSTS[0]}" 'select count(*) from yb_servers()')" = 3
 sleep 30
 docker run -d --name ybproxy --net "$NET" --ip "$PROXY" -v "$REPO/tests/db":/p -w /p node:20-alpine node tcp-fault-proxy.mjs 5450 \

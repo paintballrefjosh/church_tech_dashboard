@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { WEEKDAYS } from "@church/shared";
+import { WEEKDAYS } from "@lampstand/shared";
 
 interface ServiceRow {
   id: string;

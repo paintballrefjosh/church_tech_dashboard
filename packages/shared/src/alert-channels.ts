@@ -173,12 +173,12 @@ export function buildAlertRequests(channel: AlertChannelForSend, event: AlertEve
       const at = event.at.toISOString();
       const payload = { event: "alert", kind: event.kind, severity, title: event.title, body: event.body, url: event.url, site: ctx.siteName, at };
       const body = JSON.stringify(payload);
-      const headers: Record<string, string> = { "content-type": "application/json", "x-church-event": "alert" };
+      const headers: Record<string, string> = { "content-type": "application/json", "x-lampstand-event": "alert" };
       if (secret) {
         // Signed over "<timestamp>.<body>", so a captured request cannot be replayed later with a fresh timestamp.
         const ts = String(Math.floor(event.at.getTime() / 1000));
-        headers["x-church-timestamp"] = ts;
-        headers["x-church-signature"] = `sha256=${ctx.sign(secret, `${ts}.${body}`)}`;
+        headers["x-lampstand-timestamp"] = ts;
+        headers["x-lampstand-signature"] = `sha256=${ctx.sign(secret, `${ts}.${body}`)}`;
       }
       return [{ url: str(channel.config.url), method: "POST", headers, body }];
     }

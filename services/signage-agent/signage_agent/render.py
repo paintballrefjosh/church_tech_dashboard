@@ -8,7 +8,7 @@ KEY_RE = re.compile(r"^(ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa) [A-Za-z0-9+/=]{
 USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 CTL = "/usr/local/bin/signage-ctl"
-BANNER = "church-signage"
+BANNER = "lampstand-signage"
 
 
 class ConfigError(ValueError):
@@ -54,9 +54,9 @@ def login_user(c: Dict) -> str:
 
 def sshd_dropin(c: Dict) -> str:
     """The drop-in. Debian's sshd_config includes sshd_config.d/*.conf FIRST and the first value of a keyword wins, so
-    50-church-signage.conf overrides the stock file."""
+    50-lampstand-signage.conf overrides the stock file."""
     lines = [
-        "# Written by the church dashboard (signage). Changed through Signage > Security settings, not by hand.",
+        "# Written by Lampstand (signage). Changed through Signage > Security settings, not by hand.",
         f"VersionAddendum {BANNER}",
         f"PasswordAuthentication {'yes' if c['passwordLogin'] else 'no'}",
         f"KbdInteractiveAuthentication {'yes' if c['passwordLogin'] else 'no'}",
@@ -89,7 +89,7 @@ def authorized_keys(c: Dict) -> str:
 def sudoers(user: str) -> str:
     if not USER_RE.match(user):
         raise ConfigError("user")
-    return f"# Written by the church dashboard (signage).\n{user} ALL=(root) NOPASSWD: {CTL}\n"
+    return f"# Written by Lampstand (signage).\n{user} ALL=(root) NOPASSWD: {CTL}\n"
 
 
 def nft_rules(c: Dict) -> str:
@@ -99,7 +99,7 @@ def nft_rules(c: Dict) -> str:
     ssh = f"ip saddr {{ {', '.join(v4)} }} tcp dport 22 accept" if v4 else "tcp dport 22 accept"
     return "\n".join(
         [
-            "table inet church_signage {",
+            "table inet lampstand_signage {",
             "  chain input {",
             "    type filter hook input priority 0; policy drop;",
             "    ct state established,related accept",

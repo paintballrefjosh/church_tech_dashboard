@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Paperclip, File as FileIcon, X, Upload, PlusSquare } from "lucide-react";
-import type { Attachment } from "@church/shared";
+import type { Attachment } from "@lampstand/shared";
 import { Lightbox } from "@/components/lightbox";
 
 /**

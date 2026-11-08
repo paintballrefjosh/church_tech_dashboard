@@ -1,4 +1,4 @@
-import { calendarDaysBetween, formatTimeInZone, formatWeekdayInZone, zonedParts } from "@church/shared";
+import { calendarDaysBetween, formatTimeInZone, formatWeekdayInZone, zonedParts } from "@lampstand/shared";
 import { useEffect, useState } from "react";
 
 /** The current time, starting from the server's clock so the first render matches the server's. */

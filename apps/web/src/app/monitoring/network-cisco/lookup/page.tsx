@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import type { CiscoLookupRow } from "@church/shared";
+import type { CiscoLookupRow } from "@lampstand/shared";
 import { fmtTime } from "../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 

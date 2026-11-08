@@ -1,6 +1,6 @@
 "use client";
 
-import type { BackupRestoreSection } from "@church/shared";
+import type { BackupRestoreSection } from "@lampstand/shared";
 
 /**
  * Which parts of the data a restore covers. Everything is chosen by default (a full rollback); unchecking a

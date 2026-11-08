@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sectionSchema, systemsHealthSchema, ticketDigestSchema, nextServiceSchema } from "@church/shared";
+import { sectionSchema, systemsHealthSchema, ticketDigestSchema, nextServiceSchema } from "@lampstand/shared";
 import { HomeSystemsSection } from "../src/dashboard/home/sections/systems.section";
 import { HomeTicketsSection } from "../src/dashboard/home/sections/tickets.section";
 import { HomeServiceSection, mapPlan, markMe } from "../src/dashboard/home/sections/service.section";

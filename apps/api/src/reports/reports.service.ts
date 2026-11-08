@@ -11,7 +11,7 @@ import {
   uptimePercent,
   zonedParts,
   type MonthlyReport,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { DB, type Db } from "../db/db.module";
 import { backups, groupMemberships, groups, monitorIncidents, monitors, renewals, tickets } from "../db/schema";

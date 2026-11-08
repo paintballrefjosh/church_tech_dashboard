@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DatabaseBackup } from "lucide-react";
-import type { BackupOffsiteStatus, BackupOperation, BackupSchedule, BackupStorageInfo, BackupSummary } from "@church/shared";
+import type { BackupOffsiteStatus, BackupOperation, BackupSchedule, BackupStorageInfo, BackupSummary } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, BadRequestException } from "@nestjs/common";
-import { PERMISSIONS, createRackSchema, updateRackSchema, createRackItemSchema, updateRackItemSchema } from "@church/shared";
+import { PERMISSIONS, createRackSchema, updateRackSchema, createRackItemSchema, updateRackItemSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { RacksService } from "./racks.service";

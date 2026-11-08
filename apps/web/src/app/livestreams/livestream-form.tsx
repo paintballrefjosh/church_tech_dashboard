@@ -11,7 +11,7 @@ import {
   type LivestreamAccess,
   type LivestreamPlatform,
   type LivestreamPlatformTest,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { Modal, inputCls } from "../monitoring/network-cisco/cisco-ui";
 import { sendJson } from "@/components/assets-ui";
 

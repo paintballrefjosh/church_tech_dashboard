@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ChevronRight, ChevronDown, Folder, FolderPlus, Plus, Pencil, Trash2 } from "lucide-react";
-import type { WikiTreeNode } from "@church/shared";
+import type { WikiTreeNode } from "@lampstand/shared";
 import { buildWikiTree, type WikiTreeUiNode as Node } from "./wiki-tree-utils";
 
 /**

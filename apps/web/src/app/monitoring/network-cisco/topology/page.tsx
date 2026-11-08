@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { CiscoTopology } from "@church/shared";
+import type { CiscoTopology } from "@lampstand/shared";
 import { DataTable, type Column } from "@/components/data-table";
 
 type EdgeRow = CiscoTopology["edges"][number] & { _key: string };

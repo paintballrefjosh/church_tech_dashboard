@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import type { ApiTokenCreate, ApiTokenCreated, ApiTokenPolicy, ApiTokenSummary } from "@church/shared";
+import type { ApiTokenCreate, ApiTokenCreated, ApiTokenPolicy, ApiTokenSummary } from "@lampstand/shared";
 import {
   TokenCreateForm,
   TokenReveal,

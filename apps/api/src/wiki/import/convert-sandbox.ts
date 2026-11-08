@@ -2,7 +2,7 @@ import { fork } from "node:child_process";
 import { Logger } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_ATTACHMENT_BYTES } from "@church/shared";
+import { MAX_ATTACHMENT_BYTES } from "@lampstand/shared";
 import type { UploadImage } from "./types";
 
 /**

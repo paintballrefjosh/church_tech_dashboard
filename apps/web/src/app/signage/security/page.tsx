@@ -1,5 +1,5 @@
 import { ShieldCheck } from "lucide-react";
-import { SIGNAGE_SECURITY_KEYS } from "@church/shared";
+import { SIGNAGE_SECURITY_KEYS } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "../../admin/settings/settings-form";
 import { SettingsSubnav } from "../settings/settings-sections";

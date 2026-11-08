@@ -15,7 +15,7 @@ import {
   resolveAllowedAttachmentTypes,
   resolveCustomAttachmentExtensions,
   type AttachmentParentType,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { SettingsService } from "../settings/settings.service";
 import { DB, type Db } from "../db/db.module";
 import { attachments } from "../db/schema";

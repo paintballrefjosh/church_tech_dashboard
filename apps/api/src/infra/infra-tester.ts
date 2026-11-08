@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CreateInfraTargetInput } from "@church/shared";
+import type { CreateInfraTargetInput } from "@lampstand/shared";
 import { collect } from "./collectors/dispatch";
 import { type CollectContext } from "./collectors/types";
 

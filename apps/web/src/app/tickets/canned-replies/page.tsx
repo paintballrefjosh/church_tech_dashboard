@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { CANNED_REPLY_VARIABLES, type CannedReply } from "@church/shared";
+import { CANNED_REPLY_VARIABLES, type CannedReply } from "@lampstand/shared";
 import { CannedRepliesClient } from "./canned-replies-client";
 
 export const dynamic = "force-dynamic";

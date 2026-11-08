@@ -14,12 +14,12 @@
 #   tests/cluster/sim.sh down        stop and delete everything, including the data
 #
 # SIM_WITNESS=N makes node N a witness (NODE_ROLE=data: database and object store only).
-# Environment: SIM_DIR (default ~/church-sim; must be local disk, not NFS: Garage's metadata is
+# Environment: SIM_DIR (default ~/lampstand-sim; must be local disk, not NFS: Garage's metadata is
 # LMDB), SIM_HOST (the host's address, default its first IP). The first node's `up` builds the
-# church-sim-* images from the repository; the other nodes reuse them from cache.
+# lampstand-sim-* images from the repository; the other nodes reuse them from cache.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 SIM_HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 
 die() { echo "sim: $*" >&2; exit 1; }
@@ -62,12 +62,12 @@ write_node() {
       echo "S3_MODE=external"
       echo "S3_ENDPOINT=${SIM_D_S3_ENDPOINT:?}"
       echo "S3_REGION=garage"
-      echo "S3_BUCKET=church-files"
+      echo "S3_BUCKET=lampstand-files"
       echo "S3_ACCESS_KEY=${SIM_D_S3_ACCESS_KEY:?}"
       echo "S3_SECRET_KEY=${SIM_D_S3_SECRET_KEY:?}"
-      echo "API_IMAGE=church-sim-api"
-      echo "WEB_IMAGE=church-sim-web"
-      echo "MONITOR_IMAGE=church-sim-monitor"
+      echo "API_IMAGE=lampstand-sim-api"
+      echo "WEB_IMAGE=lampstand-sim-web"
+      echo "MONITOR_IMAGE=lampstand-sim-monitor"
     else
     echo "NODE_ADDR=$SIM_HOST"
     echo "CLUSTER_PEERS=$peers"
@@ -78,9 +78,9 @@ write_node() {
     [[ "${SIM_WITNESS:-}" == "$n" ]] && echo "NODE_ROLE=data"
     echo "GARAGE_META_DIR=$d/garage-meta"
     # Own image names, so the simulation never moves the tags of the dev stack's images.
-    echo "API_IMAGE=church-sim-api"
-    echo "WEB_IMAGE=church-sim-web"
-    echo "MONITOR_IMAGE=church-sim-monitor"
+    echo "API_IMAGE=lampstand-sim-api"
+    echo "WEB_IMAGE=lampstand-sim-web"
+    echo "MONITOR_IMAGE=lampstand-sim-monitor"
     fi
   } >"$d/.env"
   (cd "$d" && make -s init-data && mkdir -p garage-meta)

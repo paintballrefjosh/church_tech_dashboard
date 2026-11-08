@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Printer, Ticket, Trash2 } from "lucide-react";
-import { describeVoucherMinutes, type UnifiVoucher } from "@church/shared";
+import { describeVoucherMinutes, type UnifiVoucher } from "@lampstand/shared";
 import { inputCls, cardCls, Field, useToasts, ToastStack } from "../../network-cisco/cisco-ui";
 
 const LENGTHS = [

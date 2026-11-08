@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, ForbiddenException } from "@nest
 import { and, eq, desc, ilike, inArray, or, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { notes, tagAssignments } from "../db/schema";
-import type { CreateNoteInput, UpdateNoteInput, NoteListQuery } from "@church/shared";
+import type { CreateNoteInput, UpdateNoteInput, NoteListQuery } from "@lampstand/shared";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { SearchService } from "../search/search.service";
 import { ActivityService } from "../activity/activity.service";

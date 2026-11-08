@@ -125,7 +125,7 @@ kv "stack:" "${C}$STACK${Z} ($DEPLOY_MODE), database: $DB_MODE"
 REGISTRY="${IMAGE_REGISTRY:-$(conf_env IMAGE_REGISTRY)}"
 REGISTRY="${REGISTRY%/}"
 if [[ -n "$REGISTRY" ]]; then
-  [[ "$REGISTRY" =~ ^[A-Za-z0-9._:/-]+$ ]] || die "IMAGE_REGISTRY='$REGISTRY' is not a registry prefix (for example ghcr.io/owner/church)."
+  [[ "$REGISTRY" =~ ^[A-Za-z0-9._:/-]+$ ]] || die "IMAGE_REGISTRY='$REGISTRY' is not a registry prefix (for example ghcr.io/owner/lampstand)."
   for v in API_IMAGE WEB_IMAGE MONITOR_IMAGE; do
     [[ -z "${!v:-$(conf_env "$v")}" ]] || die "$v is set, and so is IMAGE_REGISTRY: they are two ways of choosing the images. Remove $v (IMAGE_REGISTRY follows the build id by itself)."
   done
@@ -264,7 +264,7 @@ build_images() {
   fi
   rm -f "$out"; return 1
 }
-# The name compose gives a service's image (church-prod-api ...): a pulled image is tagged with it, so `up --no-build`, a later
+# The name compose gives a service's image (lampstand-prod-api ...): a pulled image is tagged with it, so `up --no-build`, a later
 # `compose up` and --rollback all find it exactly where a local build would have left it.
 COMPOSE_CONFIG=""
 image_of() { # service (reads COMPOSE_CONFIG, filled by pull_images)

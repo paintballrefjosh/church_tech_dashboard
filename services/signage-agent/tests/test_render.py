@@ -2,7 +2,7 @@ import pytest
 
 from signage_agent import render
 
-KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrk317OG12pp6m2uiktuZld2ifcvU4kftYmS7aduYHB church-dashboard-signage-g1"
+KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDrk317OG12pp6m2uiktuZld2ifcvU4kftYmS7aduYHB lampstand-signage-g1"
 
 
 def config(**kw):
@@ -58,7 +58,7 @@ def test_sshd_dropin_locks_down():
     assert "KbdInteractiveAuthentication no" in text
     assert "PermitRootLogin no" in text
     assert "AllowUsers signage" in text
-    assert "VersionAddendum church-signage" in text
+    assert "VersionAddendum lampstand-signage" in text
     assert "Match Address *,!10.1.0.5/32,!10.1.0.6/32\n    DenyUsers *" in text
 
 

@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req, Res } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { PERMISSIONS, siteToday } from "@church/shared";
+import { PERMISSIONS, siteToday } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, X } from "lucide-react";
-import type { CiscoSwitch } from "@church/shared";
+import type { CiscoSwitch } from "@lampstand/shared";
 import { DialogFrame, useModal } from "@/components/modal";
 import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 

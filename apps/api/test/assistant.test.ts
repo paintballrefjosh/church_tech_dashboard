@@ -9,7 +9,7 @@ import {
   assistantReadiness,
   validateSettingValue,
   type AssistantReadinessFacts,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { alternatingHistory } from "../src/assistant/assistant.service";
 import { AnthropicLlm } from "../src/assistant/llm/anthropic.client";
 import { OpenAiCompatLlm } from "../src/assistant/llm/openai-compat.client";

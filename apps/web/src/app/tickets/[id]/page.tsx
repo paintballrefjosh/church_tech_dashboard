@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson, apiFetch } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { TicketDetail } from "./ticket-detail";
-import type { CannedReply, Ticket, TicketComment } from "@church/shared";
+import type { CannedReply, Ticket, TicketComment } from "@lampstand/shared";
 import { type TagLike } from "@/components/tag-badge";
 
 export const dynamic = "force-dynamic";

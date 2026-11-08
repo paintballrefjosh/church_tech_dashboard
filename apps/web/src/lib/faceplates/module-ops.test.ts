@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SwitchModel, SwitchModelModule } from "@church/shared";
+import type { SwitchModel, SwitchModelModule } from "@lampstand/shared";
 import { defaultPlacement, heightFor, moduleSize, moveTo, newPlacementId, nameClashes, nudge, resizeTo } from "./module-ops";
 
 const HOST = { w: 2000, h: 200 };

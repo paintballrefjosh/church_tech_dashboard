@@ -41,7 +41,7 @@ case "$1" in
   --deploy-mode) echo "${DEPLOY_MODE:-single}"; exit 0 ;;
   ps) [[ -f "$RUN/running" ]] && echo abc123; exit 0 ;;
   build) [[ "${FAKE_BUILD:-}" == fail ]] && { echo "ERROR: web: Module not found" >&2; exit 1; }; exit 0 ;;
-  config) printf "name: t\nservices:\n  api:\n    image: church-prod-api\n    build:\n      context: /x\n  monitor:\n    image: church-prod-monitor\n  web:\n    image: church-prod-web\nvolumes: {}\n"; exit 0 ;;
+  config) printf "name: t\nservices:\n  api:\n    image: lampstand-prod-api\n    build:\n      context: /x\n  monitor:\n    image: lampstand-prod-monitor\n  web:\n    image: lampstand-prod-web\nvolumes: {}\n"; exit 0 ;;
   run) [[ "${FAKE_MIGRATE:-}" == fail ]] && { echo "migration 0002 failed" >&2; exit 1; }; exit 0 ;;
   up) id="$(bash scripts/build-id.sh)"
       if [[ -n "${FAKE_BAD_ID:-}" && "$id" == "$FAKE_BAD_ID"* ]]; then echo broken >"$RUN/running"; else echo "$id" >"$RUN/running"; fi
@@ -238,7 +238,7 @@ up_ --yes
 check "no stack running and none named" grep -q "cannot tell which stack" "$W/out"
 
 echo "== images from a registry (IMAGE_REGISTRY)"
-REG=ghcr.io/o/church
+REG=ghcr.io/o/lampstand
 publish() { # build id [the id the image claims, if it should be wrong]
   mkdir -p "$W/run/published"
   local s; for s in api web monitor; do printf '%s' "${2:-$1}" >"$W/run/published/$(printf '%s' "$REG-$s:$1" | tr '/:' '__')"; done
@@ -251,7 +251,7 @@ IMAGE_REGISTRY=$REG up_ --prod --yes
 check "exits 0" test "$(rc)" = 0
 check "pulls all three images for the new build id" bash -c "[[ \$(grep -c '^docker pull $REG-.*:$(newid)\$' '$W/run/dockercalls') == 3 ]]"
 check "builds nothing" bash -c "! grep -q 'compose build' '$W/run/calls'"
-check "tags each pulled image with the name compose uses" bash -c "grep -q 'docker tag $REG-api:$(newid) church-prod-api' '$W/run/dockercalls' && grep -q 'docker tag $REG-web:$(newid) church-prod-web' '$W/run/dockercalls' && grep -q 'docker tag $REG-monitor:$(newid) church-prod-monitor' '$W/run/dockercalls'"
+check "tags each pulled image with the name compose uses" bash -c "grep -q 'docker tag $REG-api:$(newid) lampstand-prod-api' '$W/run/dockercalls' && grep -q 'docker tag $REG-web:$(newid) lampstand-prod-web' '$W/run/dockercalls' && grep -q 'docker tag $REG-monitor:$(newid) lampstand-prod-monitor' '$W/run/dockercalls'"
 check "migrates and swaps as before" bash -c "grep -q 'compose run -T --rm --no-deps api node dist/scripts/migrate.js' '$W/run/calls' && grep -q 'compose up -d --no-build --no-deps api web monitor' '$W/run/calls'"
 check "now runs the new build" test "$(running_id)" = "$(newid)"
 fresh none; publish "$(newid)"

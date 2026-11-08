@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
-import { HostCheckingClient, classifyDbError, createPool, isReadOnlyStatement, shouldRetry, withRetry } from "@church/shared/db";
+import { HostCheckingClient, classifyDbError, createPool, isReadOnlyStatement, shouldRetry, withRetry } from "@lampstand/shared/db";
 
 const err = (code?: string, message = "boom") => Object.assign(new Error(message), code ? { code } : {});
 
@@ -151,7 +151,7 @@ describe("createPool", () => {
   });
 
   it("always uses the public schema, whatever the login or its schemas are called", async () => {
-    const pool = createPool({ name: "t", url: "postgresql://church_tech@localhost:1/db", log: quiet });
+    const pool = createPool({ name: "t", url: "postgresql://lampstand_app@localhost:1/db", log: quiet });
     expect((pool as unknown as { options: Record<string, unknown> }).options.options).toBe("-c search_path=public");
     await pool.end();
   });
@@ -166,7 +166,7 @@ describe("createPool", () => {
   it("names its connections and sets timeouts, keep-alive and a connection lifetime", async () => {
     const pool = createPool({ name: "monitor", url: "postgresql://x@localhost:1/db", log: quiet });
     const o = (pool as unknown as { options: Record<string, unknown> }).options;
-    expect(o.application_name).toBe("church-monitor");
+    expect(o.application_name).toBe("lampstand-monitor");
     expect(o.connectionTimeoutMillis).toBeGreaterThan(0);
     expect(o.keepAlive).toBe(true);
     expect(o.maxLifetimeSeconds).toBeGreaterThan(0);

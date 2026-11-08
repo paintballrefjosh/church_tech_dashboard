@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Trash2, Save } from "lucide-react";
-import type { ChecklistStation, ChecklistTemplate, ChecklistTemplateTask } from "@church/shared";
+import type { ChecklistStation, ChecklistTemplate, ChecklistTemplateTask } from "@lampstand/shared";
 
 export function TemplateEditorClient({
   template,

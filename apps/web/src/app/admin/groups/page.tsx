@@ -5,7 +5,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { GroupsAdminClient } from "./groups-admin-client";
-import { MODULES } from "@church/shared";
+import { MODULES } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

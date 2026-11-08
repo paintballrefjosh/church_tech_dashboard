@@ -17,7 +17,7 @@ import {
   type CiscoVlanRow,
   type CiscoVlanSetResult,
   type CiscoVlanState,
-} from "@church/shared";
+} from "@lampstand/shared";
 import {
   VLAN_FIELD_EXISTS,
   VLAN_FIELD_NAME,

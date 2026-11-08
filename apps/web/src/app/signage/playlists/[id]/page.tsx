@@ -4,7 +4,7 @@ import { use, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowLeft, ArrowUp, ListVideo, Plus, Trash2 } from "lucide-react";
-import type { SignageMedia, SignagePlaylist, SignagePlaylistItemInput } from "@church/shared";
+import type { SignageMedia, SignagePlaylist, SignagePlaylistItemInput } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { GoneNotice } from "@/components/gone-notice";
 import { sendJson } from "@/components/assets-ui";

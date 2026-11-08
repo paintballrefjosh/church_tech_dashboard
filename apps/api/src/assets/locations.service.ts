@@ -8,8 +8,8 @@ import {
   type LocationSummary,
   type LocationUsage,
   type UpdateLocationInput,
-} from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+} from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 import { DB, type Db } from "../db/db.module";
 import { assetCheckouts, assets, infraTargets, locations, monitors, printers, racks, tickets } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

@@ -1,4 +1,4 @@
-import type { CiscoBackupDiffLine } from "@church/shared";
+import type { CiscoBackupDiffLine } from "@lampstand/shared";
 
 const CONTEXT = 10;
 const MAX_LCS_LINES = 3000; // guard the O(n*m) table; fall back beyond this

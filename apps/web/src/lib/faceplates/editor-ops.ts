@@ -1,4 +1,4 @@
-import type { SwitchModelPort, SwitchPortKind } from "@church/shared";
+import type { SwitchModelPort, SwitchPortKind } from "@lampstand/shared";
 
 /**
  * What the port layout editor does to boxes, as pure functions so it can be tested without a pointer. Positions and

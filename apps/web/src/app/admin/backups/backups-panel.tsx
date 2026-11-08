@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CloudUpload, Download, Pencil, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
-import type { BackupOperation, BackupStorageInfo, BackupSummary } from "@church/shared";
+import type { BackupOperation, BackupStorageInfo, BackupSummary } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, formatCount, KIND_LABEL, post, useOperation } from "./client-api";
 import { ErrorNote, OperationProgress } from "./operation-progress";

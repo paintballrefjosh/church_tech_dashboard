@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ComponentType } from "react";
 import { BookOpen, FileText, ListChecks, Server, Ticket, Users } from "lucide-react";
-import { formatWeekdayInZone, type HomeSnapshot, type NeedItem, type NextService } from "@church/shared";
+import { formatWeekdayInZone, type HomeSnapshot, type NeedItem, type NextService } from "@lampstand/shared";
 import { NeedActionButton } from "../../parts/need-action";
 import type { LookProps } from "../../look-props";
 import { dateKey } from "./model";

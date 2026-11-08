@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Radio } from "lucide-react";
-import type { StatusPage } from "@church/shared";
+import type { StatusPage } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

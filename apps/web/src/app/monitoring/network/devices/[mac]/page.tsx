@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Images, Printer } from "lucide-react";
-import type { PortSheet, PortSheetRow } from "@church/shared";
+import type { PortSheet, PortSheetRow } from "@lampstand/shared";
 import { DataTable, type Column } from "@/components/data-table";
 import { SwitchFaceplate } from "@/components/switch-faceplate";
 import { PortViewToggle, usePortView } from "@/components/port-view-toggle";

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { and, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import { SIGNAGE_KEYS, SIGNAGE_LIMITS, inBulkWindow, parseBulkWindow, zonedParts, type SignageManifest } from "@church/shared";
+import { SIGNAGE_KEYS, SIGNAGE_LIMITS, inBulkWindow, parseBulkWindow, zonedParts, type SignageManifest } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { signageDevices, signageMedia, signageScreens } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

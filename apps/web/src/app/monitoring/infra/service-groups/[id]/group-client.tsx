@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CircleCheck, Pencil, Trash2 } from "lucide-react";
-import type { ServiceGroup } from "@church/shared";
+import type { ServiceGroup } from "@lampstand/shared";
 import { GoneNotice } from "@/components/gone-notice";
 import { usePoll } from "@/lib/use-poll";
 import { ToastStack, cardCls, useCanWrite, useToasts } from "../../../network-cisco/cisco-ui";

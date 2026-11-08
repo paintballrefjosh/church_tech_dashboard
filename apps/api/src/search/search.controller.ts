@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Query } from "@nestjs/common";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";

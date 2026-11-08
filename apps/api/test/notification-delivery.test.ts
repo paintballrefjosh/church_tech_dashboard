@@ -10,7 +10,7 @@ import {
   parseClock,
   pushAllowed,
   type NotificationDelivery,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const LON = "Europe/London";
 const d = (over: Partial<NotificationDelivery> = {}): NotificationDelivery => ({ ...DEFAULT_NOTIFICATION_DELIVERY, ...over });

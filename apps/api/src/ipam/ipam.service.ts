@@ -13,7 +13,7 @@ import type {
   CreateIpamSubnetInput,
   UpdateIpamSubnetInput,
   UpdateIpamHostInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { parseCidr, normalizeCidr, ipToInt, ipToSlash24 } from "./cidr";
 
 type SubnetRow = typeof ipamSubnets.$inferSelect;

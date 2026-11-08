@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { formatTimeInZone, summarize, type HomeSnapshot, type NextService } from "@church/shared";
+import { formatTimeInZone, summarize, type HomeSnapshot, type NextService } from "@lampstand/shared";
 import { Countdown } from "../../parts/countdown";
 import type { LookProps } from "../../look-props";
 import { serviceDateLine, useNow } from "./format";

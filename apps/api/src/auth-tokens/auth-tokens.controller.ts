@@ -1,7 +1,7 @@
 import { Body, Controller, Post, BadRequestException, Inject } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Public } from "../auth/public.decorator";
 import { Audited } from "../audit/audit.decorator";

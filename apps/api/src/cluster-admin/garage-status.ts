@@ -1,4 +1,4 @@
-import type { ClusterStoreNode } from "@church/shared";
+import type { ClusterStoreNode } from "@lampstand/shared";
 
 /** The parts of Garage's admin API `GetClusterStatus` answer the Cluster page uses. */
 interface GarageNode {

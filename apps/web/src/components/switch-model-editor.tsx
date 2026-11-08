@@ -12,7 +12,7 @@ import {
   type SwitchModel,
   type SwitchModelModule,
   type SwitchModelSide,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useCanWrite, useToasts, ToastStack, Field, inputCls } from "@/app/monitoring/network-cisco/cisco-ui";
 import { ModulePlacementEditor } from "@/components/module-placement-editor";
 import { PortLayoutEditor } from "@/components/port-layout-editor";

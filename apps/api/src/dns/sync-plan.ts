@@ -1,11 +1,12 @@
 import {
   DNS_MANAGED_MARKER,
+  hasManagedMarker,
   type DnsSyncAction,
   type DnsSyncConflict,
   type DnsSyncHostOutcome,
   type DnsSyncPlan,
   type DnsSyncRecordType,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 /**
  * Pure IPAM -> DNS diff. Given the hosts IPAM says should be published and the
@@ -62,7 +63,7 @@ const SAFETY_SHARE_FLOOR = 5;
 const lc = (s: string): string => s.toLowerCase().replace(/\.$/, "");
 export const recordKey = (zone: string, name: string, type: string): string =>
   `${lc(zone)}|${lc(name)}|${type.toUpperCase()}`;
-const isManaged = (r: ExistingRecord): boolean => Boolean(r.comments?.includes(DNS_MANAGED_MARKER));
+const isManaged = (r: ExistingRecord): boolean => hasManagedMarker(r.comments);
 
 /**
  * Turn a discovered name into one DNS label: "Josh's iPhone" -> "joshs-iphone",
@@ -245,6 +246,9 @@ export function computeSyncPlan(input: PlanInput): ComputedSyncPlan {
     if (exact) {
       if (exact.ttl !== input.ttl) {
         act({ op: "update", zone: d.zone, name: d.name, type: d.type, value: d.value, fromValue: exact.value, ipamHostId: d.hostId, reason: `TTL ${exact.ttl} -> ${input.ttl}` });
+      } else if (!exact.comments?.includes(DNS_MANAGED_MARKER)) {
+        // Made before the rename to Lampstand: same record, old marker. Writing it back puts the new marker on.
+        act({ op: "update", zone: d.zone, name: d.name, type: d.type, value: d.value, fromValue: exact.value, ipamHostId: d.hostId, reason: "Marker renamed" });
       } else {
         unchanged++;
       }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isReportMonth, monthBounds, monthTitle, previousMonth, reportMedian, reportSummaryLines, uptimePercent, type MonthlyReport } from "@church/shared";
+import { isReportMonth, monthBounds, monthTitle, previousMonth, reportMedian, reportSummaryLines, uptimePercent, type MonthlyReport } from "@lampstand/shared";
 
 const H = 3_600_000;
 

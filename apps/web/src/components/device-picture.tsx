@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useId } from "react";
 import { Images } from "lucide-react";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { modelPicture } from "@/lib/rack-pictures";
 import { useSwitchModels } from "@/lib/use-switch-models";
 

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
-import { describeVoucherMinutes, type UnifiVoucher } from "@church/shared";
+import { describeVoucherMinutes, type UnifiVoucher } from "@lampstand/shared";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";

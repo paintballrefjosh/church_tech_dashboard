@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Network } from "lucide-react";
-import type { ClusterStatus } from "@church/shared";
+import type { ClusterStatus } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, NotFoundException, Param, ParseUUIDPipe, Post, Put } from "@nestjs/common";
-import { describeUserAgent, notificationDeliverySchema, pushSubscribeSchema } from "@church/shared";
+import { describeUserAgent, notificationDeliverySchema, pushSubscribeSchema } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";
 import { Audited } from "../audit/audit.decorator";

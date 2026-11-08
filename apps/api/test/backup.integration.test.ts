@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BackupDiffReport } from "@church/shared";
+import type { BackupDiffReport } from "@lampstand/shared";
 import * as schema from "../src/db/schema";
 import type { Db } from "../src/db/db.module";
 import { backedUpTables } from "../src/backup/backup-schema";
@@ -27,7 +27,7 @@ import { MemoryObjectStore } from "./helpers/memory-object-store";
  * YugabyteDB:
  *
  *   TEST_DATABASE_URL=postgresql://root@host:26257/scratch?sslmode=disable \
- *     pnpm --filter @church/api exec vitest run test/backup.integration.test.ts
+ *     pnpm --filter @lampstand/api exec vitest run test/backup.integration.test.ts
  */
 const url = process.env.TEST_DATABASE_URL;
 

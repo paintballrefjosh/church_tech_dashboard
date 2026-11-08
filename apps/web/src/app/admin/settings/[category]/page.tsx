@@ -13,7 +13,7 @@ import {
   resolveAllowedAttachmentTypes,
   resolveCustomAttachmentExtensions,
   type LookId,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { headers } from "next/headers";
 import { SettingsForm } from "../settings-form";
 import { findCategory } from "../categories";

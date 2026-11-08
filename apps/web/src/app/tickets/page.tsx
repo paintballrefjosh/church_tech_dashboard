@@ -14,7 +14,7 @@ import type {
   TicketSlaMap,
   TicketStatus,
   TicketPriority,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

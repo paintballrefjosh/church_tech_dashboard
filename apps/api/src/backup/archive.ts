@@ -15,7 +15,9 @@ import type { Row } from "./row-codec";
  *   files/<object key>                 each uploaded file, byte for byte
  *   summary.json                       row counts and a SHA-256 for every file, written last
  */
-export const ARCHIVE_FORMAT = "church-dashboard-backup";
+export const ARCHIVE_FORMAT = "lampstand-backup";
+/** The format mark of backups made before the rename to Lampstand (2026-11-08); they are still read, never written. */
+export const LEGACY_ARCHIVE_FORMAT = "church-dashboard-backup";
 export const ARCHIVE_VERSION = 1;
 
 export interface ManifestTable {
@@ -25,7 +27,7 @@ export interface ManifestTable {
 }
 
 export interface Manifest {
-  format: typeof ARCHIVE_FORMAT;
+  format: typeof ARCHIVE_FORMAT | typeof LEGACY_ARCHIVE_FORMAT;
   version: number;
   id: string;
   name: string;
@@ -142,7 +144,7 @@ export async function* readArchive(
 
     if (entry.name === "manifest.json") {
       const manifest = JSON.parse((await entry.buffer(MAX_JSON_ENTRY)).toString("utf8")) as Manifest;
-      if (!manifest || manifest.format !== ARCHIVE_FORMAT) throw new Error("This is not a dashboard backup (wrong format marker).");
+      if (!manifest || (manifest.format !== ARCHIVE_FORMAT && manifest.format !== LEGACY_ARCHIVE_FORMAT)) throw new Error("This is not a Lampstand backup (wrong format marker).");
       if (manifest.version !== ARCHIVE_VERSION) {
         throw new Error(`Backup format version ${manifest.version} is not supported by this version of the dashboard.`);
       }

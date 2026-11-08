@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { InfraTarget, InfraSummary } from "@church/shared";
+import type { InfraTarget, InfraSummary } from "@lampstand/shared";
 import { InfraOverviewClient } from "./infra-overview-client";
 import { MonitoringTabs } from "../section-tabs";
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, Download, Loader2, Trash2 } from "lucide-react";
-import type { CiscoBackupRow, CiscoBackupDiffLine } from "@church/shared";
+import type { CiscoBackupRow, CiscoBackupDiffLine } from "@lampstand/shared";
 import { useCanWrite, fmtBytes, fmtTime, BigModal } from "../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 

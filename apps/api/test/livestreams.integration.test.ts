@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import type { LivestreamSample } from "@church/shared";
+import type { LivestreamSample } from "@lampstand/shared";
 import * as schema from "../src/db/schema";
 
 /**

@@ -4,7 +4,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { ScrollText, Search, Download } from "lucide-react";
-import type { AuditEntry } from "@church/shared";
+import type { AuditEntry } from "@lampstand/shared";
 import { AuditTable } from "./audit-table";
 
 type SearchParams = {

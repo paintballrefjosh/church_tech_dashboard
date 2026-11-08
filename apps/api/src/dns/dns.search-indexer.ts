@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
-import type { DnsRecord } from "@church/shared";
+import type { DnsRecord } from "@lampstand/shared";
 import { SearchService, type SearchDoc } from "../search/search.service";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { DnsService } from "./dns.service";

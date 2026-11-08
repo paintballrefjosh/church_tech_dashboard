@@ -3,7 +3,7 @@
 The Cisco switch page (`/monitoring/network-cisco/switches/<id>`) opens on a picture of the switch seen from the front,
 with a button over every port. Hovering a port (or focusing it, or tapping it) shows its details with Edit, Delete and
 Shut down / Enable. A "Switch view | List view" toggle at the top right, beside the Rows selector, goes back to the
-table; the choice is remembered per browser (`church.portView` in localStorage, `usePortView`). A model with no
+table; the choice is remembered per browser (`lampstand.portView` in localStorage, `usePortView`). A model with no
 faceplate gets the table and no toggle. On the switch list, hovering a row with the mouse shows a card beside the
 pointer with that switch's picture and its ports coloured by state, plus the colours in words ("12 up, 35 enabled, no link, 5 shut
 down"); it follows the pointer and flips to stay in the window (`network-cisco/switch-hover-preview.tsx`, `FacePreview` and

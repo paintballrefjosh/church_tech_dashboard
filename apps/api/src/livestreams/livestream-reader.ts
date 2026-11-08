@@ -14,7 +14,7 @@ import {
   type LivestreamSample,
   type PickedStreams,
   type YtdlpInfo,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 /**
  * Everything that reaches outside the API for a livestream (docs/livestreams.md): yt-dlp for a platform's page, a plain

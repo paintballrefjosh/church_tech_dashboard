@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { AssignableUser, ChecklistTemplate } from "@church/shared";
+import type { AssignableUser, ChecklistTemplate } from "@lampstand/shared";
 import { ServiceEditor } from "../service-editor";
 
 export const dynamic = "force-dynamic";

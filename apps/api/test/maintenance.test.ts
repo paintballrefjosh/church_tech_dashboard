@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maintenanceState, parseMaintenanceUntil } from "@church/shared";
+import { maintenanceState, parseMaintenanceUntil } from "@lampstand/shared";
 import { MaintenanceExpiry } from "../src/monitors/maintenance-expiry";
 import { readMaintenance } from "../src/monitors/maintenance";
 

@@ -8,7 +8,7 @@ import {
   utcHourStartMs,
   type AvailabilityGrid,
   type Section,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { AvailabilityStore } from "../../../availability/availability.store";
 import type { HomeContext, SectionBuilder } from "../home.types";
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
-import type { PortSheet, SwitchModel } from "@church/shared";
+import type { PortSheet, SwitchModel } from "@lampstand/shared";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { installedModules, resolveSwitchView } from "@/lib/faceplates/custom";
 import { modelPicture } from "@/lib/rack-pictures";

@@ -10,7 +10,7 @@ import {
   statusOverall,
   validateSettingValue,
   ALERT_KEYS,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 16, 12, min, 0));
 

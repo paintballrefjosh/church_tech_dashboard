@@ -6,7 +6,7 @@ import {
   emailReleaseAt,
   heldReason,
   type NotificationDelivery,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { notificationHeld, users } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

@@ -184,11 +184,11 @@ def system(c: Dict, log: Log) -> bool:
     else:
         log(f"warning: time zone {c['timezone']} is not known here; left as it is")
     ntp = f"[Time]\nNTP={c['ntpServer']}\n" if c["ntpServer"] else "[Time]\n"
-    if write_file(paths.p("/etc/systemd/timesyncd.conf.d/church-signage.conf"), ntp):
+    if write_file(paths.p("/etc/systemd/timesyncd.conf.d/lampstand-signage.conf"), ntp):
         run(["systemctl", "restart", "systemd-timesyncd"])
         log(f"time server: {c['ntpServer'] or 'the default pool'}")
     nm = "[connection]\nwifi.powersave = 2\n"
-    if os.path.isdir(paths.p("/etc/NetworkManager")) and write_file(paths.p("/etc/NetworkManager/conf.d/church-signage.conf"), nm):
+    if os.path.isdir(paths.p("/etc/NetworkManager")) and write_file(paths.p("/etc/NetworkManager/conf.d/lampstand-signage.conf"), nm):
         log("Wi-Fi power saving off (after the next reboot)")
     cmdline = paths.p("/boot/firmware/cmdline.txt")
     if os.path.exists(cmdline):
@@ -279,7 +279,7 @@ def lockdown(c: Dict, log: Log) -> Dict[str, object]:
             _firewall_load(log)
         elif fw_off:
             remove_file(paths.NFT_FILE)
-            run(["nft", "delete", "table", "inet", "church_signage"])
+            run(["nft", "delete", "table", "inet", "lampstand_signage"])
             log("firewall removed")
     except Exception:
         revert(token, log)
@@ -290,11 +290,11 @@ def lockdown(c: Dict, log: Log) -> Dict[str, object]:
 
 
 def _firewall_load(log: Log) -> None:
-    run(["nft", "delete", "table", "inet", "church_signage"])
+    run(["nft", "delete", "table", "inet", "lampstand_signage"])
     code, _, err = run(["nft", "-f", paths.NFT_FILE])
     if code != 0:
         raise ApplyError(f"the firewall rules did not load: {err.strip()}")
-    unit = "[Unit]\nDescription=Church signage firewall\nAfter=network-pre.target\n\n[Service]\nType=oneshot\nExecStart=/usr/sbin/nft -f /etc/church-signage/firewall.nft\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n"
+    unit = "[Unit]\nDescription=Church signage firewall\nAfter=network-pre.target\n\n[Service]\nType=oneshot\nExecStart=/usr/sbin/nft -f /etc/lampstand-signage/firewall.nft\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n"
     if write_file(os.path.join(paths.SYSTEMD, "signage-firewall.service"), unit) and have("systemctl") and not simulated():
         run(["systemctl", "daemon-reload"])
         run(["systemctl", "enable", "signage-firewall.service"])
@@ -338,7 +338,7 @@ def revert(token: str, log: Callable[[str], None] = print) -> bool:
     if os.path.exists(paths.NFT_FILE):
         _firewall_load(lambda _m: None)  # type: ignore[arg-type]
     else:
-        run(["nft", "delete", "table", "inet", "church_signage"])
+        run(["nft", "delete", "table", "inet", "lampstand_signage"])
     os.unlink(pending)
     log("SSH and firewall settings put back")
     return True

@@ -12,8 +12,8 @@ import { execFileSync } from "node:child_process";
 const BASE = process.env.BASE ?? "http://localhost:8100";
 const PI_A = process.env.PI_A;
 const PI_B = process.env.PI_B;
-const PI_A_NAME = process.env.PI_A_NAME ?? "church-fake-pi-a";
-const PI_B_NAME = process.env.PI_B_NAME ?? "church-fake-pi-b";
+const PI_A_NAME = process.env.PI_A_NAME ?? "lampstand-fake-pi-a";
+const PI_B_NAME = process.env.PI_B_NAME ?? "lampstand-fake-pi-b";
 const PI_PASSWORD = process.env.PI_PASSWORD ?? "raspberry";
 const EMAIL = "regression-test@local";
 const FIRST_PASSWORD = "regression-default-pwd";
@@ -169,7 +169,7 @@ async function main() {
       assert(r.status < 300, `apply ${r.status}: ${r.text}`);
       const run = await waitRun(r.body.id);
       assert(run.status === "succeeded", `apply run ${run.status}: ${run.error}\n${run.output}`);
-      const rules = onPi(PI_A_NAME, "nft list table inet church_signage");
+      const rules = onPi(PI_A_NAME, "nft list table inet lampstand_signage");
       assert(/dport 22/.test(rules), `no SSH rule:\n${rules}`);
       const fromB = onPi(PI_B_NAME, `timeout 4 bash -c 'exec 3<>/dev/tcp/${PI_A}/22' >/dev/null 2>&1; echo $?`).trim();
       assert(fromB !== "0", "Pi B can still open SSH on Pi A");
@@ -181,7 +181,7 @@ async function main() {
       const r = await post(`/api/v1/signage/devices/${deviceA.id}/apply`, {});
       if (r.status < 300) await waitRun(r.body.id);
     }
-    const gone = onPi(PI_A_NAME, "nft list table inet church_signage >/dev/null 2>&1; echo $?").trim();
+    const gone = onPi(PI_A_NAME, "nft list table inet lampstand_signage >/dev/null 2>&1; echo $?").trim();
     assert(gone !== "0", "the firewall stayed after the setting was turned off");
   });
 

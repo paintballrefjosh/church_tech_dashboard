@@ -10,7 +10,7 @@ import {
   type LookId,
   type TilePlacement,
   type UpdateDashboardPrefs,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { dashboardLayouts, dashboardPrefs } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

@@ -21,7 +21,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # The shared package is built in its own stage so a web-only edit does not recompile it.
 FROM deps AS shared-build
 COPY packages/shared packages/shared
-RUN pnpm --filter @church/shared build
+RUN pnpm --filter @lampstand/shared build
 
 FROM shared-build AS build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -49,8 +49,8 @@ ENV BUILD_ID=$BUILD_ID
 # recompiles a small part. It holds only things Next re-derives from the source and checks by content, so the
 # output is the same with or without it. `locked` because two builds of the same cache must not write at once.
 RUN --mount=type=cache,id=next-build-cache,target=/app/apps/web/.next/cache,sharing=locked \
-    export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update("church-dashboard/server-actions/build-salt/v1").digest("base64"))')" \
- && pnpm --filter @church/web build
+    export NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update("lampstand/server-actions/build-salt/v1").digest("base64"))')" \
+ && pnpm --filter @lampstand/web build
 # Next traces the packages the server needs into standalone/node_modules. They change only when the dependencies
 # or the imports do, so they ship as a layer of their own, apart from the server code.
 RUN mv apps/web/.next/standalone/node_modules /app/standalone-node_modules

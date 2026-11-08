@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ciscoPortInputSchema, updateCiscoPortSchema } from "@church/shared";
+import { ciscoPortInputSchema, updateCiscoPortSchema } from "@lampstand/shared";
 import { buildPushCommands, findCliError } from "../src/cisco/push-commands";
 
 const port = (field: string, value: string | null, portId = "Gi1/0/1") => [{ portId, field, value }];

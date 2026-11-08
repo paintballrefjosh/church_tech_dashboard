@@ -6,7 +6,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LocalDateTime } from "@/components/local-date-time";
-import { describeWikiAge } from "@church/shared";
+import { describeWikiAge } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

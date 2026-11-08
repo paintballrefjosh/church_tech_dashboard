@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
-import type { AssistantLastTest, AssistantPrivacyAck, ReadinessItem } from "@church/shared";
+import type { AssistantLastTest, AssistantPrivacyAck, ReadinessItem } from "@lampstand/shared";
 
 interface Readiness {
   ready: boolean;

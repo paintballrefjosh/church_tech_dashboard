@@ -1,6 +1,6 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Res } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
-import { PERMISSIONS, createLivestreamSchema, updateLivestreamSchema } from "@church/shared";
+import { PERMISSIONS, createLivestreamSchema, updateLivestreamSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { Audited } from "../audit/audit.decorator";

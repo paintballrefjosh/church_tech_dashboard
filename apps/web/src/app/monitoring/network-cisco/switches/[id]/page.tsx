@@ -13,7 +13,7 @@ import {
   type CiscoSwitch,
   type CiscoSwitchVlan,
   type CiscoPortRow,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { TrunkVlanField, VlanSelect } from "../../vlan-fields";
 import { useCanWrite, StatusPill, computeStatus, fmtTime, MonitoringToggle, ToastStack, useToasts, PendingLine, StatusLine, Modal, Field, inputCls } from "../../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";

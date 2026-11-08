@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, ScanSearch, X } from "lucide-react";
-import type { SwitchPortKind } from "@church/shared";
+import type { SwitchPortKind } from "@lampstand/shared";
 import { detectPorts, gridBoxes, labelBoxes, type Box, type NumberingScheme, type PixelImage } from "@/lib/faceplates/detect";
 import { newUid, type EditorPort, type Frac } from "@/lib/faceplates/editor-ops";
 

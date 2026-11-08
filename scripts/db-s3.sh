@@ -3,9 +3,9 @@
 # Back up and restore the bundled CockroachDB through the object store, so a backup is
 # not tied to one node's disk: any node (or a rebuilt one) can restore it.
 #
-#   scripts/db-s3.sh backup                  full backup of the church database
+#   scripts/db-s3.sh backup                  full backup of the lampstand database
 #   scripts/db-s3.sh list                    the backups in the store
-#   scripts/db-s3.sh restore [--confirm]     replace the church database with the latest backup
+#   scripts/db-s3.sh restore [--confirm]     replace the lampstand database with the latest backup
 #   scripts/db-s3.sh --prod ...              the prod stack
 #
 # Backups go to s3://<bucket>/db-backups/ in the same store as the uploaded files (the
@@ -13,8 +13,8 @@
 # Not for DB_MODE=external: back an external database up with its own tooling.
 #
 # restore stops the api, web and monitor, restores into a copy, and only once that has
-# succeeded drops church and renames the copy into place (a failed restore leaves church
-# untouched), then starts them again. If there is no church database yet (a fresh cluster)
+# succeeded drops lampstand and renames the copy into place (a failed restore leaves lampstand
+# untouched), then starts them again. If there is no lampstand database yet (a fresh cluster)
 # it restores straight into place. Without --confirm it only says what it would do.
 #
 # In a cluster (DEPLOY_MODE=cluster) the SQL runs on this node's own database member, over its
@@ -79,44 +79,44 @@ sql() {
   else "${COMPOSE[@]}" exec -T cockroach-1 cockroach sql --insecure "$@"; fi
 }
 # A restore is run as root, so the restored tables belong to root. In a cluster the app signs in
-# as its own user (`church`), so hand the database and its tables over to it.
+# as its own user (`lampstand`), so hand the database and its tables over to it.
 hand_over() {
   [[ "$DEPLOY" == cluster && -z "${DB_S3_CONTAINER:-}" ]] || return 0
-  sql -e "ALTER DATABASE church OWNER TO church" >/dev/null
-  sql --database=church -e "REASSIGN OWNED BY root TO church" >/dev/null
+  sql -e "ALTER DATABASE lampstand OWNER TO lampstand" >/dev/null
+  sql --database=lampstand -e "REASSIGN OWNED BY root TO lampstand" >/dev/null
 }
 # Cluster: application nodes other than this one that have checked in within the last 30 s.
 other_nodes_running() {
   [[ "$DEPLOY" == cluster && -z "${DB_S3_CONTAINER:-}" ]] || { echo 0; return; }
   local me; me="$("${COMPOSE[@]}" --cluster-env | sed -n 's/^NODE_ID=//p')"
-  sql --format=csv --database=church -e "SELECT count(*) FROM cluster_nodes WHERE role = 'full' AND id <> '$me' AND last_seen > now() - interval '30 seconds'" 2>/dev/null | tail -n 1
+  sql --format=csv --database=lampstand -e "SELECT count(*) FROM cluster_nodes WHERE role = 'full' AND id <> '$me' AND last_seen > now() - interval '30 seconds'" 2>/dev/null | tail -n 1
 }
 services() { [[ -n "${DB_S3_CONTAINER:-}" ]] || "${COMPOSE[@]}" "$@"; }
 
 case "$CMD" in
   backup)
-    echo "backing up church to s3://$BUCKET/db-backups (via $ENDPOINT) ..."
-    sql -e "BACKUP DATABASE church INTO '$URI'" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/'
+    echo "backing up lampstand to s3://$BUCKET/db-backups (via $ENDPOINT) ..."
+    sql -e "BACKUP DATABASE lampstand INTO '$URI'" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/'
     echo "done. List them with: scripts/db-s3.sh ${PROD[*]:-} list"
     ;;
   list)
     sql --format=table -e "SHOW BACKUPS IN '$URI'" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/'
     ;;
   restore)
-    have_db="$(sql --format=csv -e "SELECT count(*) FROM [SHOW DATABASES] WHERE database_name = 'church'" | tail -n 1)"
+    have_db="$(sql --format=csv -e "SELECT count(*) FROM [SHOW DATABASES] WHERE database_name = 'lampstand'" | tail -n 1)"
     if [[ "$CONFIRM" != yes ]]; then
       if [[ "$have_db" == 1 ]]; then
-        echo "This DROPS the current church database and replaces it with the latest backup in s3://$BUCKET/db-backups."
+        echo "This DROPS the current lampstand database and replaces it with the latest backup in s3://$BUCKET/db-backups."
       else
-        echo "There is no church database here: this restores the latest backup in s3://$BUCKET/db-backups into place."
+        echo "There is no lampstand database here: this restores the latest backup in s3://$BUCKET/db-backups into place."
       fi
       echo "Re-run with --confirm to go ahead."
       exit 1
     fi
     if [[ "$have_db" != 1 ]]; then
-      sql -e "RESTORE DATABASE church FROM LATEST IN '$URI'" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/'
+      sql -e "RESTORE DATABASE lampstand FROM LATEST IN '$URI'" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/'
       hand_over
-      echo "restored church (there was none)."
+      echo "restored lampstand (there was none)."
       exit 0
     fi
     others="$(other_nodes_running)"
@@ -125,14 +125,14 @@ case "$CMD" in
     fi
     services stop api web monitor
     status=0
-    sql -e "DROP DATABASE IF EXISTS church_restoring CASCADE" \
-        -e "RESTORE DATABASE church FROM LATEST IN '$URI' WITH new_db_name = 'church_restoring'" \
-        -e "DROP DATABASE IF EXISTS church CASCADE" \
-        -e "ALTER DATABASE church_restoring RENAME TO church" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/' || status=$?
+    sql -e "DROP DATABASE IF EXISTS lampstand_restoring CASCADE" \
+        -e "RESTORE DATABASE lampstand FROM LATEST IN '$URI' WITH new_db_name = 'lampstand_restoring'" \
+        -e "DROP DATABASE IF EXISTS lampstand CASCADE" \
+        -e "ALTER DATABASE lampstand_restoring RENAME TO lampstand" | sed -E 's/(AWS_SECRET_ACCESS_KEY=)[^&]*/\1xxxx/' || status=$?
     [[ $status -ne 0 ]] || hand_over || status=$?
     services start api web monitor
-    [[ $status -eq 0 ]] || die "restore failed; the church database was not replaced"
-    echo "restored church from the latest backup."
+    [[ $status -eq 0 ]] || die "restore failed; the lampstand database was not replaced"
+    echo "restored lampstand from the latest backup."
     [[ "$DEPLOY" == cluster ]] && echo "In a cluster, start the application again on every other node too (scripts/cluster.sh up)."
     ;;
 esac

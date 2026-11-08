@@ -1,6 +1,19 @@
-# Church Dashboard
+# Lampstand
 
-A self-hosted, modular dashboard for a single church. One place for support tickets,
+> "Nor do people light a lamp and put it under a basket, but on a stand, and it gives light to
+> all in the house." — Matthew 5:15 (ESV)
+>
+> "...the seven lampstands are the seven churches." — Revelation 1:20 (ESV)
+
+**Why the name.** A lamp is only useful if it is set where people can see by it. That is the
+job of this project: to put the state of a church's technology on a stand where the whole
+team can see it, so the lights stay on and nothing sits hidden under a basket. Tickets,
+runbooks, monitoring and the rest exist so that a few volunteers can keep the equipment
+working, and everyone else can simply worship, learn and gather by its light. In Revelation
+the churches themselves are lampstands: the thing that holds the light up, not the light.
+That is the role of this software too, a supporting one.
+
+Lampstand is a self-hosted, modular dashboard for a single church. One place for support tickets,
 the wiki, notes, monitoring, printer status, network views, ProPresenter control,
 Planning Center, volunteer checklists, and the rest.
 
@@ -53,16 +66,16 @@ in six steps, including choosing a database.
 which file storage, which port), writes `.env`, starts everything and prints the address to open:
 
 ```bash
-git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
-cd church-dashboard
+git clone https://github.com/paintballrefjosh/lampstand lampstand
+cd lampstand
 ./install.sh
 ```
 
 Or by hand, with the default bundled database:
 
 ```bash
-git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
-cd church-dashboard
+git clone https://github.com/paintballrefjosh/lampstand lampstand
+cd lampstand
 make up        # generates .env with a random AUTH_SECRET; creates ./data/ bind mounts
 make migrate   # applies DB migrations
 make seed      # seeds default groups + per-module access and the bootstrap admin (user "admin", password "admin")

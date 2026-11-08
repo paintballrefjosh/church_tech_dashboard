@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import type { TileConfigField } from "@church/shared";
+import type { TileConfigField } from "@lampstand/shared";
 import { TileConfigPopover } from "./tile-config-popover";
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DNS_MANAGED_MARKER } from "@church/shared";
+import { DNS_MANAGED_MARKER } from "@lampstand/shared";
 import {
   computeSyncPlan,
   toDnsLabel,

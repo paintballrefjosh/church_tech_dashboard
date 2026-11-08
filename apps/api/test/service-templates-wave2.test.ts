@@ -14,7 +14,7 @@ import {
   type PlaceholderValue,
   type Row,
   type ServiceTemplateBody,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { respCommand, runCollector, type InstanceRunContext } from "../src/service-monitoring/transports";
 
 /**

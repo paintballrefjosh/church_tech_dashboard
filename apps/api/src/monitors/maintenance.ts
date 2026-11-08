@@ -1,4 +1,4 @@
-import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState, type MaintenanceState } from "@church/shared";
+import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState, type MaintenanceState } from "@lampstand/shared";
 import type { SettingsService } from "../settings/settings.service";
 
 /**

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { NotesBoard } from "./notes-board";
-import type { Note } from "@church/shared";
+import type { Note } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

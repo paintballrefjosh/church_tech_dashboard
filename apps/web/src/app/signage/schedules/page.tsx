@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { CalendarRange, Plus } from "lucide-react";
-import type { SignagePlaylist, SignageSchedule, SignageScreen, SignageScreenGroup } from "@church/shared";
+import type { SignagePlaylist, SignageSchedule, SignageScreen, SignageScreenGroup } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { Modal } from "../../monitoring/network-cisco/cisco-ui";

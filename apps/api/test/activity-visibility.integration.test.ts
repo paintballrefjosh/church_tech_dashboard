@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { ActivityService } from "../src/activity/activity.service";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";
 import * as schema from "../src/db/schema";

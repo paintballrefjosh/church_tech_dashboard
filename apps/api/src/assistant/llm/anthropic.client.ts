@@ -22,7 +22,7 @@ export class AnthropicLlm implements LlmClient {
       ...(cfg.baseUrl ? { baseURL: cfg.baseUrl } : {}),
       timeout: cfg.timeoutMs,
       maxRetries: 1,
-      defaultHeaders: { "user-agent": "church-dashboard-assistant" },
+      defaultHeaders: { "user-agent": "lampstand-assistant" },
       ...(cfg.verifyTls ? {} : { fetchOptions: { dispatcher: new Agent({ connect: { rejectUnauthorized: false } }) } as never }),
     });
   }

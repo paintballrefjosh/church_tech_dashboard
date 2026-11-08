@@ -1,22 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { HostSet, createPool, dbUrlWithSeed, parseDbUrl } from "@church/shared/db";
+import { HostSet, createPool, dbUrlWithSeed, parseDbUrl } from "@lampstand/shared/db";
 
 describe("parseDbUrl", () => {
   it("reads one host", () => {
-    const p = parseDbUrl("postgresql://u:pw@db.example.org:5433/church?sslmode=require")!;
+    const p = parseDbUrl("postgresql://u:pw@db.example.org:5433/lampstand?sslmode=require")!;
     expect(p.seeds).toEqual([{ host: "db.example.org", port: "5433" }]);
     expect(p.userinfo).toBe("u:pw@");
-    expect(p.rest).toBe("/church?sslmode=require");
+    expect(p.rest).toBe("/lampstand?sslmode=require");
   });
 
   it("reads a host list, with or without ports, and an IPv6 host", () => {
-    const p = parseDbUrl("postgres://u:pw@a:5433,b:5433,10.0.0.3,[::1]:5433/church")!;
+    const p = parseDbUrl("postgres://u:pw@a:5433,b:5433,10.0.0.3,[::1]:5433/lampstand")!;
     expect(p.seeds.map((s) => `${s.host}|${s.port}`)).toEqual(["a|5433", "b|5433", "10.0.0.3|", "[::1]|5433"]);
   });
 
   it("rebuilds the URL with one host, keeping everything else", () => {
-    const p = parseDbUrl("postgresql://u:p%40ss@a:5433,b:5434/church?sslmode=disable&application_name=x")!;
-    expect(dbUrlWithSeed(p, p.seeds[1]!)).toBe("postgresql://u:p%40ss@b:5434/church?sslmode=disable&application_name=x");
+    const p = parseDbUrl("postgresql://u:p%40ss@a:5433,b:5434/lampstand?sslmode=disable&application_name=x")!;
+    expect(dbUrlWithSeed(p, p.seeds[1]!)).toBe("postgresql://u:p%40ss@b:5434/lampstand?sslmode=disable&application_name=x");
   });
 
   it("works with no user and no database", () => {

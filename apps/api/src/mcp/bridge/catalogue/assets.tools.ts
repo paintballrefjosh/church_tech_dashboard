@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PERMISSIONS, assetListQuerySchema, createAssetSchema, createLocationSchema, updateAssetSchema, updateLocationSchema } from "@church/shared";
+import { PERMISSIONS, assetListQuerySchema, createAssetSchema, createLocationSchema, updateAssetSchema, updateLocationSchema } from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();

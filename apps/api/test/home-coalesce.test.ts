@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sectionOk, sectionOff } from "@church/shared";
+import { sectionOk, sectionOff } from "@lampstand/shared";
 import { HomeService } from "../src/dashboard/home/home.service";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";
 

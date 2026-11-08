@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWeek, type HealthRow, type WeekEventInput } from "@church/shared";
+import { buildWeek, type HealthRow, type WeekEventInput } from "@lampstand/shared";
 
 const ev = (over: Partial<WeekEventInput> & { at: Date }): WeekEventInput => ({
   kind: "ticket",

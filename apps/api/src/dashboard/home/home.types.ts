@@ -8,7 +8,7 @@ import type {
   SystemsHealth,
   TicketDigest,
   WikiDigest,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { AuthenticatedUser } from "../../auth/current-user.decorator";
 
 /** What every section builder gets: who is asking, when, in which zone, and what was requested. */

@@ -7,7 +7,7 @@ import { users } from "./users";
  * hold what the IPAM→DNS sync needs to own its records safely.
  *
  * `dns_managed_records` is the ledger of records the sync wrote, one row per
- * (zone, name, type). The Technitium-side comment `managed-by:church-dashboard`
+ * (zone, name, type). The Technitium-side comment `managed-by:lampstand`
  * is the authority on ownership (it survives a lost ledger); the ledger links a
  * record back to its IPAM host and carries its last sync state for the UI.
  *

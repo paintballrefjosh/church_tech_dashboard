@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { ALERT_KEYS, MAINTENANCE_MODE_KEY } from "@church/shared";
+import { ALERT_KEYS, MAINTENANCE_MODE_KEY } from "@lampstand/shared";
 import { AlertEscalation } from "../src/monitors/alert-escalation";
 import { MonitorsService } from "../src/monitors/monitors.service";
 import { StatusService } from "../src/monitors/status.service";

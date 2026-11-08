@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BoxSelect, Plus, Redo2, Trash2, Undo2, Wand2, ZoomIn } from "lucide-react";
-import type { SwitchPortKind } from "@church/shared";
+import type { SwitchPortKind } from "@lampstand/shared";
 import {
   duplicateNames,
   intersects,

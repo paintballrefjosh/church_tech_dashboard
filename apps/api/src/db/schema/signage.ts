@@ -1,7 +1,7 @@
 import { pgTable, text, boolean, timestamp, uuid, integer, real, jsonb, bigint, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { locations } from "./assets";
-import type { SignageManifest, SignagePiStatus } from "@church/shared";
+import type { SignageManifest, SignagePiStatus } from "@lampstand/shared";
 
 /**
  * Signage (docs/signage.md section 8). Wall-clock times are "HH:MM" text and dates DATE-ONLY text on `site.timezone`;

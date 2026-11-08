@@ -7,13 +7,13 @@ import { createHash, createPrivateKey, createPublicKey, hkdfSync } from "node:cr
  * authorized_keys to this site.
  */
 
-const SALT = "church-dashboard/signage-ssh";
+const SALT = "lampstand/signage-ssh";
 
 export interface SignageKeyPair {
   generation: number;
   /** OpenSSH private key (openssh-key-v1, unencrypted), what ssh2 reads. */
   privateKey: string;
-  /** `ssh-ed25519 AAAA... church-dashboard-signage-g<n>` */
+  /** `ssh-ed25519 AAAA... lampstand-signage-g<n>` */
   publicKey: string;
   /** `SHA256:...` as ssh-keygen -l prints it. */
   fingerprint: string;
@@ -39,7 +39,7 @@ export function deriveSignageKey(secret: string, generation: number): SignageKey
   const priv = createPrivateKey({ key: pkcs8, format: "der", type: "pkcs8" });
   const spki = createPublicKey(priv).export({ format: "der", type: "spki" });
   const pub = spki.subarray(spki.length - 32);
-  const comment = `church-dashboard-signage-g${generation}`;
+  const comment = `lampstand-signage-g${generation}`;
   const pubBlob = Buffer.concat([sshString("ssh-ed25519"), sshString(pub)]);
   const check = createHash("sha256").update(seed).digest().readUInt32BE(0);
   let privSection = Buffer.concat([u32(check), u32(check), sshString("ssh-ed25519"), sshString(pub), sshString(Buffer.concat([seed, pub])), sshString(comment)]);

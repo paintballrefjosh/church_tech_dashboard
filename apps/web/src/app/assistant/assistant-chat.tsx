@@ -13,7 +13,7 @@ import {
   proposalResultUrl,
   type AssistantProposal,
   type AssistantProposalPayload,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 interface Msg {
   id?: string | null;

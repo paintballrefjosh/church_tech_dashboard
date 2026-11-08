@@ -1,6 +1,6 @@
 "use client";
 
-import { formatWeekdayInZone } from "@church/shared";
+import { formatWeekdayInZone } from "@lampstand/shared";
 import type { LookProps } from "../../look-props";
 import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";

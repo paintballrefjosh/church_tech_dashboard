@@ -1,4 +1,4 @@
-import { defaultVlanName, normaliseDuplex, normaliseSpeed } from "@church/shared";
+import { defaultVlanName, normaliseDuplex, normaliseSpeed } from "@lampstand/shared";
 import { VLAN_FIELD_EXISTS, VLAN_FIELD_NAME, parseVlanScope } from "./vlan-drift";
 
 /**

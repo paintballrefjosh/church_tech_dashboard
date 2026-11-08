@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Res } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
-import { auditListQuerySchema, PERMISSIONS } from "@church/shared";
+import { auditListQuerySchema, PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { AuditService } from "./audit.service";
 

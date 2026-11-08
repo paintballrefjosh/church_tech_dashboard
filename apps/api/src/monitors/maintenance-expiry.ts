@@ -1,5 +1,5 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState } from "@church/shared";
+import { MAINTENANCE_MODE_KEY, MAINTENANCE_UNTIL_KEY, maintenanceState } from "@lampstand/shared";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { SettingsService } from "../settings/settings.service";
 

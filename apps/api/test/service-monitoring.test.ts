@@ -22,7 +22,7 @@ import {
   type ExprValue,
   type Row,
   type ServiceTemplateBody,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 /**
  * The service monitoring template engine (packages/shared/src/service-monitoring/): the expression language, the parsers,

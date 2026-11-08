@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DASHBOARD_LOOKS, isLookId, type LookId } from "@church/shared";
+import { DASHBOARD_LOOKS, isLookId, type LookId } from "@lampstand/shared";
 
 const nameOf = (id: LookId) => DASHBOARD_LOOKS.find((l) => l.id === id)?.name ?? id;
 

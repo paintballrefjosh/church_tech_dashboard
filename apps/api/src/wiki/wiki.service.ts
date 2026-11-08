@@ -30,7 +30,7 @@ import {
   type WikiPageListQuery,
   type WikiReviewQuery,
   type WikiTreeNode,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { SearchService } from "../search/search.service";

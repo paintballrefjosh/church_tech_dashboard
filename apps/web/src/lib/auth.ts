@@ -5,7 +5,7 @@ import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { googleSignInDecision, microsoftSignInDecision } from "@church/shared";
+import { googleSignInDecision, microsoftSignInDecision } from "@lampstand/shared";
 import { db, schema } from "./db";
 
 const apiInternalUrl = process.env.API_INTERNAL_URL ?? "http://api:3001";

@@ -1,4 +1,4 @@
-import { findKnownSetting } from "@church/shared";
+import { findKnownSetting } from "@lampstand/shared";
 import { HIDDEN, scrubSnapshot } from "../../audit/audit-scrub";
 
 const present = (v: unknown) => v !== null && v !== undefined && v !== "";

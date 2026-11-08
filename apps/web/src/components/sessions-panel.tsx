@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Laptop, LogOut, Smartphone, Tablet } from "lucide-react";
 import { signOut } from "next-auth/react";
-import type { UserAgentInfo } from "@church/shared";
+import type { UserAgentInfo } from "@lampstand/shared";
 
 interface SessionRow {
   id: string;

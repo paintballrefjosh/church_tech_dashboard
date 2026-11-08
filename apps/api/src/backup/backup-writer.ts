@@ -3,7 +3,7 @@ import { PassThrough, Transform, type Writable } from "node:stream";
 import { pipeline } from "node:stream";
 import { createGzip } from "node:zlib";
 import { sql } from "drizzle-orm";
-import type { BackupProgress } from "@church/shared";
+import type { BackupProgress } from "@lampstand/shared";
 import type { Db } from "../db/db.module";
 import { TarWriter } from "./tar";
 import { backedUpTables, type TableMeta } from "./backup-schema";

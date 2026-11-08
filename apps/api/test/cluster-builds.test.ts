@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkBuilds } from "@church/shared";
+import { checkBuilds } from "@lampstand/shared";
 
 const n = (id: string, version: string | null, live = true) => ({ id, version, live });
 

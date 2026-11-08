@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { formatTimeInZone, type NextService, type WeekDigest } from "@church/shared";
+import { formatTimeInZone, type NextService, type WeekDigest } from "@lampstand/shared";
 import { dayFraction, dayIndexOf, serviceStart } from "./model";
 import styles from "./toward-sunday.module.css";
 

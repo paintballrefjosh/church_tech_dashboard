@@ -1,4 +1,4 @@
-import { defaultVlanName, isManagedVlan } from "@church/shared";
+import { defaultVlanName, isManagedVlan } from "@lampstand/shared";
 
 /** A VLAN drift event lives in cisco_drift_events with `port_id = "vlan:<id>"`; `field` is one of these. */
 export const VLAN_FIELD_EXISTS = "vlan_exists";

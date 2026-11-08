@@ -22,7 +22,7 @@ import {
   backupScheduleUpdateSchema,
   compareRequestSchema,
   restoreRequestSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";

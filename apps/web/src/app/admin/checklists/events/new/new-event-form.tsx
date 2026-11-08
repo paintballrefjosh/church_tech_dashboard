@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Save } from "lucide-react";
-import type { ChecklistTemplate } from "@church/shared";
+import type { ChecklistTemplate } from "@lampstand/shared";
 
 interface PcPlan {
   id: string;

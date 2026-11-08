@@ -9,7 +9,7 @@ import {
   serviceTemplateKeySchema,
   serviceTemplateSaveSchema,
   serviceTestSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";

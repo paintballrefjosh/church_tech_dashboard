@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CISCO_ALERT_CATEGORIES, type CiscoAlertPrefs, type CiscoSwitch } from "@church/shared";
+import { CISCO_ALERT_CATEGORIES, type CiscoAlertPrefs, type CiscoSwitch } from "@lampstand/shared";
 import { Modal, Field, inputCls } from "./cisco-ui";
 import { choiceToDevice, choiceToInput, currentChoice, resolveSwitchView, switchViewSentence } from "@/lib/faceplates/custom";
 import { errorText, useSwitchModels } from "@/lib/use-switch-models";

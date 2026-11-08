@@ -34,7 +34,7 @@ export default async function SignInPage({
   const cfg = await getProviderConfig();
   const identity =
     (await apiJson<SiteIdentity>("/api/v1/site/identity").catch(() => null)) ?? {
-      name: "Church Dashboard",
+      name: "Lampstand",
       tagline: "",
     };
 

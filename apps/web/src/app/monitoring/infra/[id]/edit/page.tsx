@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { InfraTarget } from "@church/shared";
+import type { InfraTarget } from "@lampstand/shared";
 import { InfraTargetForm } from "../../infra-target-form";
 
 export const dynamic = "force-dynamic";

@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { createReadStream } from "node:fs";
-import { createPool } from "@church/shared/db";
+import { createPool } from "@lampstand/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import * as schema from "../db/schema";
@@ -8,7 +8,7 @@ import { databaseUrl } from "../db/connection";
 import { gunzipped } from "../backup/archive";
 import { computeDiff } from "../backup/backup-diff";
 import { S3ObjectStore } from "../backup/object-store";
-import { secretFingerprint } from "../backup/backup.service";
+import { acceptedSecretFingerprints, secretFingerprint } from "../backup/backup.service";
 
 /**
  * Helper for tests/cluster/verify-restore.sh, run inside a node of the THROWAWAY cluster (never the live stack):
@@ -40,6 +40,7 @@ async function main(): Promise<number> {
         backup: { id: "rehearsal", name: arg, createdAt: new Date().toISOString() },
         archive: () => gunzipped(createReadStream(arg)),
         secretFingerprint: secretFingerprint(),
+        acceptedSecretFingerprints: acceptedSecretFingerprints(),
         userId: null,
         scope: null,
       },

@@ -1,4 +1,4 @@
-import { KNOWN_SETTINGS } from "@church/shared";
+import { KNOWN_SETTINGS } from "@lampstand/shared";
 import { apiFetch } from "@/lib/api";
 
 interface SettingsListResponse {

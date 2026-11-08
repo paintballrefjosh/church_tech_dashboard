@@ -74,7 +74,7 @@
 	# an upgrade without touching the load balancer. The node name is returned in
 	# a header to make a check easy to attribute.
 	handle /healthz {
-		header X-Church-Node "{$NODE_ID:unknown}"
+		header X-Lampstand-Node "{$NODE_ID:unknown}"
 		@draining file {
 			root /data
 			try_files drain

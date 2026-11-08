@@ -8,7 +8,7 @@ import {
   type CheckAlertState,
   type CounterReading,
   type ServiceInputValue,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { infraTargets, monitorIncidents, serviceInstances, serviceMetricSamples } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

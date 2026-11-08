@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { SwitchModel, SwitchModelModule } from "@church/shared";
+import type { SwitchModel, SwitchModelModule } from "@lampstand/shared";
 import { switchModelImageUrl } from "@/lib/faceplates/custom";
 import { defaultPlacement, moduleSize, moveTo, nudge, resizeTo, type Size } from "@/lib/faceplates/module-ops";
 

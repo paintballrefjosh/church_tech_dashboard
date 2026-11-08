@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossOriginWriteRefused, originMatchesRequest } from "@church/shared";
+import { crossOriginWriteRefused, originMatchesRequest } from "@lampstand/shared";
 
 const h = (headers: Record<string, string>) => (name: string) => headers[name];
 const site = { host: "church.example.org" };

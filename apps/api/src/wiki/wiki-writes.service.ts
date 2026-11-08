@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CreateWikiPageInput, UpdateWikiPageInput } from "@church/shared";
+import type { CreateWikiPageInput, UpdateWikiPageInput } from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { NotificationsService } from "../notifications/notifications.service";

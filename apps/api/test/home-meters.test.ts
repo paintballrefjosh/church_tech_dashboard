@@ -14,7 +14,7 @@ import {
   serversLevel,
   switchesLevel,
   wifiLevel,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { HomeMetersSection } from "../src/dashboard/home/sections/meters.section";
 import type { HomeContext } from "../src/dashboard/home/home.types";
 

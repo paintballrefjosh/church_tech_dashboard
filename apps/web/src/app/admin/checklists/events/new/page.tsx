@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { ChecklistTemplate } from "@church/shared";
+import type { ChecklistTemplate } from "@lampstand/shared";
 import { NewEventForm } from "./new-event-form";
 
 interface PcPlan {

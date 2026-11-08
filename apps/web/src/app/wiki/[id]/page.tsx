@@ -12,7 +12,7 @@ import { WikiReviewBar, type ReviewInfo } from "./wiki-review-bar";
 import { WikiTreeSidebar } from "../wiki-tree-sidebar";
 import { WikiSidebarPane } from "../wiki-sidebar-pane";
 import { ancestorChain } from "../wiki-tree-utils";
-import type { WikiPage, WikiTreeNode } from "@church/shared";
+import type { WikiPage, WikiTreeNode } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

@@ -24,7 +24,7 @@ import {
   siteToday,
   type AssistantLastTest,
   type AssistantPrivacyAck,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { DB, type Db } from "../db/db.module";
 import { assistantAnswers, assistantConversations, assistantMessages, assistantUsageDaily, groupMemberships, groups, infraTargets, monitorIncidents, monitors, serviceGroups } from "../db/schema";
@@ -469,7 +469,7 @@ export class AssistantService implements OnModuleInit {
         () => proposals.length,
       );
       if (propose) tools.set("propose_action", propose);
-      const siteName = String((await this.settings.get("site.name")) || "Church Dashboard");
+      const siteName = String((await this.settings.get("site.name")) || "Lampstand");
       const session = llm.start({ system: this.systemPrompt(user, siteName, tz), history, question: input.question, tools: [...tools.values()].map((t) => t.def), maxTokens: c.maxOutputTokens });
       const deadline = AbortSignal.any([signal, AbortSignal.timeout(c.timeoutSec * 1000)]);
       for (let step = 0; ; step++) {

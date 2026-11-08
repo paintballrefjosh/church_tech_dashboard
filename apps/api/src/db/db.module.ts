@@ -1,6 +1,6 @@
 import { Module, Global, type OnApplicationShutdown, Inject } from "@nestjs/common";
 import type { Pool } from "pg";
-import { createPool } from "@church/shared/db";
+import { createPool } from "@lampstand/shared/db";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { databaseUrl } from "./connection";

@@ -2,7 +2,7 @@
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
-import { acquireLease, restoreInProgress } from "@church/shared/db";
+import { acquireLease, restoreInProgress } from "@lampstand/shared/db";
 import {
   ALERT_KEYS,
   MAINTENANCE_MODE_KEY,
@@ -16,7 +16,7 @@ import {
   monitorScheduleActive,
   parseMonitorSchedule,
   type FlapConfig,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { db, pool } from "./db";
 import { claimDueMonitors, releaseMonitorClaim } from "./claim";
 import {

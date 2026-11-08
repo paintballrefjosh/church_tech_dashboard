@@ -22,20 +22,20 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # Production dependencies from the manifests alone. Nothing here reads the source, so this stage (and the
 # 195 MB layer built from it) is rebuilt only when a package.json or the lockfile changes, never for a code
-# edit. `pnpm deploy` collapses the workspace + transitive deps into a self-contained directory; @church/shared
+# edit. `pnpm deploy` collapses the workspace + transitive deps into a self-contained directory; @lampstand/shared
 # lands in it as a package.json-only stub that the runner stage fills in with the built package.
 FROM deps AS proddeps
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm deploy --filter @church/api --prod /app/deploy
+    pnpm deploy --filter @lampstand/api --prod /app/deploy
 
 # The shared package is built in its own stage so an api-only edit does not recompile it.
 FROM deps AS shared-build
 COPY packages/shared packages/shared
-RUN pnpm --filter @church/shared build
+RUN pnpm --filter @lampstand/shared build
 
 FROM shared-build AS build
 COPY apps/api apps/api
-RUN pnpm --filter @church/api build
+RUN pnpm --filter @lampstand/api build
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -56,11 +56,11 @@ COPY --from=proddeps /app/deploy/node_modules /app/node_modules
 COPY apps/api/migrations /app/migrations
 #      and the signage Pi agent, which the api packs into the bundle it installs on each Pi (agent-bundle.ts)
 COPY services/signage-agent /app/signage-agent
-#   3. the built @church/shared, over the stub pnpm deploy left in node_modules (the directory name is what
+#   3. the built @lampstand/shared, over the stub pnpm deploy left in node_modules (the directory name is what
 #      pnpm derives from the workspace path; the check below fails the build if that ever stops being true)
-COPY --from=shared-build /app/packages/shared/package.json /app/node_modules/.pnpm/@church+shared@file+packages+shared/node_modules/@church/shared/package.json
-COPY --from=shared-build /app/packages/shared/dist /app/node_modules/.pnpm/@church+shared@file+packages+shared/node_modules/@church/shared/dist
-RUN node -e "require.resolve('@church/shared',{paths:['/app']});require.resolve('@church/shared/db',{paths:['/app']})"
+COPY --from=shared-build /app/packages/shared/package.json /app/node_modules/.pnpm/@lampstand+shared@file+packages+shared/node_modules/@lampstand/shared/package.json
+COPY --from=shared-build /app/packages/shared/dist /app/node_modules/.pnpm/@lampstand+shared@file+packages+shared/node_modules/@lampstand/shared/dist
+RUN node -e "require.resolve('@lampstand/shared',{paths:['/app']});require.resolve('@lampstand/shared/db',{paths:['/app']})"
 #   4. the api's own code
 COPY --from=build /app/apps/api/dist /app/dist
 # Declared last, after every RUN: the id changes with every commit, and an ARG invalidates the cache of each RUN

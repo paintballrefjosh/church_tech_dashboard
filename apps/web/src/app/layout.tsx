@@ -16,13 +16,13 @@ interface SiteIdentity {
 
 /**
  * Generated at request time so the browser tab title tracks the admin's
- * site.name setting. Falls back to "Church Dashboard" if the API is
+ * site.name setting. Falls back to "Lampstand" if the API is
  * unreachable so we still render something sensible during a cold start.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const identity =
     (await apiJson<SiteIdentity>("/api/v1/site/identity").catch(() => null)) ?? {
-      name: "Church Dashboard",
+      name: "Lampstand",
       tagline: "",
     };
   return {

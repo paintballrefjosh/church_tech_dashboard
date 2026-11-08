@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PERMISSIONS, auditListQuerySchema } from "@church/shared";
+import { PERMISSIONS, auditListQuerySchema } from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 import { hideSecretSettings, scrubAudit } from "../scrub";
 

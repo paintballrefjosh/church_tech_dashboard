@@ -18,8 +18,8 @@ import {
   type ImportAssetsResult,
   type ReturnAssetInput,
   type UpdateAssetInput,
-} from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+} from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 import { DB, type Db } from "../db/db.module";
 import { assetCheckouts, assets, locations, tickets, users } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

@@ -16,7 +16,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 SIM="tests/cluster/sim.sh"
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 export SIM_DIR
 HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 export SIM_HOST="$HOST"
@@ -41,16 +41,16 @@ start_database() {
       docker run -d --name "$DB_NAME" -p "$CRDB_PORT:26257" cockroachdb/cockroach:v24.2.0 \
        start-single-node --insecure >/dev/null
       for _ in $(seq 1 60); do docker exec "$DB_NAME" cockroach sql --insecure -e "select 1" >/dev/null 2>&1 && break; sleep 2; done
-      docker exec "$DB_NAME" cockroach sql --insecure -e "CREATE DATABASE church" >/dev/null || die "could not create the database"
-      DATABASE_URL="postgresql://root@$HOST:$CRDB_PORT/church?sslmode=disable"
+      docker exec "$DB_NAME" cockroach sql --insecure -e "CREATE DATABASE lampstand" >/dev/null || die "could not create the database"
+      DATABASE_URL="postgresql://root@$HOST:$CRDB_PORT/lampstand?sslmode=disable"
       ;;
     yugabyte)
       # Host networking: YugabyteDB listens on its advertise address and has many ports.
       docker run -d --name "$DB_NAME" --network host yugabytedb/yugabyte:2024.2.3.0-b116 \
         bin/yugabyted start --background=false --advertise_address="$HOST" >/dev/null
       for _ in $(seq 1 90); do docker exec "$DB_NAME" bin/ysqlsh -h "$HOST" -c "select 1" >/dev/null 2>&1 && break; sleep 3; done
-      docker exec "$DB_NAME" bin/ysqlsh -h "$HOST" -c "CREATE DATABASE church" >/dev/null || die "could not create the database"
-      DATABASE_URL="postgresql://yugabyte@$HOST:5433/church"
+      docker exec "$DB_NAME" bin/ysqlsh -h "$HOST" -c "CREATE DATABASE lampstand" >/dev/null || die "could not create the database"
+      DATABASE_URL="postgresql://yugabyte@$HOST:5433/lampstand"
       ;;
     *) die "engine must be cockroach or yugabyte" ;;
   esac
@@ -66,10 +66,10 @@ start_object_store() {
     -v "$PWD/infra/garage/garage-render.sh:/usr/local/bin/garage-render.sh:ro" \
     -v "$PWD/infra/garage/garage-entrypoint.sh:/usr/local/bin/garage-entrypoint.sh:ro" \
     -v "$PWD/infra/garage/garage-init.sh:/usr/local/bin/garage-init.sh:ro" \
-    --entrypoint sh church-garage /usr/local/bin/garage-entrypoint.sh garage -c /tmp/garage.toml server >/dev/null
+    --entrypoint sh lampstand-garage /usr/local/bin/garage-entrypoint.sh garage -c /tmp/garage.toml server >/dev/null
   for _ in $(seq 1 30); do docker exec "$S3_NAME" garage -c /tmp/garage.toml status >/dev/null 2>&1 && break; sleep 1; done
   local secret; secret="$(docker inspect "$S3_NAME" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^GARAGE_RPC_SECRET=//p')"
-  docker exec -e GARAGE_RPC_SECRET="$secret" -e GARAGE_RPC_PUBLIC_ADDR=127.0.0.1:3901 -e S3_ACCESS_KEY="$S3_ACCESS_KEY" -e S3_SECRET_KEY="$S3_SECRET_KEY" -e S3_BUCKET=church-files \
+  docker exec -e GARAGE_RPC_SECRET="$secret" -e GARAGE_RPC_PUBLIC_ADDR=127.0.0.1:3901 -e S3_ACCESS_KEY="$S3_ACCESS_KEY" -e S3_SECRET_KEY="$S3_SECRET_KEY" -e S3_BUCKET=lampstand-files \
     "$S3_NAME" sh /usr/local/bin/garage-init.sh >/dev/null || die "could not set up the object store"
 }
 
@@ -159,7 +159,7 @@ cmd_test() {
   smoke() { reset_user; local out; out="$(run_node -e BASE="$(lb)" node:20-alpine node tests/smoke/run.mjs 2>&1)"; echo "$out" | grep -E "FAIL|smoke:" | tail -n 12 | sed 's/^/   /'; echo "$out" | grep -q " 0 failed"; }
   check "the smoke suite through the load balancer (requests alternate between the nodes)" smoke
 
-  # 2. The load balancer really spreads: both nodes answer, named in X-Church-Node.
+  # 2. The load balancer really spreads: both nodes answer, named in X-Lampstand-Node.
   spread() {
     local seen; seen="$(for _ in $(seq 1 12); do curl -s -D - -o /dev/null "$(lb)/healthz" | tr -d '\r' | sed -n 's/^[Xx]-[Cc]hurch-[Nn]ode: //p'; done | sort | uniq -c)"
     echo "$seen" | sed 's/^/   /'

@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { ChecklistStation } from "@church/shared";
+import type { ChecklistStation } from "@lampstand/shared";
 import { StationsAdminClient } from "./stations-admin-client";
 
 export const dynamic = "force-dynamic";

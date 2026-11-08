@@ -8,7 +8,7 @@
  *   S3_ENDPOINT      host[:port] or a URL (`https://s3.example.org`); no path        MINIO_ENDPOINT   (minio:9000)
  *   S3_USE_SSL       true/false; default: https in the URL, otherwise false          MINIO_USE_SSL
  *   S3_REGION        default us-east-1                                               MINIO_REGION
- *   S3_BUCKET        default church-files                                            MINIO_BUCKET
+ *   S3_BUCKET        default lampstand-files                                            MINIO_BUCKET
  *   S3_ACCESS_KEY                                                                    MINIO_ROOT_USER
  *   S3_SECRET_KEY                                                                    MINIO_ROOT_PASSWORD
  *   S3_SESSION_TOKEN optional, for temporary credentials
@@ -88,7 +88,7 @@ export function resolveS3Config(env: Env = process.env): S3Config {
     port,
     useSSL,
     region: pick(env, "S3_REGION", "MINIO_REGION") ?? "us-east-1",
-    bucket: pick(env, "S3_BUCKET", "MINIO_BUCKET") ?? "church-files",
+    bucket: pick(env, "S3_BUCKET", "MINIO_BUCKET") ?? "lampstand-files",
     accessKey,
     secretKey,
     sessionToken: pick(env, "S3_SESSION_TOKEN"),

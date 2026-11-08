@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KeySquare } from "lucide-react";
-import { API_TOKEN_STATUSES, type ApiTokenAdminSummary, type ApiTokenStatus } from "@church/shared";
+import { API_TOKEN_STATUSES, type ApiTokenAdminSummary, type ApiTokenStatus } from "@lampstand/shared";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";

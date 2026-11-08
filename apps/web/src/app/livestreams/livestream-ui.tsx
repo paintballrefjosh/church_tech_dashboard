@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LIVESTREAM_PLATFORM_INFO, LIVESTREAM_PROBLEM_LABELS, type Livestream, type LivestreamProblem, type LivestreamState } from "@church/shared";
+import { LIVESTREAM_PLATFORM_INFO, LIVESTREAM_PROBLEM_LABELS, type Livestream, type LivestreamProblem, type LivestreamState } from "@lampstand/shared";
 
 /**
  * Pieces shared by the livestream wall and a stream's page (docs/livestreams.md). The picture area is black in both

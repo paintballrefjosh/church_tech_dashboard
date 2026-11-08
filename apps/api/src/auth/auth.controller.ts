@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, BadRequestException, HttpException, UnauthorizedException, Inject, Req } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { Public } from "./public.decorator";
 import { RequirePermissions } from "./permissions.decorator";
 import { AuthService } from "./auth.service";
@@ -268,7 +268,7 @@ export class AuthController {
     }
     const form = new URLSearchParams({
       grant_type: "authorization_code",
-      code: "church-dashboard-credential-test",
+      code: "lampstand-credential-test",
       client_id: clientId,
       client_secret: clientSecret,
       redirect_uri: "http://localhost/test",

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PERMISSIONS, type TicketStatus } from "@church/shared";
+import { PERMISSIONS, type TicketStatus } from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { NotificationsService } from "../notifications/notifications.service";

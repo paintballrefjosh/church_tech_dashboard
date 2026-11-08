@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { Printer as PrinterRow } from "@church/shared";
+import type { Printer as PrinterRow } from "@lampstand/shared";
 import { PrintersList } from "./printers-list";
 
 export const dynamic = "force-dynamic";

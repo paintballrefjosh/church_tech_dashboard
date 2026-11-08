@@ -10,8 +10,8 @@ import { ticketCategories, ticketCategoryAssignments } from "../db/schema";
 import type {
   CreateTicketCategoryInput,
   UpdateTicketCategoryInput,
-} from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+} from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 
 @Injectable()
 export class TicketCategoriesService {

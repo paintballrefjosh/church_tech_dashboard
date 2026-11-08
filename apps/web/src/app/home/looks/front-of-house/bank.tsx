@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { durationText, type AreaKey, type HomeSnapshot, type SystemMeters, type SystemsHealth } from "@church/shared";
+import { durationText, type AreaKey, type HomeSnapshot, type SystemMeters, type SystemsHealth } from "@lampstand/shared";
 import { NeedActionButton } from "../../parts/need-action";
 import { alertWhen } from "./format";
 import s from "./front-of-house.module.css";

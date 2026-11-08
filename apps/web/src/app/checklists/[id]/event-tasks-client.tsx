@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, User as UserIcon, RotateCw, Trash2, X, ExternalLink } from "lucide-react";
-import type { AssignableUser, ChecklistEventTask, EventAssignee, PlanDiff } from "@church/shared";
+import type { AssignableUser, ChecklistEventTask, EventAssignee, PlanDiff } from "@lampstand/shared";
 import { DialogFrame } from "@/components/modal";
 
 /** Station key for a task — mirrors the server's posKey (null → "Other"). */

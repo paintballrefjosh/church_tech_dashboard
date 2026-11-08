@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ImageOff, Loader2, Upload } from "lucide-react";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { BigModal } from "@/app/monitoring/network-cisco/cisco-ui";
 import { errorText } from "@/lib/use-switch-models";
 import { readStencilFile } from "@/lib/stencils/read-file";

@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { Monitor } from "@church/shared";
+import type { Monitor } from "@lampstand/shared";
 import { ServicesBanner } from "./services-banner";
 import { MonitorsLiveList } from "./monitors-live-list";
 import { WorkersStrip } from "./workers-strip";

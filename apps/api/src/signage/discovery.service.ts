@@ -12,7 +12,7 @@ import {
   type SignageDiscoverySubnetInput,
   type SignageEvidence,
   type SignageFoundPi,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { ciscoArpCache, ipamHosts, signageDevices, signageDiscoverySubnets, signageFound } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
@@ -273,7 +273,7 @@ export class SignageDiscovery implements OnModuleInit {
     const s = await PiSession.open({ host: f.ip, port: 22, username, password, knownHostKey: f.hostKey, timeoutMs: 10_000 });
     try {
       const art = bigDigits(code);
-      const script = `printf '\\033c\\033[?25l\\n\\n\\n' > /dev/tty1; printf '%s\\n' ${art.map((l) => `'          ${l}'`).join(" ")} > /dev/tty1; printf '\\n\\n          church dashboard: ${f.ip}\\n' > /dev/tty1`;
+      const script = `printf '\\033c\\033[?25l\\n\\n\\n' > /dev/tty1; printf '%s\\n' ${art.map((l) => `'          ${l}'`).join(" ")} > /dev/tty1; printf '\\n\\n          Lampstand: ${f.ip}\\n' > /dev/tty1`;
       let r = await s.exec(`sudo -n sh -c ${shellQuote(script)}`, { timeoutMs: 15_000 });
       if (r.code !== 0) r = await s.exec(`sudo -S -p '' sh -c ${shellQuote(script)}`, { stdin: `${password}\n`, timeoutMs: 15_000 });
       if (r.code !== 0) throw new ConflictException(`The code could not be shown: ${r.stderr.trim().slice(-200) || "sudo refused"}`);

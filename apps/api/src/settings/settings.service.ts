@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, type OnModuleInit } from "@nestjs/common";
 import { eq, asc } from "drizzle-orm";
-import { ALERT_KEYS, ASSISTANT_KEYS, REPORT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@church/shared";
+import { ALERT_KEYS, ASSISTANT_KEYS, REPORT_KEYS, findKnownSetting, findTogglePrerequisite, validateSettingValue } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { gatherAssistantReadiness } from "../assistant/readiness";
 import { CACHE_ROOM, ClusterBus } from "../cluster/cluster-bus.service";

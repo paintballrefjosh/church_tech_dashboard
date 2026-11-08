@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Pause, Pencil, Play, Plus, Trash2 } from "lucide-react";
-import type { BackupFrequency, BackupOperation, BackupSchedule, BackupScheduleInput } from "@church/shared";
+import type { BackupFrequency, BackupOperation, BackupSchedule, BackupScheduleInput } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, post, useOperation } from "./client-api";
 import { ErrorNote, OperationProgress } from "./operation-progress";

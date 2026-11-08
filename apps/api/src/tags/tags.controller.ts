@@ -15,7 +15,7 @@ import {
   updateTagSchema,
   setResourceTagsSchema,
   type TaggableResourceType,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { TagsService } from "./tags.service";

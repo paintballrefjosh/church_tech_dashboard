@@ -117,7 +117,7 @@ done, so "Apply again" is safe and is also how a changed setting reaches a Pi.
 8. **Verify**: log in again with the dashboard key, `signage-ctl status`, player running, and every lock-down setting read back
    (`sshd -T`). The device becomes **active** only after this step passes.
 
-**Never lock the dashboard out.** SSH changes are written to `/etc/ssh/sshd_config.d/50-church-signage.conf` (dashboard key
+**Never lock the dashboard out.** SSH changes are written to `/etc/ssh/sshd_config.d/50-lampstand-signage.conf` (dashboard key
 first, then the config), checked with `sshd -t`, and reloaded with the current session still open. A **second** session is then
 opened with the dashboard key and the new rules. Only if that works is the change kept and the setup password locked (if the
 setting says so). If the second login fails, the file is put back and the run fails with the reason. The same applies to the

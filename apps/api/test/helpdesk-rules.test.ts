@@ -11,7 +11,7 @@ import {
   waitingTransition,
   type SlaFlags,
   type TicketSlaMap,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const T0 = Date.UTC(2026, 9, 17, 9, 0, 0);
 const at = (min: number) => new Date(T0 + min * 60_000);

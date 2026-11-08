@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluatePosture, type PostureFacts } from "@church/shared";
+import { evaluatePosture, type PostureFacts } from "@lampstand/shared";
 
 const NOW = Date.UTC(2026, 9, 16);
 const DAY = 86_400_000;

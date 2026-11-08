@@ -11,7 +11,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 SIM="tests/cluster/sim.sh"
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 N="${1:-3}"
 others=(); for n in 1 2 3; do [[ $n -ne $N ]] && others+=("$n"); done

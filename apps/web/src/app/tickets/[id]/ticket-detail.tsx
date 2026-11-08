@@ -12,7 +12,7 @@ import {
   type TicketComment,
   type TicketPriority,
   type TicketStatus,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { StatusBadge, PriorityBadge, STATUS_LABEL } from "../ticket-badges";
 import { AttachmentList } from "@/components/attachment-list";
 import { TagPicker } from "@/components/tag-picker";

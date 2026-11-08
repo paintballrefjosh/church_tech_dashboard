@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createUnifiVouchersSchema, describeVoucherMinutes } from "@church/shared";
+import { createUnifiVouchersSchema, describeVoucherMinutes } from "@lampstand/shared";
 import { UnifiService, toVoucher } from "../src/unifi/unifi.service";
 
 /** A fake self-hosted controller: the UniFi OS path (/proxy/network/...) answers 404, so the service falls back to /api/. */

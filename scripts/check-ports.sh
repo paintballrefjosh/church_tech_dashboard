@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env}"
-COMPOSE_PROJECT="${COMPOSE_PROJECT:-church}"
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-lampstand}"
 
 # Read defaults from .env if present, else fall back to compose defaults.
 load_var() {

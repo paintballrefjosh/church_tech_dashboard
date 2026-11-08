@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
-import { RACK_ITEM_STYLE_LABELS, topU, type RackDetail, type RackItemView } from "@church/shared";
+import { RACK_ITEM_STYLE_LABELS, topU, type RackDetail, type RackItemView } from "@lampstand/shared";
 import { RackElevation, drawnUnits } from "@/components/rack-elevation";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { PRINT_BASE_CSS } from "@/lib/print-css";

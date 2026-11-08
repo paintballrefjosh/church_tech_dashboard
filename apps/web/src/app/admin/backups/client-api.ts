@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BackupOperation } from "@church/shared";
+import type { BackupOperation } from "@lampstand/shared";
 
 /**
  * Browser-side helpers for the backups pages. The browser talks to the API directly

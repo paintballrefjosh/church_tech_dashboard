@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DoorOpen, Pencil, Plus } from "lucide-react";
-import { PERMISSIONS, groupLocations, type Location } from "@church/shared";
+import { PERMISSIONS, groupLocations, type Location } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { can, useRooms, useViewer } from "@/components/assets-ui";
 import { useToasts, ToastStack } from "../monitoring/network-cisco/cisco-ui";

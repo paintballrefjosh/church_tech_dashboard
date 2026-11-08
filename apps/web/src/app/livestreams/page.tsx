@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { MonitorPlay, Plus } from "lucide-react";
-import { PERMISSIONS, type Livestream } from "@church/shared";
+import { PERMISSIONS, type Livestream } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { can, useViewer } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";

@@ -17,7 +17,7 @@ import {
   type LivestreamProblem,
   type LivestreamState,
   type ScheduleWindow,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { groupMemberships, livestreamChecks, livestreamSnapshots, livestreams, users } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

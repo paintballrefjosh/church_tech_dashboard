@@ -1,5 +1,5 @@
 import { Settings } from "lucide-react";
-import { SIGNAGE_GENERAL_KEYS } from "@church/shared";
+import { SIGNAGE_GENERAL_KEYS } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "../../admin/settings/settings-form";
 import { KeySection, ReleasesSection, SettingsSubnav } from "./settings-sections";

@@ -19,7 +19,7 @@ import { InfraService } from "./infra.service";
 import { collect, discoverServices as discoverHostServices } from "./collectors/dispatch";
 import { type CollectContext, type CollectResult } from "./collectors/types";
 import { UnreadableSecretError } from "../settings/crypto";
-import type { InfraThresholdRule, InfraDiscoveredService } from "@church/shared";
+import type { InfraThresholdRule, InfraDiscoveredService } from "@lampstand/shared";
 
 const DEFAULT_TICK_SEC = parseInt(process.env.INFRA_TICK_SEC ?? "15", 10);
 const DEFAULT_CONCURRENCY = parseInt(process.env.INFRA_CONCURRENCY ?? "6", 10);

@@ -434,13 +434,13 @@ hourly prune takes a `job:monitor-prune` lease for most of the hour and does not
 one worker prunes per period. Each probe runs from whichever node claimed it, so every node
 that runs a worker must reach the monitored targets.
 
-**One pool factory** (`@church/shared/db`, a separate entry point so browser bundles never pull
+**One pool factory** (`@lampstand/shared/db`, a separate entry point so browser bundles never pull
 in `pg`; `packages/shared/db/package.json` is a stub so the API's classic module resolution can
 find it). Every process uses `createPool`: the API, its scripts (migrate, seed, resets), the web
 app and the monitor worker. It gives each pool:
 
 - an `error` handler (proved below: a plain pool dies on the event a node failure raises);
-- `application_name` (`church-api`, `church-web`, ...), connect and idle timeouts, TCP
+- `application_name` (`lampstand-api`, `lampstand-web`, ...), connect and idle timeouts, TCP
   keep-alive, and a 30-minute connection lifetime so connections move to live nodes after a
   failover;
 - automatic retry (5 attempts, 100ms doubling to 2s, jittered, log lines throttled to one per
@@ -452,7 +452,7 @@ app and the monitor worker. It gives each pool:
 - TLS from the URL, plus `HostCheckingClient`: see below.
 
 The lease SQL moved into the same package (`acquireLease`/`releaseLease`) so the API, the migrate
-script and the monitor worker share it. The monitor worker now depends on `@church/shared`,
+script and the monitor worker share it. The monitor worker now depends on `@lampstand/shared`,
 and `scripts/rebuild.sh` now rebuilds `monitor` too (it only knew `api` and `web`, so a monitor
 or shared change never reached the running worker).
 
@@ -523,8 +523,8 @@ What was done, which differs from the plan in one way (below):
   `next.config.mjs` uses it as the Next build id and `deploymentId`. The api's heartbeat reports it
   as the node's version. `scripts/release.sh` builds the three images once, tagged by build id, and
   prints the `.env` lines (`BUILD_ID`, `API_IMAGE`, `WEB_IMAGE`, `MONITOR_IMAGE`) for the nodes.
-  Compose accepts those image names; the defaults are unchanged (`church-api`, ... and
-  `church-prod-api`, ... for prod).
+  Compose accepts those image names; the defaults are unchanged (`lampstand-api`, ... and
+  `lampstand-prod-api`, ... for prod).
   Since 2026-10-24 the nodes can also PULL that release instead of taking the `.env` lines:
   `IMAGE_REGISTRY=<prefix>`, `scripts/release.sh --push` (or `upgrade-cluster.sh --publish`), and
   `upgrade.sh` pulls `<prefix>-api|web|monitor:<build id>`, checks the baked-in `BUILD_ID`, and tags the
@@ -601,9 +601,9 @@ same in every build).
   bundled store.
 - **`scripts/s3-copy.sh`** (6.3), a thin wrapper over `scripts/s3-copy.cjs`, which runs inside the api image: copies
   every object between two stores and proves the copy by SHA-256 of every copied object at both ends. Nothing is deleted.
-- **`scripts/db-s3.sh`** and `make db-backup-s3 | db-list-s3 | db-restore-s3` (6.4): `BACKUP DATABASE church INTO
+- **`scripts/db-s3.sh`** and `make db-backup-s3 | db-list-s3 | db-restore-s3` (6.4): `BACKUP DATABASE lampstand INTO
   s3://<bucket>/db-backups/...` and a safe restore (into a copy, swapped in only on success; straight into place on a
-  cluster that has no `church` yet). `DB_S3_CONTAINER` points the SQL at a throwaway Cockroach so a restore can be tried
+  cluster that has no `lampstand` yet). `DB_S3_CONTAINER` points the SQL at a throwaway Cockroach so a restore can be tried
   without touching the real one.
 
 **Verified.**
@@ -618,7 +618,7 @@ same in every build).
   bucket that does not exist says so.
 - *Backup/restore:* the real dev database (1.84 million rows, 1.3 GB) backed up to a second store and restored into a
   **separate, empty cluster** in 18 seconds, row counts equal (the metrics table differs by the rows the live stack added
-  after the backup). A **failed** restore (a bucket with no backups) left the existing `church` untouched with no leftover
+  after the backup). A **failed** restore (a bucket with no backups) left the existing `lampstand` untouched with no leftover
   copy; a **successful swap** replaced it (a row added after the backup disappeared). Cockroach does not create the bucket:
   a missing one fails with a clear error and a non-zero exit. The secret key is masked in all output.
 - Typecheck, 156 unit tests (22 new), the 27 real-database tests, and the full regression (171 smoke + 21 browser tests,
@@ -675,7 +675,7 @@ removing a node) belongs with phase 7.
 - **A guard against LMDB on NFS.** This repo's `./data` is on NFS on the dev host, and Garage keeps
   its metadata in LMDB. The entrypoint refuses to start when the metadata directory is on a network
   filesystem (tested: refused on the NFS share, accepted on local disk, overridable);
-  `GARAGE_META_DIR` moves it, and `.env` here sets it to `/home/josh/church-garage-meta`.
+  `GARAGE_META_DIR` moves it, and `.env` here sets it to `/home/josh/lampstand-garage-meta`.
 - `s3-copy.sh --from-minio --to-bundled` for moving an install over, `--from-region`/`--to-region`,
   and a warning from `compose.sh up` if `data/minio` has files and the Garage data is empty.
   Health now reports kind `garage`.
@@ -731,7 +731,7 @@ untouched, until you are sure.
 - `infra/docker-compose.cluster-db.yml`: one **secure** `cockroach` per node (own profile
   `cluster-db`; certificates mounted read-only; port published on `CLUSTER_BIND_ADDR`; admin UI on
   the container's loopback only; healthcheck unhealthy until the cluster is initialised). The app
-  signs in as user `church` over `sslmode=verify-full` and each node's app uses its own node's
+  signs in as user `lampstand` over `sslmode=verify-full` and each node's app uses its own node's
   database. `cluster.yml` publishes Garage's RPC port; `cluster-s3-api.yml` is the opt-in S3 port.
 - Garage's config became a template (`garage.toml.tpl`, rendered by `garage-render.sh`) so the
   replication factor and the public RPC address come from the cluster settings; `garage-init` in
@@ -767,7 +767,7 @@ procedure in INSTALL.md followed from empty):
   SIGHUP on all nodes with no restart (new serial presented, cluster unchanged).
 - *Backup and restore in the cluster*: backup to Garage, restore refused while three other nodes run,
   restore after stopping them, and the application starts (the restored tables are handed to the app user).
-- The 27 database integration tests pass against the secure cluster, as the non-root `church` user, over
+- The 27 database integration tests pass against the secure cluster, as the non-root `lampstand` user, over
   `sslmode=verify-full`. A rolling upgrade (drain, `up` with the new build, undrain, per node) left
   the database and object store containers alone and worked.
 - *Witness* (`NODE_ROLE=data`, two application nodes + a witness): either application node can be stopped entirely and the other, with the
@@ -791,7 +791,7 @@ procedure in INSTALL.md followed from empty):
   node could never acknowledge ("Could not reach quorum"). Replacing is now one change (`--replace`),
   followed by `skip-dead-nodes`. `garage-init` hid its errors; it now prints a failed command's output
   with secrets masked.
-- A restore left the tables owned by root, so the app's `church` user had no privileges and the API would
+- A restore left the tables owned by root, so the app's `lampstand` user had no privileges and the API would
   not start; the restore now hands the database over (and `init-db` can do it again by hand).
 - On a first install the API cannot start against an empty database (it reads settings at boot), so
   `exec api ... migrate` is not available; `cluster.sh migrate|seed` use a one-off container. This is

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { TAG_COLORS, type Tag, type TagColor } from "@church/shared";
+import { TAG_COLORS, type Tag, type TagColor } from "@lampstand/shared";
 import { TagBadge } from "@/components/tag-badge";
 
 export function TagsAdminClient({ initial }: { initial: Tag[] }) {

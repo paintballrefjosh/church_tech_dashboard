@@ -17,7 +17,7 @@ import { MemoryObjectStore } from "./helpers/memory-object-store";
  * so it only runs when asked:
  *
  *   BACKUP_SCALE=1 TEST_DATABASE_URL=postgresql://root@host:26257/scratch?sslmode=disable \
- *     pnpm --filter @church/api exec vitest run test/backup.scale.test.ts
+ *     pnpm --filter @lampstand/api exec vitest run test/backup.scale.test.ts
  */
 const url = process.env.TEST_DATABASE_URL;
 const run = process.env.BACKUP_SCALE === "1";

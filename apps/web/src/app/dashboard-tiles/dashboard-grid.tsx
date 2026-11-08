@@ -12,7 +12,7 @@ import {
   type Ticket,
   type TilePlacement,
   type WikiPage,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 export interface DashboardInitialData {
   tickets?: Ticket[];

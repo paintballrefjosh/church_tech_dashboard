@@ -16,7 +16,7 @@ import {
   ListChecks,
   type LucideIcon,
 } from "lucide-react";
-import type { InfraSummary, Note, Ticket as TicketType, TicketStatus, WikiPage } from "@church/shared";
+import type { InfraSummary, Note, Ticket as TicketType, TicketStatus, WikiPage } from "@lampstand/shared";
 
 type Tone = "brand" | "amber" | "sky" | "emerald";
 

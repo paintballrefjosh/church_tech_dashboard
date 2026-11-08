@@ -19,8 +19,8 @@ import {
   type ServiceGroupStatus,
   type ServiceInstance,
   stateMetricsOf,
-} from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+} from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 import { DB, type Db } from "../db/db.module";
 import { availabilityHourly, monitorIncidents, serviceGroups, serviceInstances } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

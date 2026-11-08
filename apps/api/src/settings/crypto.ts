@@ -15,16 +15,30 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 const PREFIX = "enc:v1:";
 const ALGO = "aes-256-gcm";
 const IV_LEN = 12;
-const SALT = Buffer.from("church-dashboard:settings:v1");
+const SALT = Buffer.from("lampstand:settings:v1");
+/**
+ * Values saved before the rename to Lampstand (2026-11-08) were encrypted under this salt. They are still read (see
+ * `decryptSecret`) and become new-salt values the next time they are saved; nothing is re-encrypted in bulk.
+ */
+const LEGACY_SALT = Buffer.from("church-dashboard:settings:v1");
 
 let cachedKey: Buffer | null = null;
+let cachedLegacyKey: Buffer | null = null;
 
-function key(): Buffer {
-  if (cachedKey) return cachedKey;
+function secretOrThrow(): string {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET must be set before encrypting/decrypting settings");
-  cachedKey = scryptSync(secret, SALT, 32);
+  return secret;
+}
+
+function key(): Buffer {
+  if (!cachedKey) cachedKey = scryptSync(secretOrThrow(), SALT, 32);
   return cachedKey;
+}
+
+function legacyKey(): Buffer {
+  if (!cachedLegacyKey) cachedLegacyKey = scryptSync(secretOrThrow(), LEGACY_SALT, 32);
+  return cachedLegacyKey;
 }
 
 export function encryptSecret(plaintext: string): string {
@@ -50,10 +64,21 @@ export function decryptSecret(encrypted: string): string {
   const iv = Buffer.from(ivB64, "base64");
   const tag = Buffer.from(tagB64, "base64");
   const ct = Buffer.from(ctB64, "base64");
-  const decipher = createDecipheriv(ALGO, key(), iv);
-  decipher.setAuthTag(tag);
-  const plain = Buffer.concat([decipher.update(ct), decipher.final()]);
-  return plain.toString("utf8");
+  const open = (k: Buffer): string => {
+    const decipher = createDecipheriv(ALGO, k, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+  };
+  try {
+    return open(key());
+  } catch (err) {
+    // Saved before the rename? A value that opens under neither salt was written under another AUTH_SECRET.
+    try {
+      return open(legacyKey());
+    } catch {
+      throw err;
+    }
+  }
 }
 
 /**

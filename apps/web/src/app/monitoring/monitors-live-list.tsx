@@ -9,7 +9,7 @@ import {
   Power,
   RefreshCw,
 } from "lucide-react";
-import type { Monitor } from "@church/shared";
+import type { Monitor } from "@lampstand/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "./use-monitor-workers";
 

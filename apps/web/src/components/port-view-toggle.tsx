@@ -5,7 +5,7 @@ import { LayoutGrid, List } from "lucide-react";
 
 export type PortView = "switch" | "list";
 
-const STORAGE_KEY = "church.portView";
+const STORAGE_KEY = "lampstand.portView";
 
 /**
  * Which way a person likes to see a device's ports: the picture of the switch (the default) or the table. Remembered

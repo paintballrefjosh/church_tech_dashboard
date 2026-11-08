@@ -3,7 +3,7 @@
 import { use, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Pencil, Power, Tv } from "lucide-react";
-import type { SignagePlaylist, SignagePreview, SignageScreen, SignageScreenGroup, SignageTimelineEntry } from "@church/shared";
+import type { SignagePlaylist, SignagePreview, SignageScreen, SignageScreenGroup, SignageTimelineEntry } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { GoneNotice } from "@/components/gone-notice";
 import { sendJson } from "@/components/assets-ui";

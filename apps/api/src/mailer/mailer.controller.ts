@@ -1,6 +1,6 @@
 import { Body, Controller, Post, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { MailerService } from "./mailer.service";
 

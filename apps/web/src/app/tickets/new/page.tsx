@@ -4,7 +4,7 @@ import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LifeBuoy } from "lucide-react";
 import { apiJson } from "@/lib/api";
-import type { Asset } from "@church/shared";
+import type { Asset } from "@lampstand/shared";
 import { NewTicketForm } from "./new-ticket-form";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

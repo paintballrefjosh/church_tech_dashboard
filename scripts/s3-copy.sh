@@ -12,7 +12,7 @@
 #
 #   # Move onto an external store (or out of it):
 #   scripts/s3-copy.sh --to-endpoint https://s3.example.org \
-#       --to-access-key AKIA... --to-secret-key ... [--to-bucket church-files] [--to-region R]
+#       --to-access-key AKIA... --to-secret-key ... [--to-bucket lampstand-files] [--to-region R]
 #
 # With neither --from-minio nor --from-endpoint, the source is the store this stack uses now
 # (the bundled Garage, or your external store: what `scripts/compose.sh --s3-env` reports).
@@ -70,8 +70,8 @@ env_get() {
 stack_env() { bash scripts/compose.sh "${PROD[@]}" --s3-env; }
 stack_get() { stack_env | sed -n "s/^$1=//p"; }
 
-NET="church_internal"; IMG_DEFAULT="church-api"
-if [[ ${#PROD[@]} -gt 0 ]]; then NET="church-prod_internal"; IMG_DEFAULT="church-prod-api"; fi
+NET="lampstand_internal"; IMG_DEFAULT="lampstand-api"
+if [[ ${#PROD[@]} -gt 0 ]]; then NET="lampstand-prod_internal"; IMG_DEFAULT="lampstand-prod-api"; fi
 
 # ---- source ----
 if [[ -n "$FROM_MINIO" ]]; then
@@ -86,7 +86,7 @@ elif [[ -z "$FROM_ENDPOINT" ]]; then
   FROM_REGION="${FROM_REGION:-$(stack_get S3_REGION)}"; FROM_BUCKET="${FROM_BUCKET:-$(stack_get S3_BUCKET)}"
 fi
 [[ -n "$FROM_AK" && -n "$FROM_SK" ]] || die "no source credentials (pass --from-access-key / --from-secret-key)"
-FROM_BUCKET="${FROM_BUCKET:-church-files}"
+FROM_BUCKET="${FROM_BUCKET:-lampstand-files}"
 
 # ---- destination ----
 if [[ -n "$TO_BUNDLED" ]]; then

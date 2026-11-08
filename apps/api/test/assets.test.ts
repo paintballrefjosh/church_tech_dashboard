@@ -10,7 +10,7 @@ import {
   parseAssetCsv,
   parseCsv,
   readImportDate,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 describe("parseCsv", () => {
   it("reads quoted cells, doubled quotes, commas and line breaks inside quotes", () => {

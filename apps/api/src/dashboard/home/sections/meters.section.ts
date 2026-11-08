@@ -18,7 +18,7 @@ import {
   type AreaKey,
   type Section,
   type SystemMeters,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { ciscoDriftEvents, ciscoPortLiveState } from "../../../db/schema/cisco";
 import { infraMetricSamples, infraTargets } from "../../../db/schema/infra";

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
-import { PERMISSIONS, createLocationSchema, updateLocationSchema } from "@church/shared";
+import { PERMISSIONS, createLocationSchema, updateLocationSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";

@@ -11,7 +11,7 @@ import {
   ticketNumberInSubject,
   ticketSubjectToken,
   validateSettingValue,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 describe("ticket numbers in subjects", () => {
   it("finds the bracketed token only", () => {

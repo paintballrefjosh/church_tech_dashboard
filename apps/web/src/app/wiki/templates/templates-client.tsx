@@ -8,7 +8,7 @@ import {
   WIKI_TEMPLATE_NAME_MAX,
   type WikiStarterTemplate,
   type WikiTemplate,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { WikiBodyEditor } from "@/components/wiki-body-editor";
 
 const API = "/api/v1/wiki/templates";

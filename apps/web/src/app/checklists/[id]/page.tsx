@@ -11,7 +11,7 @@ import type {
   ChecklistEvent,
   ChecklistEventTask,
   EventAssignee,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { EventTasksClient } from "./event-tasks-client";
 
 interface MePayload {

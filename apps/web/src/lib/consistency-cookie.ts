@@ -1,10 +1,10 @@
 /**
  * The API's "read your own writes" cookie (api `cluster/read-your-writes.ts`): after a change it
- * answers with `church_rv=<time of the change>`, and a request carrying it makes whichever node
+ * answers with `lampstand_rv=<time of the change>`, and a request carrying it makes whichever node
  * serves it catch up first. The web must hand that cookie on to the browser or the next request,
  * which may land on another node, never asks for the catch-up. Pure, so it can be unit-tested.
  */
-export const CONSISTENCY_COOKIE = "church_rv";
+export const CONSISTENCY_COOKIE = "lampstand_rv";
 
 /** The cookie in one `Set-Cookie` line from the API, or null when the line is some other cookie. */
 export function parseConsistencySetCookie(line: string): { value: string; maxAge: number } | null {

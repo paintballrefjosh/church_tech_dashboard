@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { CANNED_REPLY_BODY_MAX, CANNED_REPLY_TITLE_MAX, type CannedReply } from "@church/shared";
+import { CANNED_REPLY_BODY_MAX, CANNED_REPLY_TITLE_MAX, type CannedReply } from "@lampstand/shared";
 
 const API = "/api/v1/tickets/canned-replies";
 const field =

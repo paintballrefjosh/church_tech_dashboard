@@ -18,7 +18,7 @@ import {
   type DnsSyncRunDetails,
   type DnsSyncStatus,
   type DnsSyncTrigger,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { dnsManagedRecords, dnsSyncRuns, ipamHosts, ipamSubnets } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

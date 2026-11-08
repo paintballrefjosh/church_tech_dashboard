@@ -15,7 +15,7 @@ import {
   type BackupOffsiteObject,
   type BackupOffsiteStatus,
   type BackupOffsiteTest,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { backupSchedules, backups } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
@@ -105,7 +105,7 @@ export class OffsiteService implements OnModuleInit {
       endpoint: str(endpoint),
       bucket: str(bucket),
       region: str(region) || "us-east-1",
-      prefix: typeof prefix === "string" ? prefix : "church-dashboard/",
+      prefix: typeof prefix === "string" ? prefix : "lampstand/",
       accessKey: str(accessKey),
       secretKey: str(secretKey),
       pathStyle: pathStyle !== false,
@@ -222,8 +222,8 @@ export class OffsiteService implements OnModuleInit {
     const r = await this.resolve();
     if (!r.ok) return { ok: false, message: r.reason, canDelete: false };
     const { store, prefix } = r.dest;
-    const probe = `${prefix}.church-dashboard-write-test-${randomUUID().slice(0, 8)}`;
-    const body = Buffer.from("church dashboard offsite backup test\n");
+    const probe = `${prefix}.lampstand-write-test-${randomUUID().slice(0, 8)}`;
+    const body = Buffer.from("Lampstand offsite backup test\n");
     try {
       await store.list(prefix);
     } catch (err) {

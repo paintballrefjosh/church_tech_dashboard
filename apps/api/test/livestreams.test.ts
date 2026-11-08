@@ -23,7 +23,7 @@ import {
   ytdlpOffline,
   type LivestreamSample,
   type YtdlpInfo,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { applyAtemCommands, emptyAtemState, judgeAtem, probeAtem } from "../../../services/monitor/src/av-probes";
 import { looksLikeManifest } from "../src/livestreams/livestream-reader";
 
@@ -134,7 +134,7 @@ describe("stream links", () => {
     expect(manifestLiveState('<?xml version="1.0"?><MPD type="dynamic">')).toMatchObject({ kind: "dash", live: true });
     expect(manifestLiveState("<html>")).toMatchObject({ kind: "unknown" });
     expect(looksLikeManifest("https://cdn.example/live/index.m3u8?token=1")).toBe(true);
-    expect(looksLikeManifest("https://www.youtube.com/@church/live")).toBe(false);
+    expect(looksLikeManifest("https://www.youtube.com/@lampstand/live")).toBe(false);
   });
 
   it("refuses links the server must not fetch, and allows a LAN encoder", () => {
@@ -161,7 +161,7 @@ describe("a stream's settings", () => {
     expect(createLivestreamSchema.safeParse({ name: "x", platform: "youtube", schedule: "Sunday at ten" }).success).toBe(false);
     expect(createLivestreamSchema.safeParse({ name: "x", platform: "resi", access: "private", streamUrl: "ftp://x" }).success).toBe(false);
     expect(updateLivestreamSchema.safeParse({ streamUrl: "[saved]" }).success).toBe(true);
-    const ok = createLivestreamSchema.parse({ name: "Sunday", platform: "youtube", pageUrl: "https://www.youtube.com/@church/live", schedule: "Sun 10:15-12:15" });
+    const ok = createLivestreamSchema.parse({ name: "Sunday", platform: "youtube", pageUrl: "https://www.youtube.com/@lampstand/live", schedule: "Sun 10:15-12:15" });
     expect(ok).toMatchObject({ access: "public", statusIntervalSec: 60, sampleIntervalSec: 300, sampleSeconds: 10, enabled: true });
   });
 
@@ -171,7 +171,7 @@ describe("a stream's settings", () => {
     expect(livestreamSetupProblem({ ...base, platform: "resi" })).toMatch(/m3u8/);
     expect(livestreamSetupProblem({ ...base, access: "private" })).toMatch(/link/);
     expect(livestreamSetupProblem({ ...base, platform: "facebook", access: "private", platformRef: "12345" })).toBeNull();
-    expect(livestreamSetupProblem({ ...base, pageUrl: "https://www.youtube.com/@church/live" })).toBeNull();
+    expect(livestreamSetupProblem({ ...base, pageUrl: "https://www.youtube.com/@lampstand/live" })).toBeNull();
   });
 });
 

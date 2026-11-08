@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { WikiTreeNode } from "@church/shared";
+import type { WikiTreeNode } from "@lampstand/shared";
 import { buildWikiTree, flattenWikiTree } from "./wiki-tree-utils";
 
 export interface WikiLocation {

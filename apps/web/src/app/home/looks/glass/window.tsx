@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { memo, useRef, type CSSProperties, type MouseEvent } from "react";
-import type { AreaKey, AvailabilityGrid } from "@church/shared";
+import type { AreaKey, AvailabilityGrid } from "@lampstand/shared";
 import styles from "./glass.module.css";
 
 /** How many shades each area's jewel has (see the --<area>-<n> tokens in the CSS). */

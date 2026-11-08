@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiFetch, apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { ChecklistStation, ChecklistTemplate, ChecklistTemplateTask } from "@church/shared";
+import type { ChecklistStation, ChecklistTemplate, ChecklistTemplateTask } from "@lampstand/shared";
 import { TemplateEditorClient } from "./template-editor-client";
 
 export const dynamic = "force-dynamic";

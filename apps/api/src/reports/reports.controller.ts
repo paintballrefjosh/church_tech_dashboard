@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
-import { isReportMonth, previousMonth } from "@church/shared";
+import { isReportMonth, previousMonth } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { NotificationDeliveryService } from "../notifications/notification-delivery.service";
 import { ReportsService } from "./reports.service";

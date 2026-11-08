@@ -16,7 +16,7 @@ describe("the signage SSH key", () => {
     expect(deriveSignageKey("secret-one", 1)).toEqual(a);
     expect(deriveSignageKey("secret-one", 2).publicKey).not.toBe(a.publicKey);
     expect(deriveSignageKey("secret-two", 1).publicKey).not.toBe(a.publicKey);
-    expect(a.publicKey).toMatch(/^ssh-ed25519 AAAA[A-Za-z0-9+/=]+ church-dashboard-signage-g1$/);
+    expect(a.publicKey).toMatch(/^ssh-ed25519 AAAA[A-Za-z0-9+/=]+ lampstand-signage-g1$/);
   });
 
   it("refuses no secret and a generation below 1", () => {

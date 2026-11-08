@@ -28,7 +28,7 @@ import {
   type ServiceTemplateBody,
   type ServiceTest,
   type ServiceTestResult,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import {
   infraTargets,

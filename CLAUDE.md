@@ -4,11 +4,28 @@ Context file for Claude (or any AI assistant) working on this repo. Keep this cu
 
 ## What this project is
 
-A web-based dashboard for a single church. Modular tile dashboard, helpdesk
+**Lampstand** (renamed 2026-11-08 from "Church Dashboard"; the name's meaning is the first thing in the README). A web-based dashboard for a single church. Modular tile dashboard, helpdesk
 (tickets + SLAs), wiki, notes, monitoring + incidents, printer (SNMP) status,
 UniFi network views, ProPresenter control, Planning Center, volunteer checklists,
 tags, @mentions, activity feed, full-text search, a notification centre, and
 admin. Self-hosted via Docker Compose behind an upstream HTTPS load balancer.
+
+**Naming (renamed from "Church Dashboard" on 2026-11-08).** Everything is called `lampstand`: the repo, the `@lampstand/*` workspace scope, the compose
+projects (`lampstand`, `lampstand-prod`) and images (`lampstand-<service>`), the database and its user, the default bucket (`lampstand-files`), the
+cookies and headers (`lampstand_rv`, `lampstand_home_look`, `X-Lampstand-Node`, `X-Lampstand-Signature`). **Five places still read an old
+`church-dashboard` string, on purpose, because data written before the rename carries it** (each is a named LEGACY constant with a test; new data
+never uses it):
+(1) saved secrets (`settings/crypto.ts`: `decryptSecret` tries the new salt, then `LEGACY_SALT`; a value is rewritten under the new salt the next
+time it is saved, there is no bulk re-encryption, so the legacy salt can only go once every row has been saved again); (2) web push (`vapid.ts`
+`deriveLegacyVapidKeys`; `PushService.send` retries a 401/403 with the old key pair, which is what a subscription made before the rename needs);
+(3) backups: `LEGACY_ARCHIVE_FORMAT` is still accepted by the reader, `acceptedSecretFingerprints()` accepts the old fingerprint, and offsite copies
+named `church-dashboard-<time>-<id>.tar.gz` are still recognised and pruned, ordered by the time in the name; (4) DNS records the sync made carry
+`managed-by:church-dashboard` (`LEGACY_DNS_MANAGED_MARKER`, `hasManagedMarker`): still owned, and `computeSyncPlan` rewrites the comment with an
+update ("Marker renamed") on the next run; (5) the sudoers files `90-` and `zz-church-dashboard-<login>` (`legacySudoersFilesFor`) are removed when
+passwordless sudo is set up again. **`DERIVE_PREFIX`** (`.env`, read by `scripts/compose.sh`) is the namespace the bundled database password and Garage's
+key are derived with: new installs get `lampstand` (installer, `make init-env`); an install without the line keeps `church-dashboard`, **never add the
+line to a running install** (the stored password and key were made from the old one). Sample text and prose that say "church" (example domains,
+"Church Apps", "a church") are about the organisation, not the product. The GitHub repo is `paintballrefjosh/lampstand`.
 
 **Tenancy:** single church only. Do **not** add `tenant_id` columns or multi-tenant
 abstractions. If multi-tenancy is ever needed it will be a separate, explicit phase.
@@ -292,7 +309,7 @@ ends `needs_sudo` (key login with no password, or a wrong one: the web opens a t
 says how to fix it on the host; the dashboard cannot). The password typed is sent with the next
 `POST .../update-run` (`sudoPassword`, redacted from the audit row, never stored, scrubbed from run output); with
 `enablePasswordlessSudo` the run first writes `<login> ALL=(ALL) NOPASSWD: ALL` to
-`/etc/sudoers.d/zz-church-dashboard-<login>` (`zz-` because sudoers is last-match-wins; temp name, `visudo -cf`,
+`/etc/sudoers.d/zz-lampstand-<login>` (`zz-` because sudoers is last-match-wins; temp name, `visudo -cf`,
 then `mv`). "Written" is not "working": while still root the script runs `sudo -n true` as the login; if a later
 entry overrides the rule it retries with `Defaults:<login> !authenticate` (sudo-rs has no such setting), and
 failing that removes the file and returns `sudo -l -U` plus the relevant sudoers lines. A scoped sudoers rule does not satisfy the `sudo -n true` probe. Statuses are
@@ -390,7 +407,7 @@ notices then linked to a deleted monitor. A link to a deleted monitor, host or s
 **Alert channels, the alert outbox, runbooks, the public status page** (migrations 0077, 0078; rules in
 `packages/shared/src/alert-channels.ts`, unit-tested in `apps/api/test/alert-channels.test.ts`). (1) *Alert channels* (`alert_channels`,
 `apps/api/src/alerts/`, page `/monitoring/alert-channels`, the "Alerts" tab; reads AND writes `monitors:write:any`, MCP-excluded) are
-site-wide destinations: ntfy, Pushover, Slack, Teams (Workflows webhook), Discord, a JSON webhook (optional HMAC `X-Church-Signature`
+site-wide destinations: ntfy, Pushover, Slack, Teams (Workflows webhook), Discord, a JSON webhook (optional HMAC `X-Lampstand-Signature`
 over `<timestamp>.<body>`) and Twilio SMS. `events` is `outages` (`OUTAGE_ALERT_KINDS`, each kind with its recovery) or `everything`
 (also `OTHER_ALERT_KINDS`). The token or webhook URL is `secret` (encrypted `enc:v1:`, never returned: `hasSecret`). **Every request
 is built by the pure `buildAlertRequests`; destinations go through `alertDestinationProblem`** (Slack/Discord/Teams only to their own
@@ -1118,7 +1135,7 @@ the original concepts: `docs/dashboard-concepts/`): `tiles` (the original dragga
   "no upcoming service" means nothing is scheduled that this person can see: hide, never "can't be reached".
 - **Actions reuse existing audited routes** (UniFi ack, take a ticket, tick a checklist task, maintenance mode) through
   `home/parts/need-action.tsx` and the looks. The only new write is `PUT /dashboard/prefs` (audited `dashboard.prefs.update`).
-- **Choosing a look:** `?theme=` (preview, not saved) > the device cookie `church_home_look` ("use on this device only",
+- **Choosing a look:** `?theme=` (preview, not saved) > the device cookie `lampstand_home_look` ("use on this device only",
   `/api/dashboard/device-look`) > `dashboard_prefs.theme` > setting `dashboard.default_theme`. A look missing from
   `dashboard.enabled_themes`, or whose `requires` the person lacks (Glass and Front of House need `monitors:read:any`), falls
   through; `start` is the last resort (`resolveLook` in `packages/shared/src/dashboard/themes.ts`). `?kiosk=1` hides the nav for a
@@ -1233,11 +1250,11 @@ must keep a second node working:
 - **Strict rate limits** (sign-in, TOTP, password change) set
   `config.rateLimit.shared`, which counts in `rate_limit_buckets`; the general
   per-IP limit stays per node.
-- **Open database pools only with `createPool` from `@church/shared/db`**, never
+- **Open database pools only with `createPool` from `@lampstand/shared/db`**, never
   `new Pool(...)`. It adds the `error` handler (a plain pool exits the process when
   a database node dies and an idle connection breaks), named connections
   (`application_name`), timeouts, a 30-minute connection lifetime, TLS from the
-  URL, and automatic retry of statements that are safe to repeat. `@church/shared/db`
+  URL, and automatic retry of statements that are safe to repeat. `@lampstand/shared/db`
   is a separate entry point (not the main index) so browser bundles never pull in
   `pg`; classic-resolution packages find it through `packages/shared/db/package.json`.
 - **`DATABASE_URL` may list several hosts** (`postgresql://u:p@h1:5433,h2:5433,h3:5433/db`, libpq syntax): `createPool`
@@ -1292,7 +1309,7 @@ must keep a second node working:
   random one per build and two nodes stop agreeing (measured: no IDs in common).
 - **Realtime is WebSocket only** (gateway and clients), so the load balancer needs no
   sticky sessions. Do not add `polling` back.
-- **Load balancer contract:** `/healthz` on the proxy (200 with `X-Church-Node` while
+- **Load balancer contract:** `/healthz` on the proxy (200 with `X-Lampstand-Node` while
   the API reaches the database, 503 otherwise, 503 `draining` while
   `data/caddy/drain` exists; `scripts/cluster.sh drain|undrain|status`).
   `TRUSTED_PROXIES` (the balancer's CIDRs) turns on strict `X-Forwarded-For`
@@ -1330,7 +1347,7 @@ must keep a second node working:
   `.env`'s values reach compose interpolation, so a new knob is read with `conf` in compose.sh
   and `export`ed there. `CLUSTER_PEERS` entries may be `host:dbport:rpcport` (several nodes on one
   host, as in tests).
-- **Bundled cluster database is secure Cockroach.** The app signs in as user `church` (password
+- **Bundled cluster database is secure Cockroach.** The app signs in as user `lampstand` (password
   `derive_ns db/password` from `AUTH_SECRET`, created by `cluster.sh init-db`) over
   `sslmode=verify-full` against `data/certs/ca.crt`; each app talks to its own node's database. The
   CA key (`data/cluster-certs/ca.key`) never goes on a node (`install-certs` refuses a bundle that
@@ -1355,7 +1372,7 @@ must keep a second node working:
   `skip-dead-nodes --version N`); doing it in two steps leaves versions the dead node can never
   acknowledge and writes fail with "Could not reach quorum". A restore replaces the database for all
   nodes, so `db-s3.sh restore` refuses while another node's app is up, and hands the restored tables
-  to the `church` user.
+  to the `lampstand` user.
 - **Cluster tests: `tests/cluster/`** (`sim.sh` builds N nodes on one host from copies of the repo,
   each with its own `.env`, `data/` and compose project; `cross-node.mjs`, `failover.sh`,
   `replace-node.sh`). **Never run the production stack from this checkout on the dev host**
@@ -1364,7 +1381,7 @@ must keep a second node working:
 - **A change must be visible on every node at once** (`cluster/read-your-writes.ts`). A per-process cache
   that a write must invalidate drops the other nodes' copies through `CACHE_ROOM` (see the cache rule
   above); the ordering guarantee is separate: in a cluster every mutating response first flushes the bus
-  (`ClusterBus.flushNow`) and sets a 10 s `church_rv` cookie, and a request carrying it makes its node run
+  (`ClusterBus.flushNow`) and sets a 10 s `lampstand_rv` cookie, and a request carrying it makes its node run
   a poll first (`ClusterBus.syncSince`). Without that the smoke suite fails through a load balancer
   (password change then write: 403, settings, TOTP). The web relays the cookie in ONE place: `apiFetch` (and
   `streamToApi`, for the multipart upload proxies) sets it on the browser through `cookies()` after any API answer that carries
@@ -1453,10 +1470,10 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
 - **Every connection pins `search_path=public`** (`createPool`: `options: "-c search_path=public"`, unless the URL sets
   `options` itself). Migrations create unqualified tables and six foreign keys (0026, 0027, 0044) name `"public"."..."`
   explicitly, so tables landing anywhere else break them with 42P01. PostgreSQL's default `"$user", public` does exactly
-  that when a schema is named like the login (reproduced on YugabyteDB: login `church_tech` + schema `church_tech` = 43
+  that when a schema is named like the login (reproduced on YugabyteDB: login `lampstand_app` + schema `lampstand_app` = 43
   tables in the wrong schema, then `relation "public.users" does not exist`). Never add schema-specific code paths.
 - **A migration that fails halfway must be re-runnable** (YugabyteDB applies statements one by one, not in one transaction):
-  `migrateStepwise` writes a marker (`drizzle.__church_migration_progress`) before a migration's first statement and removes
+  `migrateStepwise` writes a marker (`drizzle.__lampstand_migration_progress`) before a migration's first statement and removes
   it once the migration is journaled; a run that finds the marker is RESUMING and skips statements whose effect is already
   there (`ALREADY_DONE` SQLSTATEs), a run without one gets no such leniency, so a genuine error is never hidden. All the DDL
   of a YugabyteDB migration runs on ONE connection (a backend always sees its own changes, wherever in the host list it
@@ -1489,7 +1506,7 @@ copy of a procedure. Operator docs: INSTALL.md "Guided installer". Rules for cha
   secrets, its certificates, the commit) and run `--join`. The package never contains `ca.key`. The join
   refuses a different commit unless told otherwise: every node must run the same build.
 - **Tests**: `tests/installer/dry-run.sh` (fast, no docker: shapes A-D, validation, the real prompts through
-  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries), `tests/installer/build.sh` (a damaged image store), `tests/installer/db-perms.sh` (a login that cannot create tables) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/church-wiz`, own ports,
+  a pipe) and `tests/installer/deps.sh` (requirements), `tests/installer/update.sh` (versions), `tests/installer/ssh-password.sh` (a password-only machine, resumed), `tests/installer/db-tls.sh` (a self-signed database), `tests/installer/oneoff.sh` (migrate/seed retries), `tests/installer/build.sh` (a damaged image store), `tests/installer/db-perms.sh` (a login that cannot create tables) and `tests/installer/e2e.sh single|external|external-cluster|cluster|cluster-ssh|down` (real installs in `~/lampstand-wiz`, own ports,
   project names and images, the live dev stack untouched; `single` ends with the smoke suite, `cluster` with
   `tests/cluster/cross-node.mjs` against all three nodes).
   Run `shellcheck -S warning install.sh` (`koalaman/shellcheck` in docker).
@@ -1536,7 +1553,7 @@ comparison report. Operator docs: INSTALL.md "Backups and restores in the app". 
   (`infra_targets.last_error`, `cisco_switches.last_error` via `markUnreachable`). Rows are still restored; the report says how many
   hosts/switches need their password again.
 - **Anything that writes in the background must honour the restore gate**: a restore holds the
-  `mutex:restore` lease (`RestoreGate`, `restoreInProgress` in `@church/shared/db`). The API refuses
+  `mutex:restore` lease (`RestoreGate`, `restoreInProgress` in `@lampstand/shared/db`). The API refuses
   non-GET requests (`RestoreWriteGuard`), `ClusterJobs` skips runs and the monitor worker pauses. A new
   poller or worker outside those must check it too. The gate opens, and its one-second cache is waited
   out, before the operation reports success.
@@ -1621,7 +1638,7 @@ roll back by itself. A failed build or migration puts the code back before anyth
   neither push (`release.sh` refuses) nor pull** (`pull_images` refuses ids with a `-`). (2) A tag is only a name: every pulled image's
   baked-in `BUILD_ID` must equal the id asked for, else it is not used. (3) **All or nothing**: nothing is tagged until all three are
   here and verified; then each is `docker tag`ged with the name compose already uses (`image_of`, from `compose config`:
-  `church-prod-api` ...), so `up --no-build`, a later plain `compose up` and `--rollback` find it where a local build would have left it
+  `lampstand-prod-api` ...), so `up --no-build`, a later plain `compose up` and `--rollback` find it where a local build would have left it
   and `.env` is never edited. (4) A failed pull FALLS BACK to building on the node with a warning (`--pull` makes it an error); the
   automatic rollback and `--rollback` go through the same `get_images`, pulling the older id when it is still published. (5)
   `IMAGE_REGISTRY` together with `API_IMAGE`/`WEB_IMAGE`/`MONITOR_IMAGE` is refused (two ways to choose images). (6) Registry credentials
@@ -1662,8 +1679,8 @@ roll back by itself. A failed build or migration puts the code back before anyth
 - **Image layers are ordered by how often they change** (reworked 2026-10-24; a one-line api edit used to write a 166 MB layer, web 82 MB,
   and the monitor reinstalled its dependencies on every build). Rules: (1) production dependencies come from a stage that sees only
   manifests and the lockfile (api: `proddeps`, `pnpm deploy` of the manifests; monitor: `pnpm install --prod` before any code is copied),
-  so that layer changes only with a dependency. (2) `@church/shared` is built in its own stage (`shared-build`) in all three images, and
-  the api puts the built package over the stub `pnpm deploy` leaves in `node_modules/.pnpm/@church+shared@file+packages+shared/` (a
+  so that layer changes only with a dependency. (2) `@lampstand/shared` is built in its own stage (`shared-build`) in all three images, and
+  the api puts the built package over the stub `pnpm deploy` leaves in `node_modules/.pnpm/@lampstand+shared@file+packages+shared/` (a
   `require.resolve` RUN fails the build if pnpm ever names that directory differently). (3) The web ships `standalone/node_modules` as
   its own layer, apart from the server code. (4) **`ARG BUILD_ID` goes after the last `RUN` of a runner stage**: the id changes every
   commit, and an ARG is part of the cache key of every RUN below it. (5) `next build` keeps `.next/cache` in a BuildKit cache mount
@@ -1710,7 +1727,7 @@ is typed, so a mixed-case row could never be matched.
   everywhere) and `drizzle-orm@0.45.4`: since 0.45 a failed query throws `DrizzleQueryError` whose message was the SQL **and
   its parameters** (row values in logs and in errors shown to admins) and whose `code` was gone (every `err.code ===
   "23505"` stopped matching). The patch makes the message the database's own and copies `code`. **A drizzle upgrade needs the
-  patch regenerated for the new version.** `dbErrorCode`/`unwrapDbError` (`@church/shared/db`) also read through `cause`.
+  patch regenerated for the new version.** `dbErrorCode`/`unwrapDbError` (`@lampstand/shared/db`) also read through `cause`.
 - drizzle 0.45's `is()` walks the prototype chain, so a lazy `Proxy` standing in for a drizzle client must forward
   `getPrototypeOf` (`apps/web/src/lib/db.ts`; without it the Auth.js adapter refused the database and sign-in broke).
 - `tsc --noEmit` in `apps/api` is incremental (`dist/.tsbuildinfo`) and can skip files: typecheck with
@@ -1859,7 +1876,7 @@ It distinguishes three states per port: free, held by one of our own containers
 var to set). Never bypass this check — port collisions surface late and confusingly.
 
 Internal container ports (Next.js `:3000`, NestJS `:3001`) are NOT bound on the host;
-they live on the `church_internal` bridge. Do not add `ports:` entries for them in
+they live on the `lampstand_internal` bridge. Do not add `ports:` entries for them in
 compose — that would defeat the single-ingress design.
 
 ## Operational defaults

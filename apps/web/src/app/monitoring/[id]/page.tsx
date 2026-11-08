@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiFetch, apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { Monitor, MonitorCheck, MonitorIncident } from "@church/shared";
+import type { Monitor, MonitorCheck, MonitorIncident } from "@lampstand/shared";
 import { MonitorDetailClient } from "./monitor-detail-client";
 
 export const dynamic = "force-dynamic";

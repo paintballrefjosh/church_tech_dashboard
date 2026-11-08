@@ -8,7 +8,7 @@ import {
   type AssistantLastTest,
   type AssistantPrivacyAck,
   type AssistantReadinessFacts,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { Db } from "../db/db.module";
 import { groupModuleAccess, jobState } from "../db/schema";
 

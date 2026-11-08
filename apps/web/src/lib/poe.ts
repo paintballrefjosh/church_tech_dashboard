@@ -1,4 +1,4 @@
-import type { CiscoPortPoe } from "@church/shared";
+import type { CiscoPortPoe } from "@lampstand/shared";
 
 /** True while the switch is powering a device on this port. */
 export function poeProviding(poe: CiscoPortPoe | null | undefined): boolean {

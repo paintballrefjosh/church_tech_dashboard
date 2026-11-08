@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, PERMISSIONS, permissionsFor } from "@church/shared";
+import { ALL_PERMISSIONS, PERMISSIONS, permissionsFor } from "@lampstand/shared";
 import { isReadMethod, scopeUserToToken } from "../src/auth/api-token-scope";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";
 

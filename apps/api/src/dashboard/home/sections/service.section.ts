@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { PERMISSIONS, sectionOff, sectionOk, type NextService, type Section } from "@church/shared";
+import { PERMISSIONS, sectionOff, sectionOk, type NextService, type Section } from "@lampstand/shared";
 import { PlanningCenterService } from "../../../planning-center/planning-center.service";
 import { ChecklistsService } from "../../../checklists/checklists.service";
 import type { HomeContext, SectionBuilder } from "../home.types";

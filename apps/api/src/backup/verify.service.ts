@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { desc, eq, sql } from "drizzle-orm";
-import { backupsToVerify } from "@church/shared";
+import { backupsToVerify } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { backups } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

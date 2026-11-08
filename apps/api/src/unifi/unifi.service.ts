@@ -11,7 +11,7 @@ import { eq, inArray } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { unifiDeviceAcks, unifiDeviceViews } from "../db/schema";
 import { checkDeviceProfile } from "../switch-models/check-profile";
-import type { SetSwitchViewInput, CreateUnifiVouchersInput, UnifiCamera, UnifiCamerasReply, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@church/shared";
+import type { SetSwitchViewInput, CreateUnifiVouchersInput, UnifiCamera, UnifiCamerasReply, UnifiNetworkLike, UnifiProfileLike, UnifiVoucher } from "@lampstand/shared";
 import { SettingsService } from "../settings/settings.service";
 
 /** Normalise a MAC for storage/comparison — controllers report lowercase, but

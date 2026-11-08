@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import type { TagColor } from "@church/shared";
+import type { TagColor } from "@lampstand/shared";
 
 const COLOR_CLASS: Record<TagColor, string> = {
   slate: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",

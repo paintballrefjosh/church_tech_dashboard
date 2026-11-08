@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
-import type { InfraTarget, InfraEntity, MonitorIncident, InfraUpdateRun } from "@church/shared";
+import type { InfraTarget, InfraEntity, MonitorIncident, InfraUpdateRun } from "@lampstand/shared";
 import { InfraDetailClient } from "./infra-detail-client";
 
 export const dynamic = "force-dynamic";

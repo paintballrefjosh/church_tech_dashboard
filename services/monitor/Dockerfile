@@ -17,11 +17,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # The shared package is built in its own stage so a monitor-only edit does not recompile it.
 FROM deps AS shared-build
 COPY packages/shared packages/shared
-RUN pnpm --filter @church/shared build
+RUN pnpm --filter @lampstand/shared build
 
 FROM shared-build AS build
 COPY services/monitor services/monitor
-RUN pnpm --filter @church/monitor build
+RUN pnpm --filter @lampstand/monitor build
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -33,7 +33,7 @@ COPY patches patches
 COPY services/monitor/package.json services/monitor/
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --filter @church/monitor --filter @church/shared
+    pnpm install --prod --frozen-lockfile --filter @lampstand/monitor --filter @lampstand/shared
 COPY --from=shared-build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/services/monitor/dist services/monitor/dist
 # Declared last, after every RUN: the id changes with every commit, and an ARG invalidates the cache of each RUN

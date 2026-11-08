@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, DoorOpen, LifeBuoy, Pencil, Printer } from "lucide-react";
-import { PERMISSIONS, type AssetStatus, type Location, type LocationSummary } from "@church/shared";
+import { PERMISSIONS, type AssetStatus, type Location, type LocationSummary } from "@lampstand/shared";
 import { StatusChip, can, useRooms, useViewer } from "@/components/assets-ui";
 import { GoneNotice } from "@/components/gone-notice";
 import { useToasts, ToastStack } from "../../monitoring/network-cisco/cisco-ui";

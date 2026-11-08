@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deadlinePhrase, sectionOk, sectionOff, summarize, type SummaryToken } from "@church/shared";
+import { deadlinePhrase, sectionOk, sectionOff, summarize, type SummaryToken } from "@lampstand/shared";
 import {
   NOW,
   TZ,

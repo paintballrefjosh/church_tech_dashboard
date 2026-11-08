@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { findKnownSetting, findTogglePrerequisite } from "@church/shared";
+import { findKnownSetting, findTogglePrerequisite } from "@lampstand/shared";
 
 type Known = {
   key: string;

@@ -10,7 +10,7 @@ import {
   DNS_MANAGED_MARKER,
   type DnsHealthMonitorsInput,
   type DnsHealthMonitorsResult,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { monitors } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

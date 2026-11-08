@@ -381,7 +381,7 @@ Additive migrations only (expand/contract); portable SQL; no `tenant_id`; no DB-
   gives up with a clear message.
 - **Per-user limits** use the shared rate-limit buckets (`config.rateLimit.shared`), not a per-node map.
 - **Read-your-writes:** creating a conversation and then reading it from another node must work; mutating responses
-  already flush the bus and set the `church_rv` cookie. The chat endpoint is a mutating POST, so it does.
+  already flush the bus and set the `lampstand_rv` cookie. The chat endpoint is a mutating POST, so it does.
 - **Settings changes** (enable/disable, key rotation, model change) propagate through the cache-invalidation room.
 - **Upgrades:** the old and new release both run during a rolling upgrade; the new tables are additive and the feature is
   off by default, so a mixed cluster is safe.

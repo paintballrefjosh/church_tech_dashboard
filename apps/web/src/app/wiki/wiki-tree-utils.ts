@@ -1,4 +1,4 @@
-import type { WikiTreeNode } from "@church/shared";
+import type { WikiTreeNode } from "@lampstand/shared";
 
 export interface WikiTreeUiNode {
   key: string;

@@ -127,7 +127,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "Site name",
     description: "Shown in the page title and emails.",
-    defaultValue: "Church Dashboard",
+    defaultValue: "Lampstand",
     category: "site",
   },
   {
@@ -629,7 +629,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "From address",
     description: "All outbound mail uses this as the From: address.",
-    defaultValue: "noreply@church.local",
+    defaultValue: "noreply@lampstand.local",
     category: "smtp",
   },
   {
@@ -637,7 +637,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     type: "string",
     label: "From name",
     description: "Display name on outbound mail.",
-    defaultValue: "Church Dashboard",
+    defaultValue: "Lampstand",
     category: "smtp",
   },
   {
@@ -696,8 +696,8 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     key: OFFSITE_KEYS.prefix,
     type: "string",
     label: "Folder",
-    description: "A folder inside the bucket for these copies, for example church-dashboard/. Blank uses the top of the bucket.",
-    defaultValue: "church-dashboard/",
+    description: "A folder inside the bucket for these copies, for example lampstand/. Blank uses the top of the bucket.",
+    defaultValue: "lampstand/",
     category: "backup",
   },
   {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VERIFY_RECHECK_DAYS, VERIFY_RETRY_MINUTES, VERIFY_RECENT, backupsToVerify, type VerifyCandidate } from "@church/shared";
+import { VERIFY_RECHECK_DAYS, VERIFY_RETRY_MINUTES, VERIFY_RECENT, backupsToVerify, type VerifyCandidate } from "@lampstand/shared";
 
 const NOW = Date.UTC(2026, 9, 18, 12, 0, 0);
 const MIN = 60_000;

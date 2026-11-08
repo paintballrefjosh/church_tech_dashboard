@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Trash2, Power, AlertTriangle, BellOff, CircleCheck, CircleHelp } from "lucide-react";
-import { monitorAlertsOff, type Monitor, type MonitorCheck, type MonitorIncident } from "@church/shared";
+import { monitorAlertsOff, type Monitor, type MonitorCheck, type MonitorIncident } from "@lampstand/shared";
 import { useRealtimeRoom } from "@/lib/use-realtime";
 import { useMonitorWorkers } from "../use-monitor-workers";
 import { AcknowledgeButton } from "../acknowledge-button";

@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
-import { homeQuerySchema, type HomeSnapshot } from "@church/shared";
+import { homeQuerySchema, type HomeSnapshot } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../../auth/current-user.decorator";
 import { HomeService } from "./home.service";
 

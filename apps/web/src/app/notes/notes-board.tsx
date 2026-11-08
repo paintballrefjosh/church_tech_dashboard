@@ -23,7 +23,7 @@ import {
   GripVertical,
   GripHorizontal,
 } from "lucide-react";
-import { NOTE_COLORS, type Note, type NoteColor } from "@church/shared";
+import { NOTE_COLORS, type Note, type NoteColor } from "@lampstand/shared";
 import { NoteMedia } from "./note-media";
 import { TagPicker } from "@/components/tag-picker";
 import { TagFilter } from "@/components/tag-filter";

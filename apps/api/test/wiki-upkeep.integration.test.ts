@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { WIKI_REVIEW_DAYS_KEY } from "@church/shared";
+import { WIKI_REVIEW_DAYS_KEY } from "@lampstand/shared";
 import { WikiService } from "../src/wiki/wiki.service";
 import { WikiReview } from "../src/wiki/wiki-review";
 import { WikiTemplatesService } from "../src/wiki/wiki-templates.service";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PERMISSIONS, updateWikiFolderSchema, wikiAclEntrySchema, WIKI_VISIBILITIES } from "@church/shared";
+import { PERMISSIONS, updateWikiFolderSchema, wikiAclEntrySchema, WIKI_VISIBILITIES } from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();

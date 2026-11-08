@@ -9,7 +9,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createUpsSchema, updateUpsSchema } from "@church/shared";
+import { PERMISSIONS, createUpsSchema, updateUpsSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";

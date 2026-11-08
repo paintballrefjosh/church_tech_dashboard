@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { RefreshCw, Trash2, Radar, Plus, ScanLine, Pencil } from "lucide-react";
-import type { IpamSubnet, IpamDiscoveredSubnet, IpamSummary } from "@church/shared";
+import type { IpamSubnet, IpamDiscoveredSubnet, IpamSummary } from "@lampstand/shared";
 import { useCanWrite, StatusLine, inputCls, cardCls, fmtTime, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 import { usePoll } from "@/lib/use-poll";
 

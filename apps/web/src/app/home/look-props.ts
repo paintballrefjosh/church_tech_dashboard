@@ -1,4 +1,4 @@
-import type { HomeSnapshot, TilePlacement } from "@church/shared";
+import type { HomeSnapshot, TilePlacement } from "@lampstand/shared";
 import type { DashboardInitialData } from "../dashboard-tiles/dashboard-grid";
 
 /** What every look receives. A look is presentation only: it never fetches its own data. */

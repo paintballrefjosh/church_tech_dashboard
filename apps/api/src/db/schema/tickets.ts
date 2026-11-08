@@ -37,7 +37,7 @@ export const tickets = pgTable(
     resolvedAt: timestamp("resolved_at"),
     closedAt: timestamp("closed_at"),
     // Waiting on the requester: `waiting_since` while the status is `waiting`, finished waits add up in `waited_ms`.
-    // The SLA clocks do not run for either (ticketSlaElapsedMs in @church/shared).
+    // The SLA clocks do not run for either (ticketSlaElapsedMs in @lampstand/shared).
     waitingSince: timestamp("waiting_since"),
     waitedMs: bigint("waited_ms", { mode: "number" }).notNull().default(0),
     // SLA notices already sent, so each is sent once (the ticket-sla job claims one with a conditional UPDATE).

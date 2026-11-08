@@ -7,7 +7,7 @@ import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
 import { ConflictException, Inject, Injectable, Logger, NotFoundException, PayloadTooLargeException, type OnModuleInit } from "@nestjs/common";
 import { and, asc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { SIGNAGE_LIMITS, type SignageMedia, type SignageMediaKind, type SignageMediaStatus } from "@church/shared";
+import { SIGNAGE_LIMITS, type SignageMedia, type SignageMediaKind, type SignageMediaStatus } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { signageMedia, signagePlaylistItems, signagePlaylists } from "../db/schema";
 import { getS3 } from "../attachments/s3.client";

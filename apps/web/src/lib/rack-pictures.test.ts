@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RackItemView, SwitchModel } from "@church/shared";
+import type { RackItemView, SwitchModel } from "@lampstand/shared";
 import { pictureModelFor } from "./rack-pictures";
 
 const NOW = "2026-10-25T00:00:00.000Z";

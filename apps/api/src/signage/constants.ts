@@ -1,4 +1,4 @@
-import { SIGNAGE_LIMITS } from "@church/shared";
+import { SIGNAGE_LIMITS } from "@lampstand/shared";
 
 /** A device that answered a poll this recently counts as online (polls run every minute). */
 export const SIGNAGE_ONLINE_MS = SIGNAGE_LIMITS.offlineAfterMin * 60_000;

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { TicketCategory } from "@church/shared";
+import type { TicketCategory } from "@lampstand/shared";
 import { CategoriesAdminClient } from "./categories-admin-client";
 
 export const dynamic = "force-dynamic";

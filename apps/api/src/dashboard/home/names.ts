@@ -1,5 +1,5 @@
 import { inArray } from "drizzle-orm";
-import { TICKET_PRIORITIES, TICKET_STATUSES, type TicketPriority, type TicketStatus } from "@church/shared";
+import { TICKET_PRIORITIES, TICKET_STATUSES, type TicketPriority, type TicketStatus } from "@lampstand/shared";
 import type { Db } from "../../db/db.module";
 import { users } from "../../db/schema";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { SignagePlaylist, SignageScreen, SignageScreenGroup } from "@church/shared";
+import type { SignagePlaylist, SignageScreen, SignageScreenGroup } from "@lampstand/shared";
 import { sendJson } from "@/components/assets-ui";
 import { Modal } from "../monitoring/network-cisco/cisco-ui";
 import { ErrorLine, Label, PlaylistSelect, btnCls, inputCls, primaryCls } from "./signage-ui";

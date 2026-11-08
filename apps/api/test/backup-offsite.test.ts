@@ -11,14 +11,14 @@ import {
   offsiteObjectKey,
   offsiteObjectName,
   validateSettingValue,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const ID = "1a2b3c4d-0000-4000-8000-000000000001";
 const at = (iso: string) => new Date(iso);
 
 describe("offsite folder names", () => {
   it("normalises to no leading slash and one trailing slash", () => {
-    expect(normaliseOffsitePrefix("church-dashboard/")).toEqual({ ok: true, prefix: "church-dashboard/" });
+    expect(normaliseOffsitePrefix("lampstand/")).toEqual({ ok: true, prefix: "lampstand/" });
     expect(normaliseOffsitePrefix("/a//b/")).toEqual({ ok: true, prefix: "a/b/" });
     expect(normaliseOffsitePrefix("  nightly ")).toEqual({ ok: true, prefix: "nightly/" });
     expect(normaliseOffsitePrefix("")).toEqual({ ok: true, prefix: "" });
@@ -36,20 +36,20 @@ describe("offsite folder names", () => {
 describe("offsite object names", () => {
   it("names a copy by its time and a short id, and reads the time back", () => {
     const d = at("2026-10-16T03:15:09Z");
-    expect(offsiteObjectName(d, ID)).toBe("church-dashboard-20261016T031509Z-1a2b3c4d.tar.gz");
-    const key = offsiteObjectKey("church/", d, ID);
-    expect(key).toBe("church/church-dashboard-20261016T031509Z-1a2b3c4d.tar.gz");
-    expect(isOffsiteArchiveKey("church/", key)).toBe(true);
-    expect(offsiteKeyTime("church/", key)?.toISOString()).toBe("2026-10-16T03:15:09.000Z");
+    expect(offsiteObjectName(d, ID)).toBe("lampstand-20261016T031509Z-1a2b3c4d.tar.gz");
+    const key = offsiteObjectKey("lampstand/", d, ID);
+    expect(key).toBe("lampstand/lampstand-20261016T031509Z-1a2b3c4d.tar.gz");
+    expect(isOffsiteArchiveKey("lampstand/", key)).toBe(true);
+    expect(offsiteKeyTime("lampstand/", key)?.toISOString()).toBe("2026-10-16T03:15:09.000Z");
   });
 
   it("recognises only its own names, in its own folder", () => {
-    const ok = "p/church-dashboard-20261016T031509Z-1a2b3c4d.tar.gz";
+    const ok = "p/lampstand-20261016T031509Z-1a2b3c4d.tar.gz";
     expect(isOffsiteArchiveKey("p/", ok)).toBe(true);
     expect(isOffsiteArchiveKey("q/", ok)).toBe(false);
     expect(isOffsiteArchiveKey("p/", "p/notes.txt")).toBe(false);
-    expect(isOffsiteArchiveKey("p/", "p/sub/church-dashboard-20261016T031509Z-1a2b3c4d.tar.gz")).toBe(false);
-    expect(isOffsiteArchiveKey("p/", "p/.church-dashboard-write-test-ab12cd34")).toBe(false);
+    expect(isOffsiteArchiveKey("p/", "p/sub/lampstand-20261016T031509Z-1a2b3c4d.tar.gz")).toBe(false);
+    expect(isOffsiteArchiveKey("p/", "p/.lampstand-write-test-ab12cd34")).toBe(false);
     expect(offsiteKeyTime("p/", "p/other.tar.gz")).toBeNull();
   });
 
@@ -98,7 +98,7 @@ describe("offsite settings", () => {
   });
 
   it("validates the folder, endpoint and number to keep", () => {
-    expect(validateSettingValue(OFFSITE_KEYS.prefix, "church/")).toBeNull();
+    expect(validateSettingValue(OFFSITE_KEYS.prefix, "lampstand/")).toBeNull();
     expect(validateSettingValue(OFFSITE_KEYS.prefix, "")).toBeNull();
     expect(validateSettingValue(OFFSITE_KEYS.prefix, "../x")).not.toBeNull();
     expect(validateSettingValue(OFFSITE_KEYS.prefix, 5)).not.toBeNull();

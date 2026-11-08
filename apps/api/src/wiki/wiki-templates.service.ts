@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
-import type { CreateWikiTemplateInput, UpdateWikiTemplateInput } from "@church/shared";
+import type { CreateWikiTemplateInput, UpdateWikiTemplateInput } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { wikiTemplates } from "../db/schema";
 

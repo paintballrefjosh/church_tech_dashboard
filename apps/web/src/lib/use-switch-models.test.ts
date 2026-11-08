@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { normaliseModel } from "./use-switch-models";
 
 const NOW = "2026-10-19T00:00:00.000Z";

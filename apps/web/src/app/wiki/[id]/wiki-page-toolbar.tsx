@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Pencil, History, Trash2, FileLock, Globe, LayoutTemplate } from "lucide-react";
-import type { WikiVisibility } from "@church/shared";
+import type { WikiVisibility } from "@lampstand/shared";
 
 interface AclRow {
   groupId: string;

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LOOK_DEVICE_COOKIE, isLookId } from "@church/shared";
+import { LOOK_DEVICE_COOKIE, isLookId } from "@lampstand/shared";
 
 const FOUR_HUNDRED_DAYS = 400 * 24 * 60 * 60;
 

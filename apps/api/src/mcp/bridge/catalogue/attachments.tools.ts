@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { defineTool, type BridgeTool } from "../bridge.types";
 import { MAX_UPLOAD_BYTES } from "../attachments";
 

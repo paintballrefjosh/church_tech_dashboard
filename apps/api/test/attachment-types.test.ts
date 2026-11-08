@@ -7,7 +7,7 @@ import {
   resolveAllowedAttachmentTypes,
   resolveCustomAttachmentExtensions,
   validateSettingValue,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { reconcileMime } from "../src/attachments/magic-bytes";
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

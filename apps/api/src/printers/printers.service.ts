@@ -16,7 +16,7 @@ import type {
   Printer,
   PrinterStatus,
   PrinterSummary,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { probePrinterSnmp } from "./snmp";
 import { probeFieryQueue } from "./fiery";
 import { checkLocation } from "../assets/locations.service";

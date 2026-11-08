@@ -1,4 +1,4 @@
-name: church
+name: lampstand
 
 services:
   proxy:
@@ -58,7 +58,7 @@ services:
     entrypoint: /bin/sh
     command:
       - "-c"
-      - "cockroach sql --insecure --host=cockroach-1 -e 'CREATE DATABASE IF NOT EXISTS church'"
+      - "cockroach sql --insecure --host=cockroach-1 -e 'CREATE DATABASE IF NOT EXISTS lampstand'"
     restart: "no"
     networks: [internal]
 
@@ -66,7 +66,7 @@ services:
   # (S3_MODE=bundled, the default). With S3_MODE=external the api uses S3_ENDPOINT instead.
   # See scripts/compose.sh, which derives the keys and RPC secret from AUTH_SECRET.
   garage:
-    image: ${GARAGE_IMAGE:-church-garage}
+    image: ${GARAGE_IMAGE:-lampstand-garage}
     build:
       context: ./garage
     profiles: [bundled-s3]
@@ -96,7 +96,7 @@ services:
     networks: [internal]
 
   garage-init:
-    image: ${GARAGE_IMAGE:-church-garage}
+    image: ${GARAGE_IMAGE:-lampstand-garage}
     build:
       context: ./garage
     profiles: [bundled-s3]
@@ -111,7 +111,7 @@ services:
       GARAGE_CLUSTER: ${GARAGE_CLUSTER:-}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run compose via scripts/compose.sh, or export S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?run compose via scripts/compose.sh, or export S3_SECRET_KEY}
-      S3_BUCKET: ${S3_BUCKET:-${MINIO_BUCKET:-church-files}}
+      S3_BUCKET: ${S3_BUCKET:-${MINIO_BUCKET:-lampstand-files}}
     volumes:
       - ./garage/garage.toml.tpl:/etc/garage.toml.tpl:ro
       - ./garage/garage-render.sh:/usr/local/bin/garage-render.sh:ro
@@ -139,7 +139,7 @@ services:
   api:
     # The image name can be set (`API_IMAGE`) to run an image built once elsewhere instead
     # of building on this node: every node must run the same build (docs/multi-node.md).
-    image: ${API_IMAGE:-church-api}
+    image: ${API_IMAGE:-lampstand-api}
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
@@ -194,7 +194,7 @@ services:
   monitor:
     # The image name can be set (`MONITOR_IMAGE`) to run an image built once elsewhere instead
     # of building on this node: every node must run the same build (docs/multi-node.md).
-    image: ${MONITOR_IMAGE:-church-monitor}
+    image: ${MONITOR_IMAGE:-lampstand-monitor}
     build:
       context: ..
       dockerfile: services/monitor/Dockerfile
@@ -223,7 +223,7 @@ services:
   web:
     # The image name can be set (`WEB_IMAGE`) to run an image built once elsewhere instead
     # of building on this node: every node must run the same build (docs/multi-node.md).
-    image: ${WEB_IMAGE:-church-web}
+    image: ${WEB_IMAGE:-lampstand-web}
     build:
       context: ..
       dockerfile: apps/web/Dockerfile

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { Pencil, Trash2, RefreshCw, Plus } from "lucide-react";
-import type { CiscoSwitch } from "@church/shared";
+import type { CiscoSwitch } from "@lampstand/shared";
 import {
   StatusPill,
   computeStatus,

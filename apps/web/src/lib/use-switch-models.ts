@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 
 /**
  * A model as the page uses it. An API node that has not been upgraded yet (the nodes of a cluster upgrade one at a time)

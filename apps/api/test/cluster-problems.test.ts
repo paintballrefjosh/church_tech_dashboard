@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ClusterDatabaseInfo, ClusterJobInfo, ClusterNodeInfo, ClusterStoreInfo } from "@church/shared";
+import type { ClusterDatabaseInfo, ClusterJobInfo, ClusterNodeInfo, ClusterStoreInfo } from "@lampstand/shared";
 import { findProblems, NODE_STALE_SEC, type ProblemInput } from "../src/cluster-admin/cluster-problems";
 import { parseGarageStatus } from "../src/cluster-admin/garage-status";
 
@@ -8,7 +8,7 @@ const node = (id: string, over: Partial<ClusterNodeInfo> = {}): ClusterNodeInfo 
 });
 const job = (name: string, nodeId: string | null, held = true): ClusterJobInfo => ({ name, node: nodeId, epoch: 1, expiresInSec: held ? 20 : -5, held });
 const db: ClusterDatabaseInfo = { engine: "cockroachdb", label: "CockroachDB v24.2.0", latencyMs: 4, ok: true };
-const store: ClusterStoreInfo = { kind: "garage", endpoint: "http://garage:3900", bucket: "church-files", ok: true, latencyMs: 5, garage: { layoutVersion: 2, nodes: [] } };
+const store: ClusterStoreInfo = { kind: "garage", endpoint: "http://garage:3900", bucket: "lampstand-files", ok: true, latencyMs: 5, garage: { layoutVersion: 2, nodes: [] } };
 
 const base = (over: Partial<ProblemInput> = {}): ProblemInput => ({
   nodes: [node("a"), node("b")],

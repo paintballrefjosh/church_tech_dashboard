@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ListChecks, Ticket, UserX, WifiOff } from "lucide-react";
-import { formatWeekdayInZone, rankNeeds, type HomeSnapshot, type NeedItem } from "@church/shared";
+import { formatWeekdayInZone, rankNeeds, type HomeSnapshot, type NeedItem } from "@lampstand/shared";
 import { NeedActionButton } from "../../parts/need-action";
 import { RelativeTime } from "../../parts/relative-time";
 import s from "./styles.module.css";

@@ -8,7 +8,7 @@ import {
   startOfWeekInZone,
   zonedParts,
   zonedTimeToUtc,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const LON = "Europe/London";
 const CHI = "America/Chicago";

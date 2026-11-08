@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { CiscoPortRow, CiscoSwitch, SwitchModel } from "@church/shared";
+import type { CiscoPortRow, CiscoSwitch, SwitchModel } from "@lampstand/shared";
 import { FacePreview, faceSummary } from "@/components/switch-faceplate";
 import { FollowCardHeader, FollowCardNote, useFollowCard } from "@/components/follow-card";
 import { resolveSwitchView } from "@/lib/faceplates/custom";

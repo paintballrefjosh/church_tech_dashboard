@@ -1,6 +1,6 @@
 "use client";
 
-import type { SwitchModel } from "@church/shared";
+import type { SwitchModel } from "@lampstand/shared";
 import { FacePreview, faceSummary } from "@/components/switch-faceplate";
 import { FollowCardHeader, FollowCardNote, FollowCardPicture, useFollowCard } from "@/components/follow-card";
 import { resolveSwitchView } from "@/lib/faceplates/custom";

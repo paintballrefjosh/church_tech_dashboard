@@ -1,10 +1,10 @@
 /* eslint-disable no-console */
 import type { Pool } from "pg";
-import { createPool } from "@church/shared/db";
+import { createPool } from "@lampstand/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import argon2 from "argon2";
-import { DEFAULT_GROUPS } from "@church/shared";
+import { DEFAULT_GROUPS } from "@lampstand/shared";
 import * as schema from "../db/schema";
 import { databaseUrl } from "../db/connection";
 

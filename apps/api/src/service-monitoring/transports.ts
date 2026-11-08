@@ -16,8 +16,8 @@ import {
   type RenderMode,
   type Row,
   type ServiceCollector,
-} from "@church/shared";
-import { createPool } from "@church/shared/db";
+} from "@lampstand/shared";
+import { createPool } from "@lampstand/shared/db";
 import type { QueryArrayConfig } from "pg";
 import { sshExec } from "../infra/collectors/ssh";
 import type { CollectContext } from "../infra/collectors/types";
@@ -220,7 +220,7 @@ async function sqlRows(c: Extract<ServiceCollector, { transport: "sql" }>, ctx: 
     const url =
       // No password at all (not an empty one) when the login has none: a trust or certificate login.
       `postgresql://${encodeURIComponent(user)}${password ? `:${encodeURIComponent(password)}` : ""}@${hostPart}:${port}/${encodeURIComponent(database || "postgres")}` +
-      `?sslmode=${tls ? "no-verify" : "disable"}&application_name=church-service-monitor`;
+      `?sslmode=${tls ? "no-verify" : "disable"}&application_name=lampstand-service-monitor`;
     const pool = createPool({ name: "service-monitor", url, max: 1, queryTimeoutMs: timeoutMs, retryAttempts: 1, log: () => undefined });
     try {
       const client = await pool.connect();

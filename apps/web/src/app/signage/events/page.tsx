@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { CalendarClock, Megaphone, Plus } from "lucide-react";
-import type { SignageOverride, SignagePlaylist, SignageScreen, SignageScreenGroup } from "@church/shared";
+import type { SignageOverride, SignagePlaylist, SignageScreen, SignageScreenGroup } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";

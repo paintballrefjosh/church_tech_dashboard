@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { KNOWN_SETTINGS } from "@church/shared";
+import { KNOWN_SETTINGS } from "@lampstand/shared";
 import { SETTINGS_CATEGORIES, type CategoryMeta } from "./categories";
 
 export const dynamic = "force-dynamic";

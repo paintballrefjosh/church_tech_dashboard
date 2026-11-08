@@ -6,7 +6,7 @@ import {
   zonedParts,
   type NextService,
   type WeekDigest,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",

@@ -6,7 +6,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { ChecklistsBrowser } from "./checklists-browser";
-import type { ChecklistEvent } from "@church/shared";
+import type { ChecklistEvent } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 

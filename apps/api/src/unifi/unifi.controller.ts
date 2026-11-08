@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createUnifiVouchersSchema, setSwitchViewSchema } from "@church/shared";
+import { PERMISSIONS, createUnifiVouchersSchema, setSwitchViewSchema } from "@lampstand/shared";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";

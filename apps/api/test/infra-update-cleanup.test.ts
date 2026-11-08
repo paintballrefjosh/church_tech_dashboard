@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createInfraUpdateRunSchema } from "@church/shared";
+import { createInfraUpdateRunSchema } from "@lampstand/shared";
 import { upgradeScript } from "../src/infra/infra-updater";
 
 describe("update run: remove unused packages", () => {

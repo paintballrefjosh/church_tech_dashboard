@@ -12,7 +12,7 @@ import type {
   MonitorIncident,
   InfraUpdateRun,
   InfraDiscoveredService,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { OS_META, StatusPill, Gauge, Stat, formatBytes, formatBps, formatUptime } from "../infra-ui";
 import { MetricChart, MultiSeriesChart } from "../charts";
 import { useRealtimeRoom } from "@/lib/use-realtime";

@@ -11,7 +11,7 @@ import {
 import { Logger, Inject, type OnModuleDestroy } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
 import { decode } from "@auth/core/jwt";
-import { originMatchesRequest, parseOriginList } from "@church/shared";
+import { originMatchesRequest, parseOriginList } from "@lampstand/shared";
 import { eq } from "drizzle-orm";
 import { AuthService } from "../auth/auth.service";
 import { DB, type Db } from "../db/db.module";

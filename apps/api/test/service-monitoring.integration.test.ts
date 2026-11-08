@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { parseDbUrl } from "@church/shared/db";
+import { parseDbUrl } from "@lampstand/shared/db";
 import * as schema from "../src/db/schema";
 import { ServiceMonitoringService } from "../src/service-monitoring/service-monitoring.service";
 import { ServicePoller } from "../src/service-monitoring/service-poller";

@@ -16,7 +16,7 @@ import { MailerService } from "../mailer/mailer.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { renderEmail } from "../mailer/templates";
 import { AuthTokensService } from "../auth-tokens/auth-tokens.service";
-import { DEFAULT_GROUPS, isWorkspaceMember, type ApprovalStatus } from "@church/shared";
+import { DEFAULT_GROUPS, isWorkspaceMember, type ApprovalStatus } from "@lampstand/shared";
 
 export type ProvisionResult = "approved" | "pending" | "rejected" | "deleted";
 
@@ -162,7 +162,7 @@ export class UsersService {
   ): Promise<void> {
     try {
       const siteNameRaw = await this.settings.get("site.name");
-      const siteName = typeof siteNameRaw === "string" && siteNameRaw ? siteNameRaw : "Church Dashboard";
+      const siteName = typeof siteNameRaw === "string" && siteNameRaw ? siteNameRaw : "Lampstand";
       // `site.url` (operator-set) wins over the admin's browser origin so the
       // link works in the recipient's inbox, not just on the admin's network.
       const origin = await this.settings.publicBaseUrl(opts.appOrigin);

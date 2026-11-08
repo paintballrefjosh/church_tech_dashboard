@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { LookId, LookSource } from "@church/shared";
+import type { LookId, LookSource } from "@lampstand/shared";
 
 export interface HomeLookContextValue {
   /** The look being shown. */

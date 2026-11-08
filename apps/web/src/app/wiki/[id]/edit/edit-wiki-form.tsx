@@ -7,7 +7,7 @@ import {
   type Attachment,
   type WikiPage,
   type WikiVisibility,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { AclEditor, type AclState } from "../../acl-editor";
 import { TagPicker } from "@/components/tag-picker";
 import { type TagLike } from "@/components/tag-badge";

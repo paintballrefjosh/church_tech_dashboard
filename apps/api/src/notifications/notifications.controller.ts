@@ -8,7 +8,7 @@ import {
   Query,
   BadRequestException,
 } from "@nestjs/common";
-import { notificationListQuerySchema } from "@church/shared";
+import { notificationListQuerySchema } from "@lampstand/shared";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { NotificationsService } from "./notifications.service";
 import { SkipAudit } from "../audit/audit.decorator";
@@ -63,7 +63,7 @@ export class NotificationsController {
     await this.notifications.create({
       recipientUserId: user.id,
       kind: "system.test",
-      title: "Church Dashboard SMTP test",
+      title: "Lampstand SMTP test",
       body: `If you're reading this email, SMTP is wired up. Sent to ${to}.`,
       link: null,
     });

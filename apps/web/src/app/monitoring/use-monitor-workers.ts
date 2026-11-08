@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { MonitorWorkers } from "@church/shared";
+import type { MonitorWorkers } from "@lampstand/shared";
 
 const POLL_MS = 30_000;
 

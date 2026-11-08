@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileUp } from "lucide-react";
-import { ASSET_CATEGORY_LABELS, ASSET_IMPORT_MAX_ROWS, PERMISSIONS, parseAssetCsv, type ImportAssetsResult, type ImportDateOrder } from "@church/shared";
+import { ASSET_CATEGORY_LABELS, ASSET_IMPORT_MAX_ROWS, PERMISSIONS, parseAssetCsv, type ImportAssetsResult, type ImportDateOrder } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { can, sendJson, useRooms, useViewer } from "@/components/assets-ui";
 import { inputCls, cardCls } from "../../monitoring/network-cisco/cisco-ui";

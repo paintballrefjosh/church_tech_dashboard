@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeReadiness, type NextService, type ReadinessInput } from "@church/shared";
+import { computeReadiness, type NextService, type ReadinessInput } from "@lampstand/shared";
 import { systemsOk } from "./helpers/home-fixtures";
 
 const person = (name: string, status: "confirmed" | "waiting" | "declined") => ({

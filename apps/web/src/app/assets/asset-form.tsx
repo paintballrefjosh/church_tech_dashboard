@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_STATUSES, ASSET_STATUS_LABELS, type Asset, type AssetCategory, type AssetStatus, type Location } from "@church/shared";
+import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_STATUSES, ASSET_STATUS_LABELS, type Asset, type AssetCategory, type AssetStatus, type Location } from "@lampstand/shared";
 import { Modal, Field, inputCls } from "../monitoring/network-cisco/cisco-ui";
 import { RoomField, sendJson } from "@/components/assets-ui";
 

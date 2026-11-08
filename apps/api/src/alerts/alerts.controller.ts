@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
-import { PERMISSIONS, createAlertChannelSchema, updateAlertChannelSchema } from "@church/shared";
+import { PERMISSIONS, createAlertChannelSchema, updateAlertChannelSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Audited } from "../audit/audit.decorator";
 import { AlertChannelsService } from "./alert-channels.service";

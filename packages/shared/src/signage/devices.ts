@@ -30,7 +30,7 @@ export function nameMatchesPattern(name: string | null | undefined, pattern: str
 }
 
 /** The banner comment a stock Pi shows while it waits for setup is plain Debian; ours adds this after setup has started. */
-export const SIGNAGE_SETUP_BANNER = "church-signage";
+export const SIGNAGE_SETUP_BANNER = "lampstand-signage";
 
 /** How sure we are an SSH host is a Pi for signage, best first, with the reason in words. */
 export function judgeEvidence(input: { mac: string | null; name: string | null; banner: string | null; namePattern: string }): { evidence: SignageEvidence; text: string } {

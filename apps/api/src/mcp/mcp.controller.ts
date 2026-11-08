@@ -17,7 +17,7 @@ import { McpToolsService } from "./mcp.tools";
  * session cookies are refused so a stray tab can't drive the tools. Audit rows come from the tools that change something
  * (recordAuditEntry), not one per MCP call.
  *
- * Connect: claude mcp add --transport http church https://<host>/api/v1/mcp \
+ * Connect: claude mcp add --transport http lampstand https://<host>/api/v1/mcp \
  *            --header "Authorization: Bearer <token>"
  */
 @Controller("mcp")

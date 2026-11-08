@@ -12,7 +12,7 @@ import {
   type ApiTokenPolicy,
   type ApiTokenStatus,
   type ApiTokenSummary,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { apiTokens, users } from "../db/schema";
 import { AuthService } from "../auth/auth.service";

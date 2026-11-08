@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, ShieldAlert, XCircle } from "lucide-react";
-import type { BackupDiffReport, BackupDiffTable } from "@church/shared";
+import type { BackupDiffReport, BackupDiffTable } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { formatBytes, formatCount } from "./client-api";
 

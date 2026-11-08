@@ -1,4 +1,4 @@
-/* Church Dashboard service worker.
+/* Lampstand service worker.
  *
  * Conservative caching strategy:
  *  - Static assets (Next chunks, /icon.svg, /manifest) — cache-first.
@@ -14,7 +14,7 @@
  * fresh assets.
  */
 const CACHE_VERSION = "v1";
-const SHELL_CACHE = `church-shell-${CACHE_VERSION}`;
+const SHELL_CACHE = `lampstand-shell-${CACHE_VERSION}`;
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -30,7 +30,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k.startsWith("church-") && k !== SHELL_CACHE)
+          .filter((k) => k.startsWith("lampstand-") && k !== SHELL_CACHE)
           .map((k) => caches.delete(k)),
       ),
     ).then(() => self.clients.claim()),
@@ -97,7 +97,7 @@ self.addEventListener("push", (event) => {
   } catch (_err) {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = typeof data.title === "string" && data.title ? data.title : "Church Dashboard";
+  const title = typeof data.title === "string" && data.title ? data.title : "Lampstand";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof data.body === "string" ? data.body : "",

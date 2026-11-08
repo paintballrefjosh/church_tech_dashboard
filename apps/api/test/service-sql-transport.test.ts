@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILTIN_TEMPLATES, evaluateService, serviceExprInputs, type CollectorOutcome, type PlaceholderValue, type ServiceTemplateBody } from "@church/shared";
+import { BUILTIN_TEMPLATES, evaluateService, serviceExprInputs, type CollectorOutcome, type PlaceholderValue, type ServiceTemplateBody } from "@lampstand/shared";
 import { runCollector, type InstanceRunContext } from "../src/service-monitoring/transports";
 
 /**

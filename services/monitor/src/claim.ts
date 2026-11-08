@@ -1,4 +1,4 @@
-import type { Queryable } from "@church/shared/db";
+import type { Queryable } from "@lampstand/shared/db";
 
 /**
  * Due when the last check plus the interval has passed. `last_checked_at` is a
@@ -19,7 +19,7 @@ const UNCLAIMED = `(claimed_until IS NULL OR claimed_until < now())`;
  * that another worker claimed between the two is not claimed twice. That runs the
  * same on CockroachDB and YugabyteDB (neither needs SKIP LOCKED). If two workers
  * do collide the database aborts one with a serialization error, which the pool
- * retries (see @church/shared/db retry rules).
+ * retries (see @lampstand/shared/db retry rules).
  *
  * A worker that dies mid-probe leaves its claim to lapse, so that check is late by
  * at most `claimSec`.

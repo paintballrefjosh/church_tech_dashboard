@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BookOpen, FileText } from "lucide-react";
-import { formatTimeInZone, zonedParts, type HomeSnapshot } from "@church/shared";
+import { formatTimeInZone, zonedParts, type HomeSnapshot } from "@lampstand/shared";
 import { Countdown } from "../../parts/countdown";
 import { RelativeTime } from "../../parts/relative-time";
 import s from "./styles.module.css";

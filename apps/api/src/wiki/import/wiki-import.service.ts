@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
 import { Readable } from "node:stream";
-import { MAX_IMPORT_SOURCE_BYTES, type WikiAclEntry, type WikiVisibility } from "@church/shared";
+import { MAX_IMPORT_SOURCE_BYTES, type WikiAclEntry, type WikiVisibility } from "@lampstand/shared";
 import { WikiService } from "../wiki.service";
 import { AttachmentsService } from "../../attachments/attachments.service";
 import type { AuthenticatedUser } from "../../auth/current-user.decorator";

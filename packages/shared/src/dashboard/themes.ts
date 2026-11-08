@@ -86,7 +86,7 @@ export const DASHBOARD_LOOKS: readonly LookDefinition[] = [
   },
 ];
 
-export const LOOK_DEVICE_COOKIE = "church_home_look";
+export const LOOK_DEVICE_COOKIE = "lampstand_home_look";
 
 export function isLookId(v: unknown): v is LookId {
   return typeof v === "string" && (LOOK_IDS as readonly string[]).includes(v);

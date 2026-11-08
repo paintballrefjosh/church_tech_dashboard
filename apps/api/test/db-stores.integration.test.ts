@@ -17,7 +17,7 @@ import type { ClusterJobs } from "../src/cluster/cluster-jobs.service";
  * at a database you care about.
  *
  *   TEST_DATABASE_URL=postgresql://root@host:26257/scratch?sslmode=disable \
- *     pnpm --filter @church/api exec vitest run test/db-stores.integration.test.ts
+ *     pnpm --filter @lampstand/api exec vitest run test/db-stores.integration.test.ts
  */
 const url = process.env.TEST_DATABASE_URL;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

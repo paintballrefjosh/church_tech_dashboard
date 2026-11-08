@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
 import { desc, eq, gte, like, sql, count } from "drizzle-orm";
-import { ASSISTANT_STATE, PERMISSIONS, siteToday, type AssistantLastTest, type AssistantWatchState } from "@church/shared";
+import { ASSISTANT_STATE, PERMISSIONS, siteToday, type AssistantLastTest, type AssistantWatchState } from "@lampstand/shared";
 import { Public } from "../auth/public.decorator";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { DB, type Db } from "../db/db.module";

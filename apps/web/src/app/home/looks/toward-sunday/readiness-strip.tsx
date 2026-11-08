@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Check, TriangleAlert } from "lucide-react";
-import type { Readiness } from "@church/shared";
+import type { Readiness } from "@lampstand/shared";
 import { readinessLine } from "./model";
 import styles from "./toward-sunday.module.css";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { TICKET_PRIORITIES } from "@church/shared";
+import { TICKET_PRIORITIES } from "@lampstand/shared";
 import { X } from "lucide-react";
 import { RoomField } from "@/components/assets-ui";
 

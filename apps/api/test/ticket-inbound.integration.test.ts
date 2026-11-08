@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import nodemailer from "nodemailer";
 import { ImapFlow } from "imapflow";
-import { INBOUND_KEYS } from "@church/shared";
+import { INBOUND_KEYS } from "@lampstand/shared";
 import { TicketsService } from "../src/tickets/tickets.service";
 import { TicketInbound, type InboundConfig } from "../src/tickets/ticket-inbound";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";

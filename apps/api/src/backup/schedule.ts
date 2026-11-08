@@ -1,4 +1,4 @@
-import type { BackupFrequency } from "@church/shared";
+import type { BackupFrequency } from "@lampstand/shared";
 
 /**
  * When a backup schedule is next due. A schedule says "every day / week / month at 02:30 in

@@ -8,7 +8,7 @@ import {
   createAlertChannelSchema,
   isAlertKind,
   type AlertEvent,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const ctx = {
   siteName: "St Example",
@@ -59,9 +59,9 @@ describe("the request each type sends", () => {
   });
   it("a signed webhook can be checked by the receiver", () => {
     const [r] = buildAlertRequests({ type: "webhook", config: { url: "https://n8n.example.org/hook" }, secret: "s3cret" }, down, ctx);
-    const ts = r!.headers["x-church-timestamp"]!;
+    const ts = r!.headers["x-lampstand-timestamp"]!;
     const expected = createHmac("sha256", "s3cret").update(`${ts}.${r!.body}`).digest("hex");
-    expect(r!.headers["x-church-signature"]).toBe(`sha256=${expected}`);
+    expect(r!.headers["x-lampstand-signature"]).toBe(`sha256=${expected}`);
     expect(JSON.parse(r!.body)).toMatchObject({ kind: down.kind, severity: "problem", site: "St Example" });
   });
   it("Twilio sends one message per number, short, with HTTP Basic", () => {

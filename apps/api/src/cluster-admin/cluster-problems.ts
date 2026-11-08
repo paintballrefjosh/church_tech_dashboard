@@ -1,4 +1,4 @@
-import type { ClusterJobInfo, ClusterNodeInfo, ClusterProblem, ClusterStoreInfo, ClusterDatabaseInfo } from "@church/shared";
+import type { ClusterJobInfo, ClusterNodeInfo, ClusterProblem, ClusterStoreInfo, ClusterDatabaseInfo } from "@lampstand/shared";
 
 /** A node that has not checked in for this long is reported as stopped (the heartbeat is every 10 s). */
 export const NODE_STALE_SEC = 60;

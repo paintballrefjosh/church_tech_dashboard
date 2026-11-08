@@ -6,7 +6,7 @@ import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LocalDateTime } from "@/components/local-date-time";
 import { BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate } from "lucide-react";
-import type { WikiPage, WikiTreeNode } from "@church/shared";
+import type { WikiPage, WikiTreeNode } from "@lampstand/shared";
 import { WikiSearch } from "./wiki-search";
 import { WikiTagFilter } from "./tag-filter-island";
 import { WikiTreeSidebar } from "./wiki-tree-sidebar";

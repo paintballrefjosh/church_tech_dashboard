@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPool, parseDbUrl, dbUrlWithSeed } from "@church/shared/db";
+import { createPool, parseDbUrl, dbUrlWithSeed } from "@lampstand/shared/db";
 
 /**
  * A URL whose first hosts are dead still reaches the database. Skipped unless TEST_DATABASE_URL is

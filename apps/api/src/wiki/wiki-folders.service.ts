@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from "@nes
 import { asc, eq } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { wikiFolders } from "../db/schema";
-import type { CreateWikiFolderInput, UpdateWikiFolderInput } from "@church/shared";
+import type { CreateWikiFolderInput, UpdateWikiFolderInput } from "@lampstand/shared";
 
 /**
  * Folders are pure organizational containers for the wiki tree — no body, no

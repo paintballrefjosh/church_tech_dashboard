@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiTokenCreateSchema } from "@church/shared";
+import { apiTokenCreateSchema } from "@lampstand/shared";
 
 describe("apiTokenCreateSchema operational level", () => {
   it("is off unless asked for", () => {

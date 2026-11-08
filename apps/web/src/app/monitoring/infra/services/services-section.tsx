@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import type { ServiceInstance, ServiceTemplate } from "@church/shared";
+import type { ServiceInstance, ServiceTemplate } from "@lampstand/shared";
 import { usePoll } from "@/lib/use-poll";
 import { ServiceFormModal, ServiceStatusPill, ago, cardKeys, formatMetric, metricLabel, primaryBtnCls, svcGet } from "./services-ui";
 

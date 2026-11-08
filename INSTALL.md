@@ -23,8 +23,8 @@ It covers every [deployment shape](#deployment-shapes-single-node-and-multi-node
 or several, the bundled database or your own, the bundled object store or your own.
 
 ```bash
-git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
-cd church-dashboard
+git clone https://github.com/paintballrefjosh/lampstand lampstand
+cd lampstand
 ./install.sh
 ```
 
@@ -94,9 +94,9 @@ things the other machines need beforehand are SSH access, Docker and the package
 for you. Docker's data for a node lives inside its install folder.
 
 *Manually.* The first machine writes a package per other node to
-`data/cluster-packages/church-node-<name>.tar.gz` (each holds that node's `.env`, with the secrets, and its
+`data/cluster-packages/lampstand-node-<name>.tar.gz` (each holds that node's `.env`, with the secrets, and its
 certificates). Copy each to its machine over a channel you trust and, there, with the repository at **the same
-commit**, run `./install.sh --join church-node-<name>.tar.gz`. It builds, starts the node's database and object
+commit**, run `./install.sh --join lampstand-node-<name>.tar.gz`. It builds, starts the node's database and object
 store and prints the node's object-store id (also in `data/node-id.txt`), then waits. Back on the first
 machine it waits until the other nodes' ports answer, forms the database cluster and the object store (asking
 you to paste each node's id), migrates, seeds, starts its application and tells you when to press Enter on the
@@ -148,8 +148,8 @@ you want to do them yourself or understand a step.
 ## Quick start (dev)
 
 ```bash
-git clone https://github.com/paintballrefjosh/church_tech_dashboard church-dashboard
-cd church-dashboard
+git clone https://github.com/paintballrefjosh/lampstand lampstand
+cd lampstand
 make up                        # auto-generates .env, creates ./data/ bind mounts, starts stack
 make migrate                   # applies SQL migrations to the database
 make seed                      # seeds default groups + per-module access and the bootstrap admin
@@ -189,23 +189,23 @@ The app talks to its database over the PostgreSQL wire protocol and runs on
 | Setup | `.env` | Notes |
 |---|---|---|
 | Bundled CockroachDB (default) | `DB_MODE=bundled` | Runs inside the stack: one node in dev, three in prod. Nothing else to set. |
-| External YugabyteDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@yb-host:5433/church` | YSQL listens on port 5433. Tested on 2024.2 LTS and 2026.1. For a cluster, list every node: see below. |
-| External CockroachDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@crdb-host:26257/church?sslmode=verify-full` | Your own cluster, licensed as you see fit. |
+| External YugabyteDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@yb-host:5433/lampstand` | YSQL listens on port 5433. Tested on 2024.2 LTS and 2026.1. For a cluster, list every node: see below. |
+| External CockroachDB | `DB_MODE=external`<br>`DATABASE_URL=postgresql://user:pass@crdb-host:26257/lampstand?sslmode=verify-full` | Your own cluster, licensed as you see fit. |
 
 You never say which engine an external database is: the app detects it from
 `SELECT version()` and adapts. The engine and version show on the Monitoring page's
 service health. For an external database:
 
 - **Which schema: always `public`** (plus a `drizzle` schema for the migration journal). Every connection the app
-  opens pins `search_path` to `public`, so a schema called like the login or the database (`church_tech`, say, which a
+  opens pins `search_path` to `public`, so a schema called like the login or the database (`lampstand_app`, say, which a
   database tool or a DBA may have created) can never capture the tables. Without that pin PostgreSQL's default
   (`"$user", public`) sends unqualified tables to a schema named after the login, and the migrations' own references
   to `"public"."users"` then fail with `relation "public.users" does not exist`. A stray schema of that name is
   harmless now; drop it if it holds tables from an earlier attempt.
-- **Create the database first** (`CREATE DATABASE church;`). Migrations create the
+- **Create the database first** (`CREATE DATABASE lampstand;`). Migrations create the
   tables but not the database. **The login the dashboard uses must be allowed to create tables in it**: make it
-  the owner (`CREATE DATABASE church OWNER church;`), or grant it rights
-  (`GRANT ALL ON DATABASE church TO church;` and, connected to that database, `GRANT ALL ON SCHEMA public TO church;`).
+  the owner (`CREATE DATABASE lampstand OWNER lampstand;`), or grant it rights
+  (`GRANT ALL ON DATABASE lampstand TO lampstand;` and, connected to that database, `GRANT ALL ON SCHEMA public TO lampstand;`).
   On PostgreSQL 15+ (and YugabyteDB releases based on it) a login that merely connects may not create tables in
   `public`, and the migration stops at its first statement with `permission denied for schema public`. The guided
   installer's connection test checks this and prints these commands.
@@ -231,7 +231,7 @@ service health. For an external database:
   not be noticed: for a self-signed or private-CA database on a network you control), or `sslmode=disable`. The
   guided installer asks which, tests the connection exactly the way the app will, and offers `no-verify` when a
   certificate is untrusted. Put the options in the URL:
-  `postgresql://user:pass@db.example.org:26257/church?sslmode=verify-full&sslrootcert=/certs/ca.crt`
+  `postgresql://user:pass@db.example.org:26257/lampstand?sslmode=verify-full&sslrootcert=/certs/ca.crt`
   (`sslcert` and `sslkey` for client certificates). Mount the certificate files into the
   `api`, `web` and `monitor` containers. Use `sslmode=verify-full` and name the server by
   **host name**, not IP address, so the certificate can be matched to it: this driver treats
@@ -240,7 +240,7 @@ service health. For an external database:
   network only.
 - **A database that is a cluster: list every node in the URL.** Put all the hosts in the one
   `DATABASE_URL`, comma separated, the same syntax `psql` accepts:
-  `postgresql://user:pass@yb1:5433,yb2:5433,yb3:5433/church?sslmode=verify-full`. Each new connection
+  `postgresql://user:pass@yb1:5433,yb2:5433,yb3:5433/lampstand?sslmode=verify-full`. Each new connection
   goes to the host with the fewest connections from that process, so the load spreads over the nodes;
   a host that refuses or does not answer is left out for 5 seconds (doubling to 60 on repeated
   failures) and the attempt is retried on another; a process that starts while one node is down
@@ -258,7 +258,7 @@ service health. For an external database:
   on another host. Set it in `.env`; migrations ignore it.
 - **What the app does when a database node fails.** Every process opens its connections
   through one shared factory: a broken idle connection is replaced rather than crashing the
-  process, connections are named (`church-api`, `church-web`, `church-monitor`) so you can
+  process, connections are named (`lampstand-api`, `lampstand-web`, `lampstand-monitor`) so you can
   see them in the database's session list, they are recycled every 30 minutes so they move to
   live nodes after a failover, and statements that are safe to repeat are retried
   automatically (anything that never reached the database or was rolled back, and plain reads
@@ -287,7 +287,7 @@ store. Pick one of two setups with `S3_MODE` in `.env`, the same way as `DB_MODE
 | Setup | `.env` | Notes |
 |---|---|---|
 | Bundled Garage (default) | `S3_MODE=bundled` | Runs inside the stack. Nothing to configure: its access key and internal secret are derived from `AUTH_SECRET`. |
-| External S3-compatible store | `S3_MODE=external`<br>`S3_ENDPOINT=https://s3.example.org`<br>`S3_ACCESS_KEY=...`<br>`S3_SECRET_KEY=...`<br>`S3_BUCKET=church-files` | AWS S3, Backblaze B2, your own MinIO or Garage. The bundled MinIO is not started. |
+| External S3-compatible store | `S3_MODE=external`<br>`S3_ENDPOINT=https://s3.example.org`<br>`S3_ACCESS_KEY=...`<br>`S3_SECRET_KEY=...`<br>`S3_BUCKET=lampstand-files` | AWS S3, Backblaze B2, your own MinIO or Garage. The bundled MinIO is not started. |
 
 **About the bundled Garage:**
 
@@ -315,7 +315,7 @@ scripts/s3-copy.sh --from-minio --to-bundled     # the last few files; verifies 
 scripts/compose.sh up -d api web                 # the app now uses Garage
 ```
 
-Check the files open in the app, then `docker stop` the old `church-minio-1` container (`docker rm` it when
+Check the files open in the app, then `docker stop` the old `<project>-minio-1` container (`docker rm` it when
 you are sure). `./data/minio` is left alone: delete it when you no longer need the rollback. The old
 MinIO images can no longer be pulled, so on a host that does not already have them there is no way to read
 `./data/minio` again; keep a copy of the images (`docker save minio/minio:latest minio/mc:latest`) if you
@@ -346,7 +346,7 @@ and is safe to run repeatedly):
 ```bash
 # 1. The bulk of it, while users keep working:
 scripts/s3-copy.sh --to-endpoint https://s3.example.org \
-    --to-access-key AKIA... --to-secret-key ... --to-bucket church-files
+    --to-access-key AKIA... --to-secret-key ... --to-bucket lampstand-files
 # 2. Stop uploads, then the final pass (copies the last few files and verifies):
 scripts/compose.sh stop api web
 scripts/s3-copy.sh ...same flags...
@@ -396,7 +396,7 @@ resilience only. They run side by side on one host under one project directory, 
 the host as a single failure domain.
 
 **Putting a multi-host database behind shape B.** List every database node in
-`DATABASE_URL` (`postgresql://user:pass@db1:5433,db2:5433,db3:5433/church`): the app spreads its
+`DATABASE_URL` (`postgresql://user:pass@db1:5433,db2:5433,db3:5433/lampstand`): the app spreads its
 connections over them and moves to another when one fails, with nothing in between (see
 [Choosing a database](#choosing-a-database)). A TCP load balancer or virtual IP in front of the
 nodes, with its address as the single host, works too. CockroachDB nodes listen on `:26257`,
@@ -466,7 +466,7 @@ working as it is; it cannot be converted in place, see
   only: the pages that use it also refresh on a timer, so a client that cannot open a
   WebSocket still works, just less instantly); passes the
   original `Host`; sets `X-Forwarded-For` and `X-Forwarded-Proto`; health-checks each node at
-  `/healthz` (200 with the node's name in an `X-Church-Node` header while the node's API can
+  `/healthz` (200 with the node's name in an `X-Lampstand-Node` header while the node's API can
   reach its database, 503 when it cannot, and 503 "draining" while the node is drained).
 - **`TRUSTED_PROXIES`**: set it in `.env` to a space-separated list of your load balancer's
   CIDRs (`TRUSTED_PROXIES=10.0.0.0/24`). The proxy then reads `X-Forwarded-For` from the right
@@ -561,7 +561,7 @@ the [ports](#requirements) open between them. The examples use three nodes, `10.
    scripts/cluster.sh init-db
    ```
 
-   This forms the cluster, creates the `church` database and the application's database user.
+   This forms the cluster, creates the `lampstand` database and the application's database user.
    Then check that every node joined: `scripts/cluster.sh db-members 3` (your node count) waits for it. A
    node that was started long before the first one can wait for ever without joining; if one did not,
    run `scripts/compose.sh --prod restart cockroach` on it and it joins at once. (The guided installer does
@@ -612,7 +612,7 @@ TLS. The object store's RPC is authenticated and encrypted with the secret deriv
 #### Shape D: remote database on every node
 
 1. Provide the database (CockroachDB or YugabyteDB) with a stable address in front of it, as for
-   shape B, and create the `church` database (and `pgcrypto` on YugabyteDB 2024.2).
+   shape B, and create the `lampstand` database (and `pgcrypto` on YugabyteDB 2024.2).
 2. Provide an S3-compatible bucket and credentials (`S3_MODE=external`; the bucket must exist),
    or run the bundled object store as for shape C (then each node also needs `NODE_ADDR` and
    `CLUSTER_PEERS`, and step 5 of shape C applies).
@@ -799,7 +799,7 @@ and `db-s3.sh` only when the old install is the production stack.
   same from a shell.
 - **Known behaviours**:
   - **Your own writes are visible on every node.** After a change the answering node sends its cache
-    invalidations before it replies and sets a ten second cookie (`church_rv`); a request carrying the
+    invalidations before it replies and sets a ten second cookie (`lampstand_rv`); a request carrying the
     cookie that lands on another node makes that node catch up first, so changing a password, a setting or
     a profile is seen by the very next page whichever node serves it. A client that does not keep cookies
     (a script with an API token) sees another node's change within about a second instead.
@@ -856,7 +856,7 @@ touch:
 | `NODE_ROLE` | no | `full` (default) or `data`: a [witness](#a-witness-node) runs only the database and object store. |
 | `TRUSTED_PROXIES` | no | Load balancer CIDRs the proxy believes `X-Forwarded-For` from (space-separated). See [multi node requirements](#requirements). |
 | `BUILD_ID` / `API_IMAGE` / `WEB_IMAGE` / `MONITOR_IMAGE` | no | The build's name (default: from git) and pre-built images to run instead of building, for a cluster; `scripts/release.sh` prints them. |
-| `IMAGE_REGISTRY` | no | A registry prefix (`registry.example.org/church`): `scripts/upgrade.sh` pulls the target's images from it instead of building, see [Upgrading](#upgrading-from-a-registry-build-once-pull-everywhere). Not together with the `*_IMAGE` lines. |
+| `IMAGE_REGISTRY` | no | A registry prefix (`registry.example.org/lampstand`): `scripts/upgrade.sh` pulls the target's images from it instead of building, see [Upgrading](#upgrading-from-a-registry-build-once-pull-everywhere). Not together with the `*_IMAGE` lines. |
 | `BACKUP_MAX_UPLOAD_BYTES` | no | Largest backup file accepted by Admin > Backups > Restore > Upload (default 5 GiB). |
 | `BACKGROUND_JOBS` | no | `off` keeps this node from taking any periodic job (polling, schedulers), for a node that cannot reach the monitored devices. Default `on`. |
 
@@ -1081,12 +1081,12 @@ most of an image, are layers that only a dependency change rewrites).
 
 ```bash
 # once, in .env on every node (and on the machine that publishes):
-IMAGE_REGISTRY=registry.example.org/church      # images are <prefix>-api, -web, -monitor, tagged with the build id
+IMAGE_REGISTRY=registry.example.org/lampstand      # images are <prefix>-api, -web, -monitor, tagged with the build id
 
 docker login registry.example.org               # on every node and on the publisher, if the registry is private
 
 # per release, from a clean checkout on the commit to ship:
-scripts/release.sh --push                        # builds once, pushes church-{api,web,monitor}:<commit>
+scripts/release.sh --push                        # builds once, pushes lampstand-{api,web,monitor}:<commit>
 scripts/upgrade-cluster.sh                       # each node pulls; or scripts/upgrade.sh on a single node
 # or in one go: scripts/upgrade-cluster.sh --publish   (builds and pushes the target, then upgrades)
 ```
@@ -1109,8 +1109,8 @@ organisation); only the machine that publishes can write, and each node only rea
 
 1. **Pick the prefix.** It is `ghcr.io/<owner>/<name>` with everything lower case (GHCR refuses capitals), where
    `<owner>` is the GitHub user or organisation that should own the packages and `<name>` is any short word. For this
-   repository's owner that is, for example, `ghcr.io/paintballrefjosh/church`, which gives the packages
-   `church-api`, `church-web` and `church-monitor`. You do not create them: the first push does, **private** by default.
+   repository's owner that is, for example, `ghcr.io/paintballrefjosh/lampstand`, which gives the packages
+   `lampstand-api`, `lampstand-web` and `lampstand-monitor`. You do not create them: the first push does, **private** by default.
    Keep them private; they hold the application's code.
 2. **Make two tokens** (GitHub > Settings > Developer settings > Personal access tokens > **Tokens (classic)**; GHCR does
    not accept fine-grained tokens, and the built-in `GITHUB_TOKEN` is only for GitHub Actions). Set an expiry and note it
@@ -1141,7 +1141,7 @@ organisation); only the machine that publishes can write, and each node only rea
 
    ```bash
    scripts/release.sh --push                    # builds once, pushes the three images tagged with the commit
-   docker manifest inspect ghcr.io/<owner>/church-api:$(scripts/build-id.sh)   # prints JSON when it is there
+   docker manifest inspect ghcr.io/<owner>/lampstand-api:$(scripts/build-id.sh)   # prints JSON when it is there
    scripts/upgrade-cluster.sh --check           # every node: version, and that its images are published
    scripts/upgrade-cluster.sh                   # upgrade (or scripts/upgrade.sh on a single node)
    ```
@@ -1183,16 +1183,16 @@ runs mixed versions meanwhile, which is safe for a while because migrations are 
 
 The nodes are listed in `data/upgrade/nodes`, one per line: `local` for the machine you run it on, and
 `[user@]host[:port] [folder]` for the others (the folder is the checkout, relative to the SSH user's home or
-absolute; default `church-dashboard`, which is where the installer puts it):
+absolute; default `lampstand`, which is where the installer puts it):
 
 ```
 local
 josh@10.0.0.12
-josh@10.0.0.13:2222 /srv/church
+josh@10.0.0.13:2222 /srv/lampstand
 ```
 
 Without that file it uses this machine plus the hosts in `CLUSTER_PEERS`, as your own user, and says so first.
-SSH is key-only: the script never asks for or stores a password (`UC_SSH_OPTIONS="-i ~/.ssh/church"` adds
+SSH is key-only: the script never asks for or stores a password (`UC_SSH_OPTIONS="-i ~/.ssh/lampstand"` adds
 options such as a key file or a jump host). A remote upgrade runs detached on its node and the script follows
 its log, so a dropped connection or Ctrl-C here does not interrupt it halfway; run the script again and it
 carries on. Nodes that only hold the database and object store (`NODE_ROLE=data`) are skipped. `--no-backup`,
@@ -1441,7 +1441,7 @@ the audit log all behave the same, and an agent sees only the tools its token al
 3. **Connect the agent** from the machine it runs on:
 
    ```bash
-   claude mcp add --transport http church https://<your-host>/api/v1/mcp \
+   claude mcp add --transport http lampstand https://<your-host>/api/v1/mcp \
      --header "Authorization: Bearer <token>"
    ```
 
@@ -1618,7 +1618,7 @@ new one with the same `AUTH_SECRET`, upload the backup, restore.
 that store loses them too. **Admin > Settings > Backups** (also linked from the **Offsite** tab) takes the details
 of a second, separate S3-compatible bucket: Backblaze B2, Amazon S3, Wasabi, or a MinIO or Garage on another
 machine. Give it the endpoint (`host[:port]` or a URL), the bucket, the region if the service wants one, an access
-key and secret (stored encrypted), a folder inside the bucket (default `church-dashboard/`) and how many copies to
+key and secret (stored encrypted), a folder inside the bucket (default `lampstand/`) and how many copies to
 keep (default 14; 0 keeps every copy). Then press **Test the connection** on the Offsite tab: it writes, reads back
 and deletes a small file, so a wrong key or bucket is found now and not when the first backup is due. The switch
 **Copy backups offsite** cannot be turned on until the endpoint, bucket and keys are filled in, and the bucket
@@ -1631,7 +1631,7 @@ the offsite bucket** box (on by default); a manual backup or a safety copy can b
 offsite** on its row. A failed copy is retried every 30 minutes; the first failure notifies the administrators
 (once, until a copy succeeds again), and the reason is shown on the backup and on the Offsite tab. Old copies
 beyond "copies to keep" are deleted from the bucket, and only files named like the site's own
-(`church-dashboard-<time>-<id>.tar.gz` in that folder); give the key delete rights for that, or older copies stay
+(`lampstand-<time>-<id>.tar.gz` in that folder); give the key delete rights for that, or older copies stay
 and a warning says so. Changing the bucket starts copying to the new one.
 
 Getting a copy back after a disaster: install the site again, set the same bucket details under Settings >
@@ -1665,7 +1665,7 @@ very account that asked for it, so the script watches the restore from inside th
 file difference. Finally it signs in as the restored test user and reads notes, tickets, the wiki, checklists and
 monitors. `make verify-restore ARGS="--archive file.tar.gz --no-signin"` rehearses a backup you already have (for a
 file that does not contain the test user); `--keep` leaves the cluster up. Run it after a release, or monthly from cron
-(`0 3 1 * * cd /path/to/church-dashboard && tests/cluster/verify-restore.sh >> /var/log/verify-restore.log 2>&1`). It
+(`0 3 1 * * cd /path/to/lampstand && tests/cluster/verify-restore.sh >> /var/log/verify-restore.log 2>&1`). It
 needs the cluster to be built from the current source, and it only ever restores into that cluster, never the dev stack.
 
 **Things to know.**
@@ -1755,7 +1755,7 @@ make db-restore FILE=./backups/crdb-20261003-233752.tgz CONFIRM=yes
 ```
 
 The archive is a native CockroachDB `BACKUP` (not SQL), so it restores only into
-CockroachDB. `db-restore` replaces the whole `church` database: it stops the api, web and
+CockroachDB. `db-restore` replaces the whole `lampstand` database: it stops the api, web and
 monitor containers, restores into a temporary database, and only once that has succeeded
 swaps it in for the live one and starts them again. Without `CONFIRM=yes` it only says
 what it would do. These targets use the dev compose file; for the prod stack, take a
@@ -1774,7 +1774,7 @@ make db-backup-s3 PROD=1                # the prod stack
 (`scripts/db-s3.sh`.) It uses the same `S3_*` settings and works with the bundled Garage or an
 external store (the bucket must exist: Cockroach does not create it). A restore stops the api, web
 and monitor, restores into a copy, and swaps it in only once that has succeeded, so a failed
-restore leaves the live database untouched; on a fresh cluster with no `church` database it
+restore leaves the live database untouched; on a fresh cluster with no `lampstand` database it
 restores straight into place. Tested by backing up a database of 1.8 million rows into one
 store and restoring it into a different cluster. Like the tarball, this is the bundled
 CockroachDB only: an external database is backed up with its own tooling. The backups sit in
@@ -1790,7 +1790,7 @@ backup: copy the tarballs off-box, or use the object-store form against a store 
 fails with a suggested free port and the env var to set. Edit `.env` and re-run.
 
 Internal container ports (Next.js on `:3000`, NestJS on `:3001`) are **not** exposed
-to the host — they live on the `church_internal` docker bridge — so collisions with
+to the host — they live on the `lampstand_internal` docker bridge — so collisions with
 other host processes on those ports do not affect this stack.
 
 ## Troubleshooting

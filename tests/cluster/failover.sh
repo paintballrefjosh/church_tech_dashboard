@@ -14,7 +14,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 SIM="tests/cluster/sim.sh"
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 url() { echo "http://$HOST:$((8200 + $1))"; }
 fails=0
@@ -29,7 +29,7 @@ xnode() {
     -e NODES="$nodes" -e MODE="$mode" -e STATE_FILE=/sim/state.json node:20-alpine node tests/cluster/cross-node.mjs
 }
 sql() { # <node> <statement> -> one value
-  (cd "$SIM_DIR/node$1" && COMPOSE_PROJECT_NAME="sim$1" bash scripts/cluster.sh sql --database=church --format=csv -e "$2" 2>/dev/null | tail -n 1)
+  (cd "$SIM_DIR/node$1" && COMPOSE_PROJECT_NAME="sim$1" bash scripts/cluster.sh sql --database=lampstand --format=csv -e "$2" 2>/dev/null | tail -n 1)
 }
 wait_until() { # <seconds> <description> <command...>
   local secs="$1" what="$2"; shift 2

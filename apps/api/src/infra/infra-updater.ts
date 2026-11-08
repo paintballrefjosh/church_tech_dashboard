@@ -29,7 +29,7 @@ import {
   validSudoUser,
 } from "./sudo-access";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
-import type { CreateInfraUpdateRunInput, InfraUpdateRun } from "@church/shared";
+import type { CreateInfraUpdateRunInput, InfraUpdateRun } from "@lampstand/shared";
 
 // A real fleet upgrade (apt-get update + upgrade across however many
 // packages) can legitimately run long, especially the first time in a while

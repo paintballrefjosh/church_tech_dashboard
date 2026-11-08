@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Database, HardDrive, XCircle } from "lucide-react";
-import type { ClusterNodeInfo, ClusterStatus } from "@church/shared";
+import type { ClusterNodeInfo, ClusterStatus } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 
 const REFRESH_MS = 5000;

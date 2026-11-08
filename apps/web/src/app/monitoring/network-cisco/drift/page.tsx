@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpToLine, ArrowDownToLine, Loader2 } from "lucide-react";
-import type { CiscoDriftRow } from "@church/shared";
+import type { CiscoDriftRow } from "@lampstand/shared";
 import { useCanWrite, fmtTime, PendingLine, ToastStack, useToasts } from "../cisco-ui";
 import { DataTable, type Column } from "@/components/data-table";
 

@@ -12,7 +12,7 @@ import {
   PERMISSIONS,
   groupLocations,
   type Asset,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { HolderLine, RoomLink, StatusChip, can, useRooms, useViewer } from "@/components/assets-ui";
 import { inputCls, useToasts, ToastStack } from "../monitoring/network-cisco/cisco-ui";

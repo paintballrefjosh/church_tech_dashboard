@@ -70,7 +70,17 @@ export type DnsEditableType = (typeof DNS_EDITABLE_TYPES)[number];
  * can't be edited by hand through the dashboard, and hand-made records may not
  * claim it.
  */
-export const DNS_MANAGED_MARKER = "managed-by:church-dashboard";
+export const DNS_MANAGED_MARKER = "managed-by:lampstand";
+/**
+ * The comment the sync wrote before the rename to Lampstand (2026-11-08). Records that carry it are still ours; the sync
+ * rewrites them with `DNS_MANAGED_MARKER` the next time it runs (`computeSyncPlan`), so this goes unused once they all have.
+ */
+export const LEGACY_DNS_MANAGED_MARKER = "managed-by:church-dashboard";
+
+/** Does this record comment mark a record the sync owns (new or pre-rename marker)? */
+export function hasManagedMarker(comments: string | null | undefined): boolean {
+  return Boolean(comments && (comments.includes(DNS_MANAGED_MARKER) || comments.includes(LEGACY_DNS_MANAGED_MARKER)));
+}
 
 // A domain name (absolute or relative, optional trailing dot, `_` allowed for
 // SRV/DKIM-style labels, optional leading `*.` wildcard).
@@ -124,7 +134,7 @@ const recordName = z
 const recordComments = z
   .string()
   .max(500)
-  .refine((v) => !v.includes(DNS_MANAGED_MARKER), "That comment is reserved for synced records");
+  .refine((v) => !hasManagedMarker(v), "That comment is reserved for synced records");
 
 const recordTtl = z.number().int().min(0).max(604_800);
 

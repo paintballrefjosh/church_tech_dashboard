@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import {
-  DNS_MANAGED_MARKER,
+  hasManagedMarker,
   type DnsNode,
   type DnsRecord,
   type DnsRecordCreateInput,
@@ -21,7 +21,7 @@ import {
   type DnsTestInput,
   type DnsTopEntry,
   type DnsZone,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { SettingsService } from "../settings/settings.service";
 import {
   technitiumCall,
@@ -400,7 +400,7 @@ function toRecord(r: TRecord): DnsRecord {
     disabled: Boolean(r.disabled),
     comments,
     data: parseRData(type, r.rData),
-    managed: Boolean(comments?.includes(DNS_MANAGED_MARKER)),
+    managed: hasManagedMarker(comments),
   };
 }
 

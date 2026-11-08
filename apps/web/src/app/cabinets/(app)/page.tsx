@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { DEFAULT_RACK_UNITS, MAX_RACK_UNITS, type RackListEntry } from "@church/shared";
+import { DEFAULT_RACK_UNITS, MAX_RACK_UNITS, type RackListEntry } from "@lampstand/shared";
 import { useCanWrite, StatusLine, inputCls, cardCls, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 import { errorText } from "@/lib/use-switch-models";
 import { RoomSelect, useRooms } from "@/components/assets-ui";

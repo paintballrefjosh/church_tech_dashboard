@@ -1,4 +1,4 @@
-import type { CiscoPortRow } from "@church/shared";
+import type { CiscoPortRow } from "@lampstand/shared";
 import type { FaceItem } from "@/components/switch-faceplate";
 import { slotForPort, type FaceplateLayout } from "./layouts";
 import { faceState } from "./face-state";

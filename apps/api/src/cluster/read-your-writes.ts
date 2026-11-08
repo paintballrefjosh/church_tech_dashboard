@@ -15,7 +15,7 @@ import type { ClusterBus } from "./cluster-bus.service";
  * the requests in the few seconds after a change. A browser that never sends the cookie (an API client
  * that drops cookies) gets the old behaviour: consistent within about a second.
  */
-export const CONSISTENCY_COOKIE = "church_rv";
+export const CONSISTENCY_COOKIE = "lampstand_rv";
 /** How long after a change the cookie asks other nodes to catch up. */
 const COOKIE_MAX_AGE_SEC = 10;
 /** A cookie older than this, or dated in the future by more than the allowance, is ignored. */
@@ -24,7 +24,7 @@ const FUTURE_ALLOWANCE_MS = 5_000;
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-/** The time in a request's `church_rv` cookie, or null when absent or not believable. */
+/** The time in a request's `lampstand_rv` cookie, or null when absent or not believable. */
 export function parseConsistencyCookie(header: string | undefined, now = Date.now()): number | null {
   if (!header) return null;
   for (const part of header.split(";")) {

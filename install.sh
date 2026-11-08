@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Guided installer for the church dashboard: asks a few questions, writes .env, then starts
+# Guided installer for Lampstand: asks a few questions, writes .env, then starts
 # the stack, migrates and seeds it. Covers every deployment shape (INSTALL.md):
 #   A  one server, bundled database        B  one server, your own database
 #   C  several servers, bundled databases  D  several servers, your own database
@@ -343,8 +343,8 @@ port_listening() {
 
 compose_project() {
   if have ENV_COMPOSE_PROJECT_NAME; then ans ENV_COMPOSE_PROJECT_NAME
-  elif [[ $(ans SETUP) == single && $(ans STACK) == standard ]]; then printf 'church'
-  else printf 'church-prod'; fi
+  elif [[ $(ans SETUP) == single && $(ans STACK) == standard ]]; then printf 'lampstand'
+  else printf 'lampstand-prod'; fi
 }
 
 # A port taken by one of this install's own containers is fine (a re-run).
@@ -694,7 +694,7 @@ explain_requirements() { # where tokens...
 
 preflight() {
   heading "Checking this machine"
-  [[ -f scripts/compose.sh && -f .env.example ]] || die "Run this from the root of the church-dashboard checkout (scripts/compose.sh and .env.example must be here)."
+  [[ -f scripts/compose.sh && -f .env.example ]] || die "Run this from the root of the Lampstand checkout (scripts/compose.sh and .env.example must be here)."
   (( DRY_RUN )) && { info "(dry run: skipping the docker checks)"; return 0; }
 
   if ! ensure_requirements 1; then
@@ -833,7 +833,7 @@ ask_database() {
   while :; do
     ask_choice DB_INPUT "How do you want to give the connection details?" parts \
       "parts|Fill in host, port, user and password|The installer builds the connection URL for you." \
-      "url|Paste a connection URL|postgresql://user:password@host:5433/church?sslmode=verify-full (several hosts: host1:5433,host2:5433,host3:5433)"
+      "url|Paste a connection URL|postgresql://user:password@host:5433/lampstand?sslmode=verify-full (several hosts: host1:5433,host2:5433,host3:5433)"
     if [[ $(ans DB_INPUT) == parts ]]; then
       ask_choice DB_ENGINE "Which database is it?" yugabyte \
         "yugabyte|YugabyteDB|YSQL, port 5433 by default" \
@@ -843,8 +843,8 @@ ask_database() {
       ask_text DB_HOST "Database host(s), comma separated (the containers must be able to reach them; not localhost)" "" v_dbhosts \
         "If the database is a cluster, list EVERY node: db1.example.org,db2.example.org,db3.example.org. The dashboard connects to whichever answers, spreads its connections over them and moves to another when one fails, so no load balancer is needed. One host works too, but then that host is a single point of failure (unless it is a load balancer's address)."
       ask_text DB_PORT "Port (used for any host above that does not give its own)" "$defport" v_port
-      ask_text DB_NAME "Database name (it must already exist)" church v_envsafe
-      ask_text DB_USER "Database user" church v_envsafe
+      ask_text DB_NAME "Database name (it must already exist)" lampstand v_envsafe
+      ask_text DB_USER "Database user" lampstand v_envsafe
       ask_secret DB_PASSWORD "Database password" v_nonempty
       ask_choice DB_SSL "Encrypt the connection?" verify-full \
         "verify-full|Yes, and check the certificate|The safe choice. The database's certificate must be from a CA the containers trust (a public one, such as Let's Encrypt) and name the host you gave." \
@@ -889,7 +889,7 @@ ask_objectstore() {
     "bundled|Bundled Garage|An S3-compatible store inside this install. Nothing to set up." \
     "external|My own S3-compatible store|AWS S3, Backblaze B2, MinIO, your own Garage. The bucket must already exist."
   if [[ $(ans S3_MODE) == bundled ]]; then
-    local meta_default=/var/lib/church-garage-meta
+    local meta_default=/var/lib/lampstand-garage-meta
     if network_fs .; then
       warn "This folder is on a network file system. The bundled store's metadata must be on local disk (it refuses to start otherwise)."
       ask_text GARAGE_META_DIR "Local folder for the object store's metadata" "$meta_default" v_envsafe \
@@ -900,7 +900,7 @@ ask_objectstore() {
     return 0
   fi
   ask_text S3_ENDPOINT "Store address (host[:port], or https://host[:port])" "" v_endpoint "For example s3.example.org, or https://s3.us-west-004.backblazeb2.com"
-  ask_text S3_BUCKET "Bucket name (it must already exist)" church-files v_bucket
+  ask_text S3_BUCKET "Bucket name (it must already exist)" lampstand-files v_bucket
   ask_text S3_ACCESS_KEY "Access key" "" v_secretkey
   ask_secret S3_SECRET_KEY "Secret key" v_secretkey
   local region_def=us-east-1
@@ -975,7 +975,7 @@ ask_remote() {
     "ssh|Automatically over SSH|The installer connects to each machine, copies what it needs, installs there and starts everything, all from here. Each machine needs SSH access, Docker (Compose 2.20+), git and make. If one asks for a password, ssh asks you for it once." \
     "manual|I will copy the packages myself|The installer makes a package per machine; you copy it over and run ./install.sh --join there."
   [[ $(ans REMOTE_MODE) == ssh ]] || return 0
-  ask_text REMOTE_DIR "Install folder on the other machines (in the SSH user's home)" church-dashboard v_remotedir \
+  ask_text REMOTE_DIR "Install folder on the other machines (in the SSH user's home)" lampstand v_remotedir \
     "The code is copied here. Docker's data folders live inside it."
   ask_text SSH_KEY "SSH private key file (blank: your ssh agent, default keys, or a password)" "" v_sshkey
   ask_text SSH_USER "SSH user on the other machines" "$(id -un)" v_sshuser
@@ -1011,9 +1011,9 @@ ask_stack() {
 
 ask_secrets() {
   heading "Secrets"
-  local existing; existing=$(env_read .env AUTH_SECRET)
+  local existing kept=no; existing=$(env_read .env AUTH_SECRET)
   if [[ -n $existing && $existing != replace-me-* ]] && ! have AUTH_SECRET; then
-    ANS[AUTH_SECRET]=$existing
+    ANS[AUTH_SECRET]=$existing; kept=yes
     ok "Keeping the AUTH_SECRET from the current .env (changing it would log everyone out and make saved SMTP/OAuth secrets unreadable)."
   elif have AUTH_SECRET; then
     ok "Using the AUTH_SECRET you supplied."
@@ -1026,6 +1026,13 @@ ask_secrets() {
       ok "Generated a new AUTH_SECRET."
     fi
   fi
+  # The namespace the derived keys use. An install that already has an AUTH_SECRET but no line was made before the
+  # rename to Lampstand and keeps the old namespace (empty here: nothing is written); anything new gets lampstand.
+  local dprefix; dprefix=$(env_read .env DERIVE_PREFIX)
+  if have DERIVE_PREFIX; then :
+  elif [[ -n $dprefix ]]; then ANS[DERIVE_PREFIX]=$dprefix
+  elif [[ $kept == yes ]]; then ANS[DERIVE_PREFIX]=''
+  else ANS[DERIVE_PREFIX]=lampstand; fi
   local meili; meili=$(env_read .env MEILI_MASTER_KEY)
   if have MEILI_MASTER_KEY; then :
   elif [[ -n $meili && $meili != dev-master-key-change-in-prod ]]; then ANS[MEILI_MASTER_KEY]=$meili
@@ -1075,6 +1082,7 @@ write_env() {
   local f=$1 idx=$2 i k peers=''
   cp .env.example "$f"
   env_set "$f" AUTH_SECRET "$(ans AUTH_SECRET)"
+  [[ -n $(ans DERIVE_PREFIX) ]] && env_set "$f" DERIVE_PREFIX "$(ans DERIVE_PREFIX)"
   env_set "$f" MEILI_MASTER_KEY "$(ans MEILI_MASTER_KEY)"
   env_set "$f" EXTERNAL_PORT "$(ans EXTERNAL_PORT)"
   [[ -n $(ans TRUSTED_PROXIES) ]] && env_set "$f" TRUSTED_PROXIES "$(ans TRUSTED_PROXIES)"
@@ -1271,7 +1279,7 @@ st_packages() {
       cp "data/cluster-certs/$(node_host "$i" | tr ':/' '__')"/{ca.crt,node.crt,node.key,client.root.crt,client.root.key} "$d/certs/" || return 1
     fi
     printf '%s %s\n' "$commit" "$dirty" >"$d/COMMIT"
-    pkg="data/cluster-packages/church-node-$(ans "NODE_${i}_ID").tar.gz"
+    pkg="data/cluster-packages/lampstand-node-$(ans "NODE_${i}_ID").tar.gz"
     ( umask 077; tar -czf "$pkg" -C "$d" . ) || return 1
     rm -rf "$d"
     ok "Package for $(ans "NODE_${i}_ID"): $pkg"
@@ -1287,7 +1295,7 @@ st_packages() {
   (scp, a USB stick) and delete it from the machine afterwards. On each other machine, with
   this repository checked out at the same commit:
 
-      ./install.sh --join church-node-<name>.tar.gz
+      ./install.sh --join lampstand-node-<name>.tar.gz
 
   You can start those now: they build their images and start their database while this
   machine carries on.
@@ -1415,7 +1423,7 @@ remote_ssh() { [[ $(ans SETUP) == cluster && $(ans REMOTE_MODE) == ssh ]]; }
 REMOTE_TMP=""
 remote_tmp() {
   [[ -n $REMOTE_TMP ]] && return 0
-  REMOTE_TMP=$(mktemp -d /tmp/church-ssh.XXXXXX) && chmod 700 "$REMOTE_TMP"
+  REMOTE_TMP=$(mktemp -d /tmp/lampstand-ssh.XXXXXX) && chmod 700 "$REMOTE_TMP"
 }
 remote_close() { # close the shared connections when the installer exits
   [[ -n $REMOTE_TMP && -d $REMOTE_TMP ]] || return 0
@@ -1484,7 +1492,7 @@ copy_checkout() { # node
   ssh_prep "$1" || return 1
   tar --exclude=./data --exclude=node_modules --exclude=.pnpm-store --exclude=.turbo --exclude=.next --exclude=dist \
       --exclude=./backups --exclude=./.env --exclude='./.env.bak*' --exclude=./.claude --exclude=tsconfig.tsbuildinfo \
-      --exclude='./.install*' --exclude='./church-node-*' -czf - . \
+      --exclude='./.install*' --exclude='./lampstand-node-*' -czf - . \
     | ssh "${SSH_O[@]}" -o BatchMode=yes "$SSH_T" "mkdir -p -- '$dir' && tar -xzf - -C '$dir'"
 }
 
@@ -1508,14 +1516,14 @@ st_remote_prepare() {
   lb=$(bash scripts/build-id.sh)
   for ((i = 2; i <= $(ans NODES); i++)); do
     name=$(ans "NODE_${i}_ID"); dir=$(remote_dir "$i")
-    pkg="data/cluster-packages/church-node-$name.tar.gz"
+    pkg="data/cluster-packages/lampstand-node-$name.tar.gz"
     info "$name: connecting (a password or host key question, if any, is ssh's own)"
     remote_connect "$i" || { fail "Could not connect to $SSH_T. Check the host name, user and key, or choose to copy the packages yourself."; return 1; }
     remote_preflight "$i" || return 1
     logrun "$name: copying this checkout to ~/$dir" copy_checkout "$i" || return 1
     # a fresh install: forget any progress an earlier run left there
     rsh "$i" "cd -- '$dir' && rm -f .install-state .install-answers" || return 1
-    ( umask 077; rsh "$i" "umask 077; mkdir -p -- '$dir/data/cluster-packages' && cat > '$dir/data/cluster-packages/church-node-$name.tar.gz'" <"$pkg" ) || { fail "Could not copy the package to $name."; return 1; }
+    ( umask 077; rsh "$i" "umask 077; mkdir -p -- '$dir/data/cluster-packages' && cat > '$dir/data/cluster-packages/lampstand-node-$name.tar.gz'" <"$pkg" ) || { fail "Could not copy the package to $name."; return 1; }
     ( umask 077; remote_answers "$i" | rsh "$i" "umask 077; cat > '$dir/.install-remote-answers'" ) || return 1
     rb=$(rsh "$i" "cd -- '$dir' && bash scripts/build-id.sh") || return 1
     if [[ $rb != "$lb" ]]; then
@@ -1563,19 +1571,19 @@ remote_join_first_phase() { # node: everything up to starting the data services 
   local i=$1 dir stop_at=build name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
   # shellcheck disable=SC2100  # a stage name, not arithmetic
   if bundled_db || bundled_s3; then stop_at=node-id; fi
-  rsh "$i" "cd -- '$dir' && NO_COLOR=1 INSTALL_STOP_AFTER=$stop_at ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers"
+  rsh "$i" "cd -- '$dir' && NO_COLOR=1 INSTALL_STOP_AFTER=$stop_at ./install.sh --join 'data/cluster-packages/lampstand-node-$name.tar.gz' --answers .install-remote-answers"
 }
 remote_join_last_phase() { # node: start the application, wait until it answers, delete the package
   local i=$1 dir name; dir=$(remote_dir "$i"); name=$(ans "NODE_${i}_ID")
-  rsh "$i" "cd -- '$dir' && NO_COLOR=1 ./install.sh --join 'data/cluster-packages/church-node-$name.tar.gz' --answers .install-remote-answers" || return 1
-  rsh "$i" "cd -- '$dir' && rm -f 'data/cluster-packages/church-node-$name.tar.gz' .install-remote-answers"
+  rsh "$i" "cd -- '$dir' && NO_COLOR=1 ./install.sh --join 'data/cluster-packages/lampstand-node-$name.tar.gz' --answers .install-remote-answers" || return 1
+  rsh "$i" "cd -- '$dir' && rm -f 'data/cluster-packages/lampstand-node-$name.tar.gz' .install-remote-answers"
 }
 
 st_remote_start() { remote_connect_all || return 1; remote_parallel remote_join_first_phase; }
 st_remote_finish() {
   remote_connect_all || return 1
   remote_parallel remote_join_last_phase || return 1
-  rm -f data/cluster-packages/church-node-*.tar.gz
+  rm -f data/cluster-packages/lampstand-node-*.tar.gz
   ok "The packages are deleted from every machine (they held the secrets)."
 }
 
@@ -1665,10 +1673,10 @@ run_join() {
     rm -rf "$tmp"
   }
   if network_fs . && ! have GARAGE_META_DIR && [[ ! -t 0 ]]; then
-    die "This folder is on a network file system, and the object store's metadata must be on local disk. Give a local folder: the first machine asks for it ('Local folder for the object store metadata on the other machines'), or put GARAGE_META_DIR=/var/lib/church-garage-meta in the answers file."
+    die "This folder is on a network file system, and the object store's metadata must be on local disk. Give a local folder: the first machine asks for it ('Local folder for the object store metadata on the other machines'), or put GARAGE_META_DIR=/var/lib/lampstand-garage-meta in the answers file."
   fi
   if network_fs . && ! have GARAGE_META_DIR; then
-    ask_text GARAGE_META_DIR "Local folder for the object store's metadata (this folder is on a network file system)" /var/lib/church-garage-meta v_envsafe
+    ask_text GARAGE_META_DIR "Local folder for the object store's metadata (this folder is on a network file system)" /var/lib/lampstand-garage-meta v_envsafe
   fi
   save_answers
   (( DRY_RUN )) && { info "would: install the package, certificates, start the data services, print the node id, start the application"; return 0; }
@@ -1782,7 +1790,7 @@ while (( $# )); do
   esac
 done
 
-printf '\n%sChurch Dashboard installer%s\n' "$B" "$Z"
+printf '\n%sLampstand installer%s\n' "$B" "$Z"
 say "This asks a few questions, then installs. Press Ctrl-C at any time; running it again carries on."
 
 (( FRESH )) && rm -f "$STATE"
@@ -1854,7 +1862,7 @@ while :; do
       "first|This is the first machine|You will set up the cluster from here and get a package for each other machine." \
       "join|Add this machine to an existing cluster|You need the package the first machine made for this one."
     if [[ $(ans CLUSTER_ROLE) == join ]]; then
-      ask_text JOIN_PACKAGE "Path to this machine's package (church-node-<name>.tar.gz)" "" v_path_exists
+      ask_text JOIN_PACKAGE "Path to this machine's package (lampstand-node-<name>.tar.gz)" "" v_path_exists
       JOIN_PKG=$(ans JOIN_PACKAGE)
       save_answers
       run_join

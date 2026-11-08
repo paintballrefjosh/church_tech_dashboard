@@ -10,7 +10,7 @@ import {
   sectionOk,
   type NeedItem,
   type Section,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { TicketsService } from "../../../tickets/tickets.service";
 import { asPriority } from "../names";
 import type { DerivedSectionBuilder, HomeContext, PrimarySections } from "../home.types";

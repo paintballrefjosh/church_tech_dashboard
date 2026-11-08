@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
-import type { CreateCannedReplyInput, UpdateCannedReplyInput } from "@church/shared";
+import type { CreateCannedReplyInput, UpdateCannedReplyInput } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { ticketCannedReplies } from "../db/schema";
 

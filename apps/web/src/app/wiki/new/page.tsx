@@ -5,7 +5,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { FilePlus } from "lucide-react";
-import { WIKI_STARTER_TEMPLATES, type WikiTemplate } from "@church/shared";
+import { WIKI_STARTER_TEMPLATES, type WikiTemplate } from "@lampstand/shared";
 import { NewWikiForm } from "./new-wiki-form";
 
 export const dynamic = "force-dynamic";

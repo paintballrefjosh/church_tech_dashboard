@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Figtree } from "next/font/google";
 import { BookOpen, ListChecks, StickyNote, Ticket, type LucideIcon } from "lucide-react";
-import { summarize } from "@church/shared";
+import { summarize } from "@lampstand/shared";
 import type { LookProps } from "../../look-props";
 import { useSectionHidden } from "../../home-look-context";
 import { useHomeSnapshot } from "../../use-home-snapshot";

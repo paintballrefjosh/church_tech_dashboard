@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
-import { SIGNAGE_KEYS, evaluatePosture, readSignageSecurity, type PostureFacts, type PostureReport } from "@church/shared";
+import { SIGNAGE_KEYS, evaluatePosture, readSignageSecurity, type PostureFacts, type PostureReport } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { apiTokens, backupSchedules, backups, ciscoSwitches, groupMemberships, groups, signageDevices, signageFound, users } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

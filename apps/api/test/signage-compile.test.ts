@@ -11,7 +11,7 @@ import {
   type CompileMedia,
   type CompileOverride,
   type CompileSchedule,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 /** docs/signage.md section 9: the resolution rule, midnight crossings, DST, item windows, empty playlists, power. */
 

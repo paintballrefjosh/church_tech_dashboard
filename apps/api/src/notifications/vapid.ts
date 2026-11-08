@@ -7,20 +7,23 @@ export interface VapidKeys {
   privateKey: string;
 }
 
-const SALT = "church-dashboard/web-push";
+const SALT = "lampstand/web-push";
+/** Subscriptions made before the rename to Lampstand (2026-11-08) were signed up against the key derived with this salt. */
+const LEGACY_SALT = "church-dashboard/web-push";
 
 /**
  * The VAPID key pair that identifies this site to the browsers' push services, derived from `AUTH_SECRET` (the same way the
  * bundled object store's keys are). Nothing for the operator to set, nothing to store or race over, and every node of a cluster
  * has the same pair. Rotating `AUTH_SECRET` changes it, which makes existing subscriptions unusable (the push service refuses
  * them and they are removed); people turn push on again. **The derivation strings never change**: they are what ties existing
- * subscriptions to this site.
+ * subscriptions to this site. Subscriptions made before the rename still use the old pair (`deriveLegacyVapidKeys`); the push
+ * service refuses the new one for them, and the sender then tries the old one.
  */
-export function deriveVapidKeys(secret: string): VapidKeys {
+export function deriveVapidKeys(secret: string, salt: string = SALT): VapidKeys {
   if (!secret) throw new Error("AUTH_SECRET is required to derive the web push key");
   // A random 32 bytes is a valid P-256 scalar with overwhelming probability; the counter covers the rest.
   for (let counter = 0; counter < 16; counter++) {
-    const ikm = Buffer.from(hkdfSync("sha256", secret, SALT, `vapid-v1-${counter}`, 32));
+    const ikm = Buffer.from(hkdfSync("sha256", secret, salt, `vapid-v1-${counter}`, 32));
     const ecdh = createECDH("prime256v1");
     try {
       ecdh.setPrivateKey(ikm);
@@ -30,4 +33,9 @@ export function deriveVapidKeys(secret: string): VapidKeys {
     return { publicKey: ecdh.getPublicKey().toString("base64url"), privateKey: ikm.toString("base64url") };
   }
   throw new Error("could not derive a web push key");
+}
+
+/** The pair from before the rename, for subscriptions that were made against it. */
+export function deriveLegacyVapidKeys(secret: string): VapidKeys {
+  return deriveVapidKeys(secret, LEGACY_SALT);
 }

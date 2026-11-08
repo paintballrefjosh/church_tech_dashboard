@@ -1,8 +1,8 @@
-import { findAttachmentType } from "@church/shared";
+import { findAttachmentType } from "@lampstand/shared";
 
 /**
  * Tiny MIME sniffer for the file formats we accept as attachments (the
- * ATTACHMENT_TYPE_CATALOGUE in @church/shared). Covers image/*, video/*,
+ * ATTACHMENT_TYPE_CATALOGUE in @lampstand/shared). Covers image/*, video/*,
  * audio/*, application/{pdf,zip}, and the Office/OpenDocument formats, which
  * are zip containers (docx, xlsx, pptx, odt/ods/odp) or OLE2 compound files
  * (doc, xls, ppt) with no signature of their own: the catalogue's `check` for a

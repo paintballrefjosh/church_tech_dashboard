@@ -26,14 +26,14 @@
 #
 # The node list is one node per line, `local` for the machine running this script and `[user@]host[:port] [folder]`
 # for the others (the folder is the checkout, relative to the SSH user's home or absolute; default
-# church-dashboard). Lines starting with # are comments.
+# lampstand). Lines starting with # are comments.
 #
 #   local
 #   josh@10.0.0.12
-#   josh@10.0.0.13:2222 /srv/church
+#   josh@10.0.0.13:2222 /srv/lampstand
 #
 # Without a file, the nodes are this machine plus every entry of CLUSTER_PEERS (host name or address only) reached as
-# your own user, with the checkout in ~/church-dashboard, and it says so before it does anything.
+# your own user, with the checkout in ~/lampstand, and it says so before it does anything.
 #
 # How it keeps a cluster up:
 #   * One node at a time. A node's own upgrade.sh drains it, builds, migrates (the first node does that for the
@@ -54,7 +54,7 @@
 # this from one machine. A node that cannot fetch the target (or a --rollback, which has none) uses its own copy.
 #
 # SSH is key-only (BatchMode): this script never asks for or stores a password. Extra ssh options (a key file, a
-# jump host) go in UC_SSH_OPTIONS, e.g. UC_SSH_OPTIONS="-i ~/.ssh/church".
+# jump host) go in UC_SSH_OPTIONS, e.g. UC_SSH_OPTIONS="-i ~/.ssh/lampstand".
 set -euo pipefail
 
 # Run from a copy: upgrading the local node replaces files in this checkout, this one included.
@@ -112,7 +112,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || die "this is not a git checkout."
 # ---- the node list ---------------------------------------------------------------------------------------
 N_TARGET=() N_PORT=() N_DIR=() N_NAME=() N_ROLE=() N_PORTHTTP=() N_HEAD=() N_STATE=()
 add_node() { # target (local | [user@]host[:port]) [folder]
-  local t=$1 dir=${2:-church-dashboard} port=""
+  local t=$1 dir=${2:-lampstand} port=""
   if [[ "$t" != local ]]; then
     if [[ "$t" =~ ^(.+):([0-9]+)$ ]]; then t=${BASH_REMATCH[1]}; port=${BASH_REMATCH[2]}; fi
     [[ "$t" =~ ^([A-Za-z0-9._-]+@)?[A-Za-z0-9._:-]+$ ]] || die "not a usable SSH target: '$1'"
@@ -152,7 +152,7 @@ LOCALS=0; for t in "${N_TARGET[@]}"; do [[ "$t" == local ]] && LOCALS=$((LOCALS 
 ssh_args() { # node index
   SSH_A=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ControlMaster=auto -o "ControlPath=$CM_DIR/cm-%C" -o ControlPersist=10m)
   [[ -z "${N_PORT[$1]}" ]] || SSH_A+=(-p "${N_PORT[$1]}")
-  # Extra ssh options for every node (a key file, a jump host...): UC_SSH_OPTIONS="-i ~/.ssh/church -J bastion".
+  # Extra ssh options for every node (a key file, a jump host...): UC_SSH_OPTIONS="-i ~/.ssh/lampstand -J bastion".
   # shellcheck disable=SC2206
   [[ -z "${UC_SSH_OPTIONS:-}" ]] || SSH_A+=($UC_SSH_OPTIONS)
 }
@@ -175,7 +175,7 @@ prefixed() { # index: prefix every line of stdin with the node's name
 
 # What each node looks like now: version, role, port, whether it has local changes.
 head1 "Looking at the nodes"
-(( DERIVED )) && warn "no node list (data/upgrade/nodes): using this machine plus CLUSTER_PEERS, over SSH as $(id -un), checkout ~/church-dashboard."
+(( DERIVED )) && warn "no node list (data/upgrade/nodes): using this machine plus CLUSTER_PEERS, over SSH as $(id -un), checkout ~/lampstand."
 for i in "${!N_TARGET[@]}"; do
   if ! info="$(nsh "$i" 'test -f scripts/upgrade.sh || { echo NOUPGRADE; exit 0; }; printf "%s\n" "$(git rev-parse HEAD)" "$(sed -n "s/^NODE_ID=//p" .env | tail -n 1)" "$(sed -n "s/^NODE_ROLE=//p" .env | tail -n 1)" "$(sed -n "s/^EXTERNAL_PORT=//p" .env | tail -n 1)" "$(git status --porcelain --untracked-files=no | head -n 1)"' 2>&1)"; then
     info="$(printf '%s' "$info" | tr -d '\r' | tr -c '[:print:]\n\t' '?' | tail -n 5)"   # a CR from a login banner would overwrite the start of the message

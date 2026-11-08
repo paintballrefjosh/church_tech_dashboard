@@ -7,7 +7,7 @@ import {
   type AreaKey,
   type Section,
   type SystemsHealth,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../../../db/db.module";
 import { infraTargets } from "../../../db/schema/infra";
 import { monitorIncidents } from "../../../db/schema/monitors";

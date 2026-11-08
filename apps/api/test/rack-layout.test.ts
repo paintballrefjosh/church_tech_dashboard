@@ -11,7 +11,7 @@ import {
   suggestHeightU,
   topU,
   usedUnits,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 const item = (id: string, startU: number, heightU: number, label = id) => ({ id, startU, heightU, label });
 

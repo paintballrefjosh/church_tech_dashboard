@@ -50,7 +50,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 }
 
 /**
- * Hand the API's `church_rv` cookie (see consistency-cookie.ts) on to the browser. Every mutating call the
+ * Hand the API's `lampstand_rv` cookie (see consistency-cookie.ts) on to the browser. Every mutating call the
  * web makes for a person goes through here or `streamToApi`, so no route handler has to remember it. It
  * is set through `cookies()`, which Next merges into whatever response the handler returns. Only a
  * mutating API answer carries the cookie, and those come from route handlers and server actions, where

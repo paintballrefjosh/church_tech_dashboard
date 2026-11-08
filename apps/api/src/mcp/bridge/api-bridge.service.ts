@@ -117,11 +117,11 @@ export class ApiBridge {
   private send(tool: BridgeTool, url: string, payload: string | Buffer | undefined, contentType: string, caller: BridgeCaller) {
     const headers: Record<string, string> = {
       accept: tool.binary === "download" ? "*/*" : "application/json",
-      "user-agent": caller.sessionCookie ? "church-dashboard-assistant" : "church-dashboard-mcp",
+      "user-agent": caller.sessionCookie ? "lampstand-assistant" : "lampstand-mcp",
     };
     if (caller.authorization) headers.authorization = caller.authorization;
     if (payload !== undefined) headers["content-type"] = contentType;
-    const cookies = [caller.sessionCookie, caller.readYourWrites ? `church_rv=${caller.readYourWrites}` : null].filter(Boolean);
+    const cookies = [caller.sessionCookie, caller.readYourWrites ? `lampstand_rv=${caller.readYourWrites}` : null].filter(Boolean);
     if (cookies.length) headers.cookie = cookies.join("; ");
     return this.app.inject({
       method: tool.method,

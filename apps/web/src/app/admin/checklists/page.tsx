@@ -6,7 +6,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LocalDateTime } from "@/components/local-date-time";
-import type { ChecklistTemplate, ChecklistEvent } from "@church/shared";
+import type { ChecklistTemplate, ChecklistEvent } from "@lampstand/shared";
 
 /** listTemplates() also returns a task count per template (see checklists.service.ts). */
 type TemplateWithCount = ChecklistTemplate & { taskCount: number };

@@ -2,8 +2,8 @@ import { Injectable, Inject, NotFoundException, ConflictException } from "@nestj
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import { tags, tagAssignments } from "../db/schema";
-import type { CreateTagInput, TaggableResourceType, UpdateTagInput } from "@church/shared";
-import { dbErrorCode } from "@church/shared/db";
+import type { CreateTagInput, TaggableResourceType, UpdateTagInput } from "@lampstand/shared";
+import { dbErrorCode } from "@lampstand/shared/db";
 
 @Injectable()
 export class TagsService {

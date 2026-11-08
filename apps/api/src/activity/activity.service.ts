@@ -1,6 +1,6 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { and, desc, eq, inArray, or, type SQL } from "drizzle-orm";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { activityEvents, groupMemberships, tickets, users, wikiPageAcl, wikiPages } from "../db/schema";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";

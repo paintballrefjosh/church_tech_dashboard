@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { FileUp, ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
-import { SWITCH_MODEL_SIDES, type SwitchModel, type SwitchModelKind, type SwitchModelSide } from "@church/shared";
+import { SWITCH_MODEL_SIDES, type SwitchModel, type SwitchModelKind, type SwitchModelSide } from "@lampstand/shared";
 import { useCanWrite, Modal, Field, inputCls, useToasts, ToastStack } from "@/app/monitoring/network-cisco/cisco-ui";
 import { errorText, useSwitchModels } from "@/lib/use-switch-models";
 import { DataTable, type Column } from "@/components/data-table";

@@ -5,7 +5,7 @@ import type {
   PrinterInput,
   PrinterAlert,
   Colorant,
-} from "@church/shared";
+} from "@lampstand/shared";
 
 // Printer-MIB OIDs (RFC 3805) we walk on each poll.
 const OID_HR_DEVICE_STATUS = "1.3.6.1.2.1.25.3.2.1.5"; // overall device state

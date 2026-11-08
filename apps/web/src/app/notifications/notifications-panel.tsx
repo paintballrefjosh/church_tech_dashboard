@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { Notification } from "@church/shared";
+import type { Notification } from "@lampstand/shared";
 
 export function NotificationsPanel({
   initial,

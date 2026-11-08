@@ -4,7 +4,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { Bell } from "lucide-react";
-import type { Notification } from "@church/shared";
+import type { Notification } from "@lampstand/shared";
 import { NotificationsPanel } from "./notifications-panel";
 
 export const dynamic = "force-dynamic";

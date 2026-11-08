@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
-import { PERMISSIONS, TICKET_PRIORITIES, type TicketPriority } from "@church/shared";
+import { PERMISSIONS, TICKET_PRIORITIES, type TicketPriority } from "@lampstand/shared";
 import type { Db } from "../../../db/db.module";
 import type { AuthenticatedUser } from "../../../auth/current-user.decorator";
 import type { SettingsService } from "../../../settings/settings.service";

@@ -1,5 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
-import type { BackupProgress } from "@church/shared";
+import type { BackupProgress } from "@lampstand/shared";
 import type { Db } from "../db/db.module";
 import { backedUpTables, tableMeta, type TableMeta } from "./backup-schema";
 import { TABLE_REGISTRY, tableInfo } from "./table-registry";

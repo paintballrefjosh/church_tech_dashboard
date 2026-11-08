@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, LifeBuoy, LogIn, LogOut, Package, Pencil, Printer, Trash2 } from "lucide-react";
-import { ASSET_CATEGORY_LABELS, PERMISSIONS, type Asset, type AssetCheckout } from "@church/shared";
+import { ASSET_CATEGORY_LABELS, PERMISSIONS, type Asset, type AssetCheckout } from "@lampstand/shared";
 import { HolderLine, RoomLink, StatusChip, can, localToday, sendJson, useRooms, useViewer } from "@/components/assets-ui";
 import { GoneNotice } from "@/components/gone-notice";
 import { Modal, Field, inputCls, cardCls, useToasts, ToastStack } from "../../monitoring/network-cisco/cisco-ui";

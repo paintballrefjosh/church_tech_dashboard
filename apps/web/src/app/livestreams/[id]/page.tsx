@@ -4,7 +4,7 @@ import { use, useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, RefreshCw, Trash2 } from "lucide-react";
-import { PERMISSIONS, type Livestream, type LivestreamCheck } from "@church/shared";
+import { PERMISSIONS, type Livestream, type LivestreamCheck } from "@lampstand/shared";
 import { can, sendJson, useViewer } from "@/components/assets-ui";
 import { GoneNotice } from "@/components/gone-notice";
 import { usePoll } from "@/lib/use-poll";

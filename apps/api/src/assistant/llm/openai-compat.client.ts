@@ -45,7 +45,7 @@ export class OpenAiCompatLlm implements LlmClient {
             headers: {
               "content-type": "application/json",
               accept: "text/event-stream",
-              "user-agent": "church-dashboard-assistant",
+              "user-agent": "lampstand-assistant",
               ...(cfg.apiKey ? { authorization: `Bearer ${cfg.apiKey}` } : {}),
             },
             body: JSON.stringify({

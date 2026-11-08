@@ -25,7 +25,7 @@ import {
   type UpdateSignagePowerScheduleInput,
   type UpdateSignageScheduleInput,
   type UpdateSignageScreenInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import {
   groupMemberships,

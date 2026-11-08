@@ -10,7 +10,7 @@ import {
   type BackupRestoreResult,
   type BackupRestoreSection,
   type BackupSummary,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, formatCount, post, useOperation } from "./client-api";
 import { KindBadge } from "./backups-panel";

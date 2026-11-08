@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
-import { WIKI_REVIEW_DAYS_KEY, wikiReviewDays, wikiReviewNotice, wikiReviewState } from "@church/shared";
+import { WIKI_REVIEW_DAYS_KEY, wikiReviewDays, wikiReviewNotice, wikiReviewState } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { wikiPages } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

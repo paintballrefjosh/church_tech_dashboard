@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KeyRound, Pencil, Plus, Terminal, Trash2, Upload } from "lucide-react";
-import { SAVED_SECRET, type ServiceLogin, type ServiceTemplate } from "@church/shared";
+import { SAVED_SECRET, type ServiceLogin, type ServiceTemplate } from "@lampstand/shared";
 import { DialogFrame } from "@/components/modal";
 import { ToastStack, inputCls, useCanWrite, useToasts } from "../../network-cisco/cisco-ui";
 import { btnCls, helpCls, labelCls, primaryBtnCls, svcGet, svcSend } from "../services/services-ui";

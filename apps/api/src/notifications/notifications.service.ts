@@ -10,7 +10,7 @@ import {
   ticketSubjectToken,
   type NotificationDelivery,
   type NotificationKind,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { alertOutbox, notificationHeld, notifications, notificationPrefs, users } from "../db/schema";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -112,7 +112,7 @@ export class NotificationsService {
   /** Best-effort site name lookup for email rendering; falls back to a default. */
   private async siteNameForEmail(): Promise<string> {
     const v = await this.settings.get("site.name");
-    return typeof v === "string" && v.length > 0 ? v : "Church Dashboard";
+    return typeof v === "string" && v.length > 0 ? v : "Lampstand";
   }
 
   /**

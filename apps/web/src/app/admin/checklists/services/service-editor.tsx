@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, RefreshCw, Trash2, ArrowUp, ArrowDown } from "lucide-react";
-import { WEEKDAYS, type AssignableUser, type ChecklistService } from "@church/shared";
+import { WEEKDAYS, type AssignableUser, type ChecklistService } from "@lampstand/shared";
 import { DialogFrame } from "@/components/modal";
 
 interface TemplateBrief {

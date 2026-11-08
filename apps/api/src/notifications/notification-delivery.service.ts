@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { eq, inArray } from "drizzle-orm";
-import { DEFAULT_NOTIFICATION_DELIVERY, type NotificationDelivery } from "@church/shared";
+import { DEFAULT_NOTIFICATION_DELIVERY, type NotificationDelivery } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { notificationDelivery } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

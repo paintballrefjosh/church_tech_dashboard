@@ -33,7 +33,7 @@ describe("the read-your-writes cookie", () => {
 
   it("is a short-lived HttpOnly Lax cookie, never Secure (HTTPS is upstream)", () => {
     const c = consistencyCookie(123);
-    expect(c).toMatch(/^church_rv=123; Path=\/; Max-Age=10; HttpOnly; SameSite=Lax$/);
+    expect(c).toMatch(/^lampstand_rv=123; Path=\/; Max-Age=10; HttpOnly; SameSite=Lax$/);
     expect(c).not.toMatch(/Secure/i);
   });
 });
@@ -113,14 +113,14 @@ describe("the hooks", () => {
 
     const write = await app.inject({ method: "POST", url: "/change" });
     expect(flush).toHaveBeenCalledTimes(1);
-    expect(String(write.headers["set-cookie"])).toMatch(/church_rv=\d+; Path=\/; Max-Age=10/);
+    expect(String(write.headers["set-cookie"])).toMatch(/lampstand_rv=\d+; Path=\/; Max-Age=10/);
 
     const read = await app.inject({ method: "GET", url: "/read" });
     expect(read.headers["set-cookie"]).toBeUndefined();
     expect(sync).not.toHaveBeenCalled();
 
     const stamp = Date.now() - 100;
-    await app.inject({ method: "GET", url: "/read", headers: { cookie: `church_rv=${stamp}` } });
+    await app.inject({ method: "GET", url: "/read", headers: { cookie: `lampstand_rv=${stamp}` } });
     expect(sync).toHaveBeenCalledWith(stamp);
     await app.close();
     await bus.onModuleDestroy();

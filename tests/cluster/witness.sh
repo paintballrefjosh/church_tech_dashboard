@@ -8,7 +8,7 @@
 # before, then start it again and check both.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
-SIM_DIR="${SIM_DIR:-$HOME/church-sim}"
+SIM_DIR="${SIM_DIR:-$HOME/lampstand-sim}"
 HOST="${SIM_HOST:-$(hostname -I | awk '{print $1}')}"
 url() { echo "http://$HOST:$((8200 + $1))"; }
 fails=0

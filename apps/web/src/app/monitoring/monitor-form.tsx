@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Save } from "lucide-react";
-import { DNS_RECORD_TYPES, type Monitor } from "@church/shared";
+import { DNS_RECORD_TYPES, type Monitor } from "@lampstand/shared";
 import { RunbookField } from "@/components/runbook-link";
 import { RoomField } from "@/components/assets-ui";
 

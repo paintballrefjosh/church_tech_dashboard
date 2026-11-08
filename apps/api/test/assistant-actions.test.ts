@@ -12,7 +12,7 @@ import {
   proposalToolSchema,
   proposalTransitionProblem,
   ASSISTANT_ACTION_KINDS,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { summariseAnswers } from "../src/assistant/assistant.service";
 
 /** Proposed actions and the usage figures (docs/assistant.md phases 2-3): the pure rules. */

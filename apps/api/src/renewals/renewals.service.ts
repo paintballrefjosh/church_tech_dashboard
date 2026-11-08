@@ -8,7 +8,7 @@ import {
   type Renewal,
   type RenewalCategory,
   type UpdateRenewalInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { groupMemberships, groups, renewals, users } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";

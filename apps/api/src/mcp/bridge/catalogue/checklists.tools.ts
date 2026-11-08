@@ -14,7 +14,7 @@ import {
   updateStationSchema,
   updateTemplateSchema,
   updateTemplateTaskSchema,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { defineTool } from "../bridge.types";
 
 const id = z.string().uuid();

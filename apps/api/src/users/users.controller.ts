@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Patch, Delete, Param, Body, BadRequestException, Req } from "@nestjs/common";
 import { z } from "zod";
-import { PERMISSIONS, createLocalUserSchema, updateUserSchema } from "@church/shared";
+import { PERMISSIONS, createLocalUserSchema, updateUserSchema } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { Public } from "../auth/public.decorator";
 import { assertInternalCaller } from "../auth/internal-token";

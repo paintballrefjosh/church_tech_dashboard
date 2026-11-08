@@ -1,7 +1,7 @@
 import { createECDH, createPublicKey, createVerify, randomBytes } from "node:crypto";
 import webpush from "web-push";
 import { describe, expect, it } from "vitest";
-import { isAllowedPushEndpoint, pushPayloadFor, pushSubscribeSchema } from "@church/shared";
+import { isAllowedPushEndpoint, pushPayloadFor, pushSubscribeSchema } from "@lampstand/shared";
 import { deriveVapidKeys } from "../src/notifications/vapid";
 
 describe("deriveVapidKeys", () => {

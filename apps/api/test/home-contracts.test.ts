@@ -11,7 +11,7 @@ import {
   sectionOk,
   updateDashboardPrefsSchema,
   validateSettingValue,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { HomeContext } from "../src/dashboard/home/home.types";
 import { HomeService, dayPartIn, firstNameOf } from "../src/dashboard/home/home.service";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";

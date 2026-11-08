@@ -15,7 +15,7 @@ set -eu
 G="garage -c /tmp/garage.toml"
 : "${S3_ACCESS_KEY:?S3_ACCESS_KEY is not set}"
 : "${S3_SECRET_KEY:?S3_SECRET_KEY is not set}"
-BUCKET="${S3_BUCKET:-church-files}"
+BUCKET="${S3_BUCKET:-lampstand-files}"
 
 echo "garage-init: waiting for Garage ..."
 i=0
@@ -58,7 +58,7 @@ fi
 setup() {
   if ! $G key info "$S3_ACCESS_KEY" >/dev/null 2>&1; then
     echo "garage-init: importing the access key"
-    quiet $G key import --yes -n church "$S3_ACCESS_KEY" "$S3_SECRET_KEY" || return 1
+    quiet $G key import --yes -n lampstand "$S3_ACCESS_KEY" "$S3_SECRET_KEY" || return 1
   fi
   if ! $G bucket info "$BUCKET" >/dev/null 2>&1; then
     echo "garage-init: creating bucket $BUCKET"

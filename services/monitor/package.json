@@ -1,5 +1,5 @@
 {
-  "name": "@church/monitor",
+  "name": "@lampstand/monitor",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@church/shared": "workspace:*",
+    "@lampstand/shared": "workspace:*",
     "drizzle-orm": "0.45.4",
     "pg": "8.13.0"
   },

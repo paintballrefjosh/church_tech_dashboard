@@ -1,7 +1,7 @@
 import { Controller, Get, Put, Post, Patch, Delete, Param, Body, BadRequestException, ConflictException, Inject, NotFoundException } from "@nestjs/common";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
-import { NOTIFICATION_KINDS, TICKET_PRIORITIES, type TicketSlaMap } from "@church/shared";
+import { NOTIFICATION_KINDS, TICKET_PRIORITIES, type TicketSlaMap } from "@lampstand/shared";
 import { CurrentUser, SessionId, type AuthenticatedUser } from "./current-user.decorator";
 import { SessionsService } from "./sessions.service";
 import { AuthService } from "./auth.service";

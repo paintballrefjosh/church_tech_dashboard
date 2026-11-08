@@ -1,7 +1,7 @@
 "use client";
 
 import { Server, Apple, MonitorSmartphone, CircleCheck, AlertTriangle, CircleHelp, Power } from "lucide-react";
-import { type InfraOs, type InfraStatus, findInfraCapability } from "@church/shared";
+import { type InfraOs, type InfraStatus, findInfraCapability } from "@lampstand/shared";
 
 export const OS_META: Record<InfraOs, { label: string; Icon: typeof Server }> = {
   linux: { label: "Linux", Icon: Server },

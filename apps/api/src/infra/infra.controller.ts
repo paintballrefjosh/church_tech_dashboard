@@ -16,7 +16,7 @@ import {
   updateInfraTargetSchema,
   createInfraUpdateRunSchema,
   type InfraEntityKind,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { OperationalOnly } from "../auth/operational-only.decorator";
 import { Audited } from "../audit/audit.decorator";

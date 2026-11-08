@@ -19,7 +19,7 @@ import {
   type RackSourceKind,
   type UpdateRackInput,
   type UpdateRackItemInput,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { ciscoPorts, ciscoSwitches, infraTargets, rackItems, racks, switchModels } from "../db/schema";
 import { UnifiService } from "../unifi/unifi.service";

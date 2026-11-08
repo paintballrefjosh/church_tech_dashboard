@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { findKnownSetting } from "@church/shared";
+import { findKnownSetting } from "@lampstand/shared";
 import type {
   BackupCompatibility,
   BackupDiffChangedRow,
@@ -11,7 +11,7 @@ import type {
   BackupDiffRow,
   BackupDiffTable,
   BackupProgress,
-} from "@church/shared";
+} from "@lampstand/shared";
 import type { Db } from "../db/db.module";
 import { backedUpTables, tableMeta, type TableMeta } from "./backup-schema";
 import { TABLE_REGISTRY, tableInfo } from "./table-registry";
@@ -53,6 +53,8 @@ export interface DiffContext {
   /** A fresh decompressed stream of the backup, each time it is called. */
   archive: () => AsyncIterable<Buffer>;
   secretFingerprint: string;
+  /** Every fingerprint that counts as the same AUTH_SECRET (the current one first); defaults to just `secretFingerprint`. */
+  acceptedSecretFingerprints?: string[];
   /** The person asking, to say what happens to their own account. */
   userId?: string | null;
   /**
@@ -368,7 +370,7 @@ export async function computeDiff(deps: DiffDeps, ctx: DiffContext): Promise<Dif
       `This backup is from an older version (${manifest.schemaMigrations} schema migrations; now ${currentMigrations}). Columns added since get their default values.`,
     );
   }
-  const secretMismatch = manifest.secretFingerprint !== ctx.secretFingerprint;
+  const secretMismatch = !(ctx.acceptedSecretFingerprints ?? [ctx.secretFingerprint]).includes(manifest.secretFingerprint);
   if (secretMismatch) {
     warnings.push(
       "This backup was made with a different AUTH_SECRET. Saved passwords and tokens inside settings (SMTP, OAuth client secrets, device credentials) cannot be decrypted by this installation and will have to be entered again.",

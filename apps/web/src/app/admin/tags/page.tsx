@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { Tag } from "@church/shared";
+import type { Tag } from "@lampstand/shared";
 import { TagsAdminClient } from "./tags-admin-client";
 
 export const dynamic = "force-dynamic";

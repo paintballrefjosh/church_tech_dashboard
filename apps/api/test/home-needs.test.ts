@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankNeeds, sectionOk, sectionOff, type NeedItem } from "@church/shared";
+import { rankNeeds, sectionOk, sectionOff, type NeedItem } from "@lampstand/shared";
 import { buildNeedItems, groupFor, HomeNeedsSection } from "../src/dashboard/home/sections/needs.section";
 import type { HomeContext } from "../src/dashboard/home/home.types";
 import type { TicketsService } from "../src/tickets/tickets.service";

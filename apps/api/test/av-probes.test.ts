@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer, type Server } from "node:net";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { monitorScheduleActive, monitorScheduleProblem, parseMonitorSchedule, mergeMonitorSecretOptions, redactMonitorOptions } from "@church/shared";
+import { monitorScheduleActive, monitorScheduleProblem, parseMonitorSchedule, mergeMonitorSecretOptions, redactMonitorOptions } from "@lampstand/shared";
 import {
   hostPort,
   obsAuth,

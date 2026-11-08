@@ -13,7 +13,7 @@ import {
   infraCapabilitiesForOs,
   infraMetricsForCapabilities,
   findInfraMetric,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { RunbookField } from "@/components/runbook-link";
 import { RoomField } from "@/components/assets-ui";
 import { DevicePictureField } from "@/components/device-picture";

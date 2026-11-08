@@ -20,7 +20,7 @@ import {
   type DnsSummary,
   type DnsTopEntry,
   type DnsZone,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useCanWrite, inputCls, cardCls, fmtTime, StatusLine, Modal, Field } from "@/app/monitoring/network-cisco/cisco-ui";
 import { usePoll } from "@/lib/use-poll";
 

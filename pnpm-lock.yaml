@@ -55,7 +55,7 @@ importers:
       '@auth/core':
         specifier: 0.41.3
         version: 0.41.3(nodemailer@10.1.0)
-      '@church/shared':
+      '@lampstand/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@fastify/cookie':
@@ -227,7 +227,7 @@ importers:
       '@auth/drizzle-adapter':
         specifier: 1.11.3
         version: 1.11.3
-      '@church/shared':
+      '@lampstand/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@tiptap/extension-image':
@@ -385,7 +385,7 @@ importers:
 
   services/monitor:
     dependencies:
-      '@church/shared':
+      '@lampstand/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       drizzle-orm:

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CloudDownload, CloudUpload, PlugZap, Settings as SettingsIcon } from "lucide-react";
-import type { BackupOffsiteObject, BackupOffsiteStatus, BackupOffsiteTest, BackupOperation } from "@church/shared";
+import type { BackupOffsiteObject, BackupOffsiteStatus, BackupOffsiteTest, BackupOperation } from "@lampstand/shared";
 import { LocalDateTime } from "@/components/local-date-time";
 import { api, formatBytes, post, useOperation } from "./client-api";
 import { ErrorNote, OperationProgress } from "./operation-progress";

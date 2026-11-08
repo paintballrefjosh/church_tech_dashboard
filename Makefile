@@ -37,6 +37,7 @@ init-env:
 	    SECRET=$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'); \
 	  fi; \
 	  sed -i "s|AUTH_SECRET=replace-me-with-openssl-rand-hex-32|AUTH_SECRET=$$SECRET|" .env; \
+	  sed -i "s|^# DERIVE_PREFIX=lampstand|DERIVE_PREFIX=lampstand|" .env; \
 	  echo "Created .env with a generated AUTH_SECRET. Review the file before going to production."; \
 	else \
 	  echo ".env already exists — leaving it alone."; \
@@ -73,9 +74,9 @@ ps:
 # stack network for an external database (psql talks to both engines).
 psql:
 	@if [ "$$(bash scripts/compose.sh --db-mode)" = bundled ]; then \
-	  $(COMPOSE) exec cockroach-1 cockroach sql --insecure --database=church; \
+	  $(COMPOSE) exec cockroach-1 cockroach sql --insecure --database=lampstand; \
 	else \
-	  docker run --rm -it --network church_internal postgres:16-alpine psql "$$(bash scripts/compose.sh --db-url)"; \
+	  docker run --rm -it --network lampstand_internal postgres:16-alpine psql "$$(bash scripts/compose.sh --db-url)"; \
 	fi
 
 migrate:
@@ -178,7 +179,7 @@ db-backup:
 	@mkdir -p backups
 	@TS=crdb-$$(date +%Y%m%d-%H%M%S); \
 	  $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure \
-	    -e "BACKUP DATABASE church INTO 'nodelocal://1/$$TS'" >/dev/null \
+	    -e "BACKUP DATABASE lampstand INTO 'nodelocal://1/$$TS'" >/dev/null \
 	  && $(COMPOSE) exec -T cockroach-1 tar -czf - -C $(CRDB_EXTERN) $$TS > backups/$$TS.tgz; \
 	  status=$$?; \
 	  $(COMPOSE) exec -T cockroach-1 rm -rf $(CRDB_EXTERN)/$$TS; \
@@ -195,16 +196,16 @@ db-list-s3:
 db-restore-s3:
 	@bash scripts/db-s3.sh $(if $(PROD),--prod) restore $(if $(filter yes,$(CONFIRM)),--confirm)
 
-# Replaces the live `church` database with the backup: stops api/web/monitor,
-# restores into church_restoring, and only once that succeeded drops church and
-# renames the copy into place (a failed restore leaves church untouched), then
+# Replaces the live `lampstand` database with the backup: stops api/web/monitor,
+# restores into lampstand_restoring, and only once that succeeded drops lampstand and
+# renames the copy into place (a failed restore leaves lampstand untouched), then
 # starts them again. Needs CONFIRM=yes.
 db-restore:
 	@if [ -z "$(FILE)" ]; then echo "usage: make db-restore FILE=./backups/crdb-YYYYMMDD-HHMMSS.tgz CONFIRM=yes"; exit 1; fi
 	@if [ "$$(bash scripts/compose.sh --db-mode)" = external ]; then \
 	  echo "DB_MODE=external: restore with the database's own tooling."; exit 1; fi
 	@if [ "$(CONFIRM)" != yes ]; then \
-	  echo "This DROPS the current church database and replaces it with $(FILE)."; \
+	  echo "This DROPS the current lampstand database and replaces it with $(FILE)."; \
 	  echo "Re-run with CONFIRM=yes to go ahead."; exit 1; fi
 	@DIR=$$(tar -tzf "$(FILE)" | head -n 1 | cut -d/ -f1); \
 	  [ -n "$$DIR" ] || { echo "$(FILE) doesn't look like a db-backup archive"; exit 1; }; \
@@ -212,15 +213,15 @@ db-restore:
 	  && $(COMPOSE) exec -T cockroach-1 tar -xzf - -C $(CRDB_EXTERN) < "$(FILE)" \
 	  && $(COMPOSE) stop api web monitor \
 	  && $(COMPOSE) exec -T cockroach-1 cockroach sql --insecure \
-	    -e "DROP DATABASE IF EXISTS church_restoring CASCADE" \
-	    -e "RESTORE DATABASE church FROM LATEST IN 'nodelocal://1/$$DIR' WITH new_db_name = 'church_restoring'" \
-	    -e "DROP DATABASE IF EXISTS church CASCADE" \
-	    -e "ALTER DATABASE church_restoring RENAME TO church"; \
+	    -e "DROP DATABASE IF EXISTS lampstand_restoring CASCADE" \
+	    -e "RESTORE DATABASE lampstand FROM LATEST IN 'nodelocal://1/$$DIR' WITH new_db_name = 'lampstand_restoring'" \
+	    -e "DROP DATABASE IF EXISTS lampstand CASCADE" \
+	    -e "ALTER DATABASE lampstand_restoring RENAME TO lampstand"; \
 	  status=$$?; \
 	  $(COMPOSE) exec -T cockroach-1 rm -rf $(CRDB_EXTERN)/$$DIR; \
 	  $(COMPOSE) start api web monitor; \
 	  if [ $$status -ne 0 ]; then echo "restore failed"; exit $$status; fi; \
-	  echo "restored church from $(FILE)"
+	  echo "restored lampstand from $(FILE)"
 
 prod-up: init-env init-data check-ports
 	@if [ "$$(bash scripts/compose.sh --prod --deploy-mode)" = cluster ]; then \

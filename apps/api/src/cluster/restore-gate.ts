@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
-import { restoreInProgress } from "@church/shared/db";
+import { restoreInProgress } from "@lampstand/shared/db";
 import { DB_POOL } from "../db/db.module";
 
 /** How long an answer is believed. Short, so a restore starting or ending is noticed within a second. */

@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import type { Pool, PoolClient } from "pg";
-import { createPool, type Queryable } from "@church/shared/db";
+import { createPool, type Queryable } from "@lampstand/shared/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";
@@ -65,7 +65,7 @@ async function migrateStepwise(db: Queryable, migrationsFolder: string): Promise
     'CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)',
   );
   await db.query(
-    'CREATE TABLE IF NOT EXISTS "drizzle"."__church_migration_progress" (hash text PRIMARY KEY NOT NULL, started_at bigint NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS "drizzle"."__lampstand_migration_progress" (hash text PRIMARY KEY NOT NULL, started_at bigint NOT NULL)',
   );
   const last = await db.query<{ created_at: string }>(
     'SELECT created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1',
@@ -73,12 +73,12 @@ async function migrateStepwise(db: Queryable, migrationsFolder: string): Promise
   const lastMillis = last.rows[0] ? Number(last.rows[0].created_at) : null;
   for (const m of readMigrationFiles({ migrationsFolder })) {
     if (lastMillis !== null && lastMillis >= m.folderMillis) continue;
-    const marker = await db.query('SELECT 1 FROM "drizzle"."__church_migration_progress" WHERE hash = $1', [m.hash]);
+    const marker = await db.query('SELECT 1 FROM "drizzle"."__lampstand_migration_progress" WHERE hash = $1', [m.hash]);
     const resuming = marker.rows.length > 0;
     if (resuming) {
       console.log(`[migrate] resuming migration ${m.folderMillis}, which an earlier run did not finish: statements already applied are skipped`);
     } else {
-      await db.query('INSERT INTO "drizzle"."__church_migration_progress" ("hash", "started_at") VALUES ($1, $2)', [m.hash, Date.now()]);
+      await db.query('INSERT INTO "drizzle"."__lampstand_migration_progress" ("hash", "started_at") VALUES ($1, $2)', [m.hash, Date.now()]);
     }
     let n = 0;
     let skipped = 0;
@@ -106,7 +106,7 @@ async function migrateStepwise(db: Queryable, migrationsFolder: string): Promise
     }
     if (skipped) console.log(`[migrate] migration ${m.folderMillis}: ${skipped} statement(s) were already applied`);
     await db.query('INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES ($1, $2)', [m.hash, m.folderMillis]);
-    await db.query('DELETE FROM "drizzle"."__church_migration_progress" WHERE hash = $1', [m.hash]);
+    await db.query('DELETE FROM "drizzle"."__lampstand_migration_progress" WHERE hash = $1', [m.hash]);
   }
 }
 

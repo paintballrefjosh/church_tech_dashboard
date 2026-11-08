@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { WIKI_VISIBILITIES, renderWikiTemplate, type WikiVisibility } from "@church/shared";
+import { WIKI_VISIBILITIES, renderWikiTemplate, type WikiVisibility } from "@lampstand/shared";
 import { AclEditor, type AclState } from "../acl-editor";
 import { WikiBodyEditor } from "@/components/wiki-body-editor";
 import { WikiLocationPicker, type WikiLocation } from "../wiki-location-picker";

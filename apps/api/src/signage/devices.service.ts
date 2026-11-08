@@ -20,7 +20,7 @@ import {
   type SignageIdentifyResult,
   type SignageKeyInfo,
   type SignagePiStatus,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
 import { signageDevices, signageScreens, signageScreenshots, signageStatusSamples, signageSetupRuns } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";

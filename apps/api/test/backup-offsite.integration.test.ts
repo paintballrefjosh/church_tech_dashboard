@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import { OFFSITE_KEYS, offsiteObjectKey } from "@church/shared";
+import { OFFSITE_KEYS, offsiteObjectKey } from "@lampstand/shared";
 import * as schema from "../src/db/schema";
 import type { Db } from "../src/db/db.module";
 import { OffsiteService } from "../src/backup/offsite.service";

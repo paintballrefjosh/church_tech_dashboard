@@ -154,7 +154,7 @@ test.describe("Home page look", () => {
     await expect(page.locator('[data-look="start"]')).toBeVisible();
     expect((await getPrefs(page)).theme).toBeNull();
     const cookies = await page.context().cookies();
-    const cookie = cookies.find((c) => c.name === "church_home_look");
+    const cookie = cookies.find((c) => c.name === "lampstand_home_look");
     expect(cookie?.value).toBe("start");
     expect(cookie?.httpOnly).toBe(true);
     expect(cookie?.secure).toBe(false);

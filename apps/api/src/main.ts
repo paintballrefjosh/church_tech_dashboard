@@ -5,7 +5,7 @@ import { Logger } from "@nestjs/common";
 import fastifyCookie from "@fastify/cookie";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyRateLimit from "@fastify/rate-limit";
-import { MAX_ATTACHMENT_BYTES } from "@church/shared";
+import { MAX_ATTACHMENT_BYTES } from "@lampstand/shared";
 import { AppModule } from "./app.module";
 import { IoAdapter } from "@nestjs/platform-socket.io";
 import { RateLimitService } from "./cluster/rate-limit.service";

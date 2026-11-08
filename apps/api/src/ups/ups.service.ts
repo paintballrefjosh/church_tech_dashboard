@@ -18,7 +18,7 @@ import type {
   UpsSummary,
   UpsBatteryState,
   UpsOutputSource,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { probeUpsSnmp } from "./snmp";
 
 // Bootstrap-time fallbacks if no settings rows exist yet.

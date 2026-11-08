@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Activity, ListChecks, Users } from "lucide-react";
-import { rankNeeds, type HomeSnapshot, type NextService } from "@church/shared";
+import { rankNeeds, type HomeSnapshot, type NextService } from "@lampstand/shared";
 import { NeedActionButton } from "../../parts/need-action";
 import { NEED_KIND, needsHeadline, systemsCount, systemsProblem, teamHeadline } from "./nave-format";
 import s from "./nave.module.css";

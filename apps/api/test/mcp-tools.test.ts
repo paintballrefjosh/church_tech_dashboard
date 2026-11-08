@@ -6,7 +6,7 @@ import { ConflictException, ForbiddenException } from "@nestjs/common";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { AUDIT_ENTRIES_KEY, type DynamicAuditEntry } from "../src/audit/audit.decorator";
 import type { AuthenticatedUser } from "../src/auth/current-user.decorator";
 import { McpToolsService, snippet, describeError } from "../src/mcp/mcp.tools";
@@ -293,7 +293,7 @@ describe("over Streamable HTTP", () => {
   it("initializes, lists tools, and calls one", async () => {
     const client = new Client({ name: "test", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(url));
-    expect(client.getServerVersion()?.name).toBe("church-dashboard");
+    expect(client.getServerVersion()?.name).toBe("lampstand");
     expect(client.getInstructions()).toMatch(/expectedUpdatedAt/);
 
     const { tools } = await client.listTools();

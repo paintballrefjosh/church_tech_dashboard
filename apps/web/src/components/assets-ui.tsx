@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { MapPin } from "lucide-react";
-import { ASSET_STATUS_LABELS, groupLocations, locationLabel, type Asset, type AssetStatus, type Location } from "@church/shared";
+import { ASSET_STATUS_LABELS, groupLocations, locationLabel, type Asset, type AssetStatus, type Location } from "@lampstand/shared";
 
 /** Who is looking: id, name and permission strings from `GET /me` (null until read). */
 export interface Viewer {

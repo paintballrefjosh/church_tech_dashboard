@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { publicOrigin, qrSvg } from "@/lib/qr";
-import type { Asset } from "@church/shared";
+import type { Asset } from "@lampstand/shared";
 import { PrintButton } from "../vouchers/print-button";
 
 export const dynamic = "force-dynamic";

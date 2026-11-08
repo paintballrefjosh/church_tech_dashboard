@@ -11,7 +11,7 @@ import {
   type CiscoVlanRow,
   type CiscoVlanSetResult,
   type CiscoVlanState,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { DataTable, type Column } from "@/components/data-table";
 import { Field, Modal, ToastStack, inputCls, useCanWrite, useToasts } from "../cisco-ui";
 

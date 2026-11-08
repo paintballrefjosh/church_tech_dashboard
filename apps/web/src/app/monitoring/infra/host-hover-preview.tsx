@@ -1,6 +1,6 @@
 "use client";
 
-import type { InfraTarget, SwitchModel } from "@church/shared";
+import type { InfraTarget, SwitchModel } from "@lampstand/shared";
 import { FollowCardHeader, FollowCardPicture, useFollowCard } from "@/components/follow-card";
 import { pickableProfiles } from "@/components/device-picture";
 import { modelPicture } from "@/lib/rack-pictures";

@@ -23,7 +23,7 @@ export class SiteController {
       this.settings.get("site.tagline"),
     ]);
     return {
-      name: typeof name === "string" && name.trim() ? name : "Church Dashboard",
+      name: typeof name === "string" && name.trim() ? name : "Lampstand",
       tagline: typeof tagline === "string" ? tagline : "",
     };
   }

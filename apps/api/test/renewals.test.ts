@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRenewalSchema, daysUntil, renewalNoticeTitle, renewalReminderDue, renewalState, siteToday } from "@church/shared";
+import { createRenewalSchema, daysUntil, renewalNoticeTitle, renewalReminderDue, renewalState, siteToday } from "@lampstand/shared";
 
 const r = (renewsOn: string, remindDays = [30, 7]) => ({ renewsOn, remindDays });
 

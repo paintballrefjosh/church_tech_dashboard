@@ -17,7 +17,7 @@ import {
   type Printer,
   type PrinterStatus,
   type PrinterKind,
-} from "@church/shared";
+} from "@lampstand/shared";
 import { useModal } from "@/components/modal";
 import { usePoll } from "@/lib/use-poll";
 import { RoomSelect, useRooms } from "@/components/assets-ui";

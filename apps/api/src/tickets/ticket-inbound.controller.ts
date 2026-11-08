@@ -1,5 +1,5 @@
 import { Controller, Get, Post } from "@nestjs/common";
-import { PERMISSIONS } from "@church/shared";
+import { PERMISSIONS } from "@lampstand/shared";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { SessionOnly } from "../auth/session-only.decorator";
 import { Audited } from "../audit/audit.decorator";

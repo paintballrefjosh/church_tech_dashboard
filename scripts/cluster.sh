@@ -14,7 +14,7 @@
 #   install-certs <bundle-dir>   on each node: install that node's bundle into data/certs/
 #   start-data                   on each node: start the database and object store (not the app)
 #   init-db                      ONCE, on one node: initialise the database cluster, create the
-#                                church database and the app's database user (safe to run again,
+#                                lampstand database and the app's database user (safe to run again,
 #                                e.g. after restoring a backup made on a single-node install)
 #   db-members <count> [secs]    wait until <count> database nodes have joined (after init-db)
 #   node-id                      print this node's object-store id, for the others to connect to
@@ -208,21 +208,21 @@ case "$cmd" in
       die "cockroach init failed (is every node started and reachable on its CLUSTER_DB_PORT?)"
     fi
     wait_for "the database to be ready" 90 dc exec -T cockroach cockroach sql "${SQLARGS[@]}" -e "SELECT 1"
-    pass="$(dc --db-url | sed -n 's#^postgresql://church:\([^@]*\)@.*#\1#p')"
+    pass="$(dc --db-url | sed -n 's#^postgresql://lampstand:\([^@]*\)@.*#\1#p')"
     [[ -n "$pass" ]] || die "could not work out the database password (is AUTH_SECRET set?)"
     # The password goes in on stdin, not on a command line.
     printf '%s\n' \
-      "CREATE DATABASE IF NOT EXISTS church;" \
-      "CREATE USER IF NOT EXISTS church;" \
-      "ALTER USER church WITH PASSWORD '$pass';" \
-      "GRANT ALL ON DATABASE church TO church;" \
-      "ALTER DATABASE church OWNER TO church;" \
+      "CREATE DATABASE IF NOT EXISTS lampstand;" \
+      "CREATE USER IF NOT EXISTS lampstand;" \
+      "ALTER USER lampstand WITH PASSWORD '$pass';" \
+      "GRANT ALL ON DATABASE lampstand TO lampstand;" \
+      "ALTER DATABASE lampstand OWNER TO lampstand;" \
       | dc exec -T cockroach cockroach sql "${SQLARGS[@]}" >/dev/null
     # Tables made by another user (a backup restored from a single-node install, whose owner was
     # root) are handed to the app's user. Nothing happens on a database the app made itself.
-    printf '%s\n' "REASSIGN OWNED BY root TO church;" \
-      | dc exec -T cockroach cockroach sql "${SQLARGS[@]}" --database=church >/dev/null
-    echo "database 'church' and user 'church' are ready. Next: node-id / garage-bootstrap (object store), then 'up' on each node."
+    printf '%s\n' "REASSIGN OWNED BY root TO lampstand;" \
+      | dc exec -T cockroach cockroach sql "${SQLARGS[@]}" --database=lampstand >/dev/null
+    echo "database 'lampstand' and user 'lampstand' are ready. Next: node-id / garage-bootstrap (object store), then 'up' on each node."
     ;;
 
   db-members)

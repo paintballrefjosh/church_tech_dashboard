@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PERMISSIONS, sectionOff, sectionOk, type NotesDigest, type Section } from "@church/shared";
+import { PERMISSIONS, sectionOff, sectionOk, type NotesDigest, type Section } from "@lampstand/shared";
 import { NotesService } from "../../../notes/notes.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
 
