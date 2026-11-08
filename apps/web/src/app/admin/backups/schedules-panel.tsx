@@ -16,14 +16,14 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-export function describeSchedule(s: Pick<BackupSchedule, "frequency" | "time" | "dayOfWeek" | "dayOfMonth" | "timezone" | "keep" | "includeFiles">): string {
+export function describeSchedule(s: Pick<BackupSchedule, "frequency" | "time" | "dayOfWeek" | "dayOfMonth" | "timezone" | "keep" | "includeFiles" | "includeSignageMedia">): string {
   const when =
     s.frequency === "daily"
       ? "Every day"
       : s.frequency === "weekly"
         ? `Every ${WEEKDAYS[s.dayOfWeek]}`
         : `On the ${ordinal(s.dayOfMonth)} of every month`;
-  return `${when} at ${s.time} (${s.timezone}). Keeps the latest ${s.keep}${s.includeFiles ? ", with uploaded files" : ", without uploaded files"}.`;
+  return `${when} at ${s.time} (${s.timezone}). Keeps the latest ${s.keep}${s.includeFiles ? (s.includeSignageMedia ? ", with uploaded files and signage media" : ", with uploaded files") : ", without uploaded files"}.`;
 }
 
 function browserZone(): string {
@@ -55,6 +55,7 @@ interface FormState {
   timezone: string;
   keep: number;
   includeFiles: boolean;
+  includeSignageMedia: boolean;
   offsite: boolean;
 }
 
@@ -68,6 +69,7 @@ const blank = (): FormState => ({
   timezone: browserZone(),
   keep: 7,
   includeFiles: true,
+  includeSignageMedia: false,
   offsite: true,
 });
 
@@ -159,6 +161,10 @@ function ScheduleForm({
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <input type="checkbox" checked={v.includeFiles} onChange={(e) => set("includeFiles", e.target.checked)} />
         Include uploaded files
+      </label>
+      <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <input type="checkbox" checked={v.includeFiles && v.includeSignageMedia} disabled={!v.includeFiles} onChange={(e) => set("includeSignageMedia", e.target.checked)} />
+        Also include signage pictures and videos (they can be large)
       </label>
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <input type="checkbox" checked={v.offsite} onChange={(e) => set("offsite", e.target.checked)} />
@@ -265,6 +271,7 @@ export function SchedulesPanel({ initialSchedules, runningOperation }: { initial
     timezone: s.timezone,
     keep: s.keep,
     includeFiles: s.includeFiles,
+    includeSignageMedia: s.includeSignageMedia,
     offsite: s.offsite,
   });
 

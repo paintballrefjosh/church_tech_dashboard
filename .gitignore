@@ -41,3 +41,6 @@ test-results/
 .install.log
 .env.bak-*
 .install-remote-*
+
+# Python bytecode (the signage agent's tests)
+__pycache__/

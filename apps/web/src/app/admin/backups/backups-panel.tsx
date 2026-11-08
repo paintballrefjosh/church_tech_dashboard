@@ -49,6 +49,7 @@ export function BackupsPanel({
   const [backups, setBackups] = useState(initialBackups);
   const [name, setName] = useState("");
   const [includeFiles, setIncludeFiles] = useState(true);
+  const [includeSignageMedia, setIncludeSignageMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -88,7 +89,7 @@ export function BackupsPanel({
     setError(null);
     setNotice(null);
     try {
-      const started = await post<{ operationId: string }>("", { ...(name.trim() ? { name: name.trim() } : {}), includeFiles }, "Couldn't start the backup");
+      const started = await post<{ operationId: string }>("", { ...(name.trim() ? { name: name.trim() } : {}), includeFiles, includeSignageMedia: includeFiles && includeSignageMedia }, "Couldn't start the backup");
       setName("");
       track(started.operationId);
       void refresh();
@@ -189,6 +190,10 @@ export function BackupsPanel({
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)} disabled={running} />
             Include uploaded files
+          </label>
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input type="checkbox" checked={includeFiles && includeSignageMedia} onChange={(e) => setIncludeSignageMedia(e.target.checked)} disabled={running || !includeFiles} />
+            And signage media
           </label>
           <button
             type="submit"
