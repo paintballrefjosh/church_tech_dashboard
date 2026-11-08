@@ -54,36 +54,39 @@
 }
 
 :global(.dark) .root {
+  /* The greys are tinted toward the app's slate-blue dark theme (tailwind slate-900/800/700), so this look sits
+     in the same family as every other page instead of reading as neutral grey. */
   color-scheme: dark;
-  --console: #1d2025;
-  --panel: #262a30;
-  --panel-2: #2e333a;
-  --edge: #3a4049;
-  --label: #e1e4ea;
+  --console: #0a1020;
+  --panel: #131c2f;
+  --panel-2: #1b2740;
+  --edge: #2a3a56;
+  --label: #e2e8f0;
   --strong: #ffffff;
-  --dim: #949cab;
-  --dimmer: #8f98a6;
-  --chip: #2e333a;
-  --box-edge: #8f98a6;
+  --dim: #94a3b8;
+  --dimmer: #8c9bb3;
+  --chip: #1b2740;
+  --box-edge: #8c9bb3;
   --focus: #2fd0e0;
-  --key-ink: #e1e4ea;
-  --key-top: #31363e;
-  --key-bottom: #31363e;
-  --key-hover-top: #393f48;
-  --key-hover-bottom: #393f48;
-  --key-edge: #3a4049;
-  --key-shadow: #15181c;
+  --key-ink: #e2e8f0;
+  --key-top: #20304c;
+  --key-bottom: #20304c;
+  --key-hover-top: #2a3d5e;
+  --key-hover-bottom: #2a3d5e;
+  --key-edge: #2f4163;
+  --key-shadow: #060a14;
   --key-shine: rgba(255, 255, 255, 0.06);
   --card-shine: transparent;
-  --master-top: #33383f;
-  --master-bottom: #2a2e34;
+  --master-top: #26395a;
+  --master-bottom: #1b2a45;
   --master-scribble: #f1f2f4;
-  --dots: rgba(255, 255, 255, 0.025);
+  --dots: rgba(148, 163, 184, 0.03);
   --problem-edge: rgba(255, 77, 77, 0.6);
   --problem-ring: rgba(255, 77, 77, 0.25);
   --problem-glow: rgba(255, 77, 77, 0.35);
-  --led-off: #5a616d;
-  --seg-off: #232a31;
+  --led-off: #4f607c;
+  --screen: #070d1a;
+  --seg-off: #172236;
   --t-amber: #ffb21e;
   --t-red: #ffb4b4;
   --t-cyan: #2fd0e0;
@@ -404,6 +407,16 @@
 .meter i.on.r {
   background: #ff4d4d;
 }
+/* The held peak: the segment the bar just fell from, dimmed. */
+.meter i.peak.g {
+  background: rgba(57, 217, 124, 0.7);
+}
+.meter i.peak.a {
+  background: rgba(255, 178, 30, 0.8);
+}
+.meter i.peak.r {
+  background: rgba(255, 77, 77, 0.8);
+}
 .meterNone i {
   opacity: 0.6;
 }
@@ -413,6 +426,53 @@
   }
   .progress i {
     transition: width 0.3s ease-out;
+  }
+  /* Indicator lamps: green breathes, amber breathes slower, red blinks. Staggered so the row does not pulse as one. */
+  .ledG {
+    animation: lampBreathe 3.4s ease-in-out infinite;
+  }
+  .ledA {
+    animation: lampBreathe 2.2s ease-in-out infinite;
+  }
+  .ledR {
+    animation: lampBlink 1.15s ease-in-out infinite;
+  }
+  .strip:nth-child(2n) .led {
+    animation-delay: -0.8s;
+  }
+  .strip:nth-child(3n) .led {
+    animation-delay: -1.6s;
+  }
+  /* A strip with a problem glows like a lit warning panel. */
+  .problem {
+    animation: panelAlarm 2.3s ease-in-out infinite;
+  }
+}
+@keyframes lampBreathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes lampBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes panelAlarm {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--problem-ring), 0 0 10px -6px var(--problem-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--problem-ring), 0 0 26px -2px var(--problem-glow);
   }
 }
 .metric {

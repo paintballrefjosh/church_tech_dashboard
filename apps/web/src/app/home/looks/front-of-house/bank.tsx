@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { durationText, type AreaKey, type HomeSnapshot, type SystemMeters, type SystemsHealth } from "@lampstand/shared";
 import { NeedActionButton } from "../../parts/need-action";
 import { alertWhen } from "./format";
@@ -24,11 +24,62 @@ const READING_LABELS: Record<AreaKey, [string, string]> = {
   screens: ["screens playing", "notices now"],
 };
 
+/** How far a resting meter wanders either side of its real reading, as a share of full scale (the mockup's "meter at rest"). */
+const WANDER = 0.05;
+const WANDER_MS = 700;
+/** A peak marker holds for this many ticks before it falls to the bar. */
+const PEAK_HOLD_TICKS = 6;
+
+/**
+ * Lit segments and the peak-hold marker for one meter. The reading itself is exact (the numbers beside it and the
+ * meter's aria value are the real ones); the bar only moves a little around it so the board looks alive, like a
+ * meter at rest. A meter with no reading, one at zero, a hidden tab and a visitor who asked for less motion all stay still.
+ */
+function useMeterMotion(level: number | null): { lit: number; peak: number } {
+  const real = level === null ? 0 : Math.round(level * SEGMENTS);
+  const [state, setState] = useState({ lit: real, peak: real });
+  const peakAge = useRef(0);
+  useEffect(() => {
+    setState({ lit: real, peak: real });
+    peakAge.current = 0;
+    if (level === null || level <= 0) return;
+    if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Each meter starts at its own moment, so the board does not move in step.
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(
+      () => {
+        timer = setInterval(() => {
+          if (document.visibilityState === "hidden") return;
+          const wobbled = Math.min(1, Math.max(1 / SEGMENTS, level + (Math.random() - 0.5) * 2 * WANDER));
+          const lit = Math.round(wobbled * SEGMENTS);
+          setState((cur) => {
+            let peak = cur.peak;
+            if (lit >= peak || peakAge.current > PEAK_HOLD_TICKS) {
+              peak = lit;
+              peakAge.current = 0;
+            } else {
+              peakAge.current++;
+            }
+            return cur.lit === lit && cur.peak === peak ? cur : { lit, peak };
+          });
+        }, WANDER_MS);
+      },
+      Math.random() * WANDER_MS,
+    );
+    return () => {
+      clearTimeout(start);
+      if (timer) clearInterval(timer);
+    };
+  }, [level, real]);
+  return state;
+}
+
 function LedMeter({ label, level, text }: { label: string; level: number | null; text: string }) {
-  const lit = level === null ? 0 : Math.round(level * SEGMENTS);
+  const { lit, peak } = useMeterMotion(level);
   const segs = Array.from({ length: SEGMENTS }, (_, i) => {
     const zone = i < SEGMENTS * 0.7 ? "g" : i < SEGMENTS * 0.9 ? "a" : "r";
-    return <i key={i} className={`${i < lit ? s.on : ""} ${s[zone]}`} />;
+    const isPeak = i === peak - 1 && i >= lit;
+    return <i key={i} className={`${i < lit ? s.on : ""} ${isPeak ? s.peak : ""} ${s[zone]}`} />;
   });
   if (level === null) {
     return (
