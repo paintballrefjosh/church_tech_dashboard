@@ -1,0 +1,16 @@
+[Unit]
+Description=Church signage: keep /var/lib/signage on the SD card when the read-only root is on
+DefaultDependencies=no
+After=local-fs.target
+Before=signage-agent.service
+ConditionPathIsMountPoint=/media/root-ro
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# raspi-config's overlay mounts the real root read-only at /media/root-ro. Media and the manifest must survive a
+# reboot, so that folder is bind-mounted from the real root (made writable for it). Not tried on hardware yet.
+ExecStart=/bin/sh -c 'mount -o remount,rw /media/root-ro && mkdir -p /media/root-ro/var/lib/signage && mount --bind /media/root-ro/var/lib/signage /var/lib/signage'
+
+[Install]
+WantedBy=multi-user.target

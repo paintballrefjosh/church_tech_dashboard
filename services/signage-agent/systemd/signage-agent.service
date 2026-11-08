@@ -1,0 +1,18 @@
+[Unit]
+Description=Church signage player and TV control
+After=network-online.target time-sync.target signage-data.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/opt/signage/agent/current/bin/signage-agent
+Restart=always
+RestartSec=5
+WatchdogSec=60
+NotifyAccess=main
+RuntimeDirectory=signage
+RuntimeDirectoryPreserve=yes
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target
