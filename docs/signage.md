@@ -1,7 +1,7 @@
-# Signage (plan)
+# Signage
 
-Status: **plan, building** (2026-11-08). No Raspberry Pi is on hand yet, so everything is built and tested against a simulated
-Pi (section 12) and the whole module is to be tested top to bottom on real hardware once it arrives. The first draft (another session, written without the repo) had a custom Pi image
+Status: **built, untested on hardware** (2026-11-08). No Raspberry Pi is on hand yet, so everything was built and tested against
+simulated Pis (section 0) and the whole module is to be tested top to bottom on real hardware once it arrives (section 12). The first draft (another session, written without the repo) had a custom Pi image
 that called home. Decided with Josh on 2026-11-08:
 
 - **Pis run stock Raspberry Pi OS Lite**, flashed with Raspberry Pi Imager (user, password, SSH and Wi-Fi set in Imager's
@@ -17,6 +17,29 @@ playback (including power times) that carries on while Wi-Fi or the dashboard is
 
 Out of scope for v1: IR control, web-page/live-data content, audio, synchronised playback across screens, transitions other
 than hard cuts, an approval workflow, Google Drive sync.
+
+## 0. What is built and what was checked (2026-11-08)
+
+Built: every phase in section 12 (agent, discovery, setup and lock-down, content, compiler, sync, TV control, power, fleet care, the
+pages, Security overview checks, opt-in media in backups). Pages: Screens, a screen's page, Schedule, Events, Playlists, Media, Power,
+Devices (Needs attention / All / Found / Disabled, discovery, setup runs with the sudo prompt, identify) and a device's page, Settings
+and Security settings (inside the module, section 6).
+
+Checked:
+- Unit tests: the compiler and its resolution rules, device problems, settings, the SSH key, the agent bundle, helpers; the agent's
+  own pytest suite.
+- `apps/api/test/signage.integration.test.ts` on CockroachDB 24.2 and YugabyteDB 2024.2: compile versions, the dirty flag, the
+  preview order, and that one setup run and one uploaded file are claimed by one node.
+- `tests/signage/fake-pi.sh`: two Debian trixie containers with sshd, sudo and nftables, driven through the real API. Discovery by
+  address, setup with the saved login, every lock-down check read back, password login refused afterwards, apply again, the firewall
+  setting on and off (and a second container blocked by it), identify, diagnostics, status, sync of a manifest, a Pi that needs a sudo
+  password, key rotation.
+- Smoke (`tests/smoke/signage.mjs`) and the browser test (`signage.spec.ts`), plus the accessibility sweep over every page.
+
+Not checked (needs hardware, section 12): mpv playback and frame drops, HDMI-CEC, Roku ECP and SSDP, the real Pi OS image (Imager
+user, `raspi-config`, `vcgencmd`, read-only root, Wi-Fi), OS updates against the real mirrors, power pulls, a broken agent release
+rolling back on a Pi, and discovery across VLANs. Two dashboard nodes (`tests/cluster/sim.sh`) were not run with signage; the claims
+are covered by the integration test only.
 
 ## 1. Shape
 

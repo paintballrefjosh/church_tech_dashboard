@@ -493,6 +493,30 @@ breaks old versions, so update the pin when pages stop reading. (5) The private 
 Tests: `livestreams.integration.test.ts` (CockroachDB and YugabyteDB), smoke `tests/smoke/livestreams.mjs` (never reads a stream), e2e
 `livestreams.spec.ts`.
 
+**Signage** (`apps/api/src/signage/`, the Pi agent in `services/signage-agent/`, pages under `/signage` in the Church Apps menu, migrations
+0091 and 0092; design, decisions and the hardware checks still to run in [docs/signage.md](docs/signage.md) section 0; rules in
+`packages/shared/src/signage/`, unit-tested in `apps/api/test/signage-*.test.ts`). **Built 2026-11-08 against simulated Pis only: nothing has
+run on a real Pi or TV yet.** Module `signage` (user reads, moderator edits content, admin owns devices, discovery, settings, key and releases);
+a non-system `signage` group holds moderator. Rules: (1) **Pis run stock Raspberry Pi OS Lite and never contact the dashboard**: it finds them
+(`signage-discover`: private subnets, /22 at most, knocks on port 22, never signs in), sets them up over SSH with the saved setup login once,
+then manages them with its own Ed25519 key, DERIVED from `AUTH_SECRET` per generation (`ssh-key.ts`; the derivation strings never change;
+"Make a new key" moves to the next generation). Host keys are pinned (`host_key` problem + "Trust the new host key"). Every command is
+`signage-ctl <cmd>` with one JSON answer; with "restrict key" on, that is all the key may run. (2) **Settings live in the module**
+(`/signage/settings`, `/signage/security`, category `signage`, `SIGNAGE_SECURITY_KEYS`/`SIGNAGE_GENERAL_KEYS`), never under Admin > Settings; the
+pages mask secrets before they reach the browser. (3) **Applying settings can never lock the dashboard out**: the Pi starts a 120 s undo
+(`revert-after`) and keeps the change only after a SECOND key login confirms it. (4) The manifest is compiled on the server (`compileManifest`,
+14 days, events > screen schedule > group schedule > fallback > logo slide) and the Pi plays it on its own, power times included, while the
+dashboard or Wi-Fi is down; a new version is stored only when the content differs, five kept, and `manifest_dirty_at` is cleared only if unchanged.
+(5) Work is CLAIMED (`claimed_until`): setup runs (`signage-setup`), media conversion (`signage-media`, ffmpeg), sync; jobs `signage-compile`,
+`signage-sync`, `signage-poll`, `signage-watch` (offline = `signage.device_offline`, an urgent outage kind), `signage-prune`, `signage-media-check`.
+(6) Passwords typed for a Pi (login, sudo) are used for that run only, encrypted while it waits, redacted from the audit log and scrubbed from run
+output. (7) Routes that reach a Pi or a TV are `@OperationalOnly`; MCP has content tools only. (8) Media files go into a backup only when it asks
+(`include_signage_media`; `SIGNAGE_FILE_PREFIXES`), are never removed by a restore, and a restored row whose file is absent becomes `missing`.
+(9) The agent ships in the api image (`/app/signage-agent`, bundle hash-checked); uploaded releases are checked before they are kept.
+Tests: `signage.integration.test.ts` (CockroachDB and YugabyteDB), `tests/signage/fake-pi.sh` (real setup, lock-down, sync and key rotation
+against two Debian containers over SSH; run by hand, not in `make regression`), the agent's pytest suite (`services/signage-agent/tests`),
+smoke `tests/smoke/signage.mjs` (never reaches a Pi), e2e `signage.spec.ts`.
+
 **Helpdesk: waiting, SLA notices, saved replies, tickets from email** (migrations 0065 and 0066; rules in `packages/shared/src/helpdesk.ts`
 and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket status `waiting`, with `tickets.waiting_since` while it lasts and
 `waited_ms` for finished waits: **SLA elapsed time is always `ticketSlaElapsedMs`** (creation to now minus the waits), never a bare
@@ -1768,6 +1792,7 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
 - **Assistant (chatbot) — phases 1-3 built (2026-10-25/26)** — see ## Assistant and section 0 of [docs/assistant.md](docs/assistant.md); embeddings, replayed evaluation, API-token access and other channels are not built; do not start them without an explicit ask.
 - **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, the home-page Services area and catalogue wave two also built (2026-10-26); group roles per template, the redundancy warning, groups on the status page, in search and in the availability history (2026-10-27).
+- **Signage — built against simulated Pis (2026-11-08)** — see **Signage** under ## Access control and section 0 of [docs/signage.md](docs/signage.md); untested on real Pis and TVs until hardware arrives.
 - **Phase 4 — deferred** — bespoke church-specific modules. Do not start without an explicit ask.
 
 **Deferred: infra threshold actions.** `InfraThresholdRule` (`packages/shared/src/schemas/infra.ts`)
