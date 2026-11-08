@@ -20,6 +20,12 @@ import {
   serviceInstances,
   assets,
   locations,
+  signageScreens,
+  signageGroups,
+  signageScreenGroups,
+  signagePlaylists,
+  signagePlaylistItems,
+  signageMedia,
 } from "../db/schema";
 import { searchDocId, type ContentKind, type SearchDoc } from "./search-types";
 
@@ -38,6 +44,8 @@ export interface SearchSources {
   loadMonitoringDocs(): Promise<SearchDoc[]>;
   /** Every item of equipment. */
   loadAssetDocs(): Promise<SearchDoc[]>;
+  /** Every signage screen, playlist and media file (never devices). */
+  loadSignageDocs(): Promise<SearchDoc[]>;
 }
 
 export const SEARCH_SOURCES = Symbol("SEARCH_SOURCES");
@@ -161,6 +169,70 @@ export class DbSearchSources implements SearchSources {
       url: `/assets/${r.id}`,
       updatedAt: r.updatedAt.toISOString(),
     }));
+  }
+
+  /**
+   * Signage: screens (found by their room, groups and notes), playlists (by their description and the names of what they
+   * play) and media files (by their own and original names). One-off playlists made for a single event are left out,
+   * and so is anything about the Pis: their addresses are the module's admin tier, not its readers'.
+   */
+  async loadSignageDocs(): Promise<SearchDoc[]> {
+    const [screens, groups, members, playlists, items, media] = await Promise.all([
+      this.db
+        .select({ id: signageScreens.id, name: signageScreens.name, notes: signageScreens.notes, orientation: signageScreens.orientation, enabled: signageScreens.enabled, room: locations.name, updatedAt: signageScreens.updatedAt })
+        .from(signageScreens)
+        .leftJoin(locations, eq(locations.id, signageScreens.locationId)),
+      this.db.select({ id: signageGroups.id, name: signageGroups.name }).from(signageGroups),
+      this.db.select().from(signageScreenGroups),
+      this.db.select().from(signagePlaylists).where(eq(signagePlaylists.isAdhoc, false)),
+      this.db.select({ playlistId: signagePlaylistItems.playlistId, mediaId: signagePlaylistItems.mediaId, position: signagePlaylistItems.position }).from(signagePlaylistItems).orderBy(asc(signagePlaylistItems.position)),
+      this.db.select({ id: signageMedia.id, name: signageMedia.name, originalName: signageMedia.originalName, kind: signageMedia.kind, status: signageMedia.status, updatedAt: signageMedia.updatedAt }).from(signageMedia),
+    ]);
+    const groupName = new Map(groups.map((g) => [g.id, g.name]));
+    const mediaName = new Map(media.map((m) => [m.id, m.name]));
+    const docs: SearchDoc[] = [];
+    for (const s of screens) {
+      const inGroups = members.filter((m) => m.screenId === s.id).map((m) => groupName.get(m.groupId)).filter((n): n is string => !!n);
+      docs.push({
+        id: searchDocId("signage_screen", s.id),
+        kind: "signage_screen",
+        resourceId: s.id,
+        ownerUserId: null,
+        title: s.name,
+        body: [s.room, inGroups.join(", "), s.notes].filter(Boolean).join(" · "),
+        extra: { orientation: s.orientation, enabled: s.enabled },
+        url: `/signage/screens/${s.id}`,
+        updatedAt: s.updatedAt.toISOString(),
+      });
+    }
+    for (const p of playlists) {
+      const names = [...new Set(items.filter((i) => i.playlistId === p.id).map((i) => mediaName.get(i.mediaId)).filter((n): n is string => !!n))];
+      docs.push({
+        id: searchDocId("signage_playlist", p.id),
+        kind: "signage_playlist",
+        resourceId: p.id,
+        ownerUserId: null,
+        title: p.name,
+        body: [p.description, names.slice(0, 50).join(", ")].filter(Boolean).join(" · "),
+        extra: { items: items.filter((i) => i.playlistId === p.id).length },
+        url: `/signage/playlists/${p.id}`,
+        updatedAt: p.updatedAt.toISOString(),
+      });
+    }
+    for (const m of media) {
+      docs.push({
+        id: searchDocId("signage_media", m.id),
+        kind: "signage_media",
+        resourceId: m.id,
+        ownerUserId: null,
+        title: m.name,
+        body: [m.originalName !== m.name ? m.originalName : null, m.kind === "video" ? "Video" : m.kind === "image" ? "Picture" : null].filter(Boolean).join(" · "),
+        extra: { kind: m.kind, status: m.status },
+        url: "/signage/media",
+        updatedAt: m.updatedAt.toISOString(),
+      });
+    }
+    return docs;
   }
 
   /** Timestamp helper — cache tables (cisco) carry no updatedAt, so freshness

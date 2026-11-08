@@ -15,7 +15,7 @@ import type { TicketsService } from "../src/tickets/tickets.service";
 import type { PlanningCenterService } from "../src/planning-center/planning-center.service";
 import type { ChecklistsService } from "../src/checklists/checklists.service";
 import type { Db } from "../src/db/db.module";
-import { serviceGroups, serviceInstances } from "../src/db/schema";
+import { serviceGroups, serviceInstances, signageDevices, signageOverrides } from "../src/db/schema";
 import { NOW, TZ } from "./helpers/home-fixtures";
 
 const ctx = (permissions: string[], id = "me"): HomeContext =>
@@ -27,17 +27,26 @@ const settings = (values: Record<string, unknown> = {}) =>
 const never = new Promise<never>(() => undefined);
 
 /** A drizzle stand-in for the services area: each query answers the rows given for the table it reads. */
-function fakeDb(rows: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[] } = {}): Db {
+function fakeDb(rows: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[]; devices?: unknown[]; overrides?: unknown[] } = {}): Db {
   return {
     select: () => {
       let from: unknown;
       const q = {
         from: (t: unknown) => ((from = t), q),
         innerJoin: () => q,
+        leftJoin: () => q,
         where: () => q,
         then: (ok: (v: unknown[]) => unknown, fail?: (e: unknown) => unknown) =>
           Promise.resolve(
-            from === serviceInstances ? (rows.instances ?? []) : from === serviceGroups ? (rows.groups ?? []) : (rows.incidents ?? []),
+            from === serviceInstances
+              ? (rows.instances ?? [])
+              : from === serviceGroups
+                ? (rows.groups ?? [])
+                : from === signageDevices
+                  ? (rows.devices ?? [])
+                  : from === signageOverrides
+                    ? (rows.overrides ?? [])
+                    : (rows.incidents ?? []),
           ).then(ok, fail),
       };
       return q;
@@ -52,7 +61,7 @@ interface SystemFakes {
   unifiDevices?: () => Promise<unknown[]>;
   cisco?: () => Promise<unknown[]>;
   dns?: () => Promise<unknown>;
-  services?: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[] };
+  services?: { instances?: unknown[]; groups?: unknown[]; incidents?: unknown[]; devices?: unknown[]; overrides?: unknown[] };
 }
 
 function systems(f: SystemFakes = {}, values: Record<string, unknown> = {}) {
@@ -218,6 +227,32 @@ describe("HomeSystemsSection", () => {
     const byId = Object.fromEntries(res.data.problems.map((p) => [p.id, p]));
     expect(byId["services:group:g1"]).toMatchObject({ name: "LB pair", detail: "No member is MASTER", since: "2026-10-08T08:00:00.000Z" });
     expect(byId["services:i2"]).toMatchObject({ name: "postgres on db1", detail: "postgres: not reachable", href: "/monitoring/infra/s2/services/i2" });
+  });
+
+  it("adds a Screens area for Signage readers only, with the Pis the offline watch judged offline, linked to their screen", async () => {
+    const devices = [
+      { id: "d1", name: "pi-foyer", screenId: "s1", screenName: "Foyer", lastSeenAt: new Date("2026-10-08T07:00:00Z"), offlineAlerted: true },
+      { id: "d2", name: "pi-hall", screenId: "s2", screenName: "Hall", lastSeenAt: new Date(), offlineAlerted: false },
+      { id: "d3", name: "pi-spare", screenId: null, screenName: null, lastSeenAt: null, offlineAlerted: true },
+    ];
+    const { section } = systems({ services: { devices } });
+    const without = await section.build(ctx(MON));
+    if (without.state !== "ok") throw new Error("expected ok");
+    expect(without.data.areas.find((a) => a.key === "screens")).toBeUndefined();
+
+    const res = await systems({ services: { devices } }).section.build(ctx([...MON, "signage:read:any"]));
+    if (res.state !== "ok") throw new Error("expected ok");
+    expect(sectionSchema(systemsHealthSchema).safeParse(res).success).toBe(true);
+    expect(res.data.areas.find((a) => a.key === "screens")).toMatchObject({ state: "ok", up: 1, down: 2, total: 3, href: "/signage" });
+    const byId = Object.fromEntries(res.data.problems.map((p) => [p.id, p]));
+    expect(byId["screens:d1"]).toMatchObject({ name: "Foyer", since: "2026-10-08T07:00:00.000Z", href: "/signage/screens/s1" });
+    expect(byId["screens:d3"]).toMatchObject({ name: "pi-spare", since: null, href: "/signage" });
+    expect(byId["screens:d2"]).toBeUndefined();
+
+    // No Pi set up: no row at all, even for a Signage reader.
+    const none = await systems().section.build(ctx([...MON, "signage:read:any"]));
+    if (none.state !== "ok") throw new Error("expected ok");
+    expect(none.data.areas.find((a) => a.key === "screens")).toBeUndefined();
   });
 
   it("treats an unreachable DNS primary as an outage", async () => {

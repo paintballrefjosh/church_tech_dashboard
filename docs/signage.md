@@ -25,11 +25,18 @@ pages, Security overview checks, opt-in media in backups). Pages: Screens, a scr
 Devices (Needs attention / All / Found / Disabled, discovery, setup runs with the sudo prompt, identify) and a device's page, Settings
 and Security settings (inside the module, section 6).
 
+Also in the rest of the app: global search finds screens (by name, room, group and notes), playlists (by name, description and what
+they play; never one-off event playlists) and media files, for anyone with Signage read access; nothing about a Pi is indexed. The
+home page's Systems view (and the Front of House meters) shows a **Screens** row, for Signage readers on an install with a Pi set up:
+Pis set up and switched on, and the ones the offline watch has judged offline, each linking to its screen's page; the meter also says
+how many events are showing now.
+
 Checked:
 - Unit tests: the compiler and its resolution rules, device problems, settings, the SSH key, the agent bundle, helpers; the agent's
   own pytest suite.
 - `apps/api/test/signage.integration.test.ts` on CockroachDB 24.2 and YugabyteDB 2024.2: compile versions, the dirty flag, the
-  preview order, and that one setup run and one uploaded file are claimed by one node.
+  preview order, that one setup run and one uploaded file are claimed by one node, and the search documents (no device, no
+  address, no one-off playlist). The home page's Screens row: `home-sections.test.ts`.
 - `tests/signage/fake-pi.sh`: two Debian trixie containers with sshd, sudo and nftables, driven through the real API. Discovery by
   address, setup with the saved login, every lock-down check read back, password login refused afterwards, apply again, the firewall
   setting on and off (and a second container blocked by it), identify, diagnostics, status, sync of a manifest, a Pi that needs a sudo

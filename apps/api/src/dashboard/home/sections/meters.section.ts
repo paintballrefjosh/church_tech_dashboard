@@ -29,6 +29,7 @@ import { DnsService } from "../../../dns/dns.service";
 import { DnsSyncService } from "../../../dns/dns.sync";
 import type { HomeContext, SectionBuilder } from "../home.types";
 import { TtlCache, withDeadline } from "../cache";
+import { readSignageHealth } from "./signage-health";
 
 type Channel = SystemMeters["channels"][number];
 type Alert = SystemMeters["recentAlerts"][number];
@@ -87,12 +88,13 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
     const perms = ctx.user.permissions;
     if (!perms.includes(PERMISSIONS.MONITORS_READ_ANY)) return sectionOff("forbidden");
     const canUnifi = perms.includes(PERMISSIONS.UNIFI_READ_ANY);
+    const canSignage = perms.includes(PERMISSIONS.SIGNAGE_READ_ANY);
     // Everyone allowed to see this section gets the same answer (the UniFi permission only adds a channel), so
     // it is computed once for all of them, not once per open page.
-    return this.cache.get(`meters|${canUnifi}`, METERS_SHARED_MS, () => this.compute(ctx, canUnifi));
+    return this.cache.get(`meters|${canUnifi}|${canSignage}`, METERS_SHARED_MS, () => this.compute(ctx, canUnifi, canSignage));
   }
 
-  private async compute(ctx: HomeContext, canUnifi: boolean): Promise<Section<SystemMeters>> {
+  private async compute(ctx: HomeContext, canUnifi: boolean, canSignage: boolean): Promise<Section<SystemMeters>> {
     const guard = async <T>(name: string, run: () => Promise<T>, fallback: T): Promise<T> => {
       const t0 = Date.now();
       try {
@@ -114,12 +116,14 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
       guard("incidents", () => this.incidents(), [] as Alert[]),
     ]);
     const services = await guard("services", () => this.servicesChannel(), null);
+    const screens = canSignage ? await guard("screens", () => this.screensChannel(ctx.now), null) : null;
 
     const channels: Channel[] = [servers, internet];
     if (wifi) channels.push(wifi.channel);
     channels.push(switches, dns);
     // Like the systems section: no channel when service monitoring is not used.
     if (services) channels.push(services);
+    if (screens) channels.push(screens);
 
     const unifiAlerts: Alert[] = (wifi?.offline ?? []).map((d, i) => ({
       at:
@@ -303,6 +307,21 @@ export class HomeMetersSection implements SectionBuilder<SystemMeters> {
       readings: [
         { label: "services up", value: instances.length ? `${up} of ${instances.length}` : UNAVAILABLE },
         { label: "groups", value: groups.length ? `${groupsOk} of ${groups.length} working` : "none" },
+      ],
+    };
+  }
+
+  /** Signage Pis answering, and how many events (notices) are showing now. Null = no Pi set up. */
+  private async screensChannel(now: Date): Promise<Channel | null> {
+    const h = await readSignageHealth(this.db, now);
+    if (!h) return null;
+    const up = h.total - h.offline.length;
+    return {
+      area: "screens",
+      level: switchesLevel(up, h.total),
+      readings: [
+        { label: "screens playing", value: `${up} of ${h.total}` },
+        { label: "notices now", value: h.eventsNow ? String(h.eventsNow) : "none" },
       ],
     };
   }

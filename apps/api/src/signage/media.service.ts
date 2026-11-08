@@ -90,6 +90,7 @@ export class SignageMediaService implements OnModuleInit {
   async rename(id: string, name: string): Promise<SignageMedia> {
     await this.row(id);
     await this.db.update(signageMedia).set({ name, updatedAt: new Date() }).where(eq(signageMedia.id, id));
+    this.content.searchChanged();
     return this.get(id);
   }
 
@@ -107,6 +108,7 @@ export class SignageMediaService implements OnModuleInit {
       await client.putObject(bucket, signageUploadKey(id), createReadStream(path), size, { "Content-Type": "application/octet-stream" });
       const name = filename.replace(/\.[A-Za-z0-9]{1,5}$/, "").slice(0, 120) || "Untitled";
       await this.db.insert(signageMedia).values({ id, name, originalName: filename.slice(0, 255), mime: mime.slice(0, 100), status: "uploaded", uploadKey: signageUploadKey(id), sizeBytes: size, createdBy: userId });
+      this.content.searchChanged();
       return this.get(id);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -119,6 +121,7 @@ export class SignageMediaService implements OnModuleInit {
     const [used] = await this.db.select({ n: sql<number>`count(*)` }).from(signagePlaylistItems).where(eq(signagePlaylistItems.mediaId, id));
     if (Number(used?.n ?? 0) > 0) throw new ConflictException("Playlists still use this. Take it out of them first.");
     await this.db.delete(signageMedia).where(eq(signageMedia.id, id));
+    this.content.searchChanged();
     await this.deleteObjectsOf(r);
   }
 
@@ -217,6 +220,7 @@ export class SignageMediaService implements OnModuleInit {
         .where(eq(signageMedia.id, r.id));
       await client.removeObject(bucket, r.uploadKey).catch(() => undefined);
       await this.content.markDirty();
+      this.content.searchChanged();
     } catch (err) {
       this.logger.warn(`signage media ${r.id}: ${(err as Error).message}`);
       await fail(`Converting failed: ${(err as Error).message}`.slice(0, 500));
@@ -253,7 +257,10 @@ export class SignageMediaService implements OnModuleInit {
         n++;
       }
     }
-    if (n) await this.content.markDirty();
+    if (n) {
+      await this.content.markDirty();
+      this.content.searchChanged();
+    }
     return n;
   }
 }

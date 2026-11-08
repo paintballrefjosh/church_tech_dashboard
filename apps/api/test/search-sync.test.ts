@@ -84,6 +84,9 @@ class FakeSources implements SearchSources {
     return this.monitoring;
   }
   assets: SearchDoc[] = [];
+  async loadSignageDocs() {
+    return [];
+  }
   async loadAssetDocs() {
     return this.assets;
   }

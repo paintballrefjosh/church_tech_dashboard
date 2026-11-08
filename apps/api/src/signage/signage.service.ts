@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { SearchService } from "../search/search.service";
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import {
   compilePlaylist,
@@ -59,7 +60,13 @@ export class SignageService {
     @Inject(DB) private readonly db: Db,
     private readonly locationsService: LocationsService,
     private readonly delivery: NotificationDeliveryService,
+    @Optional() private readonly search?: SearchService,
   ) {}
+
+  /** Screens, playlists and media are searchable: refresh this node's index now (the 2-minute reconcile heals the rest). */
+  searchChanged(): void {
+    this.search?.signageChanged();
+  }
 
   /** Mark screens to be compiled by the `signage-compile` job (all of them when no ids are given). */
   async markDirty(screenIds?: string[]): Promise<void> {
@@ -151,6 +158,7 @@ export class SignageService {
     const [r] = await this.db.insert(signagePlaylists).values({ name: input.name, description: input.description, defaultImageDurationS: input.defaultImageDurationS, isAdhoc: input.isAdhoc, createdBy: userId }).returning();
     await this.writeItems(r!.id, input.items);
     await this.markDirty();
+    this.searchChanged();
     return this.getPlaylist(r!.id);
   }
 
@@ -161,6 +169,7 @@ export class SignageService {
     await this.db.update(signagePlaylists).set({ ...rest, updatedAt: new Date() }).where(eq(signagePlaylists.id, id));
     if (items) await this.writeItems(id, items);
     await this.markDirty();
+    this.searchChanged();
     return this.getPlaylist(id);
   }
 
@@ -171,6 +180,7 @@ export class SignageService {
     if (Number(inUse?.n ?? 0) + Number(inEvents?.n ?? 0) > 0) throw new ConflictException("Schedules or upcoming events still use this playlist. Change or delete them first.");
     await this.db.delete(signagePlaylists).where(eq(signagePlaylists.id, id));
     await this.markDirty();
+    this.searchChanged();
   }
 
   // ------------------------------------------------------------ screen groups
@@ -184,12 +194,14 @@ export class SignageService {
 
   async createGroup(input: SignageScreenGroupInput): Promise<SignageScreenGroup> {
     const [g] = await this.db.insert(signageGroups).values(input).returning();
+    this.searchChanged();
     return { id: g!.id, name: g!.name, description: g!.description, screenCount: 0 };
   }
 
   async updateGroup(id: string, input: Partial<SignageScreenGroupInput>): Promise<SignageScreenGroup> {
     const res = await this.db.update(signageGroups).set(input).where(eq(signageGroups.id, id)).returning();
     if (!res.length) throw new NotFoundException("Screen group not found");
+    this.searchChanged(); // screens are found by their groups' names
     return (await this.listGroups()).find((g) => g.id === id)!;
   }
 
@@ -200,6 +212,7 @@ export class SignageService {
     await this.db.delete(signageOverrides).where(and(eq(signageOverrides.targetType, "group"), eq(signageOverrides.targetId, id)));
     await this.db.delete(signagePowerSchedules).where(and(eq(signagePowerSchedules.targetType, "group"), eq(signagePowerSchedules.targetId, id)));
     await this.markDirty();
+    this.searchChanged();
   }
 
   // ------------------------------------------------------------ screens
@@ -248,6 +261,7 @@ export class SignageService {
     const { groupIds, ...rest } = input;
     const [r] = await this.db.insert(signageScreens).values({ ...rest, manifestDirtyAt: new Date() }).returning();
     await this.setGroups(r!.id, groupIds);
+    this.searchChanged();
     return r!;
   }
 
@@ -257,6 +271,7 @@ export class SignageService {
     const { groupIds, ...rest } = input;
     await this.db.update(signageScreens).set({ ...rest, updatedAt: new Date(), manifestDirtyAt: new Date() }).where(eq(signageScreens.id, id));
     if (groupIds) await this.setGroups(id, groupIds);
+    this.searchChanged();
     return this.screenRow(id);
   }
 
@@ -266,6 +281,7 @@ export class SignageService {
     await this.db.delete(signageSchedules).where(and(eq(signageSchedules.targetType, "screen"), eq(signageSchedules.targetId, id)));
     await this.db.delete(signageOverrides).where(and(eq(signageOverrides.targetType, "screen"), eq(signageOverrides.targetId, id)));
     await this.db.delete(signagePowerSchedules).where(and(eq(signagePowerSchedules.targetType, "screen"), eq(signagePowerSchedules.targetId, id)));
+    this.searchChanged();
   }
 
   /** Names for targets (screens and screen groups) in one read. */

@@ -6,6 +6,7 @@ import { SignageService } from "../src/signage/signage.service";
 import { SignageCompiler } from "../src/signage/compiler.service";
 import { SignageSetup } from "../src/signage/setup.service";
 import { SignageMediaService } from "../src/signage/media.service";
+import { DbSearchSources } from "../src/search/search-sources";
 
 /**
  * Signage against a real database (docs/signage.md): content rows and the manifest compiler (a new version only when the
@@ -179,5 +180,25 @@ describe.skipIf(!url)("signage against a real database", () => {
     await Promise.all([a.tick(), b.tick()]);
     expect(conv).toHaveBeenCalledTimes(1);
     expect((await q(`SELECT status FROM signage_media`)).rows[0].status).toBe("processing");
+  });
+
+  it("search documents: screens by room, group and notes, playlists by what they play, media; never devices or one-off playlists", async () => {
+    const media = await readyImage("Harvest supper");
+    const pl = await content.createPlaylist({ name: "Foyer loop", description: "Weekday welcome", defaultImageDurationS: 8, isAdhoc: false, items: [{ mediaId: media, durationS: null, enabled: true, validFrom: null, validUntil: null }] }, null);
+    await content.createPlaylist({ name: "One-off", description: "", defaultImageDurationS: 8, isAdhoc: true, items: [] }, null);
+    const group = await content.createGroup({ name: "Lobby TVs", description: "" });
+    const screen = await content.createScreen({ name: "Foyer", locationId: null, orientation: "landscape", tvControl: "none", rokuIp: null, hdmiInput: null, fallbackPlaylistId: pl.id, groupIds: [group.id], notes: "Above the coat rack", enabled: true });
+    await q(`INSERT INTO signage_devices (name, ip, status, screen_id) VALUES ('Pi', '10.9.9.7', 'active', $1)`, [screen.id]);
+    const docs = await new DbSearchSources(db as never).loadSignageDocs();
+    const byKind = (k: string) => docs.filter((d) => d.kind === k);
+    expect(byKind("signage_screen")).toHaveLength(1);
+    const s = byKind("signage_screen")[0]!;
+    expect(s.url).toBe(`/signage/screens/${screen.id}`);
+    expect(s.body).toContain("Lobby TVs");
+    expect(s.body).toContain("coat rack");
+    expect(JSON.stringify(docs)).not.toContain("10.9.9.7");
+    expect(byKind("signage_playlist").map((d) => d.title)).toEqual(["Foyer loop"]);
+    expect(byKind("signage_playlist")[0]!.body).toContain("Harvest supper");
+    expect(byKind("signage_media").map((d) => d.title)).toEqual(["Harvest supper"]);
   });
 });

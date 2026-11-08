@@ -121,6 +121,24 @@ export async function signageTests({ test, assert, fetchWithCookies, jar }) {
       assert(mf.res.status === 200, `manifest ${mf.res.status}`);
     });
 
+    await test("search: a screen is found by its group's name, a playlist by its own, each linking to its page", async () => {
+      const find = async (q, kind, id) => {
+        for (let i = 0; i < 20; i++) {
+          const { res } = await admin(`/api/v1/search?q=${encodeURIComponent(q)}&kind=${kind}`);
+          if (res.status !== 200) return undefined; // search not configured here
+          const hit = (await res.json()).hits.find((h) => h.resourceId === id);
+          if (hit) return hit;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        return null;
+      };
+      const s = await find(`group ${stamp}`, "signage_screen", screen.id);
+      if (s === undefined) return;
+      assert(s && s.url === `/signage/screens/${screen.id}`, `screen hit: ${JSON.stringify(s)}`);
+      const p = await find(`fallback ${stamp}`, "signage_playlist", weekday.id);
+      assert(p && p.url === `/signage/playlists/${weekday.id}`, `playlist hit: ${JSON.stringify(p)}`);
+    });
+
     await test("signage: an event over the schedule wins, then ends now", async () => {
       const startsAt = new Date(Date.now() - 60_000).toISOString();
       const endsAt = new Date(Date.now() + 3600_000).toISOString();

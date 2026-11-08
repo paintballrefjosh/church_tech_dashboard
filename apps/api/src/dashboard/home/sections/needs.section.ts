@@ -118,7 +118,7 @@ export function buildNeedItems({ now, timezone: tz, primary, unassigned }: Needs
     const labels = new Map(s.areas.map((a) => [a.key, a.label]));
     for (const p of s.problems) {
       if (p.ack?.acked) continue;
-      const verb = p.area === "wifi" ? "offline" : "down";
+      const verb = p.area === "wifi" || p.area === "screens" ? "offline" : "down";
       const detail = p.detail ? `: ${p.detail}` : "";
       const actions: NeedItem["actions"] = [];
       if (p.ack && s.canWrite) actions.push({ kind: "unifi_ack", label: "Acknowledge", mac: p.ack.mac });

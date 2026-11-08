@@ -23,7 +23,10 @@ export type SearchKind =
   | "service_instance"
   | "service_group"
   | "dns_record"
-  | "asset";
+  | "asset"
+  | "signage_screen"
+  | "signage_playlist"
+  | "signage_media";
 
 /**
  * Monitoring kinds visible to anyone with `monitors:read:any` (the `monitoring`
@@ -53,6 +56,11 @@ export const UNIFI_KINDS: SearchKind[] = ["unifi_device", "unifi_client"];
 export const DNS_KINDS: SearchKind[] = ["dns_record"];
 /** Equipment (the inventory): rebuilt from the database like the monitoring kinds, gated on `assets:read:any`. */
 export const ASSET_KINDS: SearchKind[] = ["asset"];
+/**
+ * Signage content (screens, playlists, media): rebuilt from the database like equipment, gated on `signage:read:any`.
+ * Devices are the module's admin tier and are never indexed, so a Pi's address cannot be found through search.
+ */
+export const SIGNAGE_KINDS: SearchKind[] = ["signage_screen", "signage_playlist", "signage_media"];
 
 /**
  * Build a Meilisearch document id from a kind + resource id.

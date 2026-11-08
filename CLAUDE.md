@@ -510,7 +510,11 @@ dashboard or Wi-Fi is down; a new version is stored only when the content differ
 (5) Work is CLAIMED (`claimed_until`): setup runs (`signage-setup`), media conversion (`signage-media`, ffmpeg), sync; jobs `signage-compile`,
 `signage-sync`, `signage-poll`, `signage-watch` (offline = `signage.device_offline`, an urgent outage kind), `signage-prune`, `signage-media-check`.
 (6) Passwords typed for a Pi (login, sudo) are used for that run only, encrypted while it waits, redacted from the audit log and scrubbed from run
-output. (7) Routes that reach a Pi or a TV are `@OperationalOnly`; MCP has content tools only. (8) Media files go into a backup only when it asks
+output. (7) Routes that reach a Pi or a TV are `@OperationalOnly`; MCP has content tools only. Search kinds `signage_screen`,
+`signage_playlist`, `signage_media` (`SIGNAGE_KINDS`, gated on `signage:read:any`; one-off event playlists and devices are never indexed,
+nor any address); writes call `SignageService.searchChanged()`. The home page's Systems and Meters show a `screens` area (`AREA_KEYS`)
+only for a Signage reader on an install with a Pi set up (`readSignageHealth`: "offline" is the `signage-watch` job's `offline_alerted`,
+so a TV off by its power times is not a problem; problems link to the screen's page, never the admin-only device page). (8) Media files go into a backup only when it asks
 (`include_signage_media`; `SIGNAGE_FILE_PREFIXES`), are never removed by a restore, and a restored row whose file is absent becomes `missing`.
 (9) The agent ships in the api image (`/app/signage-agent`, bundle hash-checked); uploaded releases are checked before they are kept.
 Tests: `signage.integration.test.ts` (CockroachDB and YugabyteDB), `tests/signage/fake-pi.sh` (real setup, lock-down, sync and key rotation
@@ -1006,7 +1010,8 @@ Indexed kinds (see `SearchKind` in
   bus missed.
 - **Monitoring (DB-backed):** `monitor`, `infra_target`, `infra_entity`,
   `cisco_switch`, `cisco_port`, `cisco_mac`, `cisco_arp`, `cisco_vlan`,
-  `ipam_subnet`, `ipam_host`, `service_instance`, `service_group`. Each node reconciles these from the database
+  `ipam_subnet`, `ipam_host`, `service_instance`, `service_group` (and, the same way, `asset` and the signage kinds,
+  each behind its own module permission). Each node reconciles these from the database
   itself (`syncMonitoringDbSources()`): on startup, on a timer
   (`SEARCH_MONITORING_SYNC_MS`, default 120s, so poller churn is picked up
   without a manual reindex), and from Reindex. Not event-driven, so two nodes

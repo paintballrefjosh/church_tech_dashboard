@@ -26,6 +26,9 @@ export const SEARCH_KINDS: SearchKind[] = [
   "service_group",
   "dns_record",
   "asset",
+  "signage_screen",
+  "signage_playlist",
+  "signage_media",
 ];
 
 @Controller("search")
@@ -58,6 +61,7 @@ export class SearchController {
       canSeeMonitoring: user.permissions.includes(PERMISSIONS.MONITORS_READ_ANY),
       canSeeUnifi: user.permissions.includes(PERMISSIONS.UNIFI_READ_ANY),
       canSeeAssets: user.permissions.includes(PERMISSIONS.ASSETS_READ_ANY),
+      canSeeSignage: user.permissions.includes(PERMISSIONS.SIGNAGE_READ_ANY),
       kinds,
       limit: Math.max(1, Math.min(50, parseInt(limit ?? "20", 10) || 20)),
     });

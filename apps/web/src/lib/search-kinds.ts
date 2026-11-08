@@ -4,8 +4,11 @@ import {
   Boxes,
   Cable,
   Globe,
+  Image,
   Layers,
   LifeBuoy,
+  ListVideo,
+  Monitor,
   Network,
   Package,
   Server,
@@ -39,7 +42,10 @@ export type SearchKind =
   | "service_instance"
   | "service_group"
   | "dns_record"
-  | "asset";
+  | "asset"
+  | "signage_screen"
+  | "signage_playlist"
+  | "signage_media";
 
 export interface SearchHit {
   id: string;
@@ -67,7 +73,7 @@ interface KindMeta {
 // UniFi = cyan, Cisco = teal, so a glance tells you which subsystem a hit is in.
 // Class strings must be written out in full — Tailwind's JIT can't see values
 // assembled by interpolation, so a `bg-${c}-100` template would never generate.
-type Colour = "sky" | "amber" | "emerald" | "rose" | "indigo" | "cyan" | "teal";
+type Colour = "sky" | "amber" | "emerald" | "rose" | "indigo" | "cyan" | "teal" | "violet";
 const PILL: Record<Colour, string> = {
   sky: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
   amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
@@ -76,6 +82,7 @@ const PILL: Record<Colour, string> = {
   indigo: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200",
   cyan: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-200",
   teal: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200",
+  violet: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
 };
 const BAR: Record<Colour, string> = {
   sky: "border-sky-500",
@@ -85,6 +92,7 @@ const BAR: Record<Colour, string> = {
   indigo: "border-indigo-500",
   cyan: "border-cyan-500",
   teal: "border-teal-500",
+  violet: "border-violet-500",
 };
 function meta(label: string, Icon: LucideIcon, colour: Colour): KindMeta {
   return { label, Icon, pill: PILL[colour], bar: BAR[colour] };
@@ -110,6 +118,9 @@ export const KIND_META: Record<SearchKind, KindMeta> = {
   service_group: meta("Service group", Activity, "indigo"),
   dns_record: meta("DNS", Globe, "indigo"),
   asset: meta("Item", Package, "emerald"),
+  signage_screen: meta("Screen", Monitor, "violet"),
+  signage_playlist: meta("Playlist", ListVideo, "violet"),
+  signage_media: meta("Signage file", Image, "violet"),
 };
 
 /** Deep link for a hit: the indexer-provided URL, else a kind-based fallback. */
@@ -150,6 +161,12 @@ export function hrefForHit(h: SearchHit): string {
       return `/dns?view=records`;
     case "asset":
       return `/assets/${h.resourceId}`;
+    case "signage_screen":
+      return `/signage/screens/${h.resourceId}`;
+    case "signage_playlist":
+      return `/signage/playlists/${h.resourceId}`;
+    case "signage_media":
+      return `/signage/media`;
     default:
       return `/`;
   }

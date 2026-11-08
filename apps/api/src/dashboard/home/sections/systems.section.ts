@@ -21,6 +21,7 @@ import { CiscoService } from "../../../cisco/cisco.service";
 import { DnsService } from "../../../dns/dns.service";
 import type { HomeContext, SectionBuilder } from "../home.types";
 import { TtlCache, withDeadline } from "../cache";
+import { readSignageHealth } from "./signage-health";
 
 type Area = SystemsHealth["areas"][number];
 type Problem = SystemsHealth["problems"][number];
@@ -46,6 +47,7 @@ const AREA_META: Record<AreaKey, { label: string; href: string }> = {
   switches: { label: "Switches", href: "/monitoring/network-cisco" },
   dns: { label: "DNS", href: "/dns" },
   services: { label: "Services", href: "/monitoring/infra/service-groups" },
+  screens: { label: "Screens", href: "/signage" },
 };
 
 interface AreaResult {
@@ -96,9 +98,10 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
     const perms = ctx.user.permissions;
     if (!perms.includes(PERMISSIONS.MONITORS_READ_ANY)) return sectionOff("forbidden");
     const canUnifi = perms.includes(PERMISSIONS.UNIFI_READ_ANY);
+    const canSignage = perms.includes(PERMISSIONS.SIGNAGE_READ_ANY);
 
     const [shared, maintenance] = await Promise.all([
-      this.cache.get(`systems|${canUnifi}`, SYSTEMS_SHARED_MS, () => this.compute(canUnifi)),
+      this.cache.get(`systems|${canUnifi}|${canSignage}`, SYSTEMS_SHARED_MS, () => this.compute(canUnifi, canSignage)),
       readMaintenance(this.settings),
     ]);
     return sectionOk({
@@ -109,7 +112,7 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
   }
 
   /** The part of the answer that is the same for everyone who may see the section. */
-  private async compute(canUnifi: boolean): Promise<Pick<SystemsHealth, "areas" | "totals" | "problems">> {
+  private async compute(canUnifi: boolean, canSignage: boolean): Promise<Pick<SystemsHealth, "areas" | "totals" | "problems">> {
     const guard = async (key: AreaKey, run: () => Promise<AreaResult>): Promise<AreaResult> => {
       try {
         return await withDeadline(run(), AREA_DEADLINE_MS, "timed out");
@@ -118,17 +121,21 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
       }
     };
 
-    const [servers, internet, wifi, switches, dns, services] = await Promise.all([
+    const [servers, internet, wifi, switches, dns, services, screens] = await Promise.all([
       guard("servers", () => this.servers()),
       guard("internet", () => this.internet()),
       canUnifi ? guard("wifi", () => this.wifi()) : Promise.resolve(blank("wifi", "forbidden", null)),
       guard("switches", () => this.switches()),
       guard("dns", () => this.dnsArea()),
       guard("services", () => this.servicesArea()),
+      canSignage ? guard("screens", () => this.screensArea()) : Promise.resolve(blank("screens", "forbidden", null)),
     ]);
 
-    // Services is a newer, optional area: an install that uses none does not get an extra "not set up" row on every look.
-    const results = [servers, internet, wifi, switches, dns, services].filter((r) => !(r.area.key === "services" && r.area.state === "unconfigured"));
+    // Services and Screens are newer, optional areas: an install that uses none does not get an extra "not set up" row on
+    // every look, and a person who may not read Signage gets no Screens row at all.
+    const results = [servers, internet, wifi, switches, dns, services, screens].filter(
+      (r) => !((r.area.key === "services" || r.area.key === "screens") && r.area.state === "unconfigured") && !(r.area.key === "screens" && r.area.state === "forbidden"),
+    );
     const areas = results.map((r) => r.area);
     const totals = { up: 0, down: 0, total: 0 };
     for (const a of areas) {
@@ -393,6 +400,24 @@ export class HomeSystemsSection implements SectionBuilder<SystemsHealth> {
         });
       }
     }
+    return { area, problems };
+  }
+
+  /** Signage Pis set up and switched on; one problem per Pi the offline watch has judged offline. */
+  private async screensArea(): Promise<AreaResult> {
+    const h = await readSignageHealth(this.db, new Date());
+    if (!h) return blank("screens", "unconfigured", "none set up");
+    const area: Area = { key: "screens", ...AREA_META.screens, state: "ok", up: h.total - h.offline.length, down: h.offline.length, total: h.total, note: null };
+    const problems: Problem[] = h.offline.map((d) => ({
+      id: `screens:${d.id}`,
+      area: "screens",
+      name: d.name,
+      detail: "not answering",
+      since: isoOrNull(d.lastSeenAt),
+      // The screen's page is readable by every Signage reader; the device page is the admin's.
+      href: d.screenId ? `/signage/screens/${d.screenId}` : "/signage",
+      ack: null,
+    }));
     return { area, problems };
   }
 }
