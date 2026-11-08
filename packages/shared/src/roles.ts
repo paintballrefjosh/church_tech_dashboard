@@ -10,6 +10,7 @@ export const DEFAULT_GROUPS = {
   ADMIN: "admin",
   SUPPORT_ENGINEER: "support_engineer",
   USER: "user",
+  SIGNAGE: "signage",
 } as const;
 
 export type DefaultGroupKey = (typeof DEFAULT_GROUPS)[keyof typeof DEFAULT_GROUPS];
@@ -21,4 +22,6 @@ export const DEFAULT_GROUP_DESCRIPTIONS: Record<DefaultGroupKey, string> = {
     "Moderates tickets/wiki/monitoring; baseline access to most other modules.",
   [DEFAULT_GROUPS.USER]:
     "Default group joined by every newly provisioned user. Cannot be deleted.",
+  [DEFAULT_GROUPS.SIGNAGE]:
+    "Runs the TV screens: media, playlists, schedules, events and power times. Add the people who look after the TVs.",
 };

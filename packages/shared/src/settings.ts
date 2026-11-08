@@ -22,6 +22,9 @@ import { OFFSITE_KEYS, OFFSITE_MAX_KEEP, normaliseOffsitePrefix } from "./backup
 import { REPORT_KEYS } from "./monthly-report";
 import { ASSISTANT_KEYS, ASSISTANT_PROVIDERS } from "./assistant";
 import { isForbiddenAlertAddress } from "./alert-channels";
+import { SIGNAGE_KEYS, parseBulkWindow } from "./signage/settings";
+import { parseCidrList } from "./signage/devices";
+import { monitorScheduleProblem } from "./monitor-schedule";
 import {
   ALERT_KEYS,
   ESCALATION_MAX_MIN,
@@ -53,6 +56,7 @@ export interface KnownSetting<T = unknown> {
     | "helpdesk"
     | "assistant"
     | "livestreams"
+    | "signage"
     | "experimental";
 }
 
@@ -1030,6 +1034,160 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     defaultValue: 2,
     category: "livestreams",
   },
+  // Signage (docs/signage.md section 6). Managed by the Signage admin tier on the module's own pages (/signage/settings),
+  // not under Admin > Settings. Applied to every Pi by setup and "Apply again", and checked on every poll.
+  {
+    key: SIGNAGE_KEYS.setupUsername,
+    type: "string",
+    label: "Setup login: user name",
+    description: "The user name set in Raspberry Pi Imager for every new Pi. Used once per Pi, to install the dashboard's key.",
+    defaultValue: "",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.setupPassword,
+    type: "secret",
+    label: "Setup login: password",
+    description: "The password set in Raspberry Pi Imager. Stored encrypted; with 'Lock the setup password' on it stops working on each Pi once setup has finished.",
+    defaultValue: "",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.loginAccount,
+    type: "string",
+    label: "Account the dashboard logs in as",
+    description: "dedicated (an account named signage, created by setup, recommended) or setup (keep using the Imager account).",
+    defaultValue: "dedicated",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.lockSetupPassword,
+    type: "boolean",
+    label: "Lock the setup password",
+    description: "Once the dashboard's key works, the Imager account's password is locked, so nobody can log in to the Pi with it.",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.passwordLogin,
+    type: "boolean",
+    label: "Allow password login over SSH",
+    description: "Off: SSH accepts keys only (recommended).",
+    defaultValue: false,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.rootLogin,
+    type: "boolean",
+    label: "Allow root login over SSH",
+    description: "Off: root cannot log in over SSH at all (recommended).",
+    defaultValue: false,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.allowOnlyLogin,
+    type: "boolean",
+    label: "Only the dashboard's account may log in",
+    description: "SSH refuses every account except the one the dashboard uses.",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.onlyDashboard,
+    type: "boolean",
+    label: "Only the dashboard may connect",
+    description: "The dashboard's key works only from the dashboard's own addresses (learned from each login), plus any listed below.",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.extraSources,
+    type: "string",
+    label: "Also allow from",
+    description: "Extra addresses or subnets the dashboard may connect from (comma separated, e.g. 10.0.5.0/24). Needed when the Pis see the dashboard through NAT.",
+    defaultValue: "",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.restrictKey,
+    type: "boolean",
+    label: "Restrict the dashboard's key to signage commands",
+    description: "The key can only run the signage commands: no shell, no file transfer, no port forwarding (recommended).",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.firewall,
+    type: "boolean",
+    label: "Firewall on each Pi",
+    description: "Drops every incoming connection except SSH from the allowed addresses. Applied with an automatic undo if the dashboard cannot log in afterwards.",
+    defaultValue: false,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.readOnlyRoot,
+    type: "boolean",
+    label: "Read-only system (overlay)",
+    description: "Protects the SD card when someone pulls the power. Updates and setup changes then need a reboot, which the dashboard does.",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.osUpdateWindow,
+    type: "string",
+    label: "OS update window",
+    description: "When each Pi installs its operating system updates, e.g. Tue 02:00-04:00 (the same day-and-time format as monitor schedules).",
+    defaultValue: "Tue 02:00-04:00",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.ntpServer,
+    type: "string",
+    label: "Time server",
+    description: "Blank = Raspberry Pi OS's own. A Pi plays only its fallback and skips power times until its clock is synced.",
+    defaultValue: "",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.setHostname,
+    type: "boolean",
+    label: "Name each Pi after its device",
+    description: "Setup sets the Pi's host name from the name given in the dashboard.",
+    defaultValue: true,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.discoverNamePattern,
+    type: "string",
+    label: "Pi names look like",
+    description: "Names (UniFi, DNS) that mark an address as a Pi during discovery, e.g. tv-* or raspberrypi*. Blank = raspberrypi*.",
+    defaultValue: "",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.notifyNewPis,
+    type: "boolean",
+    label: "Tell Signage admins about new Pis",
+    description: "Continuous discovery sends a notice when it finds a Pi that is not set up.",
+    defaultValue: false,
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.bulkWindow,
+    type: "string",
+    label: "Large copies window",
+    description: "Files over 50 MB are copied to the Pis only during this time (unless a screen needs them within a day), e.g. 00:00-05:00.",
+    defaultValue: "00:00-05:00",
+    category: "signage",
+  },
+  {
+    key: SIGNAGE_KEYS.keyGeneration,
+    type: "number",
+    label: "Dashboard key generation",
+    description: "Changed by Rotate key on the Devices page; do not edit by hand.",
+    defaultValue: 1,
+    category: "signage",
+  },
   // Infrastructure monitoring (agentless: SSH / Proxmox API / Docker over SSH).
   // Per-target connection, credentials, interval and alert thresholds live on the
   // target rows (edited at /monitoring/infra). These are global collector knobs;
@@ -1269,6 +1427,7 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   planning_center: PERMISSIONS.PLANNING_CENTER_ADMIN,
   monitoring: PERMISSIONS.MONITORS_WRITE_ANY,
   livestreams: PERMISSIONS.LIVESTREAMS_ADMIN,
+  signage: PERMISSIONS.SIGNAGE_ADMIN,
 };
 
 /** Category of a known setting key, or null when the key isn't in the catalogue. */
@@ -1354,6 +1513,23 @@ export function findTogglePrerequisite(key: string): TogglePrerequisite | undefi
 export function validateSettingValue(key: string, value: unknown): string | null {
   const isLook = (v: unknown) => typeof v === "string" && (LOOK_IDS as readonly string[]).includes(v);
   switch (key) {
+    case SIGNAGE_KEYS.loginAccount:
+      return value === "dedicated" || value === "setup" ? null : "Enter dedicated or setup.";
+    case SIGNAGE_KEYS.setupUsername:
+      return typeof value === "string" && /^([a-z_][a-z0-9_-]{0,31})?$/.test(value.trim()) ? null : "Enter a Linux user name (lower case letters, digits, - and _).";
+    case SIGNAGE_KEYS.extraSources: {
+      if (typeof value !== "string") return "Enter addresses or subnets separated by commas.";
+      const { bad } = parseCidrList(value);
+      return bad.length ? `Not an address or subnet: ${bad.join(", ")}` : null;
+    }
+    case SIGNAGE_KEYS.osUpdateWindow:
+      return typeof value === "string" && value.trim() !== "" ? monitorScheduleProblem(value) : "Enter days and times, e.g. Tue 02:00-04:00.";
+    case SIGNAGE_KEYS.bulkWindow:
+      return typeof value === "string" && parseBulkWindow(value) ? null : "Enter a time range like 00:00-05:00.";
+    case SIGNAGE_KEYS.ntpServer:
+      return typeof value === "string" && /^[A-Za-z0-9.:-]{0,253}$/.test(value.trim()) ? null : "Enter just a host name or address.";
+    case SIGNAGE_KEYS.keyGeneration:
+      return typeof value === "number" && Number.isInteger(value) && value >= 1 ? null : "A whole number, 1 or more.";
     case "site.timezone": {
       if (typeof value !== "string" || value.trim() === "") {
         return "Enter an IANA time zone, for example Europe/London.";

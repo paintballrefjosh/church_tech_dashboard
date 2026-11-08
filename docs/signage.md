@@ -124,7 +124,9 @@ unit-tested).
 ## 6. Security settings (Signage admin)
 
 Every setting below is chosen by a Signage admin on the module's own **Security settings** page (`/signage/security`, stored
-in the `signage` settings category, `signage:admin` to read or change; not under the site admin's settings). Applied by setup and by "Apply again"; checked on every poll (drift = "Settings not applied"). Defaults in brackets.
+in the `signage` settings category, `signage:admin` to read or change). **All of the module's settings are reached from the
+module's own pages** (`/signage/settings`, with Security settings as one of its pages), never from Admin > Settings: you stay
+within the module for everything (decided 2026-11-08; the other modules are to be moved the same way later). Applied by setup and by "Apply again"; checked on every poll (drift = "Settings not applied"). Defaults in brackets.
 
 | Setting | What it does on the Pi |
 |---|---|
@@ -211,8 +213,8 @@ resumable; files over 50 MB in the 00:00-05:00 window unless needed within 24 h)
 drift, samples); `signage-watch` (offline and attention alerts, baselines in `job_state`, silenced by maintenance mode);
 `signage-prune` (samples 7 d, setup runs 90 d, unreferenced media 30 d, found rows 30 d after last seen, manifests beyond 5).
 
-**Compiler** (pure, `packages/shared/src/signage/compile.ts`): at any instant an active event (screen, then its screen
-groups, then all; priority, ties to the newest), then a schedule on the screen, then on its screen groups (ties to the lowest
+**Compiler** (pure, `packages/shared/src/signage/compile.ts`): at any instant an active event (highest priority first, then
+the most specific target: screen, screen group, all; then the newest, so an "all screens" emergency event at top priority wins), then a schedule on the screen, then on its screen groups (ties to the lowest
 id, warned in the UI), then the fallback playlist, then a built-in logo slide. Disabled or out-of-window items dropped, an
 empty playlist falls through, power resolves the same way (an event changes power only with `force_power_on`). Contiguous
 timeline, a playlist restarts at each entry, a video's time loops or cuts it, `media` lists every hash in the window. Unit

@@ -178,6 +178,17 @@ export const MODULES: readonly ModuleDefinition[] = [
     },
   },
   {
+    key: "signage",
+    label: "Signage",
+    description: "TV screens driven by Raspberry Pis: media, playlists, schedules, events, TV power, and the Pis themselves.",
+    tiers: ["user", "moderator", "admin"],
+    permissionsByTier: {
+      user: [PERMISSIONS.SIGNAGE_READ_ANY],
+      moderator: [PERMISSIONS.SIGNAGE_WRITE_ANY],
+      admin: [PERMISSIONS.SIGNAGE_ADMIN],
+    },
+  },
+  {
     key: "admin",
     label: "Administration",
     description: "Site settings, users/groups, audit log, OAuth, SMTP, network config.",
@@ -255,6 +266,7 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     checklists: "admin",
     assets: "admin",
     livestreams: "admin",
+    signage: "admin",
     admin: "admin",
   },
   support_engineer: {
@@ -279,5 +291,10 @@ export const DEFAULT_GROUP_MODULE_ACCESS: Record<string, Record<string, ModuleTi
     checklists: "user",
     assets: "user",
     livestreams: "user",
+  },
+  // The people who run the TVs (docs/signage.md section 9). Not a system group: it may be renamed or deleted, and it starts
+  // with no members. No other group gets Signage by default.
+  signage: {
+    signage: "moderator",
   },
 };

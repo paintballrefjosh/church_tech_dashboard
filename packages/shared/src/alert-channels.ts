@@ -19,6 +19,8 @@ export const OUTAGE_ALERT_KINDS: ReadonlyArray<string> = [
   "cluster.node_down",
   // A livestream that is not live when it should be, or has no picture or sound; its recovery says "is back".
   "livestream.problem",
+  // A signage Pi that stopped answering while its TV should be on; "is back online" comes under the same kind.
+  "signage.device_offline",
 ];
 
 /** Also sent to an "everything" channel: changes that are worth knowing but are not an outage. */

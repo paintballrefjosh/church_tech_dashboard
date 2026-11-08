@@ -31,6 +31,8 @@ export const NOTIFICATION_KINDS = [
   "cluster.node_down",
   "asset.overdue",
   "livestream.problem",
+  "signage.device_offline",
+  "signage.pi_found",
   "assistant.budget",
   "assistant.provider_down",
 ] as const;

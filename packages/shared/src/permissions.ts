@@ -142,6 +142,13 @@ export const PERMISSIONS = {
   LIVESTREAMS_READ_ANY: "livestreams:read:any",
   LIVESTREAMS_WRITE_ANY: "livestreams:write:any",
   LIVESTREAMS_ADMIN: "livestreams:admin",
+
+  // Signage (docs/signage.md). READ_ANY = see screens, what plays, schedules and media; WRITE_ANY = media, playlists,
+  // schedules, events and power schedules; ADMIN = discovery and setup of Pis, devices and commands, screens and screen
+  // groups, TV power/input now, agent releases and the module's settings (the `signage` settings category).
+  SIGNAGE_READ_ANY: "signage:read:any",
+  SIGNAGE_WRITE_ANY: "signage:write:any",
+  SIGNAGE_ADMIN: "signage:admin",
 } as const;
 
 export type PermissionString = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

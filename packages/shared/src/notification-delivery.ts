@@ -33,6 +33,8 @@ export const URGENT_NOTIFICATION_KINDS: ReadonlyArray<string> = [
   "dns.primary_unreachable",
   // A stream with no sound or picture during a service: also sends its recovery under the same kind.
   "livestream.problem",
+  // A TV screen whose Pi stopped answering while it should be showing something (its recovery uses the same kind).
+  "signage.device_offline",
 ];
 
 export function isUrgentNotificationKind(kind: string): boolean {

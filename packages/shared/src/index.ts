@@ -55,3 +55,4 @@ export * from "./monthly-report";
 export * from "./assistant";
 export * from "./assistant-actions";
 export * from "./service-monitoring";
+export * from "./signage";
