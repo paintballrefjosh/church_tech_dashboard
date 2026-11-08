@@ -104,6 +104,14 @@ const KIND_LABELS: Record<string, { title: string; hint: string }> = {
     title: "Livestream problem",
     hint: "A stream whose alerts go to one of your groups is not live when it should be, or has no sound or picture (and when it is back).",
   },
+  "signage.device_offline": {
+    title: "Signage Pi offline",
+    hint: "A signage Pi has not answered for 5 minutes while its screen should be on (and when it answers again). (Signage admins.)",
+  },
+  "signage.pi_found": {
+    title: "New Pi found",
+    hint: "Continuous discovery found a Raspberry Pi that is not set up yet, when that notice is switched on in Signage settings. (Signage admins.)",
+  },
   "assistant.budget": {
     title: "Assistant budget",
     hint: "The assistant has spent 80% of this month's budget, or all of it. (Admins only.)",

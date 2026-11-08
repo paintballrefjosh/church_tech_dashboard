@@ -1,5 +1,6 @@
 import {
   MonitorPlay,
+  Tv,
   Activity,
   BookOpen,
   Boxes,
@@ -158,6 +159,10 @@ const DESTINATIONS: Array<{ module?: string; admin?: boolean; cmd: GoCommand }> 
   { module: "propresenter", cmd: go("go:propresenter", "Go to", "ProPresenter", "/propresenter", Presentation, "slides") },
   { module: "planning_center", cmd: go("go:planning-center", "Go to", "Planning Center Services", "/planning-center", CalendarDays, "schedule") },
   { module: "livestreams", cmd: go("go:livestreams", "Go to", "Livestreams", "/livestreams", MonitorPlay, "stream youtube facebook resi live video sound broadcast") },
+  { module: "signage", cmd: go("go:signage", "Go to", "Signage screens", "/signage", Tv, "signage tv screens display lobby pi") },
+  { module: "signage", cmd: go("go:signage-media", "Go to", "Signage media", "/signage/media", Tv, "signage pictures videos upload slides") },
+  { module: "signage", cmd: go("go:signage-schedules", "Go to", "Signage schedules", "/signage/schedules", Tv, "signage week calendar playlist times") },
+  { module: "signage", cmd: go("go:signage-devices", "Go to", "Signage devices", "/signage/devices", Tv, "signage raspberry pi setup discover identify") },
   { module: "checklists", cmd: go("go:checklists", "Go to", "Checklists", "/checklists", ListChecks, "tasks sunday") },
   { cmd: go("go:status", "Go to", "Service status", "/status", Activity, "is it up") },
   // The report group (Site settings) can open it too; they get there from the notification it sends them.

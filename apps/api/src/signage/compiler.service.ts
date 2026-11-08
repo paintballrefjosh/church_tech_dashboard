@@ -174,7 +174,9 @@ export class SignageCompiler implements OnModuleInit {
     const r = resolveAt(this.inputFor(s, groupsBy.get(s.id) ?? [], content, tz), at);
     const describe = (source: string) => sourceLabel(source);
     const why = !r.winner
-      ? "Nothing is scheduled and the screen has no fallback playlist: it shows the logo slide."
+      ? r.candidates.length
+        ? "Every rule that applies has nothing to play, so the screen shows the logo slide."
+        : "Nothing is scheduled and the screen has no fallback playlist: it shows the logo slide."
       : r.winner.source === "fallback"
         ? "No event or schedule applies at this time, so the screen's fallback playlist plays."
         : `${describe(r.winner.source)} "${r.winner.name}" applies${r.candidates.findIndex((c) => c.source === r.winner!.source) > 0 ? " (rules above it had nothing to play)" : ""}.`;

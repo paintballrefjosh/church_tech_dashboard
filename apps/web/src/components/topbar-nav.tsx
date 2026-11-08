@@ -2,6 +2,7 @@
 
 import {
   MonitorPlay,
+  Tv,
   Images,
   LifeBuoy,
   StickyNote,
@@ -82,6 +83,8 @@ const CHURCH_APPS_ITEMS: Item[] = [
   },
   { href: "/checklists", label: "Checklists", Icon: ListChecks, module: "checklists" },
   { href: "/livestreams", label: "Livestreams", Icon: MonitorPlay, module: "livestreams" },
+  // Its settings are on its own pages (/signage/settings), not in the Administration menu (docs/signage.md section 6).
+  { href: "/signage", label: "Signage", Icon: Tv, module: "signage" },
 ];
 
 // Shown only to full site admins (access.admin === "admin"). Split into the
