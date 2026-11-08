@@ -46,6 +46,7 @@ check "no cluster mode" bash -c "! grep -q '^DEPLOY_MODE=cluster' '$d/.env'"
 check ".env is mode 600" test "$(stat -c %a "$d/.env")" = 600
 check "answers kept, mode 600" test "$(stat -c %a "$d/.install-answers")" = 600
 check "dry run starts nothing" bash -c "! test -f '$d/.install-state'"
+check "a new install derives its keys in the lampstand namespace" has "$d/.env" DERIVE_PREFIX=lampstand
 
 echo "== second run keeps the secret; an unchanged .env is left alone, a changed one is backed up"
 s1=$(val "$d/.env" AUTH_SECRET)
@@ -59,6 +60,16 @@ run "$d" "$a2" >/dev/null; rc=$?
 check "a changed answer is written" has "$d/.env" EXTERNAL_PORT=8124
 check "and the old .env is backed up" bash -c "ls '$d'/.env.bak-* >/dev/null 2>&1"
 check "AUTH_SECRET still unchanged" test "$(val "$d/.env" AUTH_SECRET)" = "$s1"
+check "and so does the namespace" has "$d/.env" DERIVE_PREFIX=lampstand
+
+echo "== an install made before the rename keeps its old key namespace (no line is added)"
+d=$(fresh legacy)
+printf 'AUTH_SECRET=%s\n' "$s1" >"$d/.env"
+a3=$(answers legacy SETUP=single DB_MODE=bundled S3_MODE=bundled EXTERNAL_PORT=8123 BEHIND_LB=no STACK=standard CONFIRM=yes)
+run "$d" "$a3" >/dev/null; rc=$?
+check "exits 0" test $rc -eq 0
+check "AUTH_SECRET kept" test "$(val "$d/.env" AUTH_SECRET)" = "$s1"
+check "no DERIVE_PREFIX written" bash -c "! grep -q '^DERIVE_PREFIX=' '$d/.env'"
 
 echo "== single server, production, own database with an awkward password, own S3, behind a load balancer"
 d=$(fresh b)

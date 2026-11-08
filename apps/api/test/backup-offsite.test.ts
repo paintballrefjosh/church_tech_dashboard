@@ -60,8 +60,16 @@ describe("offsite object names", () => {
 });
 
 describe("which copies to delete", () => {
-  const key = (d: string, id = "aaaaaaaa") => `p/church-dashboard-${d}-${id}.tar.gz`;
-  const keys = [key("20260101T000000Z"), key("20260102T000000Z"), key("20260103T000000Z"), key("20260104T000000Z"), "p/readme.txt", "p/.church-dashboard-write-test-xx"];
+  const key = (d: string, id = "aaaaaaaa") => `p/lampstand-${d}-${id}.tar.gz`;
+  const keys = [key("20260101T000000Z"), key("20260102T000000Z"), key("20260103T000000Z"), key("20260104T000000Z"), "p/readme.txt", "p/.lampstand-write-test-xx"];
+
+  it("still counts copies made before the rename, ordered by their time and not by their prefix", () => {
+    const old = (d: string) => `p/church-dashboard-${d}-aaaaaaaa.tar.gz`;
+    const mixed = [old("20260101T000000Z"), old("20260103T000000Z"), key("20260102T000000Z"), key("20260104T000000Z")];
+    expect(isOffsiteArchiveKey("p/", old("20260101T000000Z"))).toBe(true);
+    expect(offsiteKeyTime("p/", old("20260101T000000Z"))?.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    expect(offsiteKeysToDelete("p/", mixed, 2)).toEqual([old("20260101T000000Z"), key("20260102T000000Z")]);
+  });
 
   it("keeps the newest N and never touches other files", () => {
     expect(offsiteKeysToDelete("p/", keys, 2)).toEqual([key("20260101T000000Z"), key("20260102T000000Z")]);
