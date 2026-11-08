@@ -23,6 +23,16 @@ const overrideShape = createSignageOverrideSchema.innerType().innerType().shape;
  */
 export const SIGNAGE_TOOLS = [
   defineTool({
+    name: "signage_summary",
+    title: "Signage at a glance",
+    description: "How many signage Pis there are, how many answer, how many need attention, and how many newly found Pis wait to be set up.",
+    cls: "read",
+    method: "GET",
+    path: "/signage/summary",
+    permissions: [READ],
+    input: z.object({}),
+  }),
+  defineTool({
     name: "signage_screens_list",
     title: "Signage screens",
     description: "Every signage screen (TV): its room, what it plays now and from which rule, power state, screen groups and the Pi driving it (online or not).",

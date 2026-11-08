@@ -194,6 +194,8 @@ export const signageDevices = pgTable(
     knownHostKey: text("known_host_key"),
     hostKeyMismatch: boolean("host_key_mismatch").notNull().default(false),
     loginUser: text("login_user"),
+    /** The Imager account setup logged in with (locked afterwards when the settings say so). */
+    setupUser: text("setup_user"),
     keyGeneration: integer("key_generation"),
     serial: text("serial"),
     model: text("model"),

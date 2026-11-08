@@ -45,6 +45,11 @@ def overlay_active() -> bool:
 
 def _write(path: str, data: bytes, mode: int) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.ismount(path):
+        # A bind-mounted file (/etc/hostname in a container) cannot be replaced, only rewritten.
+        with open(path, "wb") as f:
+            f.write(data)
+        return
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
     try:
         with os.fdopen(fd, "wb") as f:

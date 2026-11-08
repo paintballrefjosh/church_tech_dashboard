@@ -103,7 +103,7 @@ export class PiSession {
   }
 
   /** Run one command. `stdin` may be a buffer, a string or a stream (a file copied from the object store). */
-  exec(command: string, opts: { stdin?: Buffer | string | Readable; timeoutMs?: number; maxStdout?: number } = {}): Promise<ExecResult> {
+  exec(command: string, opts: { stdin?: Buffer | string | Readable; timeoutMs?: number; maxStdout?: number; onStderr?: (text: string) => void } = {}): Promise<ExecResult> {
     const timeoutMs = opts.timeoutMs ?? 60_000;
     const maxStdout = opts.maxStdout ?? 8 * 1024 * 1024;
     return new Promise((resolve, reject) => {
@@ -127,6 +127,7 @@ export class PiSession {
           if (outBytes <= maxStdout) out.push(d);
         });
         stream.stderr.on("data", (d: Buffer) => {
+          opts.onStderr?.(d.toString("utf8"));
           stderr += d.toString("utf8");
           if (stderr.length > 200_000) stderr = stderr.slice(-100_000);
         });

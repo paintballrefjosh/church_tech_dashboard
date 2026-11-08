@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS "signage_devices" (
 	"known_host_key" text,
 	"host_key_mismatch" boolean DEFAULT false NOT NULL,
 	"login_user" text,
+	"setup_user" text,
 	"key_generation" integer,
 	"serial" text,
 	"model" text,

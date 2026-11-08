@@ -83,7 +83,7 @@ def check(log: Log) -> Dict[str, object]:
         log(f"warning: {m} is not one of the tested models (3B+, 4, 5).")
     if rel.get("VERSION_CODENAME") not in SUPPORTED_CODENAMES:
         raise ApplyError(f"{facts['os'] or 'This OS'} is not supported: flash Raspberry Pi OS Lite 64-bit ({', '.join(SUPPORTED_CODENAMES)}).")
-    if arch != "aarch64":
+    if arch != "aarch64" and not simulated():
         raise ApplyError(f"The OS is {arch}: flash the 64-bit Raspberry Pi OS Lite.")
     free_mb = shutil.disk_usage(paths.p("/")).free // 1048576
     if free_mb < 1024:
@@ -144,8 +144,9 @@ def accounts(c: Dict, log: Log) -> None:
     login = render.login_user(c)
     if c["loginAccount"] == "dedicated":
         ensure_user(paths.DEDICATED_USER, log, [], system=False)
-        # No password at all: the dashboard's key is the only way in.
-        run(["passwd", "-l", paths.DEDICATED_USER])
+        # No password at all ("*": nothing matches it), so the dashboard's key is the only way in. Not "passwd -l": sshd
+        # refuses even key logins to a LOCKED account when PAM is off.
+        run(["usermod", "-p", "*", paths.DEDICATED_USER])
     ensure_user(paths.PLAYER_USER, log, ["video", "render", "audio", "input"], system=True)
     if write_file(paths.SUDOERS, render.sudoers(login), 0o440):
         code, _, err = run(["visudo", "-cf", paths.SUDOERS])
