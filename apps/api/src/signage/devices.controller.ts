@@ -270,13 +270,15 @@ export class SignageDevicesController {
     await this.settings.set(SIGNAGE_KEYS.keyGeneration, next, user.id);
     const list = await this.devices.list();
     let queued = 0;
+    // A Pi that cannot be queued now (a run already waiting) keeps the old key until "Apply again": say which.
+    const notQueued: Array<{ deviceId: string; name: string; error: string }> = [];
     for (const d of list.filter((x) => x.status === "active" && x.enabled)) {
       await this.setup
         .queue(d.id, "apply", user.id, { rotate: true })
         .then(() => queued++)
-        .catch(() => undefined);
+        .catch((err: Error) => notQueued.push({ deviceId: d.id, name: d.name, error: err.message }));
     }
-    return { ...(await this.devices.keyInfo()), queued };
+    return { ...(await this.devices.keyInfo()), queued, notQueued };
   }
 
   // ------------------------------------------------------------ agent releases

@@ -71,6 +71,8 @@ else
   web_changed=0
   monitor_changed=0
   needs_rebuild apps/api && api_changed=1
+  # The signage Pi agent ships inside the api image (agent-bundle.ts packs it).
+  needs_rebuild services/signage-agent && api_changed=1
   needs_rebuild apps/web && web_changed=1
   needs_rebuild services/monitor && monitor_changed=1
   if needs_rebuild packages/shared; then

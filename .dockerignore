@@ -41,3 +41,5 @@ CLAUDE.md
 apps/api/test
 apps/web/**/*.test.ts
 apps/web/**/*.test.tsx
+services/signage-agent/tests
+**/__pycache__

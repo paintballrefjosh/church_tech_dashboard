@@ -54,6 +54,8 @@ COPY --from=proddeps /app/deploy/node_modules /app/node_modules
 #   2. migrations, placed so the migrate script's `path.resolve(__dirname, "../../migrations")` still hits
 #      the right directory (straight from the context: they do not depend on any build stage)
 COPY apps/api/migrations /app/migrations
+#      and the signage Pi agent, which the api packs into the bundle it installs on each Pi (agent-bundle.ts)
+COPY services/signage-agent /app/signage-agent
 #   3. the built @church/shared, over the stub pnpm deploy left in node_modules (the directory name is what
 #      pnpm derives from the workspace path; the check below fails the build if that ever stops being true)
 COPY --from=shared-build /app/packages/shared/package.json /app/node_modules/.pnpm/@church+shared@file+packages+shared/node_modules/@church/shared/package.json

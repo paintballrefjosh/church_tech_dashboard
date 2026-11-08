@@ -248,7 +248,7 @@ export class SignageSetup implements OnModuleInit {
       if (!claimed) continue;
       const key = claimed.deviceId ?? claimed.id;
       this.running.add(key);
-      void this.execute(claimed).finally(() => this.running.delete(key));
+      void this.execute(claimed, r.status === "running").finally(() => this.running.delete(key));
     }
   }
 
@@ -262,11 +262,12 @@ export class SignageSetup implements OnModuleInit {
       .where(eq(signageSetupRuns.id, r.id));
   }
 
-  async execute(r: RunRow): Promise<void> {
+  /** `takenOver`: the run was another node's, which stopped while it ran (its claim lapsed). */
+  async execute(r: RunRow, takenOver = false): Promise<void> {
     const secrets: RunSecrets = r.secretEnc ? (JSON.parse(decryptSecret(r.secretEnc)) as RunSecrets) : {};
     const saved = String((await this.settings.get(SIGNAGE_KEYS.setupPassword)) ?? "");
     const log = new RunLog(this.db, r.id, [secrets.password ?? "", secrets.sudoPassword ?? "", saved]);
-    if (r.output) log.line(r.output.trimEnd() + "\n(taken over from a node that stopped; starting again)");
+    if (r.output) log.line(r.output.trimEnd() + (takenOver ? "\n(taken over from a node that stopped; starting again)" : "\n(starting again)"));
     try {
       const d = r.deviceId ? await this.devices.row(r.deviceId) : null;
       if (!d) throw new CtlError("The device was removed.");
@@ -341,7 +342,7 @@ export class SignageSetup implements OnModuleInit {
         return;
       } catch (err) {
         if (!(err instanceof PiSshError && err.kind === "auth")) throw err;
-        log.line("the dashboard's key is not accepted any more: setting up again with the setup login");
+        log.line("the dashboard's key is not accepted: setting up again with the setup login");
       }
     }
     const username = secrets.username || String((await this.settings.get(SIGNAGE_KEYS.setupUsername)) ?? "") || "pi";
