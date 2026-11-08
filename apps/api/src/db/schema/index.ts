@@ -37,3 +37,4 @@ export * from "./assistant";
 export * from "./assets";
 export * from "./livestreams";
 export * from "./service-monitoring";
+export * from "./signage";

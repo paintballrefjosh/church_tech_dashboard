@@ -47,6 +47,7 @@ const CHECKLISTS = "Checklists";
 const MONITORING = "Monitoring";
 const ASSETS = "Assets and rooms";
 const LIVESTREAMS = "Livestreams";
+const SIGNAGE = "Signage";
 const PRINTERS = "Printers";
 const FILES = "Files";
 const OTHER = "Other";
@@ -181,6 +182,33 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   },
   livestream_snapshots: runtime("Livestream pictures", "The latest still of each stream; the next sample makes a new one."),
   livestream_checks: runtime("Livestream history", "Readings kept 30 days, written by the checker."),
+  // ---- signage (docs/signage.md) ----
+  // Media rows are always kept; the files themselves only when a backup asks for them ("Include signage media"). A row
+  // whose file is gone after a restore shows as "missing" and its items are left out of the screens' playlists.
+  signage_media: { policy: "data", group: SIGNAGE, title: "Signage media", label: ["name"], volatile: ["claimed_until"] },
+  signage_playlists: { policy: "data", group: SIGNAGE, title: "Signage playlists", label: ["name"] },
+  signage_playlist_items: { policy: "data", group: SIGNAGE, title: "Signage playlist items", label: ["position"] },
+  signage_screens: { policy: "data", group: SIGNAGE, title: "Signage screens", label: ["name"], volatile: ["manifest_dirty_at", "manifest_version", "manifest_compiled_at", "roku_serial"] },
+  signage_groups: { policy: "data", group: SIGNAGE, title: "Screen groups", label: ["name"] },
+  signage_screen_groups: { policy: "data", group: SIGNAGE, title: "Screen group members" },
+  signage_schedules: { policy: "data", group: SIGNAGE, title: "Signage schedules", label: ["name"] },
+  signage_overrides: { policy: "data", group: SIGNAGE, title: "Signage events", label: ["name"] },
+  signage_power_schedules: { policy: "data", group: SIGNAGE, title: "Signage power schedules", label: ["name"] },
+  signage_devices: {
+    policy: "data", group: SIGNAGE, title: "Signage devices (Pis)", label: ["name", "ip"],
+    // What the poller and sync write: a restored reading would be stale at once, and a restored claim would block the Pi.
+    volatile: [
+      "host_key_mismatch", "agent_version", "applied_settings_hash", "dashboard_sources", "manifest_version_applied", "manifest_wanted_since", "status",
+      "last_seen_at", "last_error", "latest", "identify_code", "identify_until", "offline_alerted", "claimed_until", "sync_claimed_until", "os_release",
+    ],
+  },
+  signage_discovery_subnets: { policy: "data", group: SIGNAGE, title: "Signage discovery subnets", label: ["cidr"], volatile: ["last_run_at", "last_found"] },
+  signage_agent_releases: { policy: "data", group: SIGNAGE, title: "Signage agent releases", label: ["version"] },
+  signage_manifests: runtime("Signage manifests", "Compiled from the schedules again after a restore (every screen is marked to compile)."),
+  signage_found: runtime("Signage discovery results", "What the last scans saw; the next scan finds them again."),
+  signage_setup_runs: runtime("Signage setup runs", "Logs of setup and update runs, kept 90 days."),
+  signage_status_samples: runtime("Signage device readings", "Temperature and Wi-Fi readings kept 7 days, written by the poller."),
+  signage_screenshots: runtime("Signage screenshots", "The latest picture of each screen; the next one replaces it."),
   // ---- service monitoring (templates on infra hosts) ----
   service_templates: { policy: "data", group: MONITORING, title: "Service templates", label: ["key"] },
   service_groups: {
@@ -278,7 +306,7 @@ export interface RestoreSection {
   hasFiles: boolean;
 }
 
-const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, ASSETS, LIVESTREAMS, FILES];
+const SECTION_ORDER = [PEOPLE, SETTINGS, HELPDESK, WIKI, NOTES, CHECKLISTS, MONITORING, PRINTERS, ASSETS, LIVESTREAMS, SIGNAGE, FILES];
 
 const SECTION_BLURBS: Record<string, string> = {
   [PEOPLE]: "Users, groups and who can do what, sign-in links, passwords, two-factor secrets and API tokens.",
@@ -291,6 +319,7 @@ const SECTION_BLURBS: Record<string, string> = {
   [PRINTERS]: "Printers and their SNMP settings.",
   [ASSETS]: "Rooms, the equipment inventory and who has had each item.",
   [LIVESTREAMS]: "The livestreams that are checked and how (their readings, pictures and history are not kept).",
+  [SIGNAGE]: "TV screens, screen groups, media records, playlists, schedules, events, power times, discovery subnets and the Pis (the media files themselves only when the backup includes them).",
   [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
 };
 

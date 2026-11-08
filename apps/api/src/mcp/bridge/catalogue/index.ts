@@ -7,6 +7,7 @@ import { CHURCH_TOOLS } from "./church.tools";
 import { GENERAL_TOOLS } from "./general.tools";
 import { MONITORING_TOOLS } from "./monitoring.tools";
 import { NETWORK_TOOLS } from "./network.tools";
+import { SIGNAGE_TOOLS } from "./signage.tools";
 import { OPERATIONAL_TOOLS } from "./operational.tools";
 import { PERSONAL_TOOLS } from "./personal.tools";
 import { TICKET_TOOLS } from "./tickets.tools";
@@ -30,4 +31,5 @@ export const BRIDGE_TOOLS: BridgeTool[] = [
   ...ADMIN_TOOLS,
   ...ATTACHMENT_TOOLS,
   ...ASSET_TOOLS,
+  ...SIGNAGE_TOOLS,
 ];
