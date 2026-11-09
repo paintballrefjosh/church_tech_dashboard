@@ -122,11 +122,12 @@ export const PERMISSIONS = {
   CHECKLISTS_ADMIN: "checklists:admin",
 
   // Assistant (docs/assistant.md). USE = ask questions. USAGE = see usage and feedback across people (no conversation
-  // text). HISTORY = read other people's conversations, only while assistant.admins_can_read_history allows it (not built).
-  // Configuration is site administration (the `assistant` settings category), not this module.
+  // text). ADMIN = set the assistant up: the provider and its key, the limits and budget, Test connection, the privacy
+  // acknowledgement and the on/off switch (the `assistant` settings category). Conversations stay private to their owner at
+  // every tier; nobody reads another person's.
   ASSISTANT_USE: "assistant:use",
   ASSISTANT_USAGE: "assistant:usage",
-  ASSISTANT_HISTORY: "assistant:history",
+  ASSISTANT_ADMIN: "assistant:admin",
 
   // Assets and rooms (docs/assets.md). READ_ANY = the inventory, CHECKOUT_OWN = check an item out to / back in from
   // yourself, WRITE_ANY = add and edit items, check out to anyone, see cost and history, ADMIN = delete and import.

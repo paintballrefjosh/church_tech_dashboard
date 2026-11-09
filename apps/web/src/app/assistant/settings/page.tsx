@@ -9,8 +9,9 @@ import { AssistantPanel } from "./assistant-panel";
 export const dynamic = "force-dynamic";
 
 /**
- * The assistant's own settings (docs/module-settings.md D3). Site admins only for now: it sends wiki, ticket and live-system
- * content to an outside provider, so the setup checklist, the privacy notice and the provider's details stay with them.
+ * The assistant's own settings (docs/module-settings.md D3), for the Assistant module's admin tier and site admins. It
+ * decides where wiki, ticket and live-system content is sent, so the setup checklist, the privacy notice (who accepted it,
+ * for which destination) and the audit log are what guard it.
  */
 export default async function AssistantSettingsPage() {
   const session = await auth();
@@ -26,7 +27,7 @@ export default async function AssistantSettingsPage() {
           </SettingsSection>
         </>
       ) : (
-        <SettingsFormSection id="as-denied" title="Provider, limits and history" settings={null} category="assistant" deniedText="Only a site admin can change these, because the assistant sends the site's content to an outside provider." />
+        <SettingsFormSection id="as-denied" title="Provider, limits and history" settings={null} category="assistant" deniedText="Only an Assistant admin can change these, because the assistant sends the site's content to an outside provider." />
       )}
     </ModuleSettingsPage>
   );

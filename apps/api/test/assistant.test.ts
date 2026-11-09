@@ -2,7 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  MODULES,
+  PERMISSIONS,
+  assistantAlertRecipients,
   assistantCost,
+  permissionsFor,
   assistantDestination,
   assistantLimitProblem,
   assistantMayUseRoute,
@@ -201,5 +205,40 @@ describe("Anthropic client (the official SDK against a local Messages API stand-
     const err = await s.turn(() => undefined, new AbortController().signal).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(LlmError);
     expect(err).toMatchObject({ kind: "unauthorised" });
+  });
+});
+
+describe("who is told about the assistant's budget and a failing provider", () => {
+  const rows = [
+    { userId: "a", groupName: "admin", tier: "admin" },
+    { userId: "b", groupName: "ai-team", tier: "admin" },
+    { userId: "b", groupName: "everyone", tier: null },
+    { userId: "c", groupName: "ai-readers", tier: "moderator" },
+    { userId: "d", groupName: "user", tier: "user" },
+    { userId: "e", groupName: "user", tier: null },
+  ];
+  it("is the admin group and the groups holding the Assistant admin tier, each person once", () => {
+    expect(assistantAlertRecipients(rows, "admin").sort()).toEqual(["a", "b"]);
+  });
+  it("does not include a moderator (usage figures only) or an ordinary user", () => {
+    const got = assistantAlertRecipients(rows, "admin");
+    expect(got).not.toContain("c");
+    expect(got).not.toContain("d");
+  });
+  it("is empty when nobody holds either", () => {
+    expect(assistantAlertRecipients([{ userId: "x", groupName: "user", tier: "user" }], "admin")).toEqual([]);
+  });
+});
+
+describe("the Assistant module's tiers", () => {
+  const mod = MODULES.find((m) => m.key === "assistant")!;
+  it("user asks, moderator sees usage, admin sets it up, and nobody reads another person's conversations", () => {
+    expect(permissionsFor("assistant", "user")).toContain(PERMISSIONS.ASSISTANT_USE);
+    expect(permissionsFor("assistant", "user")).not.toContain(PERMISSIONS.ASSISTANT_USAGE);
+    expect(permissionsFor("assistant", "moderator")).toEqual(expect.arrayContaining([PERMISSIONS.ASSISTANT_USE, PERMISSIONS.ASSISTANT_USAGE]));
+    expect(permissionsFor("assistant", "moderator")).not.toContain(PERMISSIONS.ASSISTANT_ADMIN);
+    expect(permissionsFor("assistant", "admin")).toEqual(expect.arrayContaining([PERMISSIONS.ASSISTANT_USE, PERMISSIONS.ASSISTANT_USAGE, PERMISSIONS.ASSISTANT_ADMIN]));
+    expect(mod.permissionsByTier.admin).toEqual([PERMISSIONS.ASSISTANT_ADMIN]);
+    expect(Object.values(PERMISSIONS)).not.toContain("assistant:history");
   });
 });

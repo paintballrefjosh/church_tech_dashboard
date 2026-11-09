@@ -68,7 +68,7 @@ export interface KnownSetting<T = unknown> {
 }
 
 export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
-  // Assistant (docs/assistant.md). Site admin only. Turning it on needs the readiness checklist (assistant.ts) all green.
+  // Assistant (docs/assistant.md). Managed by the Assistant admin tier (and site admins). Turning it on needs the readiness checklist (assistant.ts) all green.
   {
     key: ASSISTANT_KEYS.enabled,
     type: "boolean",
@@ -1427,8 +1427,9 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   microsoft: null,
   smtp: null,
   backup: null,
-  // Site admins only for now (docs/module-settings.md D3): it sends wiki, ticket and live-system content to an outside provider.
-  assistant: null,
+  // The Assistant module's admin tier (docs/module-settings.md D3). It decides where wiki, ticket and live-system content is
+  // sent, so the setup checklist, the audit log and the recorded privacy acknowledgement are what guard it.
+  assistant: PERMISSIONS.ASSISTANT_ADMIN,
   helpdesk: PERMISSIONS.TICKETS_ADMIN,
   tickets: PERMISSIONS.TICKETS_ADMIN,
   wiki: PERMISSIONS.WIKI_ADMIN,

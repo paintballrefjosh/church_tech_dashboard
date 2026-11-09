@@ -37,4 +37,8 @@ describe("setting categories after the move into the modules", () => {
       expect(where.size, t.toggleKey).toBeLessThanOrEqual(t.toggleKey.startsWith("auth.") ? 2 : 1);
     }
   });
+
+  it("the Assistant is set up by its own admin tier", () => {
+    expect(SETTING_CATEGORY_MANAGE_PERMISSION.assistant).toBe(PERMISSIONS.ASSISTANT_ADMIN);
+  });
 });

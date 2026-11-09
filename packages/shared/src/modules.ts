@@ -147,12 +147,12 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     key: "assistant",
     label: "Assistant",
-    description: "Ask questions in plain words about the wiki, tickets and live systems (only once a site admin has set it up).",
+    description: "Ask questions in plain words about the wiki, tickets and live systems (only once an Assistant admin has set it up).",
     tiers: ["user", "moderator", "admin"],
     permissionsByTier: {
       user: [PERMISSIONS.ASSISTANT_USE],
       moderator: [PERMISSIONS.ASSISTANT_USAGE],
-      admin: [PERMISSIONS.ASSISTANT_HISTORY],
+      admin: [PERMISSIONS.ASSISTANT_ADMIN],
     },
   },
   {

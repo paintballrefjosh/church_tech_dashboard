@@ -28,7 +28,7 @@ export default async function AssistantPage() {
                 <BarChart3 className="h-4 w-4" aria-hidden /> Usage
               </Link>
             ) : null}
-            {perms.has("site:admin") ? (
+            {perms.has("assistant:admin") ? (
               <Link href="/assistant/settings" className={link}>
                 <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
               </Link>

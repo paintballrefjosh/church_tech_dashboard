@@ -64,7 +64,7 @@ export default async function AssistantUsagePage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
   const [res, perms] = await Promise.all([apiFetch("/api/v1/assistant/admin/usage"), viewerPermissions()]);
-  const canConfigure = perms.has("site:admin");
+  const canConfigure = perms.has("assistant:admin");
   const u = res.ok ? ((await res.json()) as Usage) : null;
   const a = u?.answers;
   const pct = u && u.budget > 0 ? Math.min(100, Math.round((u.cost / u.budget) * 100)) : null;
@@ -90,7 +90,7 @@ export default async function AssistantUsagePage() {
                   Assistant settings
                 </Link>
               ) : (
-                "Assistant settings (a site admin changes them)"
+                "Assistant settings (an Assistant admin changes them)"
               )}
               . Figures only: no question or answer is shown here.
             </p>

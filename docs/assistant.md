@@ -174,7 +174,6 @@ New settings category `assistant` (added to the `category` union in `packages/sh
 | `assistant.user_daily_questions` | number | `100` | Per user per day. |
 | `assistant.max_concurrent` | number | `2` | Questions running at once, **across all nodes** (matters for a single GPU box). |
 | `assistant.history_retention_days` | number | `30` | Conversations older than this are deleted. `0` keeps nothing after the answer is delivered. |
-| `assistant.admins_can_read_history` | boolean | `false` | Whether site admins may read other users' conversations (off by default). |
 | `assistant.privacy_acknowledged_by` | string | `""` | User id, and time, of the admin who accepted the data notice. Written by the UI, not editable by hand. |
 | `assistant.last_test` | json | `null` | Result of the last successful connection test (time, latency, model, capabilities). Written by the test, not editable by hand. |
 
@@ -210,7 +209,7 @@ the key", "the model does not support tool calling").
 
 ### Reaching the settings
 
-`/admin/settings/assistant`, `site:admin`. Changes are audited like other settings; the key is redacted from the audit
+`/assistant/settings`, `assistant:admin` (the Assistant admin tier; site admins have it too). Changes are audited like other settings; the key is redacted from the audit
 snapshot. A usage page (section 12) sits next to it.
 
 ## 6. Access control
@@ -218,8 +217,10 @@ snapshot. A usage page (section 12) sits next to it.
 - New module `assistant` in `packages/shared/src/modules.ts`:
   - `user` tier: may use the assistant (`assistant:use`).
   - `moderator` tier: also sees usage and feedback across users, without conversation text (`assistant:usage`).
-  - `admin` tier: also reads other users' conversations when `assistant.admins_can_read_history` is on
-    (`assistant:history`). **Configuration** stays with the site `admin` module (`/admin/settings`), not this tier.
+  - `admin` tier: also sets the assistant up (`assistant:admin`, decided 2026-11-09): the provider and its key, limits and
+    budget, retention, Test connection, the privacy acknowledgement and the switch, on `/assistant/settings`. It also gets the
+    budget and provider-failure notices (with the admin group). **No tier reads another person's conversations**
+    (`assistant:history` and `assistant.admins_can_read_history` were designed and never built; removed).
 - Seed grants: `admin` group only. The enabling checklist walks the admin through granting it to other groups. (Open
   question: should the default `user` group get it once the feature is on? See section 17.)
 - **The assistant is session-only in v1** (`@SessionOnly()`): an API token cannot start a chat, so a leaked script
@@ -475,7 +476,7 @@ apps/api/src/assistant/
 apps/api/src/db/schema/assistant.ts + migration 00NN_assistant.sql
 apps/web/src/app/assistant/                     chat page, conversation list
 apps/web/src/app/assistant/usage/                 usage page
-apps/web/src/app/admin/settings/assistant/      settings section, readiness checklist, Test connection
+apps/web/src/app/assistant/settings/            settings section, readiness checklist, Test connection
 apps/web/src/components/assistant-*.tsx         message list, composer, sources, panel
 tests/assistant/                                questions.yaml, fixtures, fake provider server, eval script
 ```
@@ -502,8 +503,7 @@ guarantees are unchanged. The model is never given a tool that mutates.
 
 1. **Default access:** once enabled, should the baseline `user` group get the module automatically, or only groups the
    admin picks? (Proposed: only groups the admin picks, via the checklist.)
-2. **History visibility:** are private, per-user conversations with no admin access the right default? (Proposed: yes,
-   `assistant.admins_can_read_history` off.)
+2. **History visibility:** decided: conversations are private to their owner at every tier, with no switch.
 3. **Retention default:** 30 days, or keep nothing after the answer? (Proposed: 30.)
 4. **Budget default:** require a cap for hosted providers (proposed: yes, enforced by the readiness check).
 5. **Notes and personal data:** are own-scope notes searchable by the assistant for their owner? (Proposed: yes, own only.)

@@ -1,6 +1,6 @@
 /**
  * The assistant (docs/assistant.md): an in-app chat over what the site knows, answered by an EXTERNAL model the site
- * admin points it at (the Claude API, or any OpenAI-compatible server they run). Off until a site admin has configured
+ * admin points it at (the Claude API, or any OpenAI-compatible server they run). Off until an Assistant admin has configured
  * it, tested it, set a budget and acknowledged what is sent; read-only; acts as the person asking. The rules here are
  * pure, unit-tested in apps/api/test/assistant.test.ts.
  */
@@ -160,6 +160,15 @@ export function assistantReadiness(f: AssistantReadinessFacts): { ready: boolean
   return { ready: items.every((i) => i.ok), items };
 }
 
+/**
+ * Who is told about the budget and about a failing provider: the members of the admin group and of any group that holds the
+ * Assistant module's admin tier (`rows` is one line per person, group and that group's tier on the module, null when none).
+ * One entry per person, however many groups they are in.
+ */
+export function assistantAlertRecipients(rows: ReadonlyArray<{ userId: string; groupName: string; tier: string | null }>, adminGroupName: string): string[] {
+  return [...new Set(rows.filter((r) => r.groupName === adminGroupName || r.tier === "admin").map((r) => r.userId))];
+}
+
 /** Cost of one answer in the site's currency, from the admin's prices per million tokens. */
 export function assistantCost(inputTokens: number, outputTokens: number, priceIn: number, priceOut: number): number {
   return (inputTokens * priceIn + outputTokens * priceOut) / 1_000_000;
@@ -176,7 +185,7 @@ export function assistantLimitProblem(f: {
 }): string | null {
   if (f.ratePerMin > 0 && f.questionsLastMinute >= f.ratePerMin) return "That is a lot of questions in a minute. Try again in a moment.";
   if (f.daily > 0 && f.questionsToday >= f.daily) return "You have asked as many questions as one person may today. It resets at midnight.";
-  if (f.budget > 0 && f.monthCost >= f.budget) return "This month's budget for the assistant is used up. A site admin can raise it.";
+  if (f.budget > 0 && f.monthCost >= f.budget) return "This month's budget for the assistant is used up. An Assistant admin can raise it.";
   return null;
 }
 

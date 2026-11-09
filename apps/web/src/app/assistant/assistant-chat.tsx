@@ -383,12 +383,12 @@ export function AssistantChat({ compact = false, initialQuestion = "" }: { compa
 
   if (!status) return <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
   if (!status.canUse) return <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">Your groups do not include the assistant.</p>;
-  if (!status.enabled) return <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">The assistant is not turned on. A site admin sets it up in the assistant&apos;s Settings page.</p>;
+  if (!status.enabled) return <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">The assistant is not turned on. An Assistant admin sets it up in the assistant&apos;s Settings page.</p>;
 
   const chat = (
     <section aria-label="Chat" className={`flex flex-col rounded-md border border-slate-300 dark:border-slate-800 ${compact ? "min-h-0 flex-1" : "min-h-[60vh]"}`}>
       {status.health === "budget_used" ? (
-        <p className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">This month&apos;s budget is used up: questions are refused until a site admin raises it.</p>
+        <p className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">This month&apos;s budget is used up: questions are refused until an Assistant admin raises it.</p>
       ) : status.health === "failing" ? (
         <p className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">The assistant&apos;s model has not been answering: questions may fail.</p>
       ) : null}

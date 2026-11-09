@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
-import { and, asc, desc, eq, gte, inArray, like, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, like, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   ASSISTANT_PROMPT_VERSION,
@@ -10,6 +10,7 @@ import {
   PERMISSIONS,
   answerSaysNotFound,
   assistantActionsFor,
+  assistantAlertRecipients,
   assistantBudgetLevel,
   assistantCost,
   assistantProviderDown,
@@ -27,7 +28,7 @@ import {
 } from "@lampstand/shared";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { DB, type Db } from "../db/db.module";
-import { assistantAnswers, assistantConversations, assistantMessages, assistantUsageDaily, groupMemberships, groups, infraTargets, monitorIncidents, monitors, serviceGroups } from "../db/schema";
+import { assistantAnswers, assistantConversations, assistantMessages, assistantUsageDaily, groupMemberships, groupModuleAccess, groups, infraTargets, monitorIncidents, monitors, serviceGroups, users } from "../db/schema";
 import { NotificationsService } from "../notifications/notifications.service";
 import { SettingsService } from "../settings/settings.service";
 import { SearchService } from "../search/search.service";
@@ -684,7 +685,7 @@ export class AssistantService implements OnModuleInit {
   }
 
   /**
-   * The `assistant-watch` job: tell site admins when this month's spending passes 80% and 100% of the budget (once each a
+   * The `assistant-watch` job: tell the Assistant admins and the admin group when this month's spending passes 80% and 100% of the budget (once each a
    * month), and when the provider keeps failing (`assistantProviderDown`), then when it works again. State in job_state, so
    * a handover to another node neither repeats nor misses a notice. Not silenced by maintenance mode: it is about the
    * feature, not the network.
@@ -722,11 +723,22 @@ export class AssistantService implements OnModuleInit {
       next.providerDown = down;
     }
     if (notices.length) {
-      const [adminGroup] = await this.db.select({ id: groups.id }).from(groups).where(eq(groups.name, DEFAULT_GROUPS.ADMIN)).limit(1);
-      const admins = adminGroup ? await this.db.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, adminGroup.id)) : [];
-      for (const n of notices) await this.notifications.createMany(admins.map((a) => ({ recipientUserId: a.userId, kind: n.kind, title: n.title, body: n.body, link: "/assistant/usage" })));
+      const recipients = await this.alertRecipients();
+      for (const n of notices) await this.notifications.createMany(recipients.map((id) => ({ recipientUserId: id, kind: n.kind, title: n.title, body: n.body, link: "/assistant/usage" })));
     }
     await this.jobState.set(ASSISTANT_STATE.job, ASSISTANT_STATE.watch, next);
+  }
+
+  /** The admin group and everyone in a group with the Assistant module's admin tier (active accounts only). */
+  async alertRecipients(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ userId: users.id, groupName: groups.name, tier: groupModuleAccess.tier })
+      .from(users)
+      .innerJoin(groupMemberships, eq(groupMemberships.userId, users.id))
+      .innerJoin(groups, eq(groups.id, groupMemberships.groupId))
+      .leftJoin(groupModuleAccess, and(eq(groupModuleAccess.groupId, groups.id), eq(groupModuleAccess.moduleKey, "assistant")))
+      .where(and(eq(users.isActive, true), isNull(users.deletedAt)));
+    return assistantAlertRecipients(rows, DEFAULT_GROUPS.ADMIN);
   }
 
   /** Conversations past `assistant.history_retention_days`, in batches. */

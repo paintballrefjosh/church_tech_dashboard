@@ -21,7 +21,7 @@ function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T
 
 /**
  * The assistant (docs/assistant.md). Session only throughout: an API token cannot spend the budget, and the lookups run
- * with the person's own session. Configuration is site administration; using it is the `assistant` module.
+ * with the person's own session. Setting it up needs the Assistant module's admin tier (or a site admin); asking needs its user tier.
  */
 @Controller("assistant")
 @SessionOnly()
@@ -115,25 +115,25 @@ export class AssistantController {
     return this.assistant.decideAction(user, id, actionId, b.status, b.resultUrl);
   }
 
-  // ---- site administration ----
+  // ---- setting it up (the Assistant admin tier; a site admin has every permission) ----
 
   /** The checklist that must be green before it can be switched on, with the last test and the privacy acknowledgement. */
   @Get("admin/readiness")
-  @RequirePermissions(PERMISSIONS.SITE_ADMIN)
+  @RequirePermissions(PERMISSIONS.ASSISTANT_ADMIN)
   async readiness() {
     const r = await this.assistant.readiness();
     return { ready: r.ready, items: r.items, lastTest: r.lastTest, privacy: r.privacy, destination: r.destination, enabled: r.config.enabled };
   }
 
   @Post("admin/test")
-  @RequirePermissions(PERMISSIONS.SITE_ADMIN)
+  @RequirePermissions(PERMISSIONS.ASSISTANT_ADMIN)
   @Audited({ action: "assistant.test", resourceType: "assistant" })
   test() {
     return this.assistant.test();
   }
 
   @Post("admin/privacy")
-  @RequirePermissions(PERMISSIONS.SITE_ADMIN)
+  @RequirePermissions(PERMISSIONS.ASSISTANT_ADMIN)
   @Audited({ action: "assistant.privacy.acknowledge", resourceType: "assistant" })
   acknowledge(@CurrentUser() user: AuthenticatedUser) {
     return this.assistant.acknowledgePrivacy(user);

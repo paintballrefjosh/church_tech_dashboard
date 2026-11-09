@@ -931,8 +931,8 @@ multipart. No delete tool.
 ## Assistant
 
 `/assistant` (`apps/api/src/assistant/`, rules in `packages/shared/src/assistant.ts`, unit-tested in `apps/api/test/assistant.test.ts`; design
-[docs/assistant.md](docs/assistant.md)): a chat answered by an EXTERNAL model the site admin chooses (`assistant.provider` `anthropic` through
-`@anthropic-ai/sdk`, or `openai_compatible` for any `/v1/chat/completions` server), settings category `assistant`, migration 0080. Rules:
+[docs/assistant.md](docs/assistant.md)): a chat answered by an EXTERNAL model the Assistant admin chooses (`assistant.provider` `anthropic` through
+`@anthropic-ai/sdk`, or `openai_compatible` for any `/v1/chat/completions` server), settings category `assistant` (managed by `assistant:admin`, the Assistant module's admin tier, which a site admin also has; the moderator tier sees usage only; **no tier reads another person's conversations**), migration 0080. Rules:
 (1) **Off until ready**: `SettingsService` refuses `assistant.enabled = true` unless `assistantReadiness` is all green (provider + model, a
 passing Test connection whose `assistantFingerprint` matches the CURRENT provider/URL/key/model, a group with the `assistant` module, a budget or
 both prices 0, the privacy notice acknowledged for the current destination). Test results and the acknowledgement live in `job_state`
@@ -954,8 +954,8 @@ only: no model is called).
 `PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed ONCE. **Never execute a proposal on the server, and never take a card's
 description from the model** (an incident's is read from the database). A new kind = a schema branch, a permission, a `proposalRequest` case, a
 headline, tests. Pausing alerts is always 1-24 hours. (8) *Figures* are `assistant_answers` (migration 0086): one row per answer, no text, no person,
-400 days, `skip` in the backup registry; the usage page is `/assistant/usage` and the setup page `/assistant/settings` (site admins only, with the readiness checklist and privacy notice). Feedback: `POST /assistant/messages/:id/feedback` (comment redacted from
-audit). (9) Job `assistant-watch` (5 min, `job_state` `assistant/watch`) tells the admin group at 80%/100% of the budget and when the provider fails
+400 days, `skip` in the backup registry; the usage page is `/assistant/usage` and the setup page `/assistant/settings` (Assistant admins, with the readiness checklist and privacy notice). Feedback: `POST /assistant/messages/:id/feedback` (comment redacted from
+audit). (9) Job `assistant-watch` (5 min, `job_state` `assistant/watch`) tells the admin group and the Assistant admins (`assistantAlertRecipients`) at 80%/100% of the budget and when the provider fails
 three answers in a row (`assistantProviderDown`) and recovers; not silenced by maintenance mode. `/assistant/status` carries `health`;
 `/health/services` has an assistant card (degraded only). (10) The slide-over (`components/assistant-panel.tsx`) has no button of its own (a third top-bar control
 wrapped the bar at 1280 px): the user menu's "Ask the assistant" and the palette open it via `ASSISTANT_OPEN_EVENT`; while a question is typed the
