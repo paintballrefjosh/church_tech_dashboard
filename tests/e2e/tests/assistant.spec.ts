@@ -84,7 +84,7 @@ test("the command palette keeps 'Ask the assistant' for a typed question and ope
 });
 
 test("the usage page shows figures, never questions", async () => {
-  await page.goto("/admin/assistant");
+  await page.goto("/assistant/usage");
   await expect(page.getByRole("heading", { name: "Assistant usage" })).toBeVisible();
   await expect(page.getByText("Figures only: no question or answer is shown here.")).toBeVisible();
   await expect(page.getByRole("region", { name: "Outcomes" })).toBeVisible();

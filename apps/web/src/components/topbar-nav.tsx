@@ -104,12 +104,6 @@ const SITE_ADMIN_REPORTING: NavDropdownItem[] = [
   { href: "/admin/audit", label: "Audit log", Icon: ScrollText },
 ];
 
-// Per-module admin links, keyed by module key. A user with that module at the
-// "admin" tier sees these even without being a full site admin.
-const MODULE_ADMIN_ITEMS: Record<string, NavDropdownItem[]> = {
-  checklists: [{ href: "/admin/checklists", label: "Checklists", Icon: ListChecks }],
-};
-
 function filterByAccess(items: Item[], access: Record<string, string>): NavDropdownItem[] {
   return items
     .filter((i) => !i.module || i.module in access || i.disabled)
@@ -118,14 +112,13 @@ function filterByAccess(items: Item[], access: Record<string, string>): NavDropd
 
 /**
  * Compose the Administration dropdown for this user, grouped under section
- * headers. Site admins get the Administration + Reporting groups; module admins
- * (with or without site admin) get a Modules group of just the module(s) they
- * administer. "Admin home" always leads when the dropdown shows at all.
+ * headers. Only site admins get it: the Administration + Reporting groups. A module's own
+ * settings are reached from the module. "Admin home" leads.
  */
 function buildAdminItems(access: Record<string, string>): NavDropdownEntry[] {
   const isSiteAdmin = access.admin === "admin";
-  const moduleKeys = Object.keys(MODULE_ADMIN_ITEMS).filter((k) => access[k] === "admin");
-  if (!isSiteAdmin && moduleKeys.length === 0) return [];
+  // Module settings live inside the modules (docs/module-settings.md): Administration is for site admins only.
+  if (!isSiteAdmin) return [];
 
   const entries: NavDropdownEntry[] = [{ href: "/admin", label: "Admin home", Icon: Shield }];
   if (isSiteAdmin) {
@@ -135,10 +128,6 @@ function buildAdminItems(access: Record<string, string>): NavDropdownEntry[] {
       { header: "Reporting" },
       ...SITE_ADMIN_REPORTING,
     );
-  }
-  if (moduleKeys.length > 0) {
-    entries.push({ header: "Modules" });
-    for (const k of moduleKeys) entries.push(...(MODULE_ADMIN_ITEMS[k] ?? []));
   }
   return entries;
 }

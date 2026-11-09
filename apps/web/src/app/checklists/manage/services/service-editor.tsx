@@ -136,7 +136,7 @@ export function ServiceEditor({
         setErr(b.message ?? `Save failed (${r.status})`);
         return;
       }
-      router.push("/admin/checklists/services");
+      router.push("/checklists/manage/services");
       router.refresh();
     } finally {
       setBusy(false);
@@ -185,7 +185,7 @@ export function ServiceEditor({
         method: "DELETE",
         credentials: "same-origin",
       });
-      router.push("/admin/checklists/services");
+      router.push("/checklists/manage/services");
       router.refresh();
     } finally {
       setBusy(false);

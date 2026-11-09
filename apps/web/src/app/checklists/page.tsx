@@ -29,10 +29,10 @@ export default async function ChecklistsPage() {
           <PageTitle icon={ListChecks}>Checklists</PageTitle>
           {canManage ? (
             <Link
-              href="/admin/checklists"
+              href="/checklists/manage"
               className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              <Settings className="h-4 w-4" aria-hidden /> Checklist admin
+              <Settings className="h-4 w-4" aria-hidden /> Manage
             </Link>
           ) : null}
         </div>

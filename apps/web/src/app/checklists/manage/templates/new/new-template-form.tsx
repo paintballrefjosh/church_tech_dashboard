@@ -31,7 +31,7 @@ export function NewTemplateForm() {
         return;
       }
       const tpl = (await r.json()) as { id: string };
-      router.push(`/admin/checklists/templates/${tpl.id}`);
+      router.push(`/checklists/manage/templates/${tpl.id}`);
     } finally {
       setBusy(false);
     }

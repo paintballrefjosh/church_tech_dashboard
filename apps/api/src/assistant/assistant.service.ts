@@ -716,7 +716,7 @@ export class AssistantService implements OnModuleInit {
     if (down !== null && down !== prev.providerDown) {
       notices.push(
         down
-          ? { kind: "assistant.provider_down", title: "The assistant cannot reach its model", body: "Its last answers failed talking to the provider. Check the provider's status and Test connection in Site settings, Assistant." }
+          ? { kind: "assistant.provider_down", title: "The assistant cannot reach its model", body: "Its last answers failed talking to the provider. Check the provider's status and Test connection in Assistant > Settings." }
           : { kind: "assistant.provider_down", title: "The assistant is answering again", body: "Its model is answering after the failures." },
       );
       next.providerDown = down;
@@ -724,7 +724,7 @@ export class AssistantService implements OnModuleInit {
     if (notices.length) {
       const [adminGroup] = await this.db.select({ id: groups.id }).from(groups).where(eq(groups.name, DEFAULT_GROUPS.ADMIN)).limit(1);
       const admins = adminGroup ? await this.db.select({ userId: groupMemberships.userId }).from(groupMemberships).where(eq(groupMemberships.groupId, adminGroup.id)) : [];
-      for (const n of notices) await this.notifications.createMany(admins.map((a) => ({ recipientUserId: a.userId, kind: n.kind, title: n.title, body: n.body, link: "/admin/assistant" })));
+      for (const n of notices) await this.notifications.createMany(admins.map((a) => ({ recipientUserId: a.userId, kind: n.kind, title: n.title, body: n.body, link: "/assistant/usage" })));
     }
     await this.jobState.set(ASSISTANT_STATE.job, ASSISTANT_STATE.watch, next);
   }

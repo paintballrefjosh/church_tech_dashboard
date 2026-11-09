@@ -954,7 +954,7 @@ only: no model is called).
 `PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed ONCE. **Never execute a proposal on the server, and never take a card's
 description from the model** (an incident's is read from the database). A new kind = a schema branch, a permission, a `proposalRequest` case, a
 headline, tests. Pausing alerts is always 1-24 hours. (8) *Figures* are `assistant_answers` (migration 0086): one row per answer, no text, no person,
-400 days, `skip` in the backup registry; the usage page is `/admin/assistant`. Feedback: `POST /assistant/messages/:id/feedback` (comment redacted from
+400 days, `skip` in the backup registry; the usage page is `/assistant/usage` and the setup page `/assistant/settings` (site admins only, with the readiness checklist and privacy notice). Feedback: `POST /assistant/messages/:id/feedback` (comment redacted from
 audit). (9) Job `assistant-watch` (5 min, `job_state` `assistant/watch`) tells the admin group at 80%/100% of the budget and when the provider fails
 three answers in a row (`assistantProviderDown`) and recovers; not silenced by maintenance mode. `/assistant/status` carries `health`;
 `/health/services` has an assistant card (degraded only). (10) The slide-over (`components/assistant-panel.tsx`) has no button of its own (a third top-bar control
@@ -1763,8 +1763,7 @@ is typed, so a mixed-case row could never be matched.
   `/<module>/settings` is built from `ModuleSettingsPage` / `SettingsFormSection` (`components/module-settings.tsx`), `loadModuleSettings(settingKeysOf(category))`
   (secrets masked on the server) and the shared `SettingsForm` (saves to `/api/settings/save/<key>`, tests to `/api/settings/test/<target>`); the module's admin
   permission authorises its category (`SETTING_CATEGORY_MANAGE_PERMISSION`) and the module page links to it for admins only. Done: Signage, Printers, ProPresenter,
-  Livestreams, Planning Center (its people links are `/planning-center/links`), Help Desk (`/tickets/settings`: SLA targets and the mailbox; `/tickets/categories`), Wiki (`/wiki/settings`), Monitoring (`/monitoring/settings` for checks, retention and alerts; `/monitoring/network/settings` UniFi, `/dns/settings`, `/ipam/settings`, `/monitoring/ups/settings`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
-  site-wide settings only. Never pass a lucide icon into a client component (a server page does that): keep the page shell server-rendered. Old `/admin/...` addresses
+  Livestreams, Planning Center (its people links are `/planning-center/links`), Help Desk (`/tickets/settings`: SLA targets and the mailbox; `/tickets/categories`), Wiki (`/wiki/settings`), Assistant (`/assistant/settings`, `/assistant/usage`), Checklists (the admin pages are `/checklists/manage/*`, a tab row), Monitoring (`/monitoring/settings` for checks, retention and alerts; `/monitoring/network/settings` UniFi, `/dns/settings`, `/ipam/settings`, `/monitoring/ups/settings`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin (hub, menu and settings list) is for site admins and site-wide settings only (site, auth, Google, Microsoft, SMTP, backups, attachments, home page defaults, retention, push, monthly report). Never pass a lucide icon into a client component (a server page does that): keep the page shell server-rendered. Old `/admin/...` addresses
   redirect in `next.config.mjs`.
 - **No emoji in code.** Per repo conventions.
 

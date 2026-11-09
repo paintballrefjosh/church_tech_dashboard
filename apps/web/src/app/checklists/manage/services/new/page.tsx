@@ -1,27 +1,18 @@
 import Link from "next/link";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { CalendarClock, ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { apiFetch, apiJson } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import type { AssignableUser, ChecklistService, ChecklistTemplate } from "@lampstand/shared";
+import type { AssignableUser, ChecklistTemplate } from "@lampstand/shared";
 import { ServiceEditor } from "../service-editor";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditServicePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function NewServicePage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
-  const { id } = await params;
-
-  const res = await apiFetch(`/api/v1/checklists/services/${encodeURIComponent(id)}`);
-  if (res.status === 404 || res.status === 403) notFound();
-  const service = (await res.json()) as ChecklistService;
 
   const [templates, users] = await Promise.all([
     apiJson<ChecklistTemplate[]>("/api/v1/checklists/templates").catch(() => [] as ChecklistTemplate[]),
@@ -33,16 +24,12 @@ export default async function EditServicePage({
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-10">
         <nav aria-label="Breadcrumb" className="mb-3 text-sm">
-          <Link href="/admin/checklists/services" className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
+          <Link href="/checklists/manage/services" className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Services
           </Link>
         </nav>
-        <PageTitle icon={CalendarClock}>{service.name}</PageTitle>
-        <ServiceEditor
-          templates={templates.map((t) => ({ id: t.id, name: t.name }))}
-          users={users}
-          initial={service}
-        />
+        <PageTitle icon={CalendarClock}>New service</PageTitle>
+        <ServiceEditor templates={templates.map((t) => ({ id: t.id, name: t.name }))} users={users} />
       </main>
     </>
   );

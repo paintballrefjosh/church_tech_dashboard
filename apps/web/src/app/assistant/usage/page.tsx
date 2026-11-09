@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bot } from "lucide-react";
+import { ArrowLeft, Bot } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { viewerPermissions } from "@/lib/load-module-settings";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 
@@ -62,7 +63,8 @@ function Counts({ title, rows, empty }: { title: string; rows: Count[]; empty: s
 export default async function AssistantUsagePage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
-  const res = await apiFetch("/api/v1/assistant/admin/usage");
+  const [res, perms] = await Promise.all([apiFetch("/api/v1/assistant/admin/usage"), viewerPermissions()]);
+  const canConfigure = perms.has("site:admin");
   const u = res.ok ? ((await res.json()) as Usage) : null;
   const a = u?.answers;
   const pct = u && u.budget > 0 ? Math.min(100, Math.round((u.cost / u.budget) * 100)) : null;
@@ -70,6 +72,9 @@ export default async function AssistantUsagePage() {
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
+        <Link href="/assistant" className="mb-3 inline-flex items-center gap-1 text-sm text-brand-600 hover:underline dark:text-brand-400">
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to the assistant
+        </Link>
         <PageTitle icon={Bot}>Assistant usage</PageTitle>
         {!u || !a ? (
           <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -79,10 +84,14 @@ export default async function AssistantUsagePage() {
           <div className="space-y-6">
             <p className="text-sm text-slate-600 dark:text-slate-300">
               {u.month}: {u.questions} question{u.questions === 1 ? "" : "s"}, cost {u.cost.toFixed(2)}
-              {u.budget > 0 ? ` of a ${u.budget.toFixed(2)} budget` : " (no budget: the model costs nothing)"}. Settings are under{" "}
-              <Link href="/admin/settings/assistant" className="text-brand-600 hover:underline dark:text-brand-400">
-                Site settings, Assistant
-              </Link>
+              {u.budget > 0 ? ` of a ${u.budget.toFixed(2)} budget` : " (no budget: the model costs nothing)"}. Settings are in{" "}
+              {canConfigure ? (
+                <Link href="/assistant/settings" className="text-brand-600 underline dark:text-brand-400">
+                  Assistant settings
+                </Link>
+              ) : (
+                "Assistant settings (a site admin changes them)"
+              )}
               . Figures only: no question or answer is shown here.
             </p>
             {pct !== null ? (

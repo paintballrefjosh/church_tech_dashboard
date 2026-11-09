@@ -15,7 +15,7 @@ still open?", "is anything down right now?", "what is the IP of the main switch 
 | Catalogue breadth | Already complete in phase 1: the assistant is given every READ tool of the MCP catalogue (`BRIDGE_TOOLS`) the person's permissions allow, minus `assistantMayUseRoute`'s deny list, so IPAM, DNS, UniFi, printers, checklists, equipment, cabinets, renewals and the rest came with it. No `query` views were added: nothing in the evaluation needs one yet. |
 | Proposed actions | One model tool, `propose_action` (`packages/shared/src/assistant-actions.ts`), offered only for the kinds the person's permissions allow (`assistantActionsFor`): `create_ticket` (`tickets:write:own`), `acknowledge_incident` and `pause_alerts` (`monitors:write:any`), `wiki_draft` (`wiki:create`). It RECORDS a proposal (`assistant_messages.actions`) and changes nothing; at most 3 per answer. The card shows `proposalHeadline` and exactly what will be sent; text fields are editable; Confirm makes the normal route call (`proposalRequest`) from the browser as the person, so permissions, audit and read-your-writes are those of the route; then `PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed once (`proposalTransitionProblem`), with the result as a site path only. An incident's description on the card is read from the database by the server, never taken from the model. A wiki draft is a page readable by its author only (visibility `group`, no groups). Pausing is always 1-24 hours, never open-ended. |
 | Feedback | Thumbs up/down with an optional comment on one's own answers (`POST /assistant/messages/:id/feedback`, audited without the comment). |
-| Figures | `assistant_answers` (migration 0086): one row per answer with no text and no person (outcome, error kind, timings, lookups, proposals, tokens, `answerSaysNotFound`, rating), kept 400 days apart from conversations, `skip` in the backup registry. The usage page `/admin/assistant` (`assistant:usage` or site admin) draws them with the month's cost against the budget. |
+| Figures | `assistant_answers` (migration 0086): one row per answer with no text and no person (outcome, error kind, timings, lookups, proposals, tokens, `answerSaysNotFound`, rating), kept 400 days apart from conversations, `skip` in the backup registry. The usage page `/assistant/usage` (`assistant:usage` or site admin) draws them with the month's cost against the budget. |
 | Notifications | Job `assistant-watch` (5 min, state in `job_state` `assistant/watch`): `assistant.budget` to the admin group at 80% and 100% of the month's budget (once each per month), `assistant.provider_down` when the newest three answers failed on the provider (`assistantProviderDown`) and again on recovery. Not silenced by maintenance mode. |
 | Health | `/assistant/status` returns `health` (`ok` / `failing` / `budget_used`); `/health/services` has an assistant card (only while it is on; degraded, never down). |
 | Panel and palette | The chat opens as a slide-over on any page (`components/assistant-panel.tsx`) from the user menu's "Ask the assistant" and from the command palette, which keeps that entry, last, while a question is typed and opens the panel with it as the question. No top-bar button: a third control wrapped the bar at 1280 px. |
@@ -414,7 +414,7 @@ requests for secrets) is part of the test suite and of every evaluation run.
   does) so one `assistant.chat` row per question carries: conversation id, model, prompt version, the list of lookups
   (names and counts), tokens, outcome. A refused or rate-limited question is audited as such. Settings changes use the
   normal settings audit with the key redacted. Reading someone else's conversation (admin, when allowed) is audited.
-- **Usage page** (`/admin/assistant`, `assistant:usage` and site admins): questions per day, tokens and cost (this month
+- **Usage page** (`/assistant/usage`, `assistant:usage` and site admins): questions per day, tokens and cost (this month
   vs the cap), errors by kind, median and 95th percentile latency, time to first token, feedback ratio, the most-used
   data sources, and questions that were answered "I could not find that" (text only if retention keeps it).
 - **Notifications:** an in-app notification (kind `assistant.budget`) to admins at 80% and 100% of the monthly budget,
@@ -474,7 +474,7 @@ apps/api/src/assistant/
   readiness.ts  prompt.ts  retention.job.ts
 apps/api/src/db/schema/assistant.ts + migration 00NN_assistant.sql
 apps/web/src/app/assistant/                     chat page, conversation list
-apps/web/src/app/admin/assistant/               usage page
+apps/web/src/app/assistant/usage/                 usage page
 apps/web/src/app/admin/settings/assistant/      settings section, readiness checklist, Test connection
 apps/web/src/components/assistant-*.tsx         message list, composer, sources, panel
 tests/assistant/                                questions.yaml, fixtures, fake provider server, eval script

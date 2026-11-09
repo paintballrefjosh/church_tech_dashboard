@@ -9,7 +9,6 @@ import {
   KeySquare,
   ScrollText,
   Tags,
-  ListChecks,
   UsersRound,
   Users,
   DatabaseBackup,
@@ -26,7 +25,7 @@ interface MePayload {
   permissions?: string[];
 }
 
-type AdminSection = "admin" | "reporting" | "modules";
+type AdminSection = "admin" | "reporting";
 
 interface AdminCard {
   href: string;
@@ -44,7 +43,7 @@ const CARDS: AdminCard[] = [
     href: "/admin/settings/site",
     label: "Site settings",
     Icon: Globe,
-    description: "Site name, tagline, footer, SLA targets, and audit retention.",
+    description: "Site name, tagline, footer, time zone, upload types and the home page defaults.",
     section: "admin",
     perm: "site:read",
   },
@@ -154,26 +153,11 @@ const CARDS: AdminCard[] = [
     section: "reporting",
     perm: "audit:read:any",
   },
-
-  // ── Modules: per-module admin surfaces (visible to that module's admins) ──
-  {
-    href: "/admin/checklists",
-    label: "Checklists",
-    Icon: ListChecks,
-    description: "Manage checklist templates, events, and view completion reports for volunteers.",
-    section: "modules",
-    perm: "checklists:admin",
-  },
 ];
 
 const SECTIONS: Array<{ key: AdminSection; title: string; blurb: string }> = [
   { key: "admin", title: "Admin", blurb: "Site configuration, accounts, and access." },
   { key: "reporting", title: "Reporting", blurb: "Read-only views into access and activity." },
-  {
-    key: "modules",
-    title: "Modules",
-    blurb: "Settings for the modules you administer. Only modules you're an admin of appear here.",
-  },
 ];
 
 // Shared chrome for the landing sections. Each section is a tinted box that sits

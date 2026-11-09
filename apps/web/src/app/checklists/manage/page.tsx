@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ListChecks, FileText, Calendar, BarChart3, CalendarClock, MonitorSpeaker } from "lucide-react";
+import { ListChecks, FileText, Calendar, CalendarClock } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
+import { SettingsNav } from "@/components/settings-nav";
+import { CHECKLISTS_MANAGE_NAV } from "./nav";
 import { LocalDateTime } from "@/components/local-date-time";
 import type { ChecklistTemplate, ChecklistEvent } from "@lampstand/shared";
 
@@ -30,20 +32,9 @@ export default async function AdminChecklistsHomePage() {
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-10">
         <header className="flex flex-wrap items-center gap-3">
-          <PageTitle icon={ListChecks}>Checklists admin</PageTitle>
-          <Link
-            href="/admin/checklists/stations"
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-          >
-            <MonitorSpeaker className="h-4 w-4" aria-hidden /> Stations
-          </Link>
-          <Link
-            href="/admin/checklists/reports"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-          >
-            <BarChart3 className="h-4 w-4" aria-hidden /> Reports
-          </Link>
+          <PageTitle icon={ListChecks}>Manage checklists</PageTitle>
         </header>
+        <div className="my-4"><SettingsNav label="Checklist admin pages" items={CHECKLISTS_MANAGE_NAV} /></div>
 
         <section className="mt-6 rounded-md border border-slate-300 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between">
@@ -51,7 +42,7 @@ export default async function AdminChecklistsHomePage() {
               <FileText className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Templates ({templates.length})
             </h2>
             <Link
-              href="/admin/checklists/templates/new"
+              href="/checklists/manage/templates/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
             >
               New template
@@ -67,7 +58,7 @@ export default async function AdminChecklistsHomePage() {
               {templates.map((t) => (
                 <li key={t.id}>
                   <Link
-                    href={`/admin/checklists/templates/${t.id}`}
+                    href={`/checklists/manage/templates/${t.id}`}
                     className="flex items-center gap-2 py-2 hover:underline"
                   >
                     <span className="font-medium">{t.name}</span>
@@ -90,7 +81,7 @@ export default async function AdminChecklistsHomePage() {
               <CalendarClock className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Services ({services.length})
             </h2>
             <Link
-              href="/admin/checklists/services"
+              href="/checklists/manage/services"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
             >
               Manage services
@@ -110,7 +101,7 @@ export default async function AdminChecklistsHomePage() {
               <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden /> Events ({events.length})
             </h2>
             <Link
-              href="/admin/checklists/events/new"
+              href="/checklists/manage/events/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
             >
               New event

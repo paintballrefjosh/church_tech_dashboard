@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
+import { SettingsNav } from "@/components/settings-nav";
+import { CHECKLISTS_MANAGE_NAV } from "../nav";
+
 import { LocalDateTime } from "@/components/local-date-time";
 
 interface EventStat {
@@ -46,13 +49,14 @@ export default async function ChecklistReportsPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <nav aria-label="Breadcrumb" className="mb-3 text-sm">
           <Link
-            href="/admin/checklists"
+            href="/checklists/manage"
             className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to checklists admin
           </Link>
         </nav>
         <PageTitle icon={BarChart3}>Checklist reports</PageTitle>
+        <div className="my-4"><SettingsNav label="Checklist admin pages" items={CHECKLISTS_MANAGE_NAV} /></div>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Recent completion stats — by event and by volunteer.
         </p>

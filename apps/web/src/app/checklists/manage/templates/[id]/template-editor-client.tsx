@@ -94,7 +94,7 @@ export function TemplateEditorClient({
       method: "DELETE",
       credentials: "same-origin",
     });
-    if (r.ok) router.push("/admin/checklists");
+    if (r.ok) router.push("/checklists/manage");
   }
 
   return (
@@ -117,7 +117,7 @@ export function TemplateEditorClient({
           <span className="text-[11px] text-slate-500 dark:text-slate-400">
             This whole template is the checklist for that station.{" "}
             {stations.length === 0 ? (
-              <a href="/admin/checklists/stations" className="text-brand-600 dark:text-brand-400 underline">
+              <a href="/checklists/manage/stations" className="text-brand-600 dark:text-brand-400 underline">
                 Add stations
               </a>
             ) : null}

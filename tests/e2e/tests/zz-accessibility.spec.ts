@@ -49,8 +49,8 @@ const ROUTES = [
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
   "/me", "/me/security", "/me/api-tokens",
   "/admin", "/admin/users", "/admin/groups", "/admin/permissions", "/admin/tags", "/tickets/categories", "/tickets/settings", "/wiki/settings", "/admin/api-tokens",
-  "/admin/audit", "/admin/backups", "/admin/cluster", "/admin/security", "/admin/assistant", "/admin/settings",
-  "/admin/checklists", "/admin/checklists/stations", "/admin/checklists/services", "/admin/checklists/reports",
+  "/admin/audit", "/admin/backups", "/admin/cluster", "/admin/security", "/assistant/usage", "/assistant/settings", "/admin/settings",
+  "/checklists/manage", "/checklists/manage/stations", "/checklists/manage/services", "/checklists/manage/reports",
 ];
 
 /** A list screen and the pattern of the links on it that lead to a detail screen: the first one found is scanned. */
@@ -69,7 +69,7 @@ const DETAILS: Array<{ list: string; href: RegExp; suffixes?: string[] }> = [
   { list: "/signage", href: /^\/signage\/screens\/[0-9a-f-]{36}$/ },
   { list: "/signage/playlists", href: /^\/signage\/playlists\/[0-9a-f-]{36}$/ },
   { list: "/signage/devices?tab=all", href: /^\/signage\/devices\/[0-9a-f-]{36}$/ },
-  { list: "/admin/checklists/services", href: /^\/admin\/checklists\/services\/[0-9a-f-]{36}$/ },
+  { list: "/checklists/manage/services", href: /^\/checklists\/manage\/services\/[0-9a-f-]{36}$/ },
   { list: "/admin/settings", href: /^\/admin\/settings\/[a-z_-]+$/ },
 ];
 

@@ -43,7 +43,7 @@ A client file cannot export plain values to a server page (it gets a reference, 
 | G3 | A `ModuleSettingsShell` (title, optional sub-nav like `SettingsSubnav`, section boxes) | One look for every module's settings page |
 | G4 | Move the Test-connection proxy to a module-neutral route (`/api/settings/test/[kind]`) with the same `ROUTES` map | Today the URL says `admin` |
 | G5 | `Settings` entry in each module's tab row / header, shown when the viewer has the module admin permission | Discoverability (Signage's tab row is the model) |
-| G6 | Remove module entries from `topbar-nav.tsx` `MODULE_ADMIN_ITEMS`, `/admin` `CARDS` (section `modules`), `lib/palette.ts`, `SETTINGS_CATEGORIES` (`section: "module"`) | Admin becomes site-only; the hub then needs no "Modules" section |
+| G6 (done) | Remove module entries from `topbar-nav.tsx` `MODULE_ADMIN_ITEMS`, `/admin` `CARDS` (section `modules`), `lib/palette.ts`, `SETTINGS_CATEGORIES` (`section: "module"`) | Admin becomes site-only; the hub then needs no "Modules" section |
 | G7 | Redirects in `next.config.mjs` from every old `/admin/...` address to the new one (as was done for `/monitoring/ipam*`) | Bookmarks, emails and notices already link to the old paths |
 | G8 | Update the strings that name the old place: `mailer.service.ts`, `assistant.service.ts`, `auth.controller.ts`, signin page hint, `apps/api/src/main.ts` comment, empty-state links in module pages (list in section 4) | Users are told where to go |
 | G9 | Tests: `zz-accessibility.spec.ts` page lists (`/admin/settings`, `/admin/assistant`, `/admin/planning-center`), `helpdesk.spec.ts` (`/admin/settings/helpdesk`), `assistant.spec.ts` (`/admin/assistant`) | They hard-code the old addresses |
@@ -106,7 +106,9 @@ Each group needs its own category (`unifi`, `dns`, `ipam`, `ups`, `monitoring`) 
 | User links (map local users to PC people) | `/admin/planning-center` (becomes a section or sub-page `/planning-center/links`) |
 Three links to fix in `planning-center/page.tsx` and one in `dashboard-tiles/tiles.tsx`. Gate `planning_center:admin`.
 
-### 3.7 Checklists -> `/checklists/manage` (or `/checklists/settings`)
+### 3.7 Checklists -> `/checklists/manage` (DONE 2026-11-08)
+
+Done: the whole `/admin/checklists` tree moved to `/checklists/manage` (templates, services, stations, events/new, reports) with a tab row (Overview, Stations, Services, Reports; `manage/nav.ts`); the "Manage" link on `/checklists`; `/admin/checklists/:path*` redirects. Below was the plan.
 All of `/admin/checklists` moves: templates (new, `[id]`), services (new, `[id]`), stations, events/new, reports. There are no `KNOWN_SETTINGS` rows. This is the largest page move, not a settings move. Gate `checklists:admin`. Link in `checklists/page.tsx` to update; roughly a dozen files under `admin/checklists` carry `/admin/checklists` hrefs.
 
 ### 3.8 Livestreams -> `/livestreams/settings` (DONE 2026-11-08)
@@ -115,7 +117,9 @@ All of `/admin/checklists` moves: templates (new, `[id]`), services (new, `[id]`
 ### 3.9 Signage
 Already done. Needs only G1-G3 so it stops importing from the admin folder.
 
-### 3.10 Assistant -> `/assistant/settings` (+ `/assistant/usage`)
+### 3.10 Assistant -> `/assistant/settings` (+ `/assistant/usage`) (DONE 2026-11-08, edit rights stay site admin, D3)
+
+Done: `/assistant/settings` (panel + form), `/assistant/usage`, "Usage" (needs `assistant:usage`) and "Settings" (site admin) buttons on `/assistant`, redirects from `/admin/settings/assistant` and `/admin/assistant`, `assistant: null` made explicit in `SETTING_CATEGORY_MANAGE_PERMISSION`. Below was the plan.
 | Item | From | Notes |
 |---|---|---|
 | Provider, URL, key, model, limits, budget, retention (16 keys) and `AssistantPanel` (test connection, privacy notice, readiness) | `/admin/settings/assistant` | See D3: it sends site data to an outside service |
@@ -148,7 +152,7 @@ Result: `/admin/settings` lists Site, Authentication, Google, Microsoft, SMTP, E
 2. Small, already module-gated: Printers, ProPresenter, Livestreams, Planning Center (settings + links).
 3. Helpdesk (SLA, categories, mailbox) and Wiki: DONE 2026-11-08. (Reports and Notifications stay in Admin, D4.)
 4. Monitoring split: DONE 2026-11-08.
-5. Assistant, then Checklists (largest file move).
-6. G6-G10 cleanup last, removing the Modules section from Admin and the old redirects' sources.
+5. Assistant, then Checklists (largest file move): DONE 2026-11-08.
+6. G6-G10 cleanup last (G6 done 2026-11-08: the Modules section of /admin and the module items of the Admin menu are gone; the Admin menu is for site admins only), removing the Modules section from Admin and the old redirects' sources.
 
 Each step ends with: old address redirects, links and tests updated, `make rebuild`, accessibility sweep, one commit.

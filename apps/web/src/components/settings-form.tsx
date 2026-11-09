@@ -27,6 +27,7 @@ interface TestHandler {
 
 /** Where a settings category is edited: a module's own page when it has one, else Admin > Settings. */
 const MODULE_SETTINGS_PAGE: Record<string, string> = {
+  assistant: "/assistant/settings",
   helpdesk: "/tickets/settings",
   tickets: "/tickets/settings",
   wiki: "/wiki/settings",
@@ -342,7 +343,7 @@ function SettingField({
   locked: { hint: string; href: string } | null;
 }) {
   // id = the setting key, so other pages can deep-link to a field
-  // (e.g. /admin/settings/monitoring#dns.primary_url, the DNS page's admin button).
+  // (e.g. /dns/settings#dns.primary_url).
   // The visible name and description are tied to the control, so a screen reader announces "Site name, edit text" and
   // not just "edit text" (there are dozens of identical-looking boxes on a page).
   const inputId = `${setting.key}__input`;

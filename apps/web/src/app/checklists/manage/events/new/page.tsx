@@ -41,7 +41,7 @@ export default async function NewChecklistEventPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <nav aria-label="Breadcrumb" className="mb-3 text-sm">
           <Link
-            href="/admin/checklists"
+            href="/checklists/manage"
             className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to checklists admin
@@ -52,7 +52,7 @@ export default async function NewChecklistEventPage() {
         {templates.length === 0 ? (
           <p className="mt-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
             You need a template first.{" "}
-            <Link href="/admin/checklists/templates/new" className="underline">
+            <Link href="/checklists/manage/templates/new" className="underline">
               Create one
             </Link>
             , then come back to instantiate it as an event.
