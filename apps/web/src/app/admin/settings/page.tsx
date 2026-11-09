@@ -6,18 +6,13 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { KNOWN_SETTINGS } from "@lampstand/shared";
-import { SETTINGS_CATEGORIES, type CategoryMeta } from "./categories";
+import { SETTINGS_CATEGORIES } from "./categories";
 
 export const dynamic = "force-dynamic";
 
 interface MePayload {
   permissions?: string[];
 }
-
-const SECTION_TITLES: Record<CategoryMeta["section"], string> = {
-  core: "Site administration",
-  module: "Module settings",
-};
 
 export default async function AdminSettingsPage() {
   const session = await auth();
@@ -33,12 +28,10 @@ export default async function AdminSettingsPage() {
     counts.set(s.category, (counts.get(s.category) ?? 0) + 1);
   }
   // Only render category cards that (a) actually have settings registered and
-  // (b) the current user is allowed to manage. A module admin therefore sees
-  // just their module's category; a site admin sees everything.
+  // (b) the current user is allowed to manage.
   const visible = SETTINGS_CATEGORIES.filter(
     (c) => (counts.get(c.slug) ?? 0) > 0 && perms.has(c.permission),
   );
-  const sections: CategoryMeta["section"][] = ["core", "module"];
 
   return (
     <>
@@ -55,42 +48,36 @@ export default async function AdminSettingsPage() {
             You don't have permission to manage any settings.
           </p>
         ) : (
-          sections.map((section) => {
-            const cards = visible.filter((c) => c.section === section);
-            if (cards.length === 0) return null;
-            return (
-              <section key={section} className="mt-8 first:mt-6">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  {SECTION_TITLES[section]}
-                </h2>
-                <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {cards.map((c) => {
-                    const n = counts.get(c.slug) ?? 0;
-                    return (
-                      <li key={c.slug}>
-                        <Link
-                          href={`/admin/settings/${c.slug}`}
-                          className="flex h-full items-start gap-3 rounded-md border border-slate-300 p-4 transition hover:border-brand-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
-                        >
-                          <c.Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-medium">{c.label}</span>
-                              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                {n} setting{n === 1 ? "" : "s"}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{c.description}</p>
-                          </div>
-                          <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            );
-          })
+          <section className="mt-6">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Site administration
+            </h2>
+            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+              {visible.map((c) => {
+                const n = counts.get(c.slug) ?? 0;
+                return (
+                  <li key={c.slug}>
+                    <Link
+                      href={`/admin/settings/${c.slug}`}
+                      className="flex h-full items-start gap-3 rounded-md border border-slate-300 p-4 transition hover:border-brand-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                    >
+                      <c.Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-medium">{c.label}</span>
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            {n} setting{n === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{c.description}</p>
+                      </div>
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
       </main>
     </>

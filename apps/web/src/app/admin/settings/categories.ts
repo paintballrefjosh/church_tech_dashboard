@@ -21,15 +21,9 @@ export interface CategoryMeta {
   description: string;
   Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   /**
-   * "core" = site administration (only site admins manage it); "module" = a
-   * module's integration settings, manageable by that module's admin.
-   */
-  section: "core" | "module";
-  /**
-   * Permission that lets a user reach this category. Core categories use a
-   * site-admin perm; module categories use the module's `:admin` perm so a
-   * module admin can manage them without being a site admin. The hub page hides
-   * categories the current user lacks the permission for.
+   * Permission that lets a user reach this category. The hub page hides
+   * categories the current user lacks the permission for. Every category here
+   * is site-wide; a module's own settings live on the module's Settings page.
    */
   permission: string;
 }
@@ -40,7 +34,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Site",
     description: "Site name, tagline, and other public-facing identity.",
     Icon: Globe,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -48,7 +41,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Authentication",
     description: "Local sign-in policy, password requirements, 2FA, and the API rate limit.",
     Icon: KeyRound,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -56,7 +48,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Google OAuth",
     description: "Google sign-in client id + secret.",
     Icon: Cloud,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -64,7 +55,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Microsoft OAuth",
     description: "Microsoft Entra ID / personal account sign-in.",
     Icon: KeyRound,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -72,7 +62,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "SMTP",
     description: "Outbound mail server, from address, TLS.",
     Icon: Mail,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -80,7 +69,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Backups",
     description: "Offsite copies: a second bucket that scheduled backups are copied to.",
     Icon: DatabaseBackup,
-    section: "core",
     permission: "site:read",
   },
   {
@@ -88,7 +76,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     label: "Experimental",
     description: "Flags for unreleased features. Don't enable in production.",
     Icon: FlaskConical,
-    section: "core",
     permission: "site:read",
   },
 ];
