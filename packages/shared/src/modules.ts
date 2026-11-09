@@ -191,7 +191,7 @@ export const MODULES: readonly ModuleDefinition[] = [
   {
     key: "admin",
     label: "Administration",
-    description: "Site settings, users/groups, audit log, OAuth, SMTP, network config.",
+    description: "Site settings, users and groups, audit log, sign-in providers, SMTP, backups.",
     tiers: ["admin"],
     permissionsByTier: {
       admin: [
