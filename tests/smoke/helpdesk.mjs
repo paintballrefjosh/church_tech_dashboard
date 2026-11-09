@@ -128,6 +128,10 @@ export async function helpdeskTests({ test, assert, fetchWithCookies, jar }) {
 
     await test("settings: the mailbox settings are checked, and it cannot be switched on half set up", async () => {
       assert((await put("tickets.inbound.host", "imap://mail.example.org")).res.status === 400, "host with a scheme");
+      // The dashboard must not be pointed at itself, a link-local address (cloud metadata) or a container of this stack.
+      for (const h of ["127.0.0.1", "169.254.169.254", "localhost", "api", "cockroach", "mailserver"]) {
+        assert((await put("tickets.inbound.host", h)).res.status === 400, `host ${h} should be refused`);
+      }
       assert((await put("tickets.inbound.port", 70000)).res.status === 400, "port");
       assert((await put("tickets.inbound.auth", "lax")).res.status === 400, "auth mode");
       assert((await put("tickets.inbound.address", "not an address")).res.status === 400, "address");

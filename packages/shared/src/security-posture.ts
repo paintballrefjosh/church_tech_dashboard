@@ -355,7 +355,7 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
   const verdict = judgeVerification(f.backupChecks, f.backups.lastReadyAt, f.now);
   if (verdict) add({ id: "backup-check", ...verdict, fix: verdict.severity === "ok" ? undefined : { label: "Backups", href: "/admin/backups" } });
   if (f.helpdeskEmail.enabled) {
-    const fix = { label: "Helpdesk email settings", href: "/admin/settings/helpdesk" };
+    const fix = { label: "Help Desk email settings", href: "/tickets/settings" };
     if (f.helpdeskEmail.auth === "off") {
       add({
         id: "helpdesk-email",

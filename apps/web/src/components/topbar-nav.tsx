@@ -24,7 +24,6 @@ import {
   ListChecks,
   Tags,
   ScrollText,
-  Folder,
   Boxes,
   CalendarClock,
   Bot,
@@ -108,7 +107,6 @@ const SITE_ADMIN_REPORTING: NavDropdownItem[] = [
 // Per-module admin links, keyed by module key. A user with that module at the
 // "admin" tier sees these even without being a full site admin.
 const MODULE_ADMIN_ITEMS: Record<string, NavDropdownItem[]> = {
-  tickets: [{ href: "/admin/ticket-categories", label: "Helpdesk categories", Icon: Folder }],
   monitoring: [
     { href: "/admin/settings/monitoring", label: "Monitoring & Network settings", Icon: Server },
   ],

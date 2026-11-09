@@ -58,7 +58,9 @@ use `<ModuleSettingsPage chrome>`; `back` adds the link to the module.
 
 "Gate" is the permission that should authorise the category after the move (see decisions D1).
 
-### 3.1 Helpdesk (tickets) -> `/tickets/settings`
+### 3.1 Helpdesk (tickets) -> `/tickets/settings` (DONE 2026-11-08)
+
+Done: `/tickets/settings` (SLA targets under category `tickets`, mailbox panel + form under `helpdesk`, link to saved replies) and `/tickets/categories` (moved from `/admin/ticket-categories`), both with a two-item tab row. Both categories are managed by `tickets:admin`; the mailbox routes `tickets/inbound/*` now need `tickets:admin` instead of `site:admin`. The host check is `contactHostProblem` (shared, also refuses a bad host at save time) plus `assertMailboxHost` (after DNS), in `ticket-inbound.ts` for the poll and the Test button. `/admin/settings/helpdesk` and `/admin/ticket-categories` redirect.
 | Item | From | Notes |
 |---|---|---|
 | Ticket categories | `/admin/ticket-categories` | Page already exists; relink and redirect |
@@ -66,7 +68,9 @@ use `<ModuleSettingsPage chrome>`; `back` adds the link to the module.
 | Tickets from email (`tickets.inbound.*`, 11 keys) + mailbox status panel | `helpdesk` category, `/admin/settings/helpdesk` | `HelpdeskEmailPanel` moves with it. This is an IMAP mailbox the helpdesk READS; outgoing mail already uses the site-wide SMTP (`MailQueue`) and stays there. Only the helpdesk uses it, so the Tickets admin edits it (D2). Needs a host check first, see D2 |
 | Saved replies | already `/tickets/canned-replies` | Link from the settings page |
 
-### 3.2 Wiki -> `/wiki/settings`
+### 3.2 Wiki -> `/wiki/settings` (DONE 2026-11-08)
+
+Done: `/wiki/settings` (category `wiki`, managed by `wiki:admin`), Settings link on the wiki page for wiki admins, link to templates.
 | Item | From | Notes |
 |---|---|---|
 | Review interval default (`wiki.review.default_days`) | `site` category | Category `wiki` |
@@ -140,7 +144,7 @@ Result: `/admin/settings` lists Site, Authentication, Google, Microsoft, SMTP, E
 
 1. G1-G4 (shared pieces), then convert Signage onto them.
 2. Small, already module-gated: Printers, ProPresenter, Livestreams, Planning Center (settings + links).
-3. Helpdesk (SLA, categories, mailbox) and Wiki, Reports, Notifications.
+3. Helpdesk (SLA, categories, mailbox) and Wiki: DONE 2026-11-08. (Reports and Notifications stay in Admin, D4.)
 4. Monitoring split (UniFi, DNS, IPAM, UPS, alerts), the biggest settings change.
 5. Assistant, then Checklists (largest file move).
 6. G6-G10 cleanup last, removing the Modules section from Admin and the old redirects' sources.

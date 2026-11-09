@@ -551,7 +551,7 @@ a priority change clears the flags, reopening a finished ticket clears the resol
 group with moderator/admin on Tickets plus the admin group. (3) *Saved replies* (`ticket_canned_replies`, `tickets/canned-replies`, list needs
 `tickets:read:any`, writes `tickets:admin`): placeholders are filled by the web with `renderCannedReply`, an unfillable one stays visible.
 (4) *Tickets from email* (`tickets/ticket-inbound.ts`, job `ticket-inbound` 60 s, `mutex:ticket-inbound`, settings category `helpdesk`,
-`tickets.inbound.*`, site-admin only, routes `tickets/inbound/{status,test,check}` are `@SessionOnly` and MCP-excluded): read-only IMAP
+`tickets.inbound.*`, edited in Tickets > Settings by a Tickets admin, routes `tickets/inbound/{status,test,check}` need `tickets:admin`, are `@SessionOnly` and MCP-excluded; **the host is refused when it is loopback, link-local, a container of this stack or a one-word name, at save time (`contactHostProblem`) and again after DNS (`assertMailboxHost`)**): read-only IMAP
 (`imapflow`, `mailparser`: the only inbound-mail code; versions pinned and older than two weeks when added) that tracks `{uidValidity,
 lastUid}` in `job_state` (first look = last 24 h only) and records every message by Message-ID in `ticket_inbound_log` (unique; the real
 dedupe; `skip` in the backup registry; 90-day prune). **Never trust a From line**: a sender must be an active, approved account with
@@ -1763,7 +1763,7 @@ is typed, so a mixed-case row could never be matched.
   `/<module>/settings` is built from `ModuleSettingsPage` / `SettingsFormSection` (`components/module-settings.tsx`), `loadModuleSettings(settingKeysOf(category))`
   (secrets masked on the server) and the shared `SettingsForm` (saves to `/api/settings/save/<key>`, tests to `/api/settings/test/<target>`); the module's admin
   permission authorises its category (`SETTING_CATEGORY_MANAGE_PERMISSION`) and the module page links to it for admins only. Done: Signage, Printers, ProPresenter,
-  Livestreams, Planning Center (its people links are `/planning-center/links`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
+  Livestreams, Planning Center (its people links are `/planning-center/links`), Help Desk (`/tickets/settings`: SLA targets and the mailbox; `/tickets/categories`), Wiki (`/wiki/settings`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
   site-wide settings only. Never pass a lucide icon into a client component (a server page does that): keep the page shell server-rendered. Old `/admin/...` addresses
   redirect in `next.config.mjs`.
 - **No emoji in code.** Per repo conventions.

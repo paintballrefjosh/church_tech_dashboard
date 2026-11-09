@@ -11,6 +11,7 @@ import { z } from "zod";
 import { PERMISSIONS, type PermissionString } from "./permissions";
 import { DEFAULT_LOOK, LOOK_IDS } from "./dashboard/themes";
 import { INBOUND_AUTH_MODES, INBOUND_KEYS } from "./inbound-mail";
+import { contactHostProblem } from "./contact-host";
 import { WIKI_REVIEW_DAYS_KEY, WIKI_REVIEW_DEFAULT_DAYS, WIKI_REVIEW_MAX_DAYS } from "./wiki-pages";
 import {
   DEFAULT_ATTACHMENT_TYPES,
@@ -54,6 +55,8 @@ export interface KnownSetting<T = unknown> {
     | "monitoring"
     | "backup"
     | "helpdesk"
+    | "tickets"
+    | "wiki"
     | "assistant"
     | "livestreams"
     | "signage"
@@ -347,14 +350,14 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
   // Ticket SLAs. Targets are in minutes; "response" = time-to-first-engagement
   // (a non-creator comment or an assignment), "resolution" = time-to-status≥resolved.
   // 0 disables the clock for that priority. Default values are a starting
-  // sketch for a small church IT team; tune in /admin/settings.
+  // sketch for a small church IT team; tune in Tickets > Settings.
   {
     key: "tickets.sla.response_min.urgent",
     type: "number",
     label: "SLA — urgent: first-response (minutes)",
     description: "Target time from ticket creation to first staff response, for urgent tickets.",
     defaultValue: 60,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.resolution_min.urgent",
@@ -362,7 +365,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — urgent: resolution (minutes)",
     description: "Target time from creation to status=resolved, for urgent tickets.",
     defaultValue: 240,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.response_min.high",
@@ -370,7 +373,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — high: first-response (minutes)",
     description: "First-response target for high-priority tickets.",
     defaultValue: 240,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.resolution_min.high",
@@ -378,7 +381,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — high: resolution (minutes)",
     description: "Resolution target for high-priority tickets.",
     defaultValue: 1440,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.response_min.normal",
@@ -386,7 +389,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — normal: first-response (minutes)",
     description: "First-response target for normal tickets. 0 disables.",
     defaultValue: 1440,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.resolution_min.normal",
@@ -394,7 +397,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — normal: resolution (minutes)",
     description: "Resolution target for normal tickets. 0 disables.",
     defaultValue: 4320,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.response_min.low",
@@ -402,7 +405,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — low: first-response (minutes)",
     description: "First-response target for low-priority tickets. 0 disables.",
     defaultValue: 0,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.resolution_min.low",
@@ -410,7 +413,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "SLA — low: resolution (minutes)",
     description: "Resolution target for low-priority tickets. 0 disables.",
     defaultValue: 0,
-    category: "site",
+    category: "tickets",
   },
   {
     key: "tickets.sla.warn_percent",
@@ -419,7 +422,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Tell the assignee (or the support team, if nobody has the ticket) when a ticket has used this much of a response or resolution target. 0 turns warnings off; breaches are always announced. Time spent waiting on the requester does not count.",
     defaultValue: 80,
-    category: "site",
+    category: "tickets",
   },
   {
     key: WIKI_REVIEW_DAYS_KEY,
@@ -428,7 +431,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "A wiki page is marked as needing a review when it has gone this many days without an edit or a \"still correct\" confirmation, and its owner is told once. A page can set its own time, or opt out. 0 turns the check off.",
     defaultValue: WIKI_REVIEW_DEFAULT_DAYS,
-    category: "site",
+    category: "wiki",
   },
   // Helpdesk email: a mailbox the dashboard reads over IMAP to turn mail into tickets and ticket replies.
   {
@@ -1420,7 +1423,9 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   microsoft: null,
   smtp: null,
   backup: null,
-  helpdesk: null,
+  helpdesk: PERMISSIONS.TICKETS_ADMIN,
+  tickets: PERMISSIONS.TICKETS_ADMIN,
+  wiki: PERMISSIONS.WIKI_ADMIN,
   experimental: null,
   printers: PERMISSIONS.PRINTERS_ADMIN,
   propresenter: PERMISSIONS.PROPRESENTER_ADMIN,
@@ -1558,7 +1563,8 @@ export function validateSettingValue(key: string, value: unknown): string | null
       return null;
     }
     case INBOUND_KEYS.host:
-      return typeof value === "string" && /^[A-Za-z0-9.-]{0,253}$/.test(value.trim()) ? null : "Enter just the host name, without a scheme, port or path.";
+      if (typeof value !== "string" || !/^[A-Za-z0-9.-]{0,253}$/.test(value.trim())) return "Enter just the host name, without a scheme, port or path.";
+      return contactHostProblem(value);
     case INBOUND_KEYS.port:
       return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535 ? null : "Enter a port from 1 to 65535.";
     case INBOUND_KEYS.mailbox:

@@ -98,7 +98,7 @@ test.describe("Helpdesk: waiting on the requester, saved replies, mailbox settin
   });
 
   test("the helpdesk email settings page shows the mailbox is not set up", async ({ page }) => {
-    await page.goto("/admin/settings/helpdesk");
+    await page.goto("/tickets/settings");
     await expect(page.getByTestId("helpdesk-email-panel")).toBeVisible();
     await expect(page.getByTestId("inbound-state")).toContainText("Not set up yet");
     await expect(page.getByTestId("inbound-test")).toBeDisabled();

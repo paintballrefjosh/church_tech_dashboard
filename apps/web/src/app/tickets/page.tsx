@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
-import { LifeBuoy, Plus } from "lucide-react";
+import { LifeBuoy, Plus, Settings as SettingsIcon } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "./ticket-badges";
 import { TicketsTagFilter } from "./tag-filter-island";
 import { TicketsListClient } from "./tickets-list-client";
@@ -90,6 +90,14 @@ export default async function TicketsListPage({
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
               >
                 Saved replies
+              </Link>
+            ) : null}
+            {canAdmin ? (
+              <Link
+                href="/tickets/settings"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-900"
+              >
+                <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
               </Link>
             ) : null}
             <Link

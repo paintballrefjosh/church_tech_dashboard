@@ -39,6 +39,8 @@ const nextConfig = {
       { source: "/admin/settings/propresenter", destination: "/propresenter/settings", permanent: false },
       { source: "/admin/settings/livestreams", destination: "/livestreams/settings", permanent: false },
       { source: "/admin/settings/planning_center", destination: "/planning-center/settings", permanent: false },
+      { source: "/admin/settings/helpdesk", destination: "/tickets/settings", permanent: false },
+      { source: "/admin/ticket-categories", destination: "/tickets/categories", permanent: false },
       { source: "/admin/planning-center", destination: "/planning-center/links", permanent: false },
     ];
   },

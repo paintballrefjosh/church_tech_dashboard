@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { Tags } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
-import { TopBar } from "@/components/topbar";
-import { PageTitle } from "@/components/page-title";
+import { ModuleSettingsPage } from "@/components/module-settings";
+import { TICKETS_SETTINGS_NAV } from "../settings/nav";
 import type { TicketCategory } from "@lampstand/shared";
 import { CategoriesAdminClient } from "./categories-admin-client";
 
@@ -13,7 +13,7 @@ interface MePayload {
   permissions: string[];
 }
 
-export default async function AdminTicketCategoriesPage() {
+export default async function TicketCategoriesPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
 
@@ -25,17 +25,11 @@ export default async function AdminTicketCategoriesPage() {
   );
 
   return (
-    <>
-      <TopBar />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <PageTitle icon={Tags}>Ticket categories</PageTitle>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Admin-curated multi-select for tickets. Anyone with ticket access can pick from this
-          list; only users with <code className="font-mono">tickets:categories:admin</code> can
-          add, rename, recolour, or delete entries.
-        </p>
-        <CategoriesAdminClient initial={categories} canWrite={canWrite} />
-      </main>
-    </>
+    <ModuleSettingsPage chrome back={{ href: "/tickets", label: "tickets" }} title="Ticket categories" icon={Tags} nav={TICKETS_SETTINGS_NAV}>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        The list staff pick from when they sort a ticket. Anyone with ticket access can pick from it; only a Tickets admin can add, rename, recolour or delete entries.
+      </p>
+      <CategoriesAdminClient initial={categories} canWrite={canWrite} />
+    </ModuleSettingsPage>
   );
 }

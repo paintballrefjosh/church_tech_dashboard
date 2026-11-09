@@ -48,7 +48,7 @@ const ROUTES = [
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",
   "/me", "/me/security", "/me/api-tokens",
-  "/admin", "/admin/users", "/admin/groups", "/admin/permissions", "/admin/tags", "/admin/ticket-categories", "/admin/api-tokens",
+  "/admin", "/admin/users", "/admin/groups", "/admin/permissions", "/admin/tags", "/tickets/categories", "/tickets/settings", "/wiki/settings", "/admin/api-tokens",
   "/admin/audit", "/admin/backups", "/admin/cluster", "/admin/security", "/admin/assistant", "/admin/settings",
   "/admin/checklists", "/admin/checklists/stations", "/admin/checklists/services", "/admin/checklists/reports",
 ];

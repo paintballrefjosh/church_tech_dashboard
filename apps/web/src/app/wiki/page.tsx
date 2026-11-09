@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
+import { viewerPermissions } from "@/lib/load-module-settings";
 import { LocalDateTime } from "@/components/local-date-time";
-import { BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate } from "lucide-react";
+import { BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate, Settings as SettingsIcon } from "lucide-react";
 import type { WikiPage, WikiTreeNode } from "@lampstand/shared";
 import { WikiSearch } from "./wiki-search";
 import { WikiTagFilter } from "./tag-filter-island";
@@ -30,11 +31,13 @@ export default async function WikiListPage({
   if (q) qs.set("q", q);
   if (params.tag) qs.set("tagId", params.tag);
   const url = `/api/v1/wiki${qs.toString() ? `?${qs}` : ""}`;
-  const [pages, tree, review] = await Promise.all([
+  const [pages, tree, review, perms] = await Promise.all([
     apiJson<WikiPage[]>(url).catch(() => [] as WikiPage[]),
     apiJson<WikiTreeNode[]>("/api/v1/wiki/tree").catch(() => [] as WikiTreeNode[]),
     apiJson<{ total: number }>("/api/v1/wiki/review?limit=1").catch(() => null),
+    viewerPermissions(),
   ]);
+  const canAdmin = perms.has("wiki:admin");
   return (
     <>
       <TopBar />
@@ -65,6 +68,14 @@ export default async function WikiListPage({
             >
               <FileUp className="h-4 w-4" aria-hidden /> Import file
             </Link>
+            {canAdmin ? (
+              <Link
+                href="/wiki/settings"
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+              >
+                <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
+              </Link>
+            ) : null}
             <Link
               href="/wiki/new"
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"

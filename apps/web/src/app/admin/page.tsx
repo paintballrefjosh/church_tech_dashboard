@@ -9,7 +9,6 @@ import {
   KeySquare,
   ScrollText,
   Tags,
-  Folder,
   ListChecks,
   UsersRound,
   Users,
@@ -158,14 +157,6 @@ const CARDS: AdminCard[] = [
   },
 
   // ── Modules: per-module admin surfaces (visible to that module's admins) ──
-  {
-    href: "/admin/ticket-categories",
-    label: "Helpdesk categories",
-    Icon: Folder,
-    description: "Admin-curated multi-select shown on every ticket.",
-    section: "modules",
-    perm: "tickets:categories:admin",
-  },
   {
     href: "/admin/settings/monitoring",
     label: "Monitoring & Network settings",
