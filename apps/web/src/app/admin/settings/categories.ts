@@ -10,7 +10,6 @@ import {
   KeyRound,
   Cloud,
   Mail,
-  Server,
   FlaskConical,
   DatabaseBackup,
   Bot,
@@ -76,14 +75,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     Icon: Mail,
     section: "core",
     permission: "site:read",
-  },
-  {
-    slug: "monitoring",
-    label: "Monitoring & Network",
-    description: "Collector tick + concurrency, the UniFi controller, and the Technitium DNS primary.",
-    Icon: Server,
-    section: "module",
-    permission: "monitors:write:any",
   },
   {
     slug: "backup",

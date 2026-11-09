@@ -195,7 +195,7 @@ export default function UpsPage() {
         <div className="rounded-md border border-dashed border-slate-300 p-10 text-center dark:border-slate-700">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No UPS devices yet. Add one above — SNMP defaults (community, version, timeout) are set under{" "}
-            <span className="font-medium">Monitoring settings</span>.
+            <span className="font-medium">UPS settings</span>.
           </p>
         </div>
       ) : (

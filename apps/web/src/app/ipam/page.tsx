@@ -190,8 +190,8 @@ export default function IpamPage() {
           Background scanning is off. Subnets are only swept when you click{" "}
           <span className="font-medium">Scan</span>, or add one. Turn on periodic scanning and tune the interval,
           DNS/NetBIOS/UniFi name lookups under{" "}
-          <Link href="/admin/settings/monitoring" className="font-medium underline">
-            Monitoring settings
+          <Link href="/ipam/settings" className="font-medium underline">
+            IPAM settings
           </Link>
           .
         </div>

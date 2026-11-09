@@ -86,11 +86,11 @@ function DnsPageInner() {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           DNS is not configured. Set the Technitium primary URL and API token under{" "}
           {canWrite ? (
-            <Link href="/admin/settings/monitoring" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
-              Monitoring settings
+            <Link href="/dns/settings" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
+              DNS settings
             </Link>
           ) : (
-            <span className="font-medium">Monitoring settings</span>
+            <span className="font-medium">DNS settings</span>
           )}
           .
         </p>
@@ -1115,7 +1115,7 @@ function SyncView({ canWrite }: { canWrite: boolean }) {
                   last.error ? `: ${last.error}` : `: ${last.added} added, ${last.updated} updated, ${last.removed} removed`
                 }`
               : "No runs yet."}
-            {!status?.enabled ? " Turn it on in Monitoring settings once the plan below looks right." : ""}
+            {!status?.enabled ? " Turn it on in DNS settings once the plan below looks right." : ""}
           </div>
         </div>
         <div className="flex items-center gap-2">

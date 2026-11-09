@@ -107,9 +107,6 @@ const SITE_ADMIN_REPORTING: NavDropdownItem[] = [
 // Per-module admin links, keyed by module key. A user with that module at the
 // "admin" tier sees these even without being a full site admin.
 const MODULE_ADMIN_ITEMS: Record<string, NavDropdownItem[]> = {
-  monitoring: [
-    { href: "/admin/settings/monitoring", label: "Monitoring & Network settings", Icon: Server },
-  ],
   checklists: [{ href: "/admin/checklists", label: "Checklists", Icon: ListChecks }],
 };
 

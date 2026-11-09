@@ -282,7 +282,7 @@ export function evaluatePosture(f: PostureFacts): PostureReport {
       title: "The status page is public",
       severity: "info",
       detail: "Anyone with the address can read /public-status without signing in: the names chosen for the status page, whether each is up, and the notice. Make sure those names say nothing you would not put on a noticeboard.",
-      fix: { label: "Open Monitoring settings", href: "/admin/settings/monitoring" },
+      fix: { label: "Open Monitoring settings", href: "/monitoring/settings" },
     });
   }
   if (!f.siteUrlSet) {

@@ -184,12 +184,12 @@ source system for any subnet still flagged `label_auto`; editing a label by
 hand (`PATCH /api/ipam/subnets/:id`) clears that flag so a manual rename is
 never overwritten. Scan knobs — enable, interval,
 concurrency, timeout, DNS/NetBIOS/UniFi-name toggles, TCP ports — live in the
-`monitoring` settings category; reads gate on `monitors:read:any`, writes on
+`ipam` settings category (`/ipam/settings`); reads gate on `monitors:read:any`, writes on
 `monitors:write:any`). The old
 standalone `network` module was merged into `monitoring` (migration 0031); the
 UniFi `unifi:read:any` / `unifi:admin` permissions are now granted by the
 `monitoring` tier, and the UniFi controller settings live in the `monitoring`
-settings category (`/admin/settings/monitoring`). The API endpoints stay at
+settings categories `unifi` (`/monitoring/network/settings`). The API endpoints stay at
 `/api/v1/unifi/*` — only the module/UI grouping changed.
 
 **Cisco pushes and stored configurations were reviewed 2026-10-19.** Rules: (1) **`buildPushCommands` is the one place a CLI line is made, and it
@@ -246,7 +246,7 @@ and the profiles: ports matched by number, `apps/web/src/lib/unifi-ports.ts`; re
 There is also a **UPS** tab (`/monitoring/ups` — the `ups` module: an SNMP poller
 over UPS-MIB / RFC 1628, mirroring the `printers` module — `ups_devices` table, a
 `setInterval` poller in `ups.service.ts`, per-device SNMP creds falling back to
-`monitoring.ups_*` settings; battery %, runtime, load, in/out voltage. Reuses the
+`monitoring.ups_*` settings (category `ups`, `/monitoring/ups/settings`); battery %, runtime, load, in/out voltage. Reuses the
 `monitoring` permissions like cisco/ipam — reads `monitors:read:any`, writes
 `monitors:write:any`, no dedicated module/permission strings).
 
@@ -256,7 +256,7 @@ Technitium DNS Server cluster running *outside* this stack, so port 53 never
 touches compose). `dns/technitium.ts` calls the Technitium HTTP API with the token
 as `Authorization: Bearer` (never in the URL); only the cluster **primary** is
 configured (`dns.primary_url`, `dns.api_token`, `dns.verify_tls` in the
-`monitoring` settings category) because it alone accepts zone edits and
+`dns` settings category, `/dns/settings`) because it alone accepts zone edits and
 aggregates cluster stats (`node=cluster`). Summary (primary
 unreachable = critical, a non-connected cluster node = degraded), cluster nodes,
 query stats, zones and records, plus audited record create/edit/delete
@@ -349,7 +349,7 @@ switch off so the settings page stays truthful; nothing depends on it. `POST /mo
 an inverted "Enabled" switch (on = alerts fire, the default; off = a menu asking for 1/4/8/24 hours or "until I turn it
 back on") right-aligned on the Monitoring tab row (`maintenance-control.tsx`, rendered
 inside `MonitoringTabs`), which shows when alerts resume and lets the time be changed, via `GET`/`POST
-/api/v1/monitors/maintenance`, or from `/admin/settings/monitoring`.
+/api/v1/monitors/maintenance` (Monitoring > Settings leaves the two keys out and points at the switch).
 
 **Flapping, acknowledging, escalation and the status page** (migration 0064; pure rules in `packages/shared/src/alert-rules.ts`,
 unit-tested; the probe worker cannot import the API, so the rules live in shared). (1) *Flapping* is the worker's
@@ -1763,7 +1763,7 @@ is typed, so a mixed-case row could never be matched.
   `/<module>/settings` is built from `ModuleSettingsPage` / `SettingsFormSection` (`components/module-settings.tsx`), `loadModuleSettings(settingKeysOf(category))`
   (secrets masked on the server) and the shared `SettingsForm` (saves to `/api/settings/save/<key>`, tests to `/api/settings/test/<target>`); the module's admin
   permission authorises its category (`SETTING_CATEGORY_MANAGE_PERMISSION`) and the module page links to it for admins only. Done: Signage, Printers, ProPresenter,
-  Livestreams, Planning Center (its people links are `/planning-center/links`), Help Desk (`/tickets/settings`: SLA targets and the mailbox; `/tickets/categories`), Wiki (`/wiki/settings`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
+  Livestreams, Planning Center (its people links are `/planning-center/links`), Help Desk (`/tickets/settings`: SLA targets and the mailbox; `/tickets/categories`), Wiki (`/wiki/settings`), Monitoring (`/monitoring/settings` for checks, retention and alerts; `/monitoring/network/settings` UniFi, `/dns/settings`, `/ipam/settings`, `/monitoring/ups/settings`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
   site-wide settings only. Never pass a lucide icon into a client component (a server page does that): keep the page shell server-rendered. Old `/admin/...` addresses
   redirect in `next.config.mjs`.
 - **No emoji in code.** Per repo conventions.

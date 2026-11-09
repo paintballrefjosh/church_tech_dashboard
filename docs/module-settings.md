@@ -76,7 +76,9 @@ Done: `/wiki/settings` (category `wiki`, managed by `wiki:admin`), Settings link
 | Review interval default (`wiki.review.default_days`) | `site` category | Category `wiki` |
 | Templates | already `/wiki/templates` | Link from the settings page |
 
-### 3.3 Monitoring (IT menu) -> `/monitoring/settings`, with IPAM, DNS, UPS parts on their own pages
+### 3.3 Monitoring (IT menu) -> `/monitoring/settings`, with IPAM, DNS, UPS parts on their own pages (DONE 2026-11-08)
+
+Done: categories `monitoring` (tick, concurrency, history retention, the 7 alert keys; the two maintenance keys are not in the form, the tab-row switch owns them), `unifi`, `dns`, `ipam`, `ups`, all managed by `monitors:write:any`. Pages: `/monitoring/settings` (a "Settings" tab at the end of the tab row, Monitoring admins only), `/monitoring/network/settings` (UniFi, with Test connection), `/dns/settings`, `/ipam/settings`, `/monitoring/ups/settings`. The settings form's Test buttons are now keyed by `unifi` and `dns`; `MODULE_SETTINGS_PAGE` in `settings-form.tsx` says where a category is edited (the "set this first" link of a locked switch). `/admin/settings/monitoring` redirects to `/monitoring/settings`. Cisco has no settings.
 The `monitoring` category (39 keys) is the biggest. Split by where the setting acts:
 | Item | Keys | New home |
 |---|---|---|
@@ -145,7 +147,7 @@ Result: `/admin/settings` lists Site, Authentication, Google, Microsoft, SMTP, E
 1. G1-G4 (shared pieces), then convert Signage onto them.
 2. Small, already module-gated: Printers, ProPresenter, Livestreams, Planning Center (settings + links).
 3. Helpdesk (SLA, categories, mailbox) and Wiki: DONE 2026-11-08. (Reports and Notifications stay in Admin, D4.)
-4. Monitoring split (UniFi, DNS, IPAM, UPS, alerts), the biggest settings change.
+4. Monitoring split: DONE 2026-11-08.
 5. Assistant, then Checklists (largest file move).
 6. G6-G10 cleanup last, removing the Modules section from Admin and the old redirects' sources.
 

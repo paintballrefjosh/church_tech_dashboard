@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function IpamLayout({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/signin");
-  // Its settings live in the Monitoring category, which needs monitors:write:any.
+  // Its settings page (/ipam/settings) needs monitors:write:any.
   const me = await apiJson<{ permissions: string[] }>("/api/v1/me").catch(() => null);
   const canAdmin = me?.permissions.includes("monitors:write:any") ?? false;
   return (
@@ -33,10 +33,10 @@ export default async function IpamLayout({ children }: { children: ReactNode }) 
             <PageTitle icon={Boxes}>IPAM</PageTitle>
             {canAdmin ? (
               <Link
-                href="/admin/settings/monitoring#monitoring.ipam_scan_enabled"
+                href="/ipam/settings"
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
-                <Settings className="h-4 w-4" aria-hidden /> IPAM admin
+                <Settings className="h-4 w-4" aria-hidden /> Settings
               </Link>
             ) : null}
           </div>

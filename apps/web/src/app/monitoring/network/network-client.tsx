@@ -10,6 +10,7 @@ import { MONITORING_HEALTH_REFRESH } from "../section-tabs";
 import { usePoll } from "@/lib/use-poll";
 import { useSwitchModels } from "@/lib/use-switch-models";
 import { useDeviceHoverPreview } from "./device-hover-preview";
+import { useCanWrite } from "../network-cisco/cisco-ui";
 
 interface Health {
   configured: boolean;
@@ -53,6 +54,7 @@ interface UClient {
 }
 
 export function NetworkClient() {
+  const canAdmin = useCanWrite();
   const [tab, setTab] = useState<"devices" | "clients">("devices");
   const [health, setHealth] = useState<Health | null>(null);
   const [devices, setDevices] = useState<UDevice[]>([]);
@@ -135,7 +137,7 @@ export function NetworkClient() {
   usePoll(() => load(false), 30_000, { enabled: !connected, immediate: false });
 
   const actions = (
-    <PageActions refreshing={refreshing} onRefresh={() => void load(false)} />
+    <PageActions refreshing={refreshing} onRefresh={() => void load(false)} canAdmin={canAdmin} />
   );
   const viewSwitch = (
     <ViewSwitch value={tab} onChange={setTab} devices={devices.length} clients={clients.length} />
@@ -150,9 +152,13 @@ export function NetworkClient() {
       <p className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
         UniFi isn&apos;t configured. Set <code className="mx-0.5">unifi.controller_url</code> and{" "}
         <code className="mx-0.5">unifi.api_key</code> in{" "}
-        <a className="underline" href="/admin/settings/monitoring">
-          Settings
-        </a>{" "}
+        {canAdmin ? (
+          <a className="underline" href="/monitoring/network/settings">
+            UniFi settings
+          </a>
+        ) : (
+          "the UniFi settings (a Monitoring admin can change them)"
+        )}{" "}
         to enable.
       </p>
       </div>
@@ -218,7 +224,7 @@ const ACTION_CLS =
   "inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 dark:text-slate-300 dark:hover:text-white";
 
 /** Refresh and the links that belong to the whole page, at the right of the table's toolbar. */
-function PageActions({ refreshing, onRefresh }: { refreshing: boolean; onRefresh: () => void }) {
+function PageActions({ refreshing, onRefresh, canAdmin }: { refreshing: boolean; onRefresh: () => void; canAdmin: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-4">
       <button type="button" onClick={onRefresh} disabled={refreshing} className={ACTION_CLS}>
@@ -228,9 +234,11 @@ function PageActions({ refreshing, onRefresh }: { refreshing: boolean; onRefresh
       <Link href="/monitoring/network/vouchers" className={ACTION_CLS}>
         <Ticket className="h-4 w-4" aria-hidden /> Guest vouchers
       </Link>
-      <Link href="/admin/settings/monitoring" className={ACTION_CLS}>
-        <SettingsIcon className="h-4 w-4" aria-hidden /> UniFi config
-      </Link>
+      {canAdmin ? (
+        <Link href="/monitoring/network/settings" className={ACTION_CLS}>
+          <SettingsIcon className="h-4 w-4" aria-hidden /> UniFi settings
+        </Link>
+      ) : null}
     </div>
   );
 }

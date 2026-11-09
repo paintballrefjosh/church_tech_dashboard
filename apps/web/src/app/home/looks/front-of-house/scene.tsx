@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatTimeInZone, summarize, type HomeSnapshot, type NextService } from "@lampstand/shared";
 import { Countdown } from "../../parts/countdown";
 import type { LookProps } from "../../look-props";
+import { clockText } from "./clock-text";
 import { serviceDateLine, useNow } from "./format";
 import s from "./front-of-house.module.css";
 
@@ -13,7 +14,6 @@ const KIND_LABEL: Record<NextService["times"][number]["kind"], string> = {
   other: "",
 };
 
-const pad = (n: number) => String(n).padStart(2, "0");
 
 function ledClass(team: NonNullable<NextService["team"]>): string | undefined {
   return team.waiting > 0 || team.declined > 0 ? s.ledA : s.ledG;
@@ -72,7 +72,7 @@ export function Scene({ props }: { props: LookProps }) {
           <Countdown to={firstService.startsAt} granularity="second" serverNow={snapshot.generatedAt}>
             {(left) => (
               <div className={`${s.clockTime} ${s.num}`} suppressHydrationWarning>
-                {pad(left.days * 24 + left.hours)}:{pad(left.minutes)}:{pad(left.seconds)}
+                {clockText(left)}
               </div>
             )}
           </Countdown>

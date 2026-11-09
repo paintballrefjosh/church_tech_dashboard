@@ -53,6 +53,10 @@ export interface KnownSetting<T = unknown> {
     | "propresenter"
     | "planning_center"
     | "monitoring"
+    | "unifi"
+    | "dns"
+    | "ipam"
+    | "ups"
     | "backup"
     | "helpdesk"
     | "tickets"
@@ -345,7 +349,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Resolved incidents, resolved switch drift and finished host update runs (with their output) older than this are removed by a background job. 0 keeps them all. Defaults to 365 days.",
     defaultValue: 365,
-    category: "site",
+    category: "monitoring",
   },
   // Ticket SLAs. Targets are in minutes; "response" = time-to-first-engagement
   // (a non-creator comment or an assignment), "resolution" = time-to-status≥resolved.
@@ -744,7 +748,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Base URL of the UniFi Network app (e.g. https://192.168.1.1 for UDM, or https://controller.local:8443).",
     defaultValue: "",
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.api_key",
@@ -753,7 +757,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "API key for the UniFi Network app (Settings → Admins → API Keys on UniFi OS 9+). Sent as X-API-Key.",
     defaultValue: "",
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.site_id",
@@ -761,7 +765,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "UniFi site id",
     description: "Site identifier in the controller. Default is 'default'.",
     defaultValue: "default",
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.protect_enabled",
@@ -770,7 +774,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Also list the cameras of UniFi Protect (on the same UniFi OS console, with the same API key) on the Network (UniFi) tab, and include them in the device offline alerts. Leave off for a self-hosted Network controller, which has no Protect.",
     defaultValue: false,
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.guest_ssid",
@@ -778,7 +782,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "Guest Wi-Fi network name",
     description: "The guest network's name (SSID), printed on guest Wi-Fi voucher cards so a visitor knows which network to join. Blank leaves it off.",
     defaultValue: "",
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.verify_tls",
@@ -787,7 +791,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Off for self-signed controller certs (UDM out of the box). Turn on if you've installed a real cert.",
     defaultValue: false,
-    category: "monitoring",
+    category: "unifi",
   },
   {
     key: "unifi.alert_device_offline",
@@ -796,7 +800,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Notify monitoring admins (in-app + email) when a UniFi device (AP, switch, gateway) goes offline or recovers. Requires a configured controller.",
     defaultValue: false,
-    category: "monitoring",
+    category: "unifi",
   },
   // DNS (IT → DNS). A Technitium DNS Server cluster, driven over its
   // HTTP API. Only the cluster primary is configured here: it is the only node
@@ -808,7 +812,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Base URL of the Technitium cluster primary's web console/API (e.g. https://dns1.int.example.org:53443). Change it after promoting a secondary.",
     defaultValue: "",
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.api_token",
@@ -817,7 +821,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "API token for a dedicated Technitium user (Administration → Sessions → Create Token). Needs View on Dashboard, Zones and Administration; edits in later phases also need Modify on Zones.",
     defaultValue: "",
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.verify_tls",
@@ -826,7 +830,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Off for Technitium's self-signed certificate. Turn on if the web console has a trusted cert.",
     defaultValue: false,
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.alert_unreachable",
@@ -835,7 +839,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Notify monitoring admins (in-app + email) when the primary's API stops answering for 3 minutes, and when it recovers. Lookups keep working on the secondary; this is about edits and the IPAM sync. Silenced by maintenance mode.",
     defaultValue: false,
-    category: "monitoring",
+    category: "dns",
   },
   // IPAM -> DNS sync: A (+PTR) records for named hosts in subnets with
   // "Publish to DNS" on. Records it writes carry a managed-by comment and are
@@ -847,7 +851,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Write A (and PTR) records for named hosts in subnets with \"Publish to DNS\" on. Review the plan in the IPAM sync view on the DNS page before turning this on.",
     defaultValue: false,
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.sync_zone",
@@ -856,7 +860,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Primary zone the sync writes A records into, e.g. int.example.org (avoid .local, which belongs to mDNS).",
     defaultValue: "",
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.sync_ptr",
@@ -865,7 +869,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Write reverse (PTR) records into matching in-addr.arpa zones. A missing reverse zone is reported, never created silently.",
     defaultValue: true,
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.record_ttl",
@@ -873,7 +877,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "Synced record TTL (seconds)",
     description: "TTL for records the sync writes. Short keeps DHCP address changes visible quickly.",
     defaultValue: 300,
-    category: "monitoring",
+    category: "dns",
   },
   {
     key: "dns.stale_days",
@@ -881,7 +885,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "Remove synced records after (days unseen)",
     description: "A synced record is removed once its host hasn't been seen up by the IPAM scanner for this many days.",
     defaultValue: 14,
-    category: "monitoring",
+    category: "dns",
   },
   // Printers — SNMP defaults + polling cadence. Per-printer values on the
   // `printers` rows override these when set.
@@ -1299,7 +1303,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Master switch for the background subnet sweep. Off leaves the inventory static (you can still add subnets and scan on demand).",
     defaultValue: false,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_scan_interval_min",
@@ -1307,7 +1311,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "IPAM scan interval (minutes)",
     description: "How often every scan-enabled subnet is swept for live hosts.",
     defaultValue: 60,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_concurrency",
@@ -1315,7 +1319,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "IPAM scan concurrency",
     description: "How many host probes run at once within a subnet sweep. Raise for faster (noisier) scans.",
     defaultValue: 32,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_host_timeout_ms",
@@ -1323,7 +1327,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "IPAM per-host timeout (ms)",
     description: "How long to wait for an ICMP reply or TCP handshake before treating a host as down.",
     defaultValue: 1000,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_dns_lookup",
@@ -1331,7 +1335,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "IPAM reverse DNS lookup",
     description: "Resolve each live host's PTR record to a hostname during the sweep.",
     defaultValue: true,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_netbios",
@@ -1339,7 +1343,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "IPAM NetBIOS name lookup",
     description: "Query each live host for its NetBIOS name (nbstat, UDP/137) — useful for naming Windows hosts.",
     defaultValue: false,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_unifi_names",
@@ -1348,7 +1352,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Name live hosts from the UniFi controller's client list (operator alias or DHCP hostname). This is where phone/IoT names come from — those devices only announce over link-local mDNS, which never reaches the off-subnet scanner.",
     defaultValue: true,
-    category: "monitoring",
+    category: "ipam",
   },
   {
     key: "monitoring.ipam_tcp_ports",
@@ -1357,7 +1361,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     description:
       "Comma-separated TCP ports probed when a host doesn't answer ICMP; a completed handshake OR a refusal counts the host as up. e.g. 22,80,443,445,3389.",
     defaultValue: "22,80,443,445,3389,139,7,9100,62078",
-    category: "monitoring",
+    category: "ipam",
   },
   // UPS (SNMP, UPS-MIB / RFC 1628). SNMP defaults + polling cadence; per-UPS
   // values on the `ups_devices` rows override these when set.
@@ -1367,7 +1371,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "UPS default SNMP version",
     description: "Used when a UPS row doesn't specify its own. v1 or v2c.",
     defaultValue: "v2c",
-    category: "monitoring",
+    category: "ups",
   },
   {
     key: "monitoring.ups_default_snmp_community",
@@ -1375,7 +1379,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "UPS default SNMP community",
     description: "Read community used when a UPS row doesn't set its own (most ship with 'public').",
     defaultValue: "public",
-    category: "monitoring",
+    category: "ups",
   },
   {
     key: "monitoring.ups_snmp_timeout_ms",
@@ -1383,7 +1387,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "UPS SNMP timeout (ms)",
     description: "How long to wait for an SNMP reply before marking the UPS unreachable.",
     defaultValue: 3000,
-    category: "monitoring",
+    category: "ups",
   },
   {
     key: "monitoring.ups_poll_interval_min",
@@ -1391,7 +1395,7 @@ export const KNOWN_SETTINGS: ReadonlyArray<KnownSetting> = [
     label: "UPS poll interval (minutes)",
     description: "How often the API polls every enabled UPS for battery, load, and runtime.",
     defaultValue: 5,
-    category: "monitoring",
+    category: "ups",
   },
 ] as const;
 
@@ -1423,6 +1427,8 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   microsoft: null,
   smtp: null,
   backup: null,
+  // Site admins only for now (docs/module-settings.md D3): it sends wiki, ticket and live-system content to an outside provider.
+  assistant: null,
   helpdesk: PERMISSIONS.TICKETS_ADMIN,
   tickets: PERMISSIONS.TICKETS_ADMIN,
   wiki: PERMISSIONS.WIKI_ADMIN,
@@ -1431,6 +1437,10 @@ export const SETTING_CATEGORY_MANAGE_PERMISSION: Record<string, PermissionString
   propresenter: PERMISSIONS.PROPRESENTER_ADMIN,
   planning_center: PERMISSIONS.PLANNING_CENTER_ADMIN,
   monitoring: PERMISSIONS.MONITORS_WRITE_ANY,
+  unifi: PERMISSIONS.MONITORS_WRITE_ANY,
+  dns: PERMISSIONS.MONITORS_WRITE_ANY,
+  ipam: PERMISSIONS.MONITORS_WRITE_ANY,
+  ups: PERMISSIONS.MONITORS_WRITE_ANY,
   livestreams: PERMISSIONS.LIVESTREAMS_ADMIN,
   signage: PERMISSIONS.SIGNAGE_ADMIN,
 };
@@ -1489,7 +1499,7 @@ export const TOGGLE_PREREQUISITES: ReadonlyArray<TogglePrerequisite> = [
     toggleKey: "dns.sync_enabled",
     requires: ["dns.primary_url", "dns.api_token", "dns.sync_zone"],
     providerLabel: "DNS sync",
-    categorySlug: "monitoring",
+    categorySlug: "dns",
   },
   {
     toggleKey: INBOUND_KEYS.enabled,

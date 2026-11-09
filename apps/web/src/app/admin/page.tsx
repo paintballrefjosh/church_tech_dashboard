@@ -12,7 +12,6 @@ import {
   ListChecks,
   UsersRound,
   Users,
-  Server,
   DatabaseBackup,
   Network,
   ShieldCheck,
@@ -157,14 +156,6 @@ const CARDS: AdminCard[] = [
   },
 
   // ── Modules: per-module admin surfaces (visible to that module's admins) ──
-  {
-    href: "/admin/settings/monitoring",
-    label: "Monitoring & Network settings",
-    Icon: Server,
-    description: "Collector cadence + concurrency, and the UniFi controller URL and API key.",
-    section: "modules",
-    perm: "monitors:write:any",
-  },
   {
     href: "/admin/checklists",
     label: "Checklists",

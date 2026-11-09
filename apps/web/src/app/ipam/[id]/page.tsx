@@ -140,7 +140,7 @@ export default function IpamSubnetPage() {
           <Link href="/dns?view=sync" className="font-medium text-brand-700 hover:underline dark:text-brand-300">
             DNS page
           </Link>{" "}
-          and turn it on in Monitoring settings.
+          and turn it on in IPAM settings.
         </p>
       ) : null}
 

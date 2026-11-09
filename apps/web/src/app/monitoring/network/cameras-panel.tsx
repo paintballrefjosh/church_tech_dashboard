@@ -5,7 +5,7 @@ import { Cctv } from "lucide-react";
 import type { UnifiCamerasReply } from "@lampstand/shared";
 import { usePoll } from "@/lib/use-poll";
 
-/** UniFi Protect cameras, while reading them is switched on (Monitoring settings). Renders nothing when it is off. */
+/** UniFi Protect cameras, while reading them is switched on (UniFi settings). Renders nothing when it is off. */
 export function CamerasPanel() {
   const [reply, setReply] = useState<UnifiCamerasReply | null>(null);
   const load = useCallback(async () => {

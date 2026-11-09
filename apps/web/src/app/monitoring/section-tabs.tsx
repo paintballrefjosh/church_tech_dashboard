@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, Server, Wifi, Network, BatteryCharging, BellRing } from "lucide-react";
+import { Activity, Server, Wifi, Network, BatteryCharging, BellRing, Settings as SettingsIcon } from "lucide-react";
 import { MaintenanceControl } from "./maintenance-control";
+import { useCanWrite } from "./network-cisco/cisco-ui";
 
 /**
  * Secondary navigation for the Monitoring section. Services (uptime monitors),
@@ -37,7 +38,8 @@ const TABS = [
         !p.startsWith("/monitoring/infra") &&
         !p.startsWith("/monitoring/network") &&
         !p.startsWith("/monitoring/ups") &&
-        !p.startsWith("/monitoring/alert-channels")),
+        !p.startsWith("/monitoring/alert-channels") &&
+        !p.startsWith("/monitoring/settings")),
   },
   { key: "infra", href: "/monitoring/infra", label: "Infrastructure", Icon: Server, match: (p: string) => p.startsWith("/monitoring/infra") },
   {
@@ -70,6 +72,15 @@ const TABS = [
   },
 ] as const;
 
+/** Monitoring's own settings, for a Monitoring admin only (docs/module-settings.md). */
+const SETTINGS_TAB = {
+  key: "settings",
+  href: "/monitoring/settings",
+  label: "Settings",
+  Icon: SettingsIcon,
+  match: (p: string) => p.startsWith("/monitoring/settings"),
+} as const;
+
 interface Health {
   critical: number;
   degraded: number;
@@ -79,6 +90,7 @@ type HealthMap = Partial<Record<string, Health>>;
 export function MonitoringTabs() {
   const pathname = usePathname();
   const [health, setHealth] = useState<HealthMap>({});
+  const canAdmin = useCanWrite();
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +118,7 @@ export function MonitoringTabs() {
   // context, so without this the cards below (painted later) cover the maintenance duration menu.
   return (
     <div className="relative z-20 mb-6 flex flex-wrap items-center gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
-      {TABS.map((t) => {
+      {(canAdmin ? [...TABS, SETTINGS_TAB] : [...TABS]).map((t) => {
         const active = t.match(pathname);
         return (
           <Link

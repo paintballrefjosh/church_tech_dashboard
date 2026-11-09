@@ -43,7 +43,7 @@ const ROUTES = [
   "/", "/activity", "/notifications", "/notes", "/tickets", "/tickets/new", "/tickets/canned-replies",
   "/wiki", "/wiki/new", "/wiki/review", "/wiki/templates", "/wiki/import",
   "/checklists", "/printers", "/printers/settings", "/propresenter", "/propresenter/settings", "/planning-center", "/planning-center/settings", "/planning-center/links", "/dns", "/ipam", "/cabinets", "/device-profiles", "/status",
-  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/infra/service-templates", "/monitoring/infra/service-groups", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/reports/monthly", "/assistant", "/assets", "/assets/import", "/rooms", "/livestreams", "/livestreams/settings",
+  "/monitoring", "/monitoring/new", "/monitoring/infra", "/monitoring/infra/new", "/monitoring/infra/service-templates", "/monitoring/infra/service-groups", "/monitoring/network", "/monitoring/ups", "/monitoring/alert-channels", "/renewals", "/monitoring/network/vouchers", "/monitoring/settings", "/monitoring/network/settings", "/monitoring/ups/settings", "/dns/settings", "/ipam/settings", "/reports/monthly", "/assistant", "/assets", "/assets/import", "/rooms", "/livestreams", "/livestreams/settings",
   "/signage", "/signage/schedules", "/signage/events", "/signage/playlists", "/signage/media", "/signage/power", "/signage/devices", "/signage/devices?tab=found", "/signage/settings", "/signage/security",
   "/monitoring/network-cisco", "/monitoring/network-cisco/backups", "/monitoring/network-cisco/drift",
   "/monitoring/network-cisco/lookup", "/monitoring/network-cisco/topology", "/monitoring/network-cisco/vlans",

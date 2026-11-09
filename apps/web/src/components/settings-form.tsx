@@ -25,6 +25,21 @@ interface TestHandler {
   build: (values: Record<string, unknown>) => Record<string, unknown>;
 }
 
+/** Where a settings category is edited: a module's own page when it has one, else Admin > Settings. */
+const MODULE_SETTINGS_PAGE: Record<string, string> = {
+  helpdesk: "/tickets/settings",
+  tickets: "/tickets/settings",
+  wiki: "/wiki/settings",
+  monitoring: "/monitoring/settings",
+  unifi: "/monitoring/network/settings",
+  dns: "/dns/settings",
+  ipam: "/ipam/settings",
+  ups: "/monitoring/ups/settings",
+};
+function settingsPageFor(category: string): string {
+  return MODULE_SETTINGS_PAGE[category] ?? `/admin/settings/${category}`;
+}
+
 const TEST_HANDLERS: Record<string, TestHandler[]> = {
   smtp: [{
     label: "Test SMTP",
@@ -53,7 +68,7 @@ const TEST_HANDLERS: Record<string, TestHandler[]> = {
       password: v["propresenter.password"],
     }),
   }],
-  monitoring: [{
+  unifi: [{
     label: "Test UniFi connection",
     build: (v) => ({
       baseUrl: v["unifi.controller_url"],
@@ -61,9 +76,9 @@ const TEST_HANDLERS: Record<string, TestHandler[]> = {
       siteId: v["unifi.site_id"],
       verifyTls: v["unifi.verify_tls"],
     }),
-  }, {
+  }],
+  dns: [{
     label: "Test DNS connection",
-    target: "dns",
     build: (v) => ({
       baseUrl: v["dns.primary_url"],
       apiToken: v["dns.api_token"],
@@ -124,7 +139,7 @@ export function SettingsForm({
     const labels = missing.map((r) => findKnownSetting(r)?.label ?? r);
     return {
       hint: `Set the ${labels.join(" and ")} first.`,
-      href: `/admin/settings/${prereq.categorySlug}`,
+      href: settingsPageFor(prereq.categorySlug),
     };
   }
 

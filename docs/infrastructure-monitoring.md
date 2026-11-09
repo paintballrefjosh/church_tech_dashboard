@@ -7,7 +7,7 @@ target over SSH or the Proxmox REST API and stores a time-series of metrics.
 
 Access is the existing **`monitoring`** module: any tier can view; the `admin`
 tier (i.e. `monitors:write:any`) can add/edit/delete targets and edit the
-collector settings at `/admin/settings/monitoring`.
+collector settings at `/monitoring/settings`.
 
 ## Target kinds
 
@@ -94,7 +94,7 @@ the metrics API serves raw for short ranges and rollups for longer ones.
 
 ## Collector tuning
 
-`/admin/settings/monitoring`:
+`/monitoring/settings`:
 
 - **Collector tick interval (seconds)** — scheduler granularity (default 15).
   Targets still poll at their own configured interval.

@@ -25,6 +25,7 @@ export function ModuleSettingsPage({
   intro,
   back,
   chrome = false,
+  inLayout = false,
   children,
 }: {
   title: string;
@@ -36,6 +37,8 @@ export function ModuleSettingsPage({
   back?: { href: string; label: string };
   /** True when the module's layout draws no top bar and `<main>` of its own (Printers, ProPresenter, Planning Center); false inside Signage/Livestreams-style layouts. */
   chrome?: boolean;
+  /** True when the page sits under a layout that already has the module's own big title and tabs (Monitoring, DNS, IPAM): the title is then a section heading. */
+  inLayout?: boolean;
   children: ReactNode;
 }) {
   const body = (
@@ -45,7 +48,7 @@ export function ModuleSettingsPage({
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to {back.label}
         </Link>
       ) : null}
-      <PageTitle icon={icon}>{title}</PageTitle>
+      {inLayout ? <SectionTitle icon={icon}>{title}</SectionTitle> : <PageTitle icon={icon}>{title}</PageTitle>}
       {nav && nav.length > 1 ? <SettingsNav label="Settings pages" items={nav} /> : null}
       {intro ? <p className="text-sm text-slate-600 dark:text-slate-300">{intro}</p> : null}
       {children}
@@ -57,6 +60,15 @@ export function ModuleSettingsPage({
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">{body}</main>
     </>
+  );
+}
+
+function SectionTitle({ icon: Icon, children }: { icon: IconType; children: ReactNode }) {
+  return (
+    <h2 className="flex items-center gap-2 text-xl font-semibold">
+      <Icon aria-hidden className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+      <span>{children}</span>
+    </h2>
   );
 }
 
