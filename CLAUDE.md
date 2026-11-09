@@ -94,9 +94,13 @@ apps/
               (drizzle schema in src/db/schema/, migrations in apps/api/migrations/;
               backups and restores in src/backup/)
 services/
-  monitor/    ICMP/TCP/HTTP probe worker (its own compose service)
+  monitor/    ICMP/TCP/HTTP and AV probe worker (its own compose service)
+  signage-agent/  the Python agent that runs on each signage Raspberry Pi (outside the Node workspace)
 packages/
   shared/     Zod schemas, modules/permissions/settings catalogues, audit types
+scripts/                     compose.sh, rebuild.sh, upgrade*.sh, cluster.sh, release.sh, assistant-eval.mjs ...
+patches/                     pnpm patchedDependencies (see ## Dependencies)
+docs/                        design notes and decisions per feature (module-settings, multi-node, assistant, mcp, signage ...)
 install.sh                   guided installer (wizard; every deployment shape, see ## Guided installer)
 infra/
   docker-compose.yml         dev (bundled single Cockroach node, or external DB)
@@ -121,7 +125,7 @@ migrations 0022/0024). Access is granted as **(module, tier)** per **group**:
   `admin` module only has the `admin` tier.
 - `loadUserById` in [apps/api/src/auth/auth.service.ts](apps/api/src/auth/auth.service.ts)
   resolves a user's groups → highest tier per module → a flat set of permission
-  **strings** (e.g. `tickets:write:any`) via `permissionsFor()` in
+  **strings** (e.g. `tickets:read:any`) via `permissionsFor()` in
   `packages/shared/src/modules.ts`. Route guards still check permission strings —
   but those strings are now *derived* from module tiers, not stored per role.
 - The `admin` **group** is special-cased: top tier on every module + every
@@ -188,8 +192,8 @@ concurrency, timeout, DNS/NetBIOS/UniFi-name toggles, TCP ports — live in the
 `monitors:write:any`). The old
 standalone `network` module was merged into `monitoring` (migration 0031); the
 UniFi `unifi:read:any` / `unifi:admin` permissions are now granted by the
-`monitoring` tier, and the UniFi controller settings live in the `monitoring`
-settings categories `unifi` (`/monitoring/network/settings`). The API endpoints stay at
+`monitoring` tier, and the UniFi controller settings are the `unifi` settings
+category (`/monitoring/network/settings`). The API endpoints stay at
 `/api/v1/unifi/*` — only the module/UI grouping changed.
 
 **Cisco pushes and stored configurations were reviewed 2026-10-19.** Rules: (1) **`buildPushCommands` is the one place a CLI line is made, and it
@@ -544,7 +548,7 @@ and `inbound-mail.ts`, unit-tested). (1) *Waiting on the requester* is ticket st
 `now - createdAt`; `waitingTransition` does the bookkeeping on every status change (`TicketsService.update` and the reply path) and
 `statusAfterRequesterReply` puts the ticket back to work when the creator posts a public comment (including by email). Staff-facing
 counts (home section) leave waiting tickets out; the requester still sees theirs. (2) *SLA notices* (`tickets/ticket-sla.ts`, cluster job
-`ticket-sla`, 60 s): `slaAlertsDue` picks warn (at `tickets.sla.warn_percent`) and breach per clock; each is CLAIMED by one conditional UPDATE
+`ticket-sla`, 60 s): `slaAlertsDue` picks warn (at `tickets.sla.warn_percent`, with the other SLA targets on `/tickets/settings`) and breach per clock; each is CLAIMED by one conditional UPDATE
 on `tickets.response_warned_at/response_breached_at/resolution_warned_at/resolution_breached_at` before sending (volatile in the backup
 registry); a notice more than `SLA_ALERT_STALE_MS` late is flagged silently (first run after upgrade must not announce history);
 a priority change clears the flags, reopening a finished ticket clears the resolution ones; recipients are the assignee, else everyone in a
@@ -572,7 +576,7 @@ throwaway GreenMail), `notification-reply-to.integration.test.ts`, smoke `tests/
 filters by `readablePredicate`, so there is no link table to drift, back-fill or restore and an edit shows on every node at once.
 A page the caller cannot read is never named. Fine for a church-sized wiki; if it ever grows to thousands of large pages,
 that is the moment for a table (maintained in `create`/`update`/`revertToRevision`/import). (2) *Review*: `wiki_pages.last_reviewed_at/by`,
-`review_interval_days` (null = site setting `wiki.review.default_days`, default 180; 0 = never) and `review_notified_at`
+`review_interval_days` (null = the `wiki.review.default_days` setting, edited at `/wiki/settings`, default 180; 0 = never) and `review_notified_at`
 (volatile in the backup registry). **A page is due when `wikiReviewState` says so: the clock starts from the LATER of `updated_at` and
 `last_reviewed_at`**, so editing counts as looking and confirming (`POST /wiki/:id/review`) is not an edit: no revision, `updated_at`
 untouched, no "page updated" notices (`WikiWritesService` also skips them for an interval-only PATCH). Changing the interval needs
@@ -660,11 +664,11 @@ from `rest/networkconf` + `rest/portconf` (read-only, `null` when unreachable: s
 `monitors:write:any` (like IPAM/DNS/UPS); MCP has read tools only (`racks_list`, `racks_get`, `port_sheet_*`). Tests: `rack-layout.test.ts`, `port-sheet.test.ts`,
 smoke `tests/smoke/cabinets.mjs`, e2e `cabinets.spec.ts`.
 
-Three groups ship by default: `admin` (everything), `support_engineer`
+Four groups ship by default: `admin` (everything), `support_engineer`
 (helpdesk-focused), `user` (baseline; auto-joined by every newly provisioned
-account). Wiki page ACLs and other per-resource controls reference **groups**.
-Only `admin` and `user` are system groups; `support_engineer` is a seed default that installs rename or delete (this one has
-none). **A migration that grants a new module to existing installs grants by the tiers a group already holds, never by a
+account) and `signage` (Signage moderator, no members at first). Wiki page ACLs and other per-resource controls reference **groups**.
+Only `admin` and `user` are system groups; `support_engineer` and `signage` are seed defaults that installs rename or delete.
+Only `admin` holds the `assistant` module by default. **A migration that grants a new module to existing installs grants by the tiers a group already holds, never by a
 non-system group's name** (0083: moderators of Tickets or Monitoring get Assets moderator); the seed's
 `DEFAULT_GROUP_MODULE_ACCESS` covers fresh installs.
 
@@ -1706,7 +1710,7 @@ Tables that only grow are pruned by age, in batches (`retention/batched-delete.t
 LIMIT n)` loops, capped per run), by cluster jobs, each window a setting where 0 keeps everything: audit log
 (`audit.retention_days`, 365, in `AuditService`), notifications (`notifications.retention_days`, 180) and the activity
 feed (`activity.retention_days`, 90), the last two in `RetentionService`, which also removes FINISHED monitoring history
-(`monitoring.history_retention_days`, 365: resolved incidents, resolved Cisco drift, finished host update runs with their
+(`monitoring.history_retention_days`, 365, edited at `/monitoring/settings`: resolved incidents, resolved Cisco drift, finished host update runs with their
 output) and runtime rows on fixed windows (spent or expired invite/reset links after 30 days, finished backup operations after
 180). An open incident or a running operation is never removed. The probe worker prunes `monitor_checks` itself, in batches
 through `monitor_checks_ts_idx` (migration 0076). A new table that grows without bound needs a
@@ -1817,7 +1821,9 @@ change. `make rebuild` does the right thing in all cases.
 - **Phase 0 — done** — auth, access control, audit log, theme shell, compose stack, regression suite
 - **Phase 1 — done** — helpdesk/tickets (+SLAs), notes, wiki (+attachments/ACLs), modular dashboard tiles, notification centre + SMTP (per-category in-app/email)
 - **Phase 2 — done** — monitoring (ICMP/TCP/HTTP) + incidents, UniFi views, printer (SNMP) status, ProPresenter adapter, Planning Center
-- **Phase 3 — mostly done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists. **AI/LLM/MCP module: started** — an MCP server with wiki tools (see ## MCP server).
+- **Phase 3 — done** — Meilisearch across wiki/notes/tickets **and all monitoring data points** (monitors, infra, UniFi devices/clients, Cisco switches/ports/MAC/ARP/VLAN — see ## Search), @mentions, tags, activity feed, saved views, checklists, backups and restore.
+- **MCP server — complete (2026-10-15)** — the route bridge covers the whole app (reads, writes, an "operational" token level for equipment, read-only admin); see ## MCP server and [docs/mcp.md](docs/mcp.md).
+- **Module settings inside the module — complete (2026-11-09)** — every module's settings and admin pages live in the module; Admin is for site admins and site-wide settings; see [docs/module-settings.md](docs/module-settings.md).
 - **Assistant (chatbot) — phases 1-3 built (2026-10-25/26)** — see ## Assistant and section 0 of [docs/assistant.md](docs/assistant.md); embeddings, replayed evaluation, API-token access and other channels are not built; do not start them without an explicit ask.
 - **Service monitoring templates — built (2026-10-26)** — see "Service monitoring" under ## Access control; service groups across hosts, the home-page Services area and catalogue wave two also built (2026-10-26); group roles per template, the redundancy warning, groups on the status page, in search and in the availability history (2026-10-27).
 - **Signage — built against simulated Pis (2026-11-08)** — see **Signage** under ## Access control and section 0 of [docs/signage.md](docs/signage.md); untested on real Pis and TVs until hardware arrives.
@@ -1905,9 +1911,10 @@ compose — that would defeat the single-ingress design.
 - **API rate limit:** `auth.rate_limit_per_minute` (default 1200, floor 60) is
   read live by @fastify/rate-limit; sign-in/TOTP/password-change have a fixed
   10/min bucket. The smoke client waits out 429s via `retry-after`.
-- **Configuration:** anything an operator might want to change at runtime (Google OAuth
-  client, SMTP, site name, etc.) lives in the `settings` table and is editable at
-  `/admin/settings`. Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`)
+- **Configuration:** anything an operator might want to change at runtime lives in the `settings` table, never in env.
+  Site-wide values (Google/Microsoft OAuth, SMTP, site name, sign-in policy, backups, upload types, home page defaults, retention) are
+  edited at `/admin/settings`; a module's own values are edited on that module's Settings page (see Conventions, "A module's own
+  settings live in the module"). Only true bootstrap values (DB URL, `AUTH_SECRET`, `APP_URL`)
   stay in `.env`. `KNOWN_SETTINGS` in `packages/shared/src/settings.ts`
   is the catalogue.
 - **Volumes:** all stateful services bind-mount into `./data/<service>/` at the repo

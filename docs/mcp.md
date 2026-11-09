@@ -10,11 +10,12 @@ through the MCP server at `/api/v1/mcp`. Decided 2026-10-12. Operator docs: INST
 | **0. Bridge** | In-process route bridge, tool catalogue, route-coverage test, per-caller tool listing, smoke tests | **done** |
 | **1. Work content** | Tickets and categories, notes, tags, saved views, activity, notifications, own notification settings, the home snapshot, checklists; wiki gaps (old revisions, revert, page access, folder rename/move) | **done** |
 | **2. Monitoring and IT** | Monitors (create, update, maintenance mode), service health, hosts (infra), UniFi (read, acknowledge a device), printers, UPS, IPAM, DNS, Cisco (read), Planning Center, ProPresenter status | **done** |
-| **3. Operational** | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | |
+| **3. Operational** | Anything that acts on live equipment or feeds it: ProPresenter slides, switch ports and pushes, DNS records and sync, polls, scans, and IPAM edits (they start scans and publish names to DNS). Needs the new "operational" token level | **done** |
 | **4. Read-only admin** | Users, groups and module access, settings (secrets hidden), audit log, cluster status | **done** |
 
-The coverage test lists what is still pending: `ROUTE_RULES` in `apps/api/src/mcp/bridge/route-rules.ts`
-(`pending` entries carry their phase). `COMPLETED_PHASES` in the same file is raised when a phase ships.
+All phases are done (`COMPLETED_PHASES` is `[0, 1, 2, 3, 4]`). `ROUTE_RULES` in `apps/api/src/mcp/bridge/route-rules.ts` holds the
+`excluded` routes with their reasons (and any `pending` entry would carry its phase); `apps/api/test/mcp-coverage.test.ts` fails on a
+route that is neither a tool nor ruled.
 
 ## Design
 

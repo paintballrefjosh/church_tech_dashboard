@@ -1,7 +1,12 @@
 # Assistant (chatbot): design
 
 Status: **phases 1-3 built** (phase 1 2026-10-25, phases 2 and 3 2026-10-26); designed 2026-10-10. The rules as built are
-in CLAUDE.md "## Assistant"; section 0 below says what phases 2 and 3 added and what is still not built.
+in CLAUDE.md "## Assistant"; section 0 below says what phases 2 and 3 added and what is still not built. Sections 1-18 are the
+original design, kept for the reasoning; where they differ from what was built, CLAUDE.md and section 0 win. Known differences:
+there is no `assistant_feedback` table (a rating and comment are columns of `assistant_messages`, copied to `assistant_answers`),
+no `assistant.fast_model` or `assistant.context_tokens` setting, no `query` views (`ai_*`), the last test and the privacy
+acknowledgement are in `job_state` and not in settings, and the code layout in section 15 is approximate (one `assistant.service.ts`,
+`llm/` clients, `readiness.ts`).
 
 A single place in the dashboard where a signed-in user asks a question in plain English and gets an answer built from
 what the site knows: wiki pages, tickets, and the live data the pollers collect from switches, hosts, services and the
@@ -16,7 +21,7 @@ still open?", "is anything down right now?", "what is the IP of the main switch 
 | Proposed actions | One model tool, `propose_action` (`packages/shared/src/assistant-actions.ts`), offered only for the kinds the person's permissions allow (`assistantActionsFor`): `create_ticket` (`tickets:write:own`), `acknowledge_incident` and `pause_alerts` (`monitors:write:any`), `wiki_draft` (`wiki:create`). It RECORDS a proposal (`assistant_messages.actions`) and changes nothing; at most 3 per answer. The card shows `proposalHeadline` and exactly what will be sent; text fields are editable; Confirm makes the normal route call (`proposalRequest`) from the browser as the person, so permissions, audit and read-your-writes are those of the route; then `PATCH /assistant/messages/:id/actions/:actionId` records done/dismissed once (`proposalTransitionProblem`), with the result as a site path only. An incident's description on the card is read from the database by the server, never taken from the model. A wiki draft is a page readable by its author only (visibility `group`, no groups). Pausing is always 1-24 hours, never open-ended. |
 | Feedback | Thumbs up/down with an optional comment on one's own answers (`POST /assistant/messages/:id/feedback`, audited without the comment). |
 | Figures | `assistant_answers` (migration 0086): one row per answer with no text and no person (outcome, error kind, timings, lookups, proposals, tokens, `answerSaysNotFound`, rating), kept 400 days apart from conversations, `skip` in the backup registry. The usage page `/assistant/usage` (`assistant:usage` or site admin) draws them with the month's cost against the budget. |
-| Notifications | Job `assistant-watch` (5 min, state in `job_state` `assistant/watch`): `assistant.budget` to the admin group at 80% and 100% of the month's budget (once each per month), `assistant.provider_down` when the newest three answers failed on the provider (`assistantProviderDown`) and again on recovery. Not silenced by maintenance mode. |
+| Notifications | Job `assistant-watch` (5 min, state in `job_state` `assistant/watch`): `assistant.budget` to the admin group and every Assistant admin (`assistantAlertRecipients`) at 80% and 100% of the month's budget (once each per month), `assistant.provider_down` when the newest three answers failed on the provider (`assistantProviderDown`) and again on recovery. Not silenced by maintenance mode. |
 | Health | `/assistant/status` returns `health` (`ok` / `failing` / `budget_used`); `/health/services` has an assistant card (only while it is on; degraded, never down). |
 | Panel and palette | The chat opens as a slide-over on any page (`components/assistant-panel.tsx`) from the user menu's "Ask the assistant" and from the command palette, which keeps that entry, last, while a question is typed and opens the panel with it as the question. No top-bar button: a third control wrapped the bar at 1280 px. |
 | Evaluation set | `tests/assistant/questions.yaml` (40 questions) and `scripts/assistant-eval.mjs`. The expected facts are read at run time from the normal API as the asking account, so it scores on any install; `--dry-run` reads only those references (free), `--yes` asks the model, `--out`/`--compare` show what a change fixed or broke. The deterministic "replay" mode of section 13 is the integration test's fake OpenAI-compatible server, not a recorded corpus. |
@@ -46,8 +51,9 @@ autonomous agent that runs in the background.
 
 ## 2. What the user sees
 
-- **Entry points** (only when enabled and the user's group has the `assistant` module): an "Assistant" item in the top
-  bar and a full page at `/assistant`. Later: a slide-over panel from any page and an entry in the Cmd-K palette.
+- **Entry points** (only when enabled and the user's group has the `assistant` module): "Ask the assistant" in the user menu
+  (opens a slide-over panel on any page), an entry in the Cmd-K palette, and a full page at `/assistant`. As designed there was
+  to be a top-bar item; it was not built because a third top-bar control wrapped the bar at 1280 px.
 - **Conversation:** streamed answer as it is written, a Stop button, "New chat", a list of earlier conversations, copy
   and regenerate on an answer, thumbs up/down with an optional comment.
 - **Sources:** every answer ends with the things it used, as links: the wiki page, the ticket, the switch page, the
@@ -58,7 +64,7 @@ autonomous agent that runs in the background.
 - **Starter prompts** in the empty state, chosen from the modules the user can reach (a user without Monitoring is not
   offered switch questions).
 - **Disabled state:** users without the module see nothing. A user with the module while the feature is off sees "The
-  assistant is not turned on" (and, for site admins, a link to its settings). While it is on but unhealthy (provider
+  assistant is not turned on" (and, for Assistant admins, a link to its settings). While it is on but unhealthy (provider
   down, budget used up, rate limited) they get a plain explanation, never a stack trace.
 - **Accessibility and layout:** the streaming region is `aria-live="polite"`, everything works by keyboard, it is usable
   at phone width, and the answer is rendered as sanitised markdown (section 11).
@@ -152,8 +158,8 @@ a streamed answer has been sent to the user.
 
 ## 5. Settings and the enabling flow
 
-New settings category `assistant` (added to the `category` union in `packages/shared/src/settings.ts`, a section at
-`/admin/settings/assistant`). All live in the `settings` table; nothing is read from env (project rule).
+New settings category `assistant` (added to the `category` union in `packages/shared/src/settings.ts`, edited at
+`/assistant/settings`). All live in the `settings` table; nothing is read from env (project rule).
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -162,9 +168,7 @@ New settings category `assistant` (added to the `category` union in `packages/sh
 | `assistant.base_url` | string | `""` | Required for `openai_compatible`; optional override for `anthropic`. |
 | `assistant.api_key` | secret | `""` | Required for hosted providers; optional for a local server with no auth. |
 | `assistant.model` | string | `""` | Model id, e.g. a Claude model id or `qwen3:14b`. |
-| `assistant.fast_model` | string | `""` | Optional cheaper model for the first routing step and for conversation titles. |
 | `assistant.verify_tls` | boolean | `true` | Certificate checking for HTTPS endpoints. |
-| `assistant.context_tokens` | number | `32000` | The model's context window as the admin knows it; the loop trims to fit. |
 | `assistant.max_output_tokens` | number | `1500` | Per model turn. |
 | `assistant.max_steps` | number | `6` | Model turns (lookup rounds) per question. |
 | `assistant.request_timeout_sec` | number | `120` | Whole answer. |
@@ -174,8 +178,9 @@ New settings category `assistant` (added to the `category` union in `packages/sh
 | `assistant.user_daily_questions` | number | `100` | Per user per day. |
 | `assistant.max_concurrent` | number | `2` | Questions running at once, **across all nodes** (matters for a single GPU box). |
 | `assistant.history_retention_days` | number | `30` | Conversations older than this are deleted. `0` keeps nothing after the answer is delivered. |
-| `assistant.privacy_acknowledged_by` | string | `""` | User id, and time, of the admin who accepted the data notice. Written by the UI, not editable by hand. |
-| `assistant.last_test` | json | `null` | Result of the last successful connection test (time, latency, model, capabilities). Written by the test, not editable by hand. |
+
+Not settings rows: the result of the last successful connection test and who accepted the privacy notice (and when) are kept in
+`job_state` (`ASSISTANT_STATE`), written by the test and the acknowledgement, never typed by hand.
 
 ### Prerequisites for turning it on
 
@@ -214,15 +219,15 @@ snapshot. A usage page (section 12) sits next to it.
 
 ## 6. Access control
 
-- New module `assistant` in `packages/shared/src/modules.ts`:
+- Module `assistant` in `packages/shared/src/modules.ts`:
   - `user` tier: may use the assistant (`assistant:use`).
   - `moderator` tier: also sees usage and feedback across users, without conversation text (`assistant:usage`).
   - `admin` tier: also sets the assistant up (`assistant:admin`, decided 2026-11-09): the provider and its key, limits and
     budget, retention, Test connection, the privacy acknowledgement and the switch, on `/assistant/settings`. It also gets the
     budget and provider-failure notices (with the admin group). **No tier reads another person's conversations**
     (`assistant:history` and `assistant.admins_can_read_history` were designed and never built; removed).
-- Seed grants: `admin` group only. The enabling checklist walks the admin through granting it to other groups. (Open
-  question: should the default `user` group get it once the feature is on? See section 17.)
+- Seed grants: the `admin` group only (it holds every module). The enabling checklist walks the admin through granting it to
+  other groups. (Open question: should the default `user` group get it once the feature is on? See section 17.)
 - **The assistant is session-only in v1** (`@SessionOnly()`): an API token cannot start a chat, so a leaked script
   token cannot spend the budget. Tokens keep using the MCP server for their own use.
 - All the account gates apply unchanged: must-change-password, pending approval, TOTP policy, disabled and deleted users.
@@ -234,6 +239,11 @@ snapshot. A usage page (section 12) sits next to it.
 
 The requirement is one chat over everything, with no per-section build-out. The design therefore uses **a few generic
 mechanisms and a catalogue**, not a tool per module.
+
+**As built (differs from the design below):** there is no `get(path)` mechanism, no `apps/api/src/assistant/catalogue/` and no `query`
+views. The model's lookups are the MCP catalogue's READ tools (`BRIDGE_TOOLS`, see [mcp.md](mcp.md)), called through `ApiBridge` with
+the person's own session cookie, filtered by `assistantMayUseRoute` (the deny-list of 7.3) and by the person's permissions, plus
+`search`; the one non-lookup tool is `propose_action` (section 0). The reasoning below still explains why it is shaped this way.
 
 ### 7.1 The three mechanisms
 
@@ -352,7 +362,7 @@ Additive migrations only (expand/contract); portable SQL; no `tenant_id`; no DB-
 |---|---|---|
 | `assistant_conversations` | One chat | `id`, `user_id`, `title`, `created_at`, `updated_at`, `deleted_at` |
 | `assistant_messages` | The turns | `id`, `conversation_id`, `role` (user/assistant), `content` (text, markdown), `sources` (jsonb: title, url, kind, as-of), `lookups` (jsonb: what ran, durations, row counts, no row data), `model`, `prompt_version`, `input_tokens`, `output_tokens`, `outcome` (ok/partial/error/refused/stopped), `error_kind`, `created_at` |
-| `assistant_feedback` | Thumbs and comments | `message_id`, `user_id`, `rating`, `comment`, `created_at` |
+| `assistant_answers` | Figures: one row per answer, no text and no person (migration 0086; the thumbs are copied here) | outcome, error kind, timings, lookups, proposals, tokens, rating |
 | `assistant_usage_daily` | Rollups for the usage page and the budget | `day`, `user_id`, `questions`, `input_tokens`, `output_tokens`, `cost`, `errors`; primary key `(day, user_id)` |
 
 - Tool **row data is not stored** with messages (only that a lookup happened, its size and its time), which keeps
@@ -362,8 +372,8 @@ Additive migrations only (expand/contract); portable SQL; no `tenant_id`; no DB-
   conversations at any time. Deleting a user's account removes their conversations.
 - **Budget accounting** increments `assistant_usage_daily` with an atomic upsert; the month's total is a sum of days.
   The check happens before a question starts and again as tokens are reported, so a runaway answer stops at the cap.
-- **Backup registry** (`backup/table-registry.ts`): every new table needs a decision. Proposed: conversations, messages
-  and feedback are `skip` (neither saved nor restored: they are private, bulky and not worth rolling back), usage rollups
+- **Backup registry** (`backup/table-registry.ts`): every new table needs a decision. As built: conversations, messages
+  and the figures are `skip` (neither saved nor restored: they are private, bulky and not worth rolling back), usage rollups
   `skip`. Their foreign keys then must not point at a `data` table with a restore hazard; `user_id` references `users`,
   so the registry test (a `data` table with a foreign key to a `skip` table) is not triggered in this direction, but the
   `skip` tables referencing `data` tables needs checking when written.
@@ -418,7 +428,7 @@ requests for secrets) is part of the test suite and of every evaluation run.
 - **Usage page** (`/assistant/usage`, `assistant:usage` and site admins): questions per day, tokens and cost (this month
   vs the cap), errors by kind, median and 95th percentile latency, time to first token, feedback ratio, the most-used
   data sources, and questions that were answered "I could not find that" (text only if retention keeps it).
-- **Notifications:** an in-app notification (kind `assistant.budget`) to admins at 80% and 100% of the monthly budget,
+- **Notifications:** an in-app notification (kind `assistant.budget`) to the admin group and the Assistant admins at 80% and 100% of the monthly budget,
   and one when the provider has failed repeatedly (kind `assistant.provider_down`), with recovery. Neither is silenced
   by maintenance mode (they are about the feature itself, not the network).
 - **Platform status:** a card on the Services page banner for the assistant (shown only when enabled), fed by the last

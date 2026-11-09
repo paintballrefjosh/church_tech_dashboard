@@ -88,7 +88,8 @@ status page by a plain name. Design, rules and what was verified:
 
 ## Retention
 
-Raw samples are kept 7 days (CockroachDB row-level TTL). The collector rolls raw
+Raw samples are kept 7 days (pruned in batches by the collector's `infra-prune` job; there is no database row-level TTL, so
+it behaves the same on CockroachDB and YugabyteDB). The collector rolls raw
 data into 5-minute (kept 90 days) and 1-hour (kept 1 year) min/avg/max buckets;
 the metrics API serves raw for short ranges and rollups for longer ones.
 

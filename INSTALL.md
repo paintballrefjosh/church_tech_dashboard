@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Docker** 25+ with the Compose plugin v2.20 or newer (`docker compose version`)
+- **Docker** with the Compose plugin v2.20 or newer (`docker compose version`)
 - **git** and **make**
 - A free **host port 8100** (configurable via `EXTERNAL_PORT` in `.env`)
 - Optionally, a Google and/or Microsoft (Entra) OAuth app for single sign-on — you can
@@ -827,9 +827,12 @@ use these.
 
 `.env` is intentionally minimal — it holds only **bootstrap** values (things needed
 before the DB is reachable, or that wire one container to another). Everything an
-operator tunes at runtime — site name, SMTP, Google/Microsoft OAuth, UniFi,
-ProPresenter, Planning Center, auth feature flags — lives in the `settings` table and
-is edited at `/admin/settings`. `make up` writes `.env` from `.env.example` with a
+operator tunes at runtime lives in the `settings` table, not in files. Site-wide values
+(site name, SMTP, Google/Microsoft OAuth, sign-in policy, backups, upload types, home page defaults, retention) are
+edited at `/admin/settings` by a site administrator; a module's own values (UniFi, DNS, IPAM, ProPresenter,
+Planning Center, printers, helpdesk SLA and mailbox, wiki review, the assistant, livestreams, signage ...) are edited on
+that module's own **Settings** page by that module's admins (see [Where settings live](#where-settings-live)).
+`make up` writes `.env` from `.env.example` with a
 random `AUTH_SECRET`. The full annotated list is in `.env.example`; the ones you'll
 touch:
 
@@ -1225,10 +1228,32 @@ rename (stop the app first; a node still running the old code would lose the dat
 - **Webhook receivers:** the alert webhook headers are now `X-Lampstand-Signature`, `X-Lampstand-Timestamp` and `X-Lampstand-Event`;
   change a receiver that checks the old names.
 
+## Where settings live
+
+Settings are rows in the database, edited in the browser. A **site administrator** (the `admin` group) can change all of them.
+A **module admin** (the `admin` tier on a module, granted to a group in Admin > Groups) changes that module's own settings; a
+moderator or user never sees a settings page. Each page is reached from a **Settings** link on the module's own page, shown only
+to the people who may use it.
+
+| Where | What is edited | Who |
+|---|---|---|
+| `/admin/settings` (Admin menu) | **Site** (name, URL, time zone, home page defaults and looks, upload types, audit / notification / activity retention, push on or off, monthly report), **Authentication**, **Google**, **Microsoft**, **SMTP**, **Backups** (offsite copies), **Experimental** | site admins |
+| `/tickets/settings` | SLA targets, the mailbox tickets are made from; `/tickets/categories` | Tickets admins |
+| `/wiki/settings` | How long before a page is flagged for review; links to templates | Wiki admins |
+| `/monitoring/settings` | Check timing, history retention, alert rules (flapping, reminders, escalation, status notice, public status) | Monitoring admins |
+| `/monitoring/network/settings`, `/dns/settings`, `/ipam/settings`, `/monitoring/ups/settings` | The UniFi controller, the Technitium DNS server (and the IPAM sync), IPAM scanning, UPS SNMP defaults | Monitoring admins |
+| `/printers/settings`, `/propresenter/settings`, `/planning-center/settings` | SNMP defaults, the ProPresenter host and password, the Planning Center credentials (`/planning-center/links` maps people) | that module's admins |
+| `/livestreams/settings` | Optional YouTube, Twitch, Facebook and Resi keys, how many samples at once | Livestreams admins |
+| `/signage/settings`, `/signage/security` | OS update window, NTP, discovery; the Pi setup login, lock-down options, key rotation and agent releases | Signage admins |
+| `/assistant/settings` | Provider, key, limits, budget, retention, Test connection, privacy acknowledgement and the on/off switch | Assistant admins |
+| `/checklists/manage` | Templates, services, stations, reports (not settings rows) | Checklists admins |
+
+Old `/admin/...` addresses for these pages redirect to the new ones, so bookmarks and old emails still work.
+
 ## Alerts, escalation and the status page
 
-These three work on top of the Monitoring tab's uptime monitors and the infrastructure alerts. Their settings are under
-**Admin > Site settings > Monitoring**.
+These three work on top of the Monitoring tab's uptime monitors and the infrastructure alerts. Their settings are on
+**Monitoring > Settings** (visible to Monitoring admins).
 
 - **Flapping.** A service that keeps going down and up used to send a notice every time. When a monitor goes down
   3 times within 30 minutes (both numbers are settings; 0 for the first turns this off) the people who get alerts are
@@ -1261,7 +1286,7 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   not counted towards either target. The requester sees a banner asking for their reply, and **their reply (on the page
   or by email) puts the ticket back to work**: in progress if someone has it, open if not. A staff comment or an
   internal note does not.
-- **SLA warnings.** The response and resolution targets under **Admin > Site settings** (per priority; 0 turns a clock
+- **SLA warnings.** The response and resolution targets under **Tickets > Settings** (per priority; 0 turns a clock
   off) now notify as well as show a red "Late" pill. **SLA: warn at (percent)** (default 80, 0 turns warnings off)
   tells the assignee, or the support team when nobody has the ticket (everyone in a group with moderator or admin access
   to Tickets, and the admin group), when a ticket has used that much of a target, and again, once, when it passes it.
@@ -1275,7 +1300,8 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
   before sending. `{{requester}}` (first name), `{{agent}}` (you), `{{ticket_number}}` and `{{ticket_title}}` are
   filled in; one that cannot be (for example the requester's name, which needs ticket admin access to look up) is left
   as written so you see it. Adding, editing and deleting takes ticket admin access.
-- **Tickets from email.** **Admin > Site settings > Helpdesk email**. The site reads one mailbox over IMAP every minute.
+- **Tickets from email.** **Tickets > Settings > Tickets from email** (Tickets admins; the mailbox host must be a real
+  outside name or address: loopback, link-local and this stack's own container names are refused). The site reads one mailbox over IMAP every minute.
   A new message opens a ticket for the person who sent it; a message whose subject has a ticket's `[#123]` adds a
   comment to that ticket (the quoted original and signature are cut). The site's own ticket emails carry that token and
   use the help address as Reply-To, so **replying to a notification email comments on the ticket** (internal notes are
@@ -1315,7 +1341,7 @@ These three work on top of the Monitoring tab's uptime monitors and the infrastr
 - **Linked from.** Under a page, the pages you can read that link to it, with the sentence each link sits in. It is
   worked out when you open the page, so there is nothing to rebuild after an import or a restore, and a page you may not
   read is never named. Links inside code blocks and a link to a page's Edit or History screen are not counted.
-- **Pages that go out of date.** **Admin > Site settings > Wiki - flag a page after (days)** (default 180, 0 turns the
+- **Pages that go out of date.** **Wiki > Settings > Wiki - flag a page after (days)** (default 180, 0 turns the
   check off). A page nobody has edited or confirmed for that long shows a banner, with **This page is still correct** for
   anyone who may edit it (this is not an edit: no revision, "updated by" is untouched). The owner or a wiki admin can give
   one page its own time, or "Never" (**Edit > Keeping it up to date**). **Wiki > To review** lists every due page, longest
@@ -1517,21 +1543,23 @@ user; reads aren't.
 
 An in-app chat (`/assistant`) that answers questions from the wiki, tickets and the monitoring data, using a model YOU
 choose: the Claude API, or a server you run (Ollama, llama.cpp, vLLM, LM Studio or anything with an OpenAI-compatible
-`/v1/chat/completions`). Nothing is sent anywhere until a site admin has set it up and switched it on.
+`/v1/chat/completions`). Nothing is sent anywhere until an Assistant admin has set it up and switched it on.
 
-1. **Site settings > Assistant**: pick the provider, the model (for Claude, a model id such as `claude-opus-5-5`; for your own
+1. **Assistant > Settings** (an Assistant admin, or a site admin): pick the provider, the model (for Claude, a model id such as `claude-opus-5-5`; for your own
    server, its address ending in `/v1` and the model name) and, for Claude, the API key.
 2. Press **Test connection**. Changing the provider, address, key or model later needs the test again.
 3. Set the **prices per million tokens** and a **monthly budget** (or both prices 0 for a model you run yourself), and the
    per-person limits if the defaults (6 a minute, 100 a day) do not suit.
-4. Give the groups who should use it the **Assistant** module (Admin > Groups). The admin group always has it.
+4. Give the groups who should use it the **Assistant** module (Admin > Groups): the user tier asks questions, the moderator tier
+   also sees usage figures, the admin tier also sets it up. The admin group always has it.
 5. Read the **privacy notice** on the same page and acknowledge it: the question, earlier turns of the conversation and what the
    lookups return go to that provider.
 6. Only then can **Enabled** be switched on; the checklist on the page says what is still missing.
 
 The assistant can only read, and only what the person asking can see; it never sees admin pages, settings, the audit log,
 backups, accounts or tokens. Conversations are kept 30 days by default (`Keep conversations`, 0 = not kept), and the page shows
-this month's questions, tokens and cost. Behind your own reverse proxy, do not buffer `/api/v1/assistant/chat` (it streams).
+this month's questions, tokens and cost (**Assistant > Usage**). The budget notices (80% and 100% of the month) and provider-failure
+notices go to the admin group and to every group holding the Assistant admin tier. Behind your own reverse proxy, do not buffer `/api/v1/assistant/chat` (it streams).
 
 ## Dockerized commands (no Node on host)
 
@@ -1609,7 +1637,7 @@ finishes, caches are cleared on every node and search is rebuilt in the backgrou
 asked to sign in again if their account changed.
 
 **Restoring only some of it.** The Restore tab lets you choose which **sections** to restore: People and
-access, Settings, Helpdesk, Wiki, Notes, Checklists, Monitoring (everything under the Monitoring menu: services, infrastructure, UPS, Cisco, IPAM), Printers, and Files. Everything is
+access, Settings, Helpdesk, Wiki, Notes, Checklists, Monitoring (everything under the Monitoring menu: services, infrastructure, UPS, Cisco, IPAM), Printers, Assets and rooms, Livestreams, Signage, and Files. Everything is
 chosen by default, which is the full rollback above. Unchecking a section leaves that part of the site exactly
 as it is now: it is not compared, not changed, and its uploaded files are not touched (uploaded files are only
 restored or cleaned up when Files is chosen). The comparison is made for the sections you chose, and the
@@ -1733,13 +1761,15 @@ download and upload, and let a schedule fire.
 ### What is kept, and for how long
 
 Tables that only grow are cleaned by age in the background (small batches, one node at a
-time). Each window is a setting under `/admin/settings` > Site, and 0 keeps everything:
+time). Each window is a setting, and 0 keeps everything (the first three under `/admin/settings` > Site; the monitoring one under **Monitoring > Settings**):
 
 | Setting | Default | What it removes |
 |---|---|---|
 | `audit.retention_days` | 365 | audit log rows older than this |
 | `notifications.retention_days` | 180 | notifications, read or not, older than this |
 | `activity.retention_days` | 90 | activity feed events older than this |
+| `monitoring.history_retention_days` | 365 | resolved incidents, resolved Cisco drift, finished host update runs |
+| `assistant.history_retention_days` | 30 | Assistant conversations (set on **Assistant > Settings**) |
 
 Signed-in browser records (the "where you are signed in" list) are removed 30 days after their last use, and ended ones after 90 days.
 

@@ -3,7 +3,7 @@
 Status: **all eight phases are implemented and tested.** Shape C (bundled database on every node) has run on a simulated three-node cluster and shape D (your own database and object store) as two nodes behind a load balancer, on CockroachDB and on YugabyteDB, with the smoke and browser suites passing through the balancer. Everything ran on one host: no real network between nodes was tried.
 Written 2026-10-04. When a phase ships, tick it in [Phases](#phases) and make sure
 INSTALL.md and CLAUDE.md describe what actually exists. Items marked **(done)** below are
-in the code; see [Phase 0 notes](#phase-0-notes), [Phase 1 notes](#phase-1-notes), [Phase 2 notes](#phase-2-notes), [Phase 3 notes](#phase-3-notes), [Phase 4 notes](#phase-4-notes), [Phase 5 notes](#phase-5-notes), [Phase 6 notes](#phase-6-notes), [Phase 7 notes](#phase-7-notes) and [Phase 8 notes](#phase-8-notes).
+in the code; see [Phase 0 notes](#phase-0-notes), [Phase 1 notes](#phase-1-notes), [Phase 2 notes](#phase-2-notes), [Phase 3 notes](#phase-3-notes), [Phase 4 notes](#phase-4-notes), [Phase 5 notes](#phase-5-notes), [Phase 6 notes](#phase-6-notes-garage-brought-forward), [Phase 7 notes](#phase-7-notes-bundled-cluster-shape-c) and [Phase 8 notes](#phase-8-notes-visibility-shape-d-proof-docs).
 
 ## Goal
 
@@ -249,9 +249,9 @@ Order matters. Each phase leaves shape A working and shippable.
 
 **Milestone M1: shape D works** (multi-node with a remote DB and external S3) after phases 0-5. Reached: proven in phase 8.
 
-- [x] **6. Garage** (6.2): single node in phase 6, clustered with phase 7. Done 2026-10-04, see [Phase 6 notes](#phase-6-notes) and [Phase 7 notes](#phase-7-notes).
-- [x] **7. Bundled cluster** (7.1-7.5). Done 2026-10-04, see [Phase 7 notes](#phase-7-notes).
-- [x] **8. Visibility, harness, docs** (8.1-8.6). Done 2026-10-05, see [Phase 8 notes](#phase-8-notes).
+- [x] **6. Garage** (6.2): single node in phase 6, clustered with phase 7. Done 2026-10-04, see [Phase 6 notes](#phase-6-notes-garage-brought-forward) and [Phase 7 notes](#phase-7-notes-bundled-cluster-shape-c).
+- [x] **7. Bundled cluster** (7.1-7.5). Done 2026-10-04, see [Phase 7 notes](#phase-7-notes-bundled-cluster-shape-c).
+- [x] **8. Visibility, harness, docs** (8.1-8.6). Done 2026-10-05, see [Phase 8 notes](#phase-8-notes-visibility-shape-d-proof-docs).
 
 **Milestone M2: shape C works** after phases 6-8. Reached.
 
@@ -712,7 +712,7 @@ removing a node) belongs with phase 7.
 
 **Multi-node Garage** (one layout across nodes, replication factor 2 or 3, the RPC port on
 `CLUSTER_BIND_ADDR`, adding, replacing and removing nodes) was done in phase 7: see
-[Phase 7 notes](#phase-7-notes). The CLI is then `garage -c /tmp/garage.toml` (the config is rendered
+[Phase 7 notes](#phase-7-notes-bundled-cluster-shape-c). The CLI is then `garage -c /tmp/garage.toml` (the config is rendered
 from a template). The MinIO containers on the dev host were stopped, not removed, and `data/minio` is
 untouched, until you are sure.
 

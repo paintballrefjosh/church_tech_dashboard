@@ -1,6 +1,6 @@
 # Module settings live in the module
 
-Plan, 2026-11-08. Status: decisions made; shared groundwork (G1-G4) built and Signage converted (2026-11-08); Printers, ProPresenter, Livestreams and Planning Center moved (2026-11-08); the rest not yet. Signage (migrations 0091/0092) is the worked example.
+Plan, 2026-11-08. Status: **complete (2026-11-09).** Every module's settings and admin pages are in the module, and Admin is for site admins and site-wide settings only. Sections 1-3 are the plan as it was written, kept for the reasoning; each module heading says DONE and what was actually built. Signage (migrations 0091/0092) was the worked example.
 
 Goal: **Admin is for the site and its people** (accounts, groups, sign-in, mail, backups, cluster, audit, security). Anything that
 configures one module moves to that module's own pages, gated by that module's admin tier, and disappears from `/admin`, the Admin
@@ -38,16 +38,16 @@ A client file cannot export plain values to a server page (it gets a reference, 
 
 | # | Change | Why |
 |---|---|---|
-| G1 | Move `SettingsForm` (and its `save/[key]` route) from `app/admin/settings/` to `components/settings-form.tsx` + `app/api/settings/save/[key]` | Signage imports it from the admin folder today; the admin folder must be deletable per category |
-| G2 | Generalise `loadSignageSettings` into `lib/load-module-settings.ts` (`loadModuleSettings(keys)`) | Every module needs the same masked load |
-| G3 | A `ModuleSettingsShell` (title, optional sub-nav like `SettingsSubnav`, section boxes) | One look for every module's settings page |
-| G4 | Move the Test-connection proxy to a module-neutral route (`/api/settings/test/[kind]`) with the same `ROUTES` map | Today the URL says `admin` |
-| G5 | `Settings` entry in each module's tab row / header, shown when the viewer has the module admin permission | Discoverability (Signage's tab row is the model) |
+| G1 (done) | Move `SettingsForm` (and its `save/[key]` route) from `app/admin/settings/` to `components/settings-form.tsx` + `app/api/settings/save/[key]` | Signage imports it from the admin folder today; the admin folder must be deletable per category |
+| G2 (done) | Generalise `loadSignageSettings` into `lib/load-module-settings.ts` (`loadModuleSettings(keys)`) | Every module needs the same masked load |
+| G3 (done, built as `ModuleSettingsPage`) | A `ModuleSettingsShell` (title, optional sub-nav like `SettingsSubnav`, section boxes) | One look for every module's settings page |
+| G4 (done) | Move the Test-connection proxy to a module-neutral route (`/api/settings/test/[kind]`) with the same `ROUTES` map | Today the URL says `admin` |
+| G5 (done) | `Settings` entry in each module's tab row / header, shown when the viewer has the module admin permission | Discoverability (Signage's tab row is the model) |
 | G6 (done) | Remove module entries from `topbar-nav.tsx` `MODULE_ADMIN_ITEMS`, `/admin` `CARDS` (section `modules`), `lib/palette.ts`, `SETTINGS_CATEGORIES` (`section: "module"`) | Admin becomes site-only; the hub then needs no "Modules" section |
-| G7 | Redirects in `next.config.mjs` from every old `/admin/...` address to the new one (as was done for `/monitoring/ipam*`) | Bookmarks, emails and notices already link to the old paths |
-| G8 | Update the strings that name the old place: `mailer.service.ts`, `assistant.service.ts`, `auth.controller.ts`, signin page hint, `apps/api/src/main.ts` comment, empty-state links in module pages (list in section 4) | Users are told where to go |
-| G9 | Tests: `zz-accessibility.spec.ts` page lists (`/admin/settings`, `/admin/assistant`, `/admin/planning-center`), `helpdesk.spec.ts` (`/admin/settings/helpdesk`), `assistant.spec.ts` (`/admin/assistant`) | They hard-code the old addresses |
-| G10 | CLAUDE.md: replace the "Module settings" memory with a rule under Conventions; note each module's new settings page in its section | Keep the context file current |
+| G7 (done) | Redirects in `next.config.mjs` from every old `/admin/...` address to the new one (as was done for `/monitoring/ipam*`) | Bookmarks, emails and notices already link to the old paths |
+| G8 (done) | Update the strings that name the old place: `mailer.service.ts`, `assistant.service.ts`, `auth.controller.ts`, signin page hint, `apps/api/src/main.ts` comment, empty-state links in module pages (list in section 4) | Users are told where to go |
+| G9 (done) | Tests: `zz-accessibility.spec.ts` page lists (`/admin/settings`, `/admin/assistant`, `/admin/planning-center`), `helpdesk.spec.ts` (`/admin/settings/helpdesk`), `assistant.spec.ts` (`/admin/assistant`) | They hard-code the old addresses |
+| G10 (done) | CLAUDE.md: replace the "Module settings" memory with a rule under Conventions; note each module's new settings page in its section | Keep the context file current |
 
 ## 3. Per module: what moves
 
@@ -117,9 +117,9 @@ All of `/admin/checklists` moves: templates (new, `[id]`), services (new, `[id]`
 ### 3.9 Signage
 Already done. Needs only G1-G3 so it stops importing from the admin folder.
 
-### 3.10 Assistant -> `/assistant/settings` (+ `/assistant/usage`) (DONE 2026-11-08, edit rights stay site admin, D3)
+### 3.10 Assistant -> `/assistant/settings` (+ `/assistant/usage`) (DONE 2026-11-08; module admin edits it since 2026-11-09, D3)
 
-Done: `/assistant/settings` (panel + form), `/assistant/usage`, "Usage" (needs `assistant:usage`) and "Settings" (site admin) buttons on `/assistant`, redirects from `/admin/settings/assistant` and `/admin/assistant`, `assistant: null` made explicit in `SETTING_CATEGORY_MANAGE_PERMISSION`. Below was the plan.
+Done: `/assistant/settings` (panel + form), `/assistant/usage`, "Usage" (needs `assistant:usage`) and "Settings" (needs `assistant:admin`) buttons on `/assistant`, redirects from `/admin/settings/assistant` and `/admin/assistant`. The category is managed by the new `assistant:admin` permission (the Assistant module's admin tier), see D3. Below was the plan.
 | Item | From | Notes |
 |---|---|---|
 | Provider, URL, key, model, limits, budget, retention (16 keys) and `AssistantPanel` (test connection, privacy notice, readiness) | `/admin/settings/assistant` | See D3: it sends site data to an outside service |
@@ -136,7 +136,7 @@ Home page defaults and the time zone (`dashboard.*`, `site.timezone`), the audit
 
 Users, Groups, Tags (shared by tickets, notes, wiki), API tokens, Permission matrix, Audit log (+ `audit.retention_days`), Security overview, Cluster, Backups (+ offsite), Reindex, and the settings categories `site` (name, URL, tagline, footer, time zone), `auth`, `google`, `microsoft`, `smtp`, `experimental`, plus `attachments.*` (upload policy shared by wiki, notes and tickets).
 
-Result: `/admin/settings` lists Site, Authentication, Google, Microsoft, SMTP, Experimental only. The "Modules" section of `/admin` and the Modules group of the Admin menu go away.
+Result (as built): `/admin/settings` lists Site, Authentication, Google, Microsoft, SMTP, Backups (offsite copies) and Experimental only; the home page defaults, upload types, retention windows, push switch and monthly report switches are fields of the Site page (D4). The "Modules" section of `/admin` and the Modules group of the Admin menu are gone, and the Admin menu is for site admins only.
 
 ## 5. Decisions
 

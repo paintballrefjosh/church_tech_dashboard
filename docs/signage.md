@@ -156,7 +156,7 @@ unit-tested).
 Every setting below is chosen by a Signage admin on the module's own **Security settings** page (`/signage/security`, stored
 in the `signage` settings category, `signage:admin` to read or change). **All of the module's settings are reached from the
 module's own pages** (`/signage/settings`, with Security settings as one of its pages), never from Admin > Settings: you stay
-within the module for everything (decided 2026-11-08; the other modules are to be moved the same way later). Applied by setup and by "Apply again"; checked on every poll (drift = "Settings not applied"). Defaults in brackets.
+within the module for everything (decided 2026-11-08; every other module has since been moved the same way, see [module-settings.md](module-settings.md)). Applied by setup and by "Apply again"; checked on every poll (drift = "Settings not applied"). Defaults in brackets.
 
 | Setting | What it does on the Pi |
 |---|---|
@@ -204,7 +204,7 @@ works once the key is restricted), `os-update`, `key add|remove`. Size caps on e
 - `signage_devices`: `screen_id`, `name`, `ip`, `ssh_port`, `known_host_key`, `login_user`, `key_generation`, `serial`, `model`,
   `os_release`, `mac_wlan`, `mac_eth`, `agent_version`, `applied_settings_hash`, `manifest_version_applied`, `last_seen_at`,
   `last_error`, latest status values, `claimed_until`, `enabled`, `status` `setting_up|active|failed|disabled`.
-- `signage_discovery_subnets` (`cidr` or `ipam_subnet_id`, `continuous`, `interval_min`, `last_run_at`).
+- `signage_discovery_subnets` (`cidr`, `label`, `continuous`, `interval_min`, `last_run_at`, `last_found`; subnets are typed in, not linked to IPAM).
 - `signage_found` (`ip`, `host_key`, `banner`, `evidence`, `first_seen_at`, `last_seen_at`, `dismissed_at`).
 - `signage_setup_runs` (`device_id`, `kind` `setup|apply|os_update|agent_update`, `status`, `output`, `started_by`, times).
 - `signage_status_samples` (7 days), `signage_manifests` (last 5 per screen), `signage_screenshots`, `signage_agent_releases`.
@@ -264,7 +264,7 @@ skips power actions. Agent updates: hash-checked tarball, `current` symlink, rol
 healthy within 120 s. Code in `services/signage-agent/` (Python, `pytest` in a container), outside the Node workspace.
 
 **Supported**: Raspberry Pi 3B+, 4 and 5 (bought on price), Raspberry Pi OS Lite 64-bit, **latest release only**
-(`SIGNAGE_SUPPORTED_OS`: Debian 13 "trixie" based, read from `/etc/os-release`). Setup refuses anything else with the reason;
+(`SUPPORTED_CODENAMES` in `services/signage-agent/signage_agent/apply.py`: Debian 13 "trixie" based, `VERSION_CODENAME` read from `/etc/os-release`). Setup refuses anything else with the reason;
 a new Pi OS release is added to that list once it has been tried.
 
 **Resolution**: v1 assumes every TV is 1080p. Videos are made at 1080p30 and images at 1920x1080 (portrait: 1080x1920), once,

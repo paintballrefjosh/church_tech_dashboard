@@ -14,42 +14,48 @@ the churches themselves are lampstands: the thing that holds the light up, not t
 That is the role of this software too, a supporting one.
 
 Lampstand is a self-hosted, modular dashboard for a single church. One place for support tickets,
-the wiki, notes, monitoring, printer status, network views, ProPresenter control,
-Planning Center, volunteer checklists, and the rest.
+the wiki, notes, monitoring, network and DNS, printer status, ProPresenter control, Planning Center,
+volunteer checklists, livestream checks, TV signage, an optional AI assistant, and the rest.
 
-> **Status:** Phases 0–2 are in place and Phase 3 is mostly there (search,
-> @mentions, tags, activity, checklists, saved views). The AI/LLM/MCP module is
-> the main thing still on the list. See [CLAUDE.md](./CLAUDE.md) § Roadmap.
+> **Status:** everything in the table below is built and tested on the development stack. The
+> deliberately deferred part is Phase 4, bespoke church-specific modules (volunteer scheduling,
+> kids check-in, service planning), which will not start without an explicit decision. Signage was
+> built against simulated Raspberry Pis only (no real Pi or TV has run it yet), and the Assistant has not yet been run against a real model. See
+> [CLAUDE.md](./CLAUDE.md) § Roadmap for the detail.
 
 ## What's in here
 
-| Module | Phase | Status |
-|---|---|---|
-| Auth (Google + Microsoft Entra + local + TOTP) | 0 | ready |
-| External-account approval flow (volunteers) | 1 | ready |
-| Users, groups, per-module tiered access, audit log | 0 | ready |
-| Light / dark theme + PWA shell | 0 | ready |
-| Reverse proxy on a single port | 0 | ready |
-| Modular tile dashboard | 1 | ready |
-| Helpdesk / tickets (+ SLAs) | 1 | ready |
-| Wiki (markdown, attachments, ACLs) | 1 | ready |
-| Notes (Keep-style) | 1 | ready |
-| Notification centre + SMTP (per-category in-app / email) | 1 | ready |
-| Monitoring (ICMP/TCP/HTTP + incidents) | 2 | ready |
-| Printer (SNMP) status | 2 | ready |
-| UniFi network views | 2 | ready |
-| ProPresenter integration | 2 | ready |
-| Planning Center integration | 2 | ready |
-| Volunteer checklists | 3 | ready |
-| Full-text search (wiki / notes / tickets) | 3 | ready |
-| @mentions, tags, activity feed, saved views | 3 | ready |
-| Backups and restore (scheduled, downloadable, with a change report) | 3 | ready |
-| AI / LLM / MCP module | 3 | planned |
+Each module has its own settings inside it (for example `/signage/settings`, `/tickets/settings`),
+edited by that module's admins. **Admin** is only for site administrators and site-wide settings.
+
+| Area | What it does |
+|---|---|
+| Sign-in and access | Google, Microsoft Entra and local accounts, optional or required TOTP, external-account approval for volunteers, per-browser sessions and sign-out, personal API tokens |
+| Users, groups and tiers | Groups are granted a tier (`user`, `moderator`, `admin`) per module; the permission matrix, an audit log of every change, a security overview |
+| Home page | Six looks (Tiles, Start page, Nave, Toward Sunday, Glass, Front of House), each person picks theirs; light and dark theme; installable PWA; command palette (Ctrl+K) |
+| Helpdesk | Tickets, categories, SLA targets with warnings, a "waiting on requester" status, saved replies, tickets from a mailbox |
+| Wiki | Markdown pages with attachments, folders, page-level access, history and diffs, templates, "linked from", review reminders, import from .docx / .pdf / .txt |
+| Notes | Personal sticky-note board |
+| Notifications | In-app, email, web push, quiet hours and a daily summary |
+| Search, @mentions, tags, activity, saved views | One full-text search across tickets, notes, wiki and the monitoring data |
+| Monitoring | Uptime probes (including AV devices), infrastructure hosts and service templates, UniFi, Cisco switches (config backups, drift, VLANs), UPS, incidents with acknowledge and escalation, alert channels, a status page |
+| IPAM, DNS, cabinets, device profiles, renewals | Subnet scanner, Technitium DNS with IPAM sync, rack elevations and printable port sheets, switch pictures, licence and domain expiry reminders |
+| Equipment and rooms | Inventory, check-out, labels, CSV import, shared rooms list |
+| Printers | SNMP status, toner and trays |
+| ProPresenter, Planning Center | Status and control (ProPresenter), read-only plans and people (Planning Center) |
+| Checklists | Per-event task lists, stations, recurring services, shared-screen completion |
+| Livestreams | Checks that a stream is live and healthy, with alerts |
+| Signage | TV screens driven by Raspberry Pis: media, playlists, schedules, events, TV power |
+| Assistant (off by default) | A chat answered by a model you choose, read-only and as the signed-in person |
+| MCP server | Lets an agent such as Claude read and, within limits, update the site through personal API tokens |
+| Backups and restore | Scheduled and on-demand, offsite copies, verified, selective restore with a change report |
+| Clustering | Several app nodes behind a load balancer; the database carries coordination, no Redis |
 
 ## Architecture in one paragraph
 
-Next.js 15 frontend + NestJS backend + CockroachDB (multi-master, Postgres-wire) +
-an S3-compatible object store (Garage) + Meilisearch, all behind Caddy on a single host port (default **:8100**,
+Next.js 15 frontend + NestJS backend + a Postgres-wire database (CockroachDB bundled, or your own
+CockroachDB or YugabyteDB) + an S3-compatible object store (Garage bundled, or your own) + Meilisearch,
+all behind Caddy on a single host port (default **:8100**,
 HTTP only — terminate HTTPS upstream). Auth.js handles Google and Microsoft Entra SSO
 plus local accounts with optional/required TOTP; OAuth providers are configured at
 runtime in the database, not in env. Access control is group-based with per-module
@@ -82,8 +88,9 @@ make seed      # seeds default groups + per-module access and the bootstrap admi
 ```
 
 Then open `http://<server>:8100` and sign in with **admin / admin**. You'll be forced to set
-a new password on first login. After that, all other settings (Google/Microsoft OAuth,
-SMTP, etc.) live in the database — edit them at `/admin/settings` instead of touching files.
+a new password on first login. After that, settings live in the database, not in files: site-wide
+ones (sign-in, Google/Microsoft OAuth, SMTP, backups) at `/admin/settings`, and each module's own
+settings on that module's Settings page.
 
 Persistent data is bind-mounted into `./data/<service>/` so backing up the whole stack is a
 `tar -czf backup.tgz data/ .env` away. Full setup details and Google Workspace integration are in
@@ -109,7 +116,8 @@ make prod-up   # same as: scripts/compose.sh --prod up -d --build
 
 Prod compose runs a 3-node CockroachDB cluster and expects production env vars
 (see [INSTALL.md](./INSTALL.md#production)). Outbound mail uses whatever SMTP server
-you configure in `/admin/settings` (the same in dev and prod).
+you configure in `/admin/settings` (the same in dev and prod). For several machines behind a load
+balancer, see [Deployment shapes](./INSTALL.md#deployment-shapes-single-node-and-multi-node).
 
 ## Regression testing
 
@@ -124,10 +132,13 @@ make regression
 
 ## Project docs
 
-- [CLAUDE.md](./CLAUDE.md) — architecture, conventions, "things to never do"
+- [CLAUDE.md](./CLAUDE.md) — architecture, conventions, "things to never do", roadmap
 - [QUICKSTART.md](./QUICKSTART.md) — shortest path to a running dashboard
-- [INSTALL.md](./INSTALL.md) — full setup, including Google Workspace
-- Roadmap: see CLAUDE.md § Roadmap
+- [INSTALL.md](./INSTALL.md) — full setup, upgrades, backups, clustering, Google Workspace
+- [docs/](./docs) — design notes and decisions per feature: [module settings](./docs/module-settings.md),
+  [multi-node](./docs/multi-node.md), [assistant](./docs/assistant.md), [MCP](./docs/mcp.md),
+  [signage](./docs/signage.md), [service monitoring](./docs/service-monitoring.md),
+  [home looks](./docs/dashboard-themes.md) and others
 
 ## License
 

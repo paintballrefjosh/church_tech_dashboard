@@ -238,8 +238,8 @@ one in phase 0 and do not mix). Never `eval`, never user JavaScript. This is wha
 
 Expand/contract applies (migrations must work with the previous release). All additive:
 
-- `service_templates` (id, key, name, version, source `builtin|custom`, `forked_from`, body jsonb, `allows_commands`
-  bool, timestamps). Built-ins are shipped in code (`packages/shared`) and seeded/read, never edited; a custom copy is a
+- `service_templates` (as built: `key` primary key, `forked_from`, `body` jsonb, `runs_commands` bool, `version`, created/updated by and at;
+  the name is in the body, and built-ins are never rows). Built-ins are shipped in code (`packages/shared`) and seeded/read, never edited; a custom copy is a
   fork.
 - `service_instances` (id, target_id -> `infra_targets`, template_key, name, inputs jsonb, secrets encrypted, enabled,
   status, last_error, last_polled_at, `claimed`-style fields if the poll is sharded later).
@@ -269,7 +269,7 @@ A template that can run SSH commands is remote command execution as the monitori
 to. Rules:
 
 - Only `monitors:write:any` (admin tier) may create or edit a template or instance.
-- A template containing any `ssh` collector has `allows_commands = true`; saving or enabling one needs an explicit
+- A template containing any `ssh` collector has `runs_commands = true`; saving or enabling one needs an explicit
   confirmation, shows a diff against the previous version, and writes an audit entry. Commands are fixed text with
   `{{input}}` substitution that is **shell-quoted by the engine**, never string-concatenated, and read-only by
   convention (review aid, not a sandbox).
@@ -337,7 +337,7 @@ scraping with Prometheus would be less work.
    YugabyteDB (Prometheus plus a few SQL checks), PostgreSQL, MariaDB/MySQL.
 3. **Network services:** Technitium, Kea, Apache, then the generic templates (Prometheus endpoint, JSON endpoint, systemd
    + port + log pattern, SQL number).
-4. **Authoring GUI:** editor, import/export, fork-from-built-in, the `allows_commands` approval flow. Full custom
+4. **Authoring GUI:** editor, import/export, fork-from-built-in, the `runs_commands` approval flow. Full custom
    authoring comes last, once the format has proven itself on the built-ins.
 5. Later: service groups, MCP read tools, catalogue wave two, home-page snapshot section (`services`) with
    permission-gated builder.

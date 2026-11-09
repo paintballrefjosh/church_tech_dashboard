@@ -1,6 +1,6 @@
 # Home dashboard themes: implementation plan
 
-Status: **built** (2026-10-11) on branch `home-looks`: every phase below is implemented and validated on the dev stack
+Status: **built** (2026-10-11, merged to `master`): every phase below is implemented and validated on the dev stack
 (regression suite, both schemes, desktop and 390 px, an admin and a limited volunteer account). The rules for changing
 it are in CLAUDE.md, "Home page looks"; operator notes are in INSTALL.md, "The home page and its looks". The site
 default is Front of House (decided 2026-10-11, open question 1); the other open questions are still open.
