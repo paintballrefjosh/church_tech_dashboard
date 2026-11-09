@@ -1759,6 +1759,13 @@ is typed, so a mixed-case row could never be matched.
   still be `HttpOnly` and `SameSite=Lax`.
 - **Single port 8100.** Caddy is the only thing bound to a host port. Every other
   service is internal to the compose network.
+- **A module's own settings live in the module** (plan, decisions and per-module status: [docs/module-settings.md](docs/module-settings.md)). A page
+  `/<module>/settings` is built from `ModuleSettingsPage` / `SettingsFormSection` (`components/module-settings.tsx`), `loadModuleSettings(settingKeysOf(category))`
+  (secrets masked on the server) and the shared `SettingsForm` (saves to `/api/settings/save/<key>`, tests to `/api/settings/test/<target>`); the module's admin
+  permission authorises its category (`SETTING_CATEGORY_MANAGE_PERMISSION`) and the module page links to it for admins only. Done: Signage, Printers, ProPresenter,
+  Livestreams, Planning Center (its people links are `/planning-center/links`). **Do not add a module to `admin/settings/categories.ts` or the Admin menu**; Admin keeps
+  site-wide settings only. Never pass a lucide icon into a client component (a server page does that): keep the page shell server-rendered. Old `/admin/...` addresses
+  redirect in `next.config.mjs`.
 - **No emoji in code.** Per repo conventions.
 
 ## Common commands

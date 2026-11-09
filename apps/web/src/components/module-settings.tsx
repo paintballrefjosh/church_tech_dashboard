@@ -1,4 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { SettingsForm } from "@/components/settings-form";
 import { SettingsNav, type NavItem } from "@/components/settings-nav";
@@ -15,14 +18,45 @@ import type { loadModuleSettings } from "@/lib/load-module-settings";
 
 type IconType = ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
-export function ModuleSettingsPage({ title, icon, nav, intro, children }: { title: string; icon: IconType; nav?: NavItem[]; intro?: ReactNode; children: ReactNode }) {
-  return (
+export function ModuleSettingsPage({
+  title,
+  icon,
+  nav,
+  intro,
+  back,
+  chrome = false,
+  children,
+}: {
+  title: string;
+  icon: IconType;
+  /** Links between this module's settings pages; drawn only when there is more than one. */
+  nav?: NavItem[];
+  intro?: ReactNode;
+  /** A link back to the module's main page. */
+  back?: { href: string; label: string };
+  /** True when the module's layout draws no top bar and `<main>` of its own (Printers, ProPresenter, Planning Center); false inside Signage/Livestreams-style layouts. */
+  chrome?: boolean;
+  children: ReactNode;
+}) {
+  const body = (
     <div className="space-y-6">
+      {back ? (
+        <Link href={back.href} className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline dark:text-brand-400">
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to {back.label}
+        </Link>
+      ) : null}
       <PageTitle icon={icon}>{title}</PageTitle>
       {nav && nav.length > 1 ? <SettingsNav label="Settings pages" items={nav} /> : null}
       {intro ? <p className="text-sm text-slate-600 dark:text-slate-300">{intro}</p> : null}
       {children}
     </div>
+  );
+  if (!chrome) return body;
+  return (
+    <>
+      <TopBar />
+      <main className="mx-auto max-w-6xl px-4 py-8">{body}</main>
+    </>
   );
 }
 

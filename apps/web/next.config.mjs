@@ -34,6 +34,12 @@ const nextConfig = {
       { source: "/monitoring/network/models/:path*", destination: "/device-profiles/:path*", permanent: false },
       { source: "/monitoring/infra/models", destination: "/device-profiles", permanent: false },
       { source: "/monitoring/infra/models/:path*", destination: "/device-profiles/:path*", permanent: false },
+      // Module settings moved into the modules (docs/module-settings.md, 2026-11-08).
+      { source: "/admin/settings/printers", destination: "/printers/settings", permanent: false },
+      { source: "/admin/settings/propresenter", destination: "/propresenter/settings", permanent: false },
+      { source: "/admin/settings/livestreams", destination: "/livestreams/settings", permanent: false },
+      { source: "/admin/settings/planning_center", destination: "/planning-center/settings", permanent: false },
+      { source: "/admin/planning-center", destination: "/planning-center/links", permanent: false },
     ];
   },
   experimental: {

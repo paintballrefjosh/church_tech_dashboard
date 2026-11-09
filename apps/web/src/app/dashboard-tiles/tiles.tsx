@@ -499,7 +499,7 @@ export function PlanningCenterNextServiceTile() {
     return (
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Planning Center isn&apos;t configured.{" "}
-        <Link href="/admin/settings/planning_center" className="text-brand-600 dark:text-brand-400 underline">
+        <Link href="/planning-center/settings" className="text-brand-600 dark:text-brand-400 underline">
           Configure
         </Link>{" "}
         to enable.

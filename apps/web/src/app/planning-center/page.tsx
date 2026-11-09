@@ -6,6 +6,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { LocalDateTime } from "@/components/local-date-time";
+import { viewerPermissions } from "@/lib/load-module-settings";
 
 interface PcPlan {
   id: string;
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function PlanningCenterPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
+  const canAdmin = (await viewerPermissions()).has("planning_center:admin");
 
   // Health-check first so we can show a friendly "configure me" state instead
   // of an error when the operator hasn't filled in credentials yet.
@@ -46,12 +48,14 @@ export default async function PlanningCenterPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <header className="mb-4 flex flex-wrap items-center gap-3">
           <PageTitle icon={CalendarDays}>Planning Center</PageTitle>
-          <Link
-            href="/admin/settings/planning_center"
-            className="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-          >
-            <SettingsIcon className="h-4 w-4" aria-hidden /> Config
-          </Link>
+          {canAdmin ? (
+            <Link
+              href="/planning-center/settings"
+              className="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
+            </Link>
+          ) : null}
         </header>
 
         {!health.configured ? (
@@ -60,7 +64,7 @@ export default async function PlanningCenterPage() {
             <code className="mx-0.5">planning_center.app_id</code>,{" "}
             <code className="mx-0.5">planning_center.secret</code> and{" "}
             <code className="mx-0.5">planning_center.default_service_type_id</code> in{" "}
-            <Link href="/admin/settings/planning_center" className="underline">
+            <Link href="/planning-center/settings" className="underline">
               Settings
             </Link>{" "}
             to enable.
@@ -73,7 +77,7 @@ export default async function PlanningCenterPage() {
           <p className="rounded-md border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400 dark:border-slate-700">
             No upcoming services in the default service type. Pick a different service type
             id in{" "}
-            <Link href="/admin/settings/planning_center" className="underline">
+            <Link href="/planning-center/settings" className="underline">
               Settings
             </Link>{" "}
             if needed.

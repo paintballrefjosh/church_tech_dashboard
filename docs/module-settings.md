@@ -1,6 +1,6 @@
 # Module settings live in the module
 
-Plan, 2026-11-08. Status: decisions made; shared groundwork (G1-G4) built and Signage converted (2026-11-08); modules not yet moved. Signage (migrations 0091/0092) is the worked example.
+Plan, 2026-11-08. Status: decisions made; shared groundwork (G1-G4) built and Signage converted (2026-11-08); Printers, ProPresenter, Livestreams and Planning Center moved (2026-11-08); the rest not yet. Signage (migrations 0091/0092) is the worked example.
 
 Goal: **Admin is for the site and its people** (accounts, groups, sign-in, mail, backups, cluster, audit, security). Anything that
 configures one module moves to that module's own pages, gated by that module's admin tier, and disappears from `/admin`, the Admin
@@ -51,6 +51,11 @@ A client file cannot export plain values to a server page (it gets a reference, 
 
 ## 3. Per module: what moves
 
+Done so far also did, for each moved module: a Settings link on the module page for admins only (it was a "Config" link for everyone),
+redirects from the old address in `next.config.mjs`, the module's entries removed from `SETTINGS_CATEGORIES`, the `/admin` cards and the
+Admin menu (`MODULE_ADMIN_ITEMS`), and `zz-accessibility.spec.ts` pointed at the new pages. Pages that sit in a layout with no top bar
+use `<ModuleSettingsPage chrome>`; `back` adds the link to the module.
+
 "Gate" is the permission that should authorise the category after the move (see decisions D1).
 
 ### 3.1 Helpdesk (tickets) -> `/tickets/settings`
@@ -82,13 +87,13 @@ The `monitoring` category (39 keys) is the biggest. Split by where the setting a
 | Cisco | none in settings today | Nothing to move |
 Each group needs its own category (`unifi`, `dns`, `ipam`, `ups`, `monitoring`) in the catalogue so the form lists only its keys; all keep `monitors:write:any`.
 
-### 3.4 Printers -> `/printers/settings`
+### 3.4 Printers -> `/printers/settings` (DONE 2026-11-08)
 `printers.*` (default SNMP version and community, timeout, poll interval, Fiery timeout), plus its Test connection. Gate `printers:admin`.
 
-### 3.5 ProPresenter -> `/propresenter/settings`
+### 3.5 ProPresenter -> `/propresenter/settings` (DONE 2026-11-08)
 `propresenter.host/port/password` and Test connection. Today the page links to `/admin/settings/propresenter` in two places (`page.tsx`, `propresenter-client.tsx`). Gate `propresenter:admin`.
 
-### 3.6 Planning Center -> `/planning-center/settings`
+### 3.6 Planning Center -> `/planning-center/settings` and `/planning-center/links` (DONE 2026-11-08)
 | Item | From |
 |---|---|
 | App id, secret, default service type | `/admin/settings/planning_center` |
@@ -98,7 +103,7 @@ Three links to fix in `planning-center/page.tsx` and one in `dashboard-tiles/til
 ### 3.7 Checklists -> `/checklists/manage` (or `/checklists/settings`)
 All of `/admin/checklists` moves: templates (new, `[id]`), services (new, `[id]`), stations, events/new, reports. There are no `KNOWN_SETTINGS` rows. This is the largest page move, not a settings move. Gate `checklists:admin`. Link in `checklists/page.tsx` to update; roughly a dozen files under `admin/checklists` carry `/admin/checklists` hrefs.
 
-### 3.8 Livestreams -> `/livestreams/settings`
+### 3.8 Livestreams -> `/livestreams/settings` (DONE 2026-11-08)
 `livestreams.*` keys (YouTube, Twitch, Facebook, Resi, max concurrent samples). Already module-gated; only the page moves. Gate `livestreams:admin`.
 
 ### 3.9 Signage

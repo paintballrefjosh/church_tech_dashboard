@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { MonitorPlay, Plus } from "lucide-react";
+import { MonitorPlay, Plus, Settings as SettingsIcon } from "lucide-react";
 import { PERMISSIONS, type Livestream } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { can, useViewer } from "@/components/assets-ui";
@@ -17,6 +17,7 @@ export default function LivestreamsPage() {
   const [forbidden, setForbidden] = useState(false);
   const [adding, setAdding] = useState(false);
   const canWrite = can(me, PERMISSIONS.LIVESTREAMS_WRITE_ANY);
+  const canAdmin = can(me, PERMISSIONS.LIVESTREAMS_ADMIN);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/livestreams", { credentials: "same-origin", cache: "no-store" });
@@ -40,11 +41,18 @@ export default function LivestreamsPage() {
             </p>
           ) : null}
         </div>
-        {canWrite ? (
-          <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
-            <Plus className="h-4 w-4" aria-hidden /> Add a stream
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {canAdmin ? (
+            <Link href="/livestreams/settings" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+              <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
+            </Link>
+          ) : null}
+          {canWrite ? (
+            <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+              <Plus className="h-4 w-4" aria-hidden /> Add a stream
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {rows === null ? (

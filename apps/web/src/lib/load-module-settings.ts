@@ -23,3 +23,16 @@ export async function loadModuleSettings(keys: readonly string[]) {
   );
   return { known, current };
 }
+
+/** Every setting key in a catalogue category, in catalogue order: what a module's settings page passes to `loadModuleSettings`. */
+export function settingKeysOf(category: string): string[] {
+  return KNOWN_SETTINGS.filter((s) => s.category === category).map((s) => s.key);
+}
+
+/** The signed-in person's permission strings (`GET /me`), for a server page deciding which links to show. Empty when unknown. */
+export async function viewerPermissions(): Promise<Set<string>> {
+  const res = await apiFetch("/api/v1/me").catch(() => null);
+  if (!res || !res.ok) return new Set();
+  const me = (await res.json().catch(() => null)) as { permissions?: string[] } | null;
+  return new Set(me?.permissions ?? []);
+}

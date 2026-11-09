@@ -109,17 +109,10 @@ const SITE_ADMIN_REPORTING: NavDropdownItem[] = [
 // "admin" tier sees these even without being a full site admin.
 const MODULE_ADMIN_ITEMS: Record<string, NavDropdownItem[]> = {
   tickets: [{ href: "/admin/ticket-categories", label: "Helpdesk categories", Icon: Folder }],
-  printers: [{ href: "/admin/settings/printers", label: "Printers settings", Icon: Printer }],
   monitoring: [
     { href: "/admin/settings/monitoring", label: "Monitoring & Network settings", Icon: Server },
   ],
-  propresenter: [{ href: "/admin/settings/propresenter", label: "ProPresenter settings", Icon: Presentation }],
-  planning_center: [
-    { href: "/admin/settings/planning_center", label: "Planning Center settings", Icon: CalendarDays },
-    { href: "/admin/planning-center", label: "Planning Center links", Icon: CalendarDays },
-  ],
   checklists: [{ href: "/admin/checklists", label: "Checklists", Icon: ListChecks }],
-  livestreams: [{ href: "/admin/settings/livestreams", label: "Livestreams settings", Icon: MonitorPlay }],
 };
 
 function filterByAccess(items: Item[], access: Record<string, string>): NavDropdownItem[] {

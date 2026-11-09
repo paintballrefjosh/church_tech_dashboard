@@ -72,7 +72,7 @@ export function PropresenterClient() {
         ProPresenter isn&apos;t configured. Set <code className="mx-0.5">propresenter.host</code> /{" "}
         <code className="mx-0.5">propresenter.port</code> (default 1025) and
         optionally <code className="mx-0.5">propresenter.password</code> in{" "}
-        <a className="underline" href="/admin/settings/propresenter">Settings</a>.
+        <a className="underline" href="/propresenter/settings">Settings</a>.
       </p>
     );
   }

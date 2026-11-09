@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { Printer } from "lucide-react";
+import Link from "next/link";
+import { Printer, Settings as SettingsIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
@@ -29,7 +30,17 @@ export default async function PrintersPage() {
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <PageTitle icon={Printer}>Printers</PageTitle>
+        <div className="flex flex-wrap items-center gap-3">
+          <PageTitle icon={Printer}>Printers</PageTitle>
+          {canAdmin ? (
+            <Link
+              href="/printers/settings"
+              className="ml-auto inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <SettingsIcon className="h-4 w-4" aria-hidden /> Settings
+            </Link>
+          ) : null}
+        </div>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Live status, toner / ink levels, paper trays, and (for Fiery servers) the active
           queue depth. Background poll runs every few minutes; use Refresh on a card to

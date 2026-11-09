@@ -6,14 +6,10 @@
  */
 import type { ComponentType } from "react";
 import {
-  MonitorPlay,
   Globe,
   KeyRound,
   Cloud,
   Mail,
-  Printer,
-  Presentation,
-  CalendarDays,
   Server,
   FlaskConical,
   DatabaseBackup,
@@ -81,38 +77,6 @@ export const SETTINGS_CATEGORIES: CategoryMeta[] = [
     Icon: Mail,
     section: "core",
     permission: "site:read",
-  },
-  {
-    slug: "printers",
-    label: "Printers",
-    description: "Default SNMP community + polling cadence for the Printers module.",
-    Icon: Printer,
-    section: "module",
-    permission: "printers:admin",
-  },
-  {
-    slug: "propresenter",
-    label: "ProPresenter",
-    description: "Host, port, and remote password for PP7 control.",
-    Icon: Presentation,
-    section: "module",
-    permission: "propresenter:admin",
-  },
-  {
-    slug: "livestreams",
-    label: "Livestreams",
-    description: "Optional API keys for YouTube, Twitch, Facebook and Resi, and how many streams are sampled at once.",
-    Icon: MonitorPlay,
-    section: "module",
-    permission: "livestreams:admin",
-  },
-  {
-    slug: "planning_center",
-    label: "Planning Center",
-    description: "App id + secret and default service type for services.",
-    Icon: CalendarDays,
-    section: "module",
-    permission: "planning_center:admin",
   },
   {
     slug: "monitoring",
