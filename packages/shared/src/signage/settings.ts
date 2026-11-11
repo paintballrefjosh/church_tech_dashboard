@@ -10,8 +10,8 @@ export const SIGNAGE_KEYS = {
   keyGeneration: "signage.ssh_key_generation",
   loginAccount: "signage.login_account",
   lockSetupPassword: "signage.lock_setup_password",
-  passwordLogin: "signage.ssh_password_login",
-  rootLogin: "signage.ssh_root_login",
+  refusePasswordLogin: "signage.ssh_refuse_passwords",
+  refuseRootLogin: "signage.ssh_refuse_root",
   allowOnlyLogin: "signage.ssh_allow_only_login",
   onlyDashboard: "signage.ssh_only_dashboard",
   extraSources: "signage.ssh_from",
@@ -32,8 +32,8 @@ export const SIGNAGE_SECURITY_KEYS: readonly string[] = [
   SIGNAGE_KEYS.setupPassword,
   SIGNAGE_KEYS.loginAccount,
   SIGNAGE_KEYS.lockSetupPassword,
-  SIGNAGE_KEYS.passwordLogin,
-  SIGNAGE_KEYS.rootLogin,
+  SIGNAGE_KEYS.refusePasswordLogin,
+  SIGNAGE_KEYS.refuseRootLogin,
   SIGNAGE_KEYS.allowOnlyLogin,
   SIGNAGE_KEYS.onlyDashboard,
   SIGNAGE_KEYS.extraSources,
@@ -56,18 +56,18 @@ type Getter = (key: string) => unknown;
 const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
 const str = (v: unknown, d: string) => (typeof v === "string" ? v.trim() : d);
 
-/** The security settings with defaults filled in and anything unreadable replaced by the safe default. */
+/** The security settings with defaults filled in (the same as `KNOWN_SETTINGS`; changed 2026-11-11 to a relaxed set: lock-down is opt-in). */
 export function readSignageSecurity(get: Getter): SignageSecuritySettings {
   const account = str(get(SIGNAGE_KEYS.loginAccount), "dedicated");
   return {
     loginAccount: (account === "setup" ? "setup" : "dedicated") as SignageLoginAccount,
-    lockSetupPassword: bool(get(SIGNAGE_KEYS.lockSetupPassword), true),
-    passwordLogin: bool(get(SIGNAGE_KEYS.passwordLogin), false),
-    rootLogin: bool(get(SIGNAGE_KEYS.rootLogin), false),
-    allowOnlyLogin: bool(get(SIGNAGE_KEYS.allowOnlyLogin), true),
-    onlyDashboard: bool(get(SIGNAGE_KEYS.onlyDashboard), true),
+    lockSetupPassword: bool(get(SIGNAGE_KEYS.lockSetupPassword), false),
+    refusePasswordLogin: bool(get(SIGNAGE_KEYS.refusePasswordLogin), false),
+    refuseRootLogin: bool(get(SIGNAGE_KEYS.refuseRootLogin), false),
+    allowOnlyLogin: bool(get(SIGNAGE_KEYS.allowOnlyLogin), false),
+    onlyDashboard: bool(get(SIGNAGE_KEYS.onlyDashboard), false),
     extraSources: parseCidrList(str(get(SIGNAGE_KEYS.extraSources), "")).cidrs,
-    restrictKey: bool(get(SIGNAGE_KEYS.restrictKey), true),
+    restrictKey: bool(get(SIGNAGE_KEYS.restrictKey), false),
     firewall: bool(get(SIGNAGE_KEYS.firewall), false),
     readOnlyRoot: bool(get(SIGNAGE_KEYS.readOnlyRoot), true),
     osUpdateWindow: str(get(SIGNAGE_KEYS.osUpdateWindow), "Tue 02:00-04:00") || "Tue 02:00-04:00",

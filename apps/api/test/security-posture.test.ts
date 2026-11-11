@@ -170,6 +170,6 @@ describe("security posture", () => {
     expect(byId(evaluatePosture(facts({ signage: { ...tight, devices: 0, passwordLogin: true, setupPasswordSaved: true } })), "signage-password-login")).toBeUndefined();
     const notes = evaluatePosture(facts({ signage: { ...tight, setupPasswordSaved: true, staleFound: 2 } }));
     expect(byId(notes, "signage-setup-password")?.severity).toBe("info");
-    expect(byId(notes, "signage-found")).toMatchObject({ severity: "info", title: "2 Pis found over a week ago and never set up" });
+    expect(byId(notes, "signage-found")).toMatchObject({ severity: "info", title: "2 Pis found over a week ago and never adopted" });
   });
 });

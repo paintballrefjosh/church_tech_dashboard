@@ -160,6 +160,7 @@ export class SecurityPostureService {
       .where(
         and(
           isNull(signageFound.dismissedAt),
+          sql`${signageFound.evidence} IN ('pi_mac', 'name', 'setup_banner')`,
           sql`${signageFound.firstSeenAt} < ${new Date(now.getTime() - 7 * DAY_MS)}`,
           sql`NOT EXISTS (SELECT 1 FROM signage_devices d WHERE d.known_host_key = ${signageFound.hostKey})`,
         ),
@@ -169,8 +170,10 @@ export class SecurityPostureService {
     const sec = readSignageSecurity((k) => values.get(k));
     return {
       devices,
-      passwordLogin: sec.passwordLogin,
-      rootLogin: sec.rootLogin,
+      // Not refused = the Pi's own rule, which on Raspberry Pi OS accepts passwords; root has neither password nor key there,
+      // and setup never allows it, so only refusing it explicitly would change anything.
+      passwordLogin: !sec.refusePasswordLogin,
+      rootLogin: false,
       onlyDashboard: sec.onlyDashboard,
       restrictKey: sec.restrictKey,
       setupPasswordSaved: saved,
