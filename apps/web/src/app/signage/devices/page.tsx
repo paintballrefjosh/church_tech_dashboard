@@ -4,21 +4,19 @@ import { Suspense, useCallback, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Cpu, Radar, ScanEye, Trash2 } from "lucide-react";
-import { FORGET_FAILED_PREFIX, isLikelyPi, type SignageDevice, type SignageDiscoverySubnet, type SignageFoundPi, type SignageIdentifyResult, type SignageScreen, type SignageScreenGroup } from "@lampstand/shared";
+import { FORGET_FAILED_PREFIX, isLikelyPi, type SignageDevice, type SignageDiscoverySubnet, type SignageFoundPi, type SignageIdentifyResult, type SignageScreen } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";
 import { Modal } from "../../monitoring/network-cisco/cisco-ui";
-import { ErrorLine, Forbidden, Label, ProblemBadges, ago, btnCls, dangerCls, inputCls, primaryCls, useSignageJson, useSignagePerms } from "../signage-ui";
+import { ErrorLine, Forbidden, Label, ProblemBadges, ago, btnCls, dangerCls, inputCls, primaryCls, useSignageJson } from "../signage-ui";
 import { SetupModal, ShowCodeModal } from "./devices-ui";
-import { GroupsPanel } from "./groups-panel";
 
 const TABS = [
   { id: "attention", label: "Needs attention" },
   { id: "all", label: "All" },
   { id: "found", label: "Found" },
   { id: "disabled", label: "Disabled" },
-  { id: "groups", label: "Groups" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -42,8 +40,6 @@ function DevicesInner() {
   const [found, setFound] = useState<SignageFoundPi[] | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const screens = useSignageJson<SignageScreen[]>("screens");
-  const groups = useSignageJson<SignageScreenGroup[]>("groups");
-  const perms = useSignagePerms();
   const [setupFor, setSetupFor] = useState<SignageFoundPi | null>(null);
   const [codeFor, setCodeFor] = useState<SignageFoundPi | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -72,7 +68,7 @@ function DevicesInner() {
   const defaultTab: TabId = attention.length ? "attention" : "all";
   const raw = params.get("tab");
   const tab: TabId = TABS.some((t) => t.id === raw) ? (raw as TabId) : defaultTab;
-  const counts: Record<TabId, number> = { attention: attention.length, all: all.length, found: waiting.length, disabled: all.filter((d) => !d.enabled).length, groups: groups.data?.length ?? 0 };
+  const counts: Record<TabId, number> = { attention: attention.length, all: all.length, found: waiting.length, disabled: all.filter((d) => !d.enabled).length };
   const rows = tab === "attention" ? attention : tab === "disabled" ? all.filter((d) => !d.enabled) : all;
   const finderOpen = finderChoice ?? (devices !== null && (all.length === 0 || tab === "found"));
 
@@ -153,18 +149,7 @@ function DevicesInner() {
         ))}
       </div>
 
-      {tab === "groups" ? (
-        <GroupsPanel
-          groups={groups.data}
-          screens={screens.data ?? []}
-          canWrite={perms.write}
-          canAssign={perms.admin}
-          onChanged={() => {
-            void groups.reload();
-            void screens.reload();
-          }}
-        />
-      ) : tab === "found" ? (
+      {tab === "found" ? (
         <div className="space-y-6">
           <section aria-labelledby="found-h" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">

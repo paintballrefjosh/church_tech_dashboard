@@ -320,15 +320,6 @@ Not shown: how long until it changes (the Pi does not report it; the screen's ow
 its name struck through and the word "off" beside it (the day panel says "Switched off"), so it can be found and switched back on instead of
 vanishing. Only the display changed: `compileManifest` and the Pis still ignore a disabled entry, as before. Test: `schedule-model.test.ts`.
 
-### Groups on the Devices page (2026-11-11)
-
-The Devices page has a **Groups** tab (`devices/groups-panel.tsx`) for the screen groups a schedule entry can target (they used to be
-managed only from the Screens page's "Screen groups" window, which still works). A group gathers SCREENS, not Pis: a Pi belongs to a group
-through the screen it drives, so each member is listed as "<screen> on <Pi>" with links to both. Anyone with Signage write can add, rename
-and delete groups (`POST|PATCH|DELETE /signage/groups`, existing routes; deleting a group deletes the schedule entries aimed at it, and
-says so); putting a screen in or out of a group is a screen edit (`PATCH /signage/screens/:id {groupIds}`), so it needs Signage admin, like
-the screen's own Edit form, and the buttons are hidden below that. No API change.
-
 ## 5. The Devices page and "needs attention"
 
 Tabs: **Needs attention** (default when not empty), **All**, **Found** (not set up), **Disabled**. The Find Pis panel (section 2) sits above them. Each problem is a badge with
