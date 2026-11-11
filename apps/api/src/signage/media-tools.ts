@@ -54,14 +54,27 @@ export async function probe(path: string): Promise<Probe | { error: string }> {
   return { error: `This kind of file (${fmt || "unknown"}) cannot be shown.` };
 }
 
-/** The box a rendition must fit in: 1920x1080, or 1080x1920 for a portrait original. Never scaled up. */
-export function renditionBox(width: number, height: number): { w: number; h: number } {
+/**
+ * The box a rendition must fit in. Never scaled up. A picture: 1920x1080, or 1080x1920 for a portrait original. A video:
+ * always 1920x1080, so a portrait video becomes 608x1080. The hardware H.264 decoder of a Pi 3 and 4 takes nothing taller
+ * than 1088 lines: a 1080x1920 phone video was never decoded at all (mpv kept the previous video's last frame on the TV,
+ * 2026-11-11). On a landscape screen it is shown 1080 lines high anyway; a portrait screen scales it up.
+ */
+export function renditionBox(width: number, height: number, kind: "image" | "video" = "image"): { w: number; h: number } {
+  if (kind === "video") return VIDEO_BOX;
   return height > width ? { w: 1080, h: 1920 } : { w: 1920, h: 1080 };
+}
+
+export const VIDEO_BOX = { w: 1920, h: 1080 } as const;
+
+/** A stored video made before the box above (a portrait one at 1080x1920): the media job converts it again. */
+export function videoTooLarge(width: number | null, height: number | null): boolean {
+  return (width ?? 0) > VIDEO_BOX.w || (height ?? 0) > VIDEO_BOX.h;
 }
 
 /** ffmpeg arguments for the rendition a Pi plays (H.264 High at most 1080p30 and 8 Mbps, no sound, metadata stripped). */
 export function renditionArgs(kind: "image" | "video", input: string, output: string, width: number, height: number, png: boolean): string[] {
-  const box = renditionBox(width, height);
+  const box = renditionBox(width, height, kind);
   const scale = `scale=w='min(${box.w},iw)':h='min(${box.h},ih)':force_original_aspect_ratio=decrease`;
   if (kind === "image") {
     return ["-hide_banner", "-loglevel", "error", "-y", "-i", input, "-map_metadata", "-1", "-frames:v", "1", "-vf", scale, ...(png ? ["-c:v", "png"] : ["-c:v", "mjpeg", "-q:v", "3", "-pix_fmt", "yuvj420p"]), output];

@@ -14,7 +14,7 @@ import { getS3 } from "../attachments/s3.client";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { SignageService } from "./signage.service";
 import { signageMediaKey, signageThumbKey, signageUploadKey } from "./constants";
-import { ffmpeg, probe, renditionArgs, sha256File, thumbArgs } from "./media-tools";
+import { ffmpeg, probe, renditionArgs, sha256File, thumbArgs, VIDEO_BOX, videoTooLarge } from "./media-tools";
 
 type MediaRow = typeof signageMedia.$inferSelect;
 
@@ -168,7 +168,7 @@ export class SignageMediaService implements OnModuleInit {
         .where(and(inArray(signageMedia.status, ["uploaded", "processing"]), or(isNull(signageMedia.claimedUntil), lt(signageMedia.claimedUntil, sql`now()`))))
         .orderBy(asc(signageMedia.createdAt))
         .limit(1);
-      if (!next) return;
+      if (!next) return this.refitNext();
       const claimed = await this.db
         .update(signageMedia)
         .set({ status: "processing", claimedUntil: sql`now() + (${CLAIM_MIN}::int * INTERVAL '1 minute')` })
@@ -224,6 +224,71 @@ export class SignageMediaService implements OnModuleInit {
     } catch (err) {
       this.logger.warn(`signage media ${r.id}: ${(err as Error).message}`);
       await fail(`Converting failed: ${(err as Error).message}`.slice(0, 500));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * A video stored before videos were fitted to 1920x1080 (`renditionBox`) is converted again from its stored file, one per
+   * tick when no upload is waiting. It stays `ready` throughout (screens keep playing the old file until the new one is
+   * stored); the claim keeps two nodes from doing it twice. The old file is deleted unless another row shares it.
+   */
+  private async refitNext(): Promise<void> {
+    const [next] = await this.db
+      .select()
+      .from(signageMedia)
+      .where(and(eq(signageMedia.status, "ready"), eq(signageMedia.kind, "video"), or(sql`${signageMedia.width} > ${VIDEO_BOX.w}`, sql`${signageMedia.height} > ${VIDEO_BOX.h}`), or(isNull(signageMedia.claimedUntil), lt(signageMedia.claimedUntil, sql`now()`))))
+      .orderBy(asc(signageMedia.createdAt))
+      .limit(1);
+    if (!next || !videoTooLarge(next.width, next.height)) return;
+    const [claimed] = await this.db
+      .update(signageMedia)
+      .set({ claimedUntil: sql`now() + (${CLAIM_MIN}::int * INTERVAL '1 minute')` })
+      .where(and(eq(signageMedia.id, next.id), eq(signageMedia.status, "ready"), or(isNull(signageMedia.claimedUntil), lt(signageMedia.claimedUntil, sql`now()`))))
+      .returning();
+    if (claimed) await this.refit(claimed);
+  }
+
+  async refit(r: MediaRow): Promise<void> {
+    const dir = await mkdtemp(join(tmpdir(), "signage-refit-"));
+    const release = (error: string | null) =>
+      // A failure leaves the old file playing and says why; the claim is held for an hour so a file that cannot be converted is not retried every tick.
+      this.db.update(signageMedia).set(error ? { error, claimedUntil: sql`now() + INTERVAL '1 hour'` } : { claimedUntil: null }).where(eq(signageMedia.id, r.id));
+    try {
+      if (!r.storageKey || !r.width || !r.height) return void (await release(null));
+      const { client, bucket } = getS3();
+      const src = join(dir, "src.mp4");
+      await pipeline(await client.getObject(bucket, r.storageKey), createWriteStream(src));
+      const out = join(dir, "out.mp4");
+      const conv = await ffmpeg(renditionArgs("video", src, out, r.width, r.height, false), 30 * 60_000);
+      if (conv) return void (await release(`Fitting the video to 1920x1080 failed: ${conv}`.slice(0, 500)));
+      const made = await probe(out);
+      if ("error" in made) return void (await release(`The refitted video could not be read: ${made.error}`.slice(0, 500)));
+      const sha = await sha256File(out);
+      const size = (await stat(out)).size;
+      const key = signageMediaKey(sha, "mp4");
+      await client.putObject(bucket, key, createReadStream(out), size, { "Content-Type": "video/mp4" });
+      const thumb = join(dir, "thumb.jpg");
+      let thumbKey: string | null = r.thumbKey;
+      if (!(await ffmpeg(thumbArgs(out, thumb, made.durationS ? Math.min(made.durationS / 2, 10) : null), 60_000))) {
+        thumbKey = signageThumbKey(sha);
+        await client.putObject(bucket, thumbKey, createReadStream(thumb), (await stat(thumb)).size, { "Content-Type": "image/jpeg" });
+      }
+      const updated = await this.db
+        .update(signageMedia)
+        .set({ sha256: sha, storageKey: key, thumbKey, width: made.width, height: made.height, durationS: made.durationS, sizeBytes: size, error: null, claimedUntil: null, updatedAt: new Date() })
+        .where(and(eq(signageMedia.id, r.id), eq(signageMedia.sha256, r.sha256 ?? "")))
+        .returning({ id: signageMedia.id });
+      if (!updated.length) return; // deleted or replaced meanwhile: leave the new file for the orphan sweep
+      this.logger.log(`signage media ${r.id}: video fitted from ${r.width}x${r.height} to ${made.width}x${made.height}`);
+      // The old thumbnail is kept when no new one could be made.
+      if (r.sha256 !== sha) await this.deleteObjectsOf({ ...r, uploadKey: null, thumbKey: thumbKey === r.thumbKey ? null : r.thumbKey });
+      await this.content.markDirty();
+      this.content.searchChanged();
+    } catch (err) {
+      this.logger.warn(`signage media ${r.id}: refit failed: ${(err as Error).message}`);
+      await release(`Fitting the video to 1920x1080 failed: ${(err as Error).message}`.slice(0, 500)).catch(() => undefined);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
