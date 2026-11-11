@@ -652,6 +652,13 @@
       "when": 1793128015977,
       "tag": "0092_backup_signage_media",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1793128016977,
+      "tag": "0093_signage_schedule_kinds",
+      "breakpoints": true
     }
   ]
 }

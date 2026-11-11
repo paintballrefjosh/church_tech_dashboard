@@ -1,27 +1,22 @@
 "use client";
 
-import { use, useEffect, useId, useMemo, useState } from "react";
+import { use, useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Power, Tv } from "lucide-react";
-import type { SignagePlaylist, SignagePreview, SignageScreen, SignageScreenGroup, SignageTimelineEntry } from "@lampstand/shared";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Pencil, Power, Trash2, Tv } from "lucide-react";
+import type { SignagePlaylist, SignagePreview, SignageScreen, SignageScreenGroup } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { GoneNotice } from "@/components/gone-notice";
 import { sendJson } from "@/components/assets-ui";
 import { ScreenFormModal } from "../../screen-form";
+import { ScreenCalendar } from "../../schedules/schedule-calendar";
 import { ErrorLine, Forbidden, Label, TvFrame, btnCls, dangerCls, inputCls, seconds, useSignageJson, useSignagePerms, when } from "../../signage-ui";
-
-interface Timeline {
-  entries: SignageTimelineEntry[];
-  power: Array<{ at: string; state: "on" | "off" }>;
-  powerInitial: "on" | "off" | null;
-  warnings: string[];
-}
-
-const DAY_MS = 86_400_000;
 
 export default function SignageScreenPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const perms = useSignagePerms();
+  const router = useRouter();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [screen, setScreen] = useState<SignageScreen | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "gone" | "forbidden">("loading");
   const [editing, setEditing] = useState(false);
@@ -41,6 +36,19 @@ export default function SignageScreenPage({ params }: { params: Promise<{ id: st
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function remove() {
+    if (!screen) return;
+    const pi = screen.device ? ` The Pi ${screen.device.name} stays set up but drives no screen; it keeps playing what it already has until you give it another one.` : "";
+    if (!window.confirm(`Delete the screen ${screen.name}? Its schedule entries and power times are deleted with it. Playlists and media are kept.${pi}`)) return;
+    setDeleteError(null);
+    try {
+      await sendJson(`/api/signage/screens/${id}`, "DELETE");
+      router.push("/signage");
+    } catch (e) {
+      setDeleteError((e as Error).message);
+    }
+  }
 
   if (status === "forbidden") return <Forbidden />;
   if (status === "gone") return <GoneNotice what="screen" backHref="/signage" backLabel="Screens" />;
@@ -64,11 +72,17 @@ export default function SignageScreenPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
         {perms.admin ? (
-          <button type="button" className={btnCls} onClick={() => setEditing(true)}>
-            <Pencil className="h-4 w-4" aria-hidden /> Edit
-          </button>
+          <div className="flex gap-2">
+            <button type="button" className={btnCls} onClick={() => setEditing(true)}>
+              <Pencil className="h-4 w-4" aria-hidden /> Edit
+            </button>
+            <button type="button" className={dangerCls} onClick={() => void remove()}>
+              <Trash2 className="h-4 w-4" aria-hidden /> Delete
+            </button>
+          </div>
         ) : null}
       </div>
+      <ErrorLine text={deleteError} />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
         <NowAndWhy screen={screen} />
@@ -78,7 +92,7 @@ export default function SignageScreenPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <WeekTimeline screen={screen} />
+      <ScreenCalendar screen={screen} />
 
       {editing ? (
         <ScreenFormModal
@@ -250,120 +264,6 @@ function TvControls({ screen }: { screen: SignageScreen }) {
         </button>
       </div>
       {msg ? <p className={`text-sm ${msg.ok ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>{msg.text}</p> : null}
-    </section>
-  );
-}
-
-/** Seven days, one bar each: what plays when, and when the TV is off. Colours are by playlist, always with the name. */
-function WeekTimeline({ screen }: { screen: SignageScreen }) {
-  const [tl, setTl] = useState<Timeline | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const start = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  useEffect(() => {
-    const from = start.toISOString();
-    const to = new Date(start.getTime() + 7 * DAY_MS).toISOString();
-    fetch(`/api/signage/screens/${screen.id}/timeline?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { credentials: "same-origin", cache: "no-store" })
-      .then(async (r) => (r.ok ? setTl((await r.json()) as Timeline) : setErr(`The timeline could not be read (${r.status}).`)))
-      .catch(() => setErr("The timeline could not be read."));
-  }, [screen.id, screen.updatedAt, start]);
-
-  const colour = useMemo(() => {
-    const palette = ["bg-sky-200 dark:bg-sky-800", "bg-emerald-200 dark:bg-emerald-800", "bg-amber-200 dark:bg-amber-800", "bg-violet-200 dark:bg-violet-800", "bg-rose-200 dark:bg-rose-800", "bg-teal-200 dark:bg-teal-800"];
-    const map = new Map<string, string>();
-    for (const e of tl?.entries ?? []) {
-      const k = e.playlistId ?? "logo";
-      if (!map.has(k)) map.set(k, k === "logo" ? "bg-slate-200 dark:bg-slate-700" : palette[map.size % palette.length]!);
-    }
-    return map;
-  }, [tl]);
-
-  const offRanges = useMemo(() => {
-    if (!tl) return [] as Array<[number, number]>;
-    const out: Array<[number, number]> = [];
-    let state = tl.powerInitial;
-    let since = start.getTime();
-    for (const p of tl.power) {
-      const t = Date.parse(p.at);
-      if (state === "off") out.push([since, t]);
-      state = p.state;
-      since = t;
-    }
-    if (state === "off") out.push([since, start.getTime() + 7 * DAY_MS]);
-    return out;
-  }, [tl, start]);
-
-  return (
-    <section aria-labelledby="week-h" className="space-y-3">
-      <h2 id="week-h" className="text-base font-semibold text-slate-900 dark:text-slate-100">
-        The next seven days
-      </h2>
-      <ErrorLine text={err} />
-      {tl?.warnings.length ? (
-        <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-300">
-          {tl.warnings.map((w, i) => (
-            <li key={i}>{w}</li>
-          ))}
-        </ul>
-      ) : null}
-      {tl ? (
-        <div className="space-y-2">
-          {Array.from({ length: 7 }, (_, day) => {
-            const d0 = start.getTime() + day * DAY_MS;
-            const d1 = d0 + DAY_MS;
-            const label = new Date(d0).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-            const parts = tl.entries
-              .map((e) => ({ e, s: Math.max(Date.parse(e.start), d0), t: Math.min(Date.parse(e.end), d1) }))
-              .filter((x) => x.t > x.s);
-            const offs = offRanges.map(([a, b]) => [Math.max(a, d0), Math.min(b, d1)] as const).filter(([a, b]) => b > a);
-            return (
-              <div key={day} className="flex items-center gap-2">
-                <span className="w-24 shrink-0 text-xs text-slate-600 dark:text-slate-300">{label}</span>
-                <div className="relative h-7 flex-1 overflow-hidden rounded border border-slate-300 dark:border-slate-700" role="img" aria-label={`${label}: ${parts.map((x) => `${x.e.playlistName ?? "logo slide"} ${new Date(x.s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`).join(", ") || "logo slide all day"}`}>
-                  {parts.map((x, i) => (
-                    <div
-                      key={i}
-                      className={`absolute inset-y-0 ${colour.get(x.e.playlistId ?? "logo")} overflow-hidden border-r border-white/60 px-1 text-[10px] leading-7 text-slate-900 dark:border-black/40 dark:text-slate-100`}
-                      style={{ left: `${((x.s - d0) / DAY_MS) * 100}%`, width: `${((x.t - x.s) / DAY_MS) * 100}%` }}
-                      title={`${x.e.playlistName ?? "Logo slide"} (${x.e.sourceName}) ${new Date(x.s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}-${new Date(x.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
-                    >
-                      {x.e.playlistName ?? "Logo"}
-                    </div>
-                  ))}
-                  {offs.map(([a, b], i) => (
-                    <div
-                      key={`off-${i}`}
-                      className="absolute inset-y-0 bg-slate-900/70 text-center text-[10px] leading-7 text-white dark:bg-black/70"
-                      style={{ left: `${((a - d0) / DAY_MS) * 100}%`, width: `${((b - a) / DAY_MS) * 100}%` }}
-                    >
-                      TV off
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          <div className="flex gap-2 text-[10px] text-slate-500 dark:text-slate-400" aria-hidden>
-            <span className="w-24 shrink-0" />
-            <div className="flex flex-1 justify-between">
-              <span>00:00</span>
-              <span>06:00</span>
-              <span>12:00</span>
-              <span>18:00</span>
-              <span>24:00</span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
-      )}
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        Times are in this computer&apos;s time zone. Change what plays on the <Link href="/signage/schedules" className="text-brand-600 underline dark:text-brand-400">Schedule</Link> and{" "}
-        <Link href="/signage/events" className="text-brand-600 underline dark:text-brand-400">Events</Link> pages.
-      </p>
     </section>
   );
 }

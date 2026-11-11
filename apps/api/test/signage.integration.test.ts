@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../src/db/schema";
+import { createSignageScheduleSchema } from "@lampstand/shared";
 import { SignageService } from "../src/signage/signage.service";
 import { SignageCompiler } from "../src/signage/compiler.service";
 import { SignageSetup } from "../src/signage/setup.service";
@@ -117,7 +118,7 @@ describe.skipIf(!url)("signage against a real database", () => {
     expect((await content.screenRow(screen.id)).manifestDirtyAt).not.toBeNull();
   });
 
-  it("an event over a group schedule over the fallback; the preview names every candidate", async () => {
+  it("a one-time entry over a repeating one by priority; the same priority is refused; the preview names every candidate", async () => {
     const media = await readyImage();
     const item = { mediaId: media, durationS: null, enabled: true, validFrom: null, validUntil: null };
     const fb = await content.createPlaylist({ name: "Fallback", description: "", defaultImageDurationS: 8, isAdhoc: false, items: [item] }, null);
@@ -125,21 +126,45 @@ describe.skipIf(!url)("signage against a real database", () => {
     const ev = await content.createPlaylist({ name: "Notice", description: "", defaultImageDurationS: 8, isAdhoc: false, items: [item] }, null);
     const group = await content.createGroup({ name: "All TVs", description: "" });
     const screen = await content.createScreen({ name: "Hall", locationId: null, orientation: "landscape", tvControl: "none", rokuIp: null, hdmiInput: null, fallbackPlaylistId: fb.id, groupIds: [group.id], notes: "", enabled: true });
-    await content.createSchedule({ name: "Every day", targetType: "group", targetId: group.id, playlistId: sched.id, priority: 100, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], startTime: "00:00", endTime: "23:59", startDate: null, endDate: null, enabled: true }, null);
-    const at = new Date();
-    at.setUTCHours(12, 0, 0, 0);
+    await content.createSchedule(createSignageScheduleSchema.parse({ name: "Every day", kind: "weekly", targetType: "group", targetId: group.id, playlistId: sched.id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], startTime: "00:00", endTime: "23:59" }), null);
+    const at = new Date(Date.now() + 2 * 3600_000);
+    at.setUTCMinutes(0, 0, 0);
     let pv = await compiler.preview(screen.id, at);
     expect(pv.playlistId).toBe(sched.id);
-    const o = await content.createOverride({ name: "Notice", targetType: "all", targetId: null, playlistId: ev.id, startsAt: new Date(at.getTime() - 3600_000).toISOString(), endsAt: new Date(at.getTime() + 3600_000).toISOString(), priority: 100000, forcePowerOn: true }, null);
-    expect(o.targetName).toBeTruthy();
+    const notice = { name: "Notice", kind: "once", targetType: "all", targetId: null, playlistId: ev.id, startsAt: new Date(at.getTime() - 3600_000).toISOString(), endsAt: new Date(at.getTime() + 3600_000).toISOString(), forcePowerOn: true };
+    // Normal, like the daily rule, on a screen they share: refused, naming the other entry.
+    await expect(content.createSchedule(createSignageScheduleSchema.parse(notice), null)).rejects.toThrow(/Every day/);
+    const o = await content.createSchedule(createSignageScheduleSchema.parse({ ...notice, priority: 5 }), null);
+    expect(o).toMatchObject({ kind: "once", targetName: "All screens", state: "upcoming" });
     pv = await compiler.preview(screen.id, at);
     expect(pv.playlistId).toBe(ev.id);
     expect(pv.candidates.map((c) => c.playlistName)).toEqual(["Notice", "Sunday", "Fallback"]);
+    // Lowering it to Normal through an edit is refused the same way.
+    await expect(content.updateSchedule(o.id, { priority: 3 })).rejects.toThrow(/same priority/);
     const listed = await content.listSchedules();
-    expect(listed[0]?.targetName).toBe("All TVs");
-    // A group still used by a schedule may be deleted only by the rules the service sets; the schedule names it until then.
-    const ended = await content.endOverride(o.id);
+    expect(listed.find((x) => x.name === "Every day")?.targetName).toBe("All TVs");
+    const ended = await content.endSchedule(o.id);
     expect("state" in ended ? ended.state : "gone").not.toBe("active");
+    await expect(content.endSchedule(listed.find((x) => x.name === "Every day")!.id)).rejects.toThrow(/one-time/);
+  });
+
+  it("converts rows from before the merge: old weekly rules get a kind and a 1-5 priority, old events become one-time entries", async () => {
+    const media = await readyImage();
+    const pl = await content.createPlaylist({ name: "P", description: "", defaultImageDurationS: 8, isAdhoc: false, items: [{ mediaId: media, durationS: null, enabled: true, validFrom: null, validUntil: null }] }, null);
+    const screen = await content.createScreen({ name: "S", locationId: null, orientation: "landscape", tvControl: "none", rokuIp: null, hdmiInput: null, fallbackPlaylistId: null, groupIds: [], notes: "", enabled: true });
+    await q(`INSERT INTO signage_schedules (name, target_type, target_id, playlist_id, priority, days_of_week, start_time, end_time) VALUES ('Old', 'screen', $1, $2, 500, '[7]', '08:00', '12:00')`, [screen.id, pl.id]);
+    const ov = await q(
+      `INSERT INTO signage_overrides (name, target_type, target_id, playlist_id, starts_at, ends_at, priority, force_power_on) VALUES ('Old event', 'all', NULL, $1, now(), now() + INTERVAL '1 hour', 1000, true) RETURNING id`,
+      [pl.id],
+    );
+    // Read correctly even before the job has run.
+    expect((await content.listSchedules()).find((x) => x.name === "Old")).toMatchObject({ kind: "weekly", priority: 4 });
+    expect(await content.adoptLegacySchedules()).toBe(2);
+    expect(await content.adoptLegacySchedules()).toBe(0);
+    const all = await content.listSchedules();
+    expect(all.find((x) => x.name === "Old")).toMatchObject({ kind: "weekly", priority: 4 });
+    expect(all.find((x) => x.name === "Old event")).toMatchObject({ id: ov.rows[0].id, kind: "once", priority: 5, targetType: "all", forcePowerOn: true, state: "active" });
+    expect(Number((await q(`SELECT count(*) AS n FROM signage_overrides`)).rows[0].n)).toBe(0);
   });
 
   it("one setup run is claimed by one node, even when two look at once", async () => {

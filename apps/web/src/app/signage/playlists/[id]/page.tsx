@@ -105,7 +105,7 @@ export default function SignagePlaylistPage({ params }: { params: Promise<{ id: 
   }
 
   async function remove() {
-    if (!window.confirm(`Delete the playlist ${pl?.name}? Schedules and events that use it are deleted too.`)) return;
+    if (!window.confirm(`Delete the playlist ${pl?.name}? Schedule entries that are over and used it are deleted with it.`)) return;
     try {
       await sendJson(`/api/signage/playlists/${id}`, "DELETE");
       router.push("/signage/playlists");
@@ -235,6 +235,7 @@ export default function SignagePlaylistPage({ params }: { params: Promise<{ id: 
 
       {picking ? (
         <MediaPicker
+          already={new Set(rows.map((r) => r.mediaId))}
           onClose={() => setPicking(false)}
           onPick={(list) => {
             change((r) => [
@@ -261,17 +262,19 @@ export default function SignagePlaylistPage({ params }: { params: Promise<{ id: 
   );
 }
 
-function MediaPicker({ onClose, onPick }: { onClose: () => void; onPick: (m: SignageMedia[]) => void }) {
+/** The media library to add from. What the playlist already holds (`already`, including items added but not saved yet) is not offered again. */
+function MediaPicker({ already, onClose, onPick }: { already: ReadonlySet<string>; onClose: () => void; onPick: (m: SignageMedia[]) => void }) {
   const { data } = useSignageJson<SignageMedia[]>("media");
   const [chosen, setChosen] = useState<string[]>([]);
-  const ready = (data ?? []).filter((m) => m.status === "ready");
+  const allReady = (data ?? []).filter((m) => m.status === "ready");
+  const ready = allReady.filter((m) => !already.has(m.id));
   return (
     <Modal title="Add from the media library" onClose={onClose}>
       {data === null ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : ready.length === 0 ? (
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Nothing is ready yet.{" "}
+          {allReady.length ? "Everything in the media library is already in this playlist. " : "Nothing is ready yet. "}
           <Link href="/signage/media" className="text-brand-600 underline dark:text-brand-400">
             Upload on the Media page
           </Link>

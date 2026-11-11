@@ -43,7 +43,7 @@ export async function signageTests({ test, assert, fetchWithCookies, jar }) {
   const json = (body) => ({ headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const admin = (path, init = {}) => fetchWithCookies(path, init, jar);
   const stamp = Date.now();
-  const made = { events: [], power: [], schedules: [], playlists: [], screens: [], groups: [], media: [], subnets: [] };
+  const made = { power: [], schedules: [], playlists: [], screens: [], groups: [], media: [], subnets: [] };
   let volunteer = null;
 
   const me = await admin("/api/v1/me").then(({ res }) => res.json());
@@ -106,7 +106,7 @@ export async function signageTests({ test, assert, fetchWithCookies, jar }) {
       assert(screen.device === null && screen.tvControl === "none", "a new screen has no device and no TV control");
       const sch = await admin("/api/v1/signage/schedules", {
         method: "POST",
-        ...json({ name: `[smoke] schedule ${stamp}`, targetType: "group", targetId: group.id, playlistId: evening.id, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], startTime: "00:00", endTime: "23:59" }),
+        ...json({ name: `[smoke] schedule ${stamp}`, targetType: "group", targetId: group.id, playlistId: evening.id, priority: 1, daysOfWeek: [1, 2, 3, 4, 5, 6, 7], startTime: "00:00", endTime: "23:59" }),
       });
       const schText = await sch.res.text();
       assert(sch.res.status === 200 || sch.res.status === 201, `schedule ${sch.res.status}: ${schText}`);
@@ -139,20 +139,32 @@ export async function signageTests({ test, assert, fetchWithCookies, jar }) {
       assert(p && p.url === `/signage/playlists/${weekday.id}`, `playlist hit: ${JSON.stringify(p)}`);
     });
 
-    await test("signage: an event over the schedule wins, then ends now", async () => {
+    await test("signage: a one-time entry at a higher priority wins over the repeating one, the same priority is refused, then it ends now", async () => {
       const startsAt = new Date(Date.now() - 60_000).toISOString();
       const endsAt = new Date(Date.now() + 3600_000).toISOString();
-      const bad = await admin("/api/v1/signage/events", { method: "POST", ...json({ name: "[smoke] backwards", targetType: "screen", targetId: screen.id, playlistId: evening.id, startsAt: endsAt, endsAt: startsAt }) });
-      assert(bad.res.status === 400, `an event that ends before it starts gave ${bad.res.status}`);
-      const noTarget = await admin("/api/v1/signage/events", { method: "POST", ...json({ name: "[smoke] no target", targetType: "screen", targetId: null, playlistId: evening.id, startsAt, endsAt }) });
-      assert(noTarget.res.status === 400, `an event with no screen gave ${noTarget.res.status}`);
-      const ev = await admin("/api/v1/signage/events", { method: "POST", ...json({ name: `[smoke] event ${stamp}`, targetType: "screen", targetId: screen.id, playlistId: weekday.id, startsAt, endsAt, priority: 5000 }) }).then(({ res }) => res.json());
-      made.events.push(ev.id);
-      assert(ev.state === "active", `event state ${ev.state}`);
+      const once = { kind: "once", targetType: "screen", targetId: screen.id, playlistId: weekday.id, startsAt, endsAt };
+      const bad = await admin("/api/v1/signage/schedules", { method: "POST", ...json({ ...once, name: "[smoke] backwards", startsAt: endsAt, endsAt: startsAt }) });
+      assert(bad.res.status === 400, `an entry that ends before it starts gave ${bad.res.status}`);
+      const noTarget = await admin("/api/v1/signage/schedules", { method: "POST", ...json({ ...once, name: "[smoke] no target", targetId: null }) });
+      assert(noTarget.res.status === 400, `an entry with no screen gave ${noTarget.res.status}`);
+      const clash = await admin("/api/v1/signage/schedules", { method: "POST", ...json({ ...once, name: `[smoke] clash ${stamp}`, priority: 1 }) });
+      const clashText = await clash.res.text();
+      assert(clash.res.status === 409 && clashText.includes(`[smoke] schedule ${stamp}`), `the same priority over the group's schedule gave ${clash.res.status}: ${clashText}`);
+      const ev = await admin("/api/v1/signage/schedules", { method: "POST", ...json({ ...once, name: `[smoke] event ${stamp}`, priority: 5 }) }).then(({ res }) => res.json());
+      made.schedules.push(ev.id);
+      assert(ev.state === "active" && ev.kind === "once", `entry ${ev.kind} ${ev.state}`);
       const pv = await admin(`/api/v1/signage/screens/${screen.id}/preview`).then(({ res }) => res.json());
-      assert(pv.playlistId === weekday.id, `the event did not win: ${JSON.stringify(pv)}`);
-      const ended = await admin(`/api/v1/signage/events/${ev.id}/end`, { method: "POST" }).then(({ res }) => res.json());
+      assert(pv.playlistId === weekday.id, `the one-time entry did not win: ${JSON.stringify(pv)}`);
+      const ended = await admin(`/api/v1/signage/schedules/${ev.id}/end`, { method: "POST" }).then(({ res }) => res.json());
       assert(ended.state === "ended", `after End now: ${ended.state}`);
+      const monthly = await admin("/api/v1/signage/schedules", {
+        method: "POST",
+        ...json({ name: `[smoke] monthly ${stamp}`, kind: "monthly", targetType: "screen", targetId: screen.id, playlistId: weekday.id, priority: 2, daysOfWeek: [6], monthWeeks: [1, -1], startTime: "18:00", endTime: "20:00" }),
+      });
+      const mText = await monthly.res.text();
+      assert(monthly.res.status === 200 || monthly.res.status === 201, `monthly ${monthly.res.status}: ${mText}`);
+      made.schedules.push(JSON.parse(mText).id);
+      assert(JSON.stringify(JSON.parse(mText).monthWeeks) === "[1,-1]", `monthWeeks ${mText}`);
     });
 
     await test("signage: power times; a playlist in use cannot lose its media", async () => {
@@ -222,13 +234,12 @@ export async function signageTests({ test, assert, fetchWithCookies, jar }) {
       assert(devices.res.status === 403, `volunteer devices gave ${devices.res.status}`);
       const key = await fetchWithCookies("/api/v1/signage/key", {}, j);
       assert(key.res.status === 403, `volunteer key gave ${key.res.status}`);
-      const setting = await fetchWithCookies("/api/v1/settings/signage.ssh_password_login", { method: "PUT", ...json({ value: true }) }, j);
+      const setting = await fetchWithCookies("/api/v1/settings/signage.ssh_refuse_passwords", { method: "PUT", ...json({ value: true }) }, j);
       assert(setting.res.status === 403, `volunteer setting gave ${setting.res.status}`);
       const all = await fetchWithCookies("/api/v1/settings", {}, j).then(({ res }) => res.json());
       assert(!JSON.stringify(all).includes("signage.setup_password"), "a volunteer can see the setup password setting");
     });
   } finally {
-    for (const id of made.events) await admin(`/api/v1/signage/events/${id}`, { method: "DELETE" });
     for (const id of made.power) await admin(`/api/v1/signage/power/${id}`, { method: "DELETE" });
     for (const id of made.schedules) await admin(`/api/v1/signage/schedules/${id}`, { method: "DELETE" });
     for (const id of made.screens) await admin(`/api/v1/signage/screens/${id}`, { method: "DELETE" });

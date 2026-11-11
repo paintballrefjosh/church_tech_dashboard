@@ -10,7 +10,7 @@ import { sendJson } from "@/components/assets-ui";
 import { Modal } from "../../monitoring/network-cisco/cisco-ui";
 import { ErrorLine, Forbidden, Label, btnCls, inputCls, primaryCls, seconds, useSignageJson, useSignagePerms } from "../signage-ui";
 
-/** Playlists: pictures and videos in order, each shown for its time. Schedules and events say which plays where and when. */
+/** Playlists: pictures and videos in order, each shown for its time. The schedule says which plays where and when. */
 export default function SignagePlaylistsPage() {
   const perms = useSignagePerms();
   const { data, forbidden } = useSignageJson<SignagePlaylist[]>("playlists");

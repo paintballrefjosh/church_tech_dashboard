@@ -24,6 +24,8 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/monitoring/ipam", destination: "/ipam", permanent: false },
+      // Signage events became one-time entries on the Schedule (2026-11-11).
+      { source: "/signage/events", destination: "/signage/schedules", permanent: false },
       { source: "/monitoring/ipam/:path*", destination: "/ipam/:path*", permanent: false },
       { source: "/monitoring/dns", destination: "/dns", permanent: false },
       { source: "/monitoring/dns/:path*", destination: "/dns/:path*", permanent: false },

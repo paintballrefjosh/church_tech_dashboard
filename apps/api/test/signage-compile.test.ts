@@ -9,7 +9,6 @@ import {
   weeklyWindows,
   type CompileInput,
   type CompileMedia,
-  type CompileOverride,
   type CompileSchedule,
 } from "@lampstand/shared";
 
@@ -35,35 +34,29 @@ function sched(id: string, over: Partial<CompileSchedule>): CompileSchedule {
   return {
     id,
     name: id,
+    kind: "weekly",
     targetType: "screen",
     targetId: SCREEN,
     playlistId: "p1",
-    priority: 100,
+    priority: 3,
+    startsAt: null,
+    endsAt: null,
     daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+    monthWeeks: null,
     startTime: "08:00",
     endTime: "12:00",
     startDate: null,
     endDate: null,
+    forcePowerOn: false,
     enabled: true,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     ...over,
   };
 }
 
-function ov(id: string, over: Partial<CompileOverride>): CompileOverride {
-  return {
-    id,
-    name: id,
-    targetType: "screen",
-    targetId: SCREEN,
-    playlistId: "p2",
-    startsAt: new Date("2026-11-08T15:00:00Z"),
-    endsAt: new Date("2026-11-08T17:00:00Z"),
-    priority: 1000,
-    forcePowerOn: false,
-    createdAt: new Date("2026-01-01T00:00:00Z"),
-    ...over,
-  };
+/** A one-time entry, Sunday 8 Nov 09:00-11:00 Chicago, High. */
+function ov(id: string, over: Partial<CompileSchedule>): CompileSchedule {
+  return sched(id, { kind: "once", playlistId: "p2", startsAt: new Date("2026-11-08T15:00:00Z"), endsAt: new Date("2026-11-08T17:00:00Z"), daysOfWeek: [], startTime: null, endTime: null, priority: 4, ...over });
 }
 
 function input(over: Partial<CompileInput> = {}): CompileInput {
@@ -72,7 +65,6 @@ function input(over: Partial<CompileInput> = {}): CompileInput {
     playlists: { p1: pl("p1", ["img1", "vid"]), p2: pl("p2", ["img2"]), p3: pl("p3", ["img1"]), fb: pl("fb", ["img2"]), empty: pl("empty", ["busy"]) },
     media,
     schedules: [],
-    overrides: [],
     power: [],
     timezone: TZ,
     ...over,
@@ -111,45 +103,47 @@ describe("signage playlist compile", () => {
 });
 
 describe("signage resolution order", () => {
-  it("an event beats a schedule, a screen schedule beats a group schedule, and the fallback fills the rest", () => {
-    const base = input({ schedules: [sched("s-screen", { playlistId: "p1" }), sched("s-group", { targetType: "group", targetId: GROUP_A, playlistId: "p3", priority: 500 })] });
-    expect(resolveAt(base, SUN_10).winner?.source).toBe("schedule:s-screen");
-    expect(resolveAt({ ...base, overrides: [ov("e1", { targetType: "all", targetId: null })] }, SUN_10).winner?.source).toBe("override:e1");
-    expect(resolveAt({ ...base, schedules: [base.schedules[1]!] }, SUN_10).winner?.source).toBe("group-schedule:s-group");
+  it("the highest priority wins whatever its kind or target, and the fallback fills the rest", () => {
+    const base = input({ schedules: [sched("s-screen", { playlistId: "p1" }), sched("s-group", { targetType: "group", targetId: GROUP_A, playlistId: "p3", priority: 4 })] });
+    expect(resolveAt(base, SUN_10).winner?.source).toBe("schedule:s-group");
+    expect(resolveAt({ ...base, schedules: [...base.schedules, ov("e1", { targetType: "all", targetId: null, priority: 5 })] }, SUN_10).winner?.source).toBe("schedule:e1");
+    // A one-time entry below a repeating one does not show.
+    expect(resolveAt({ ...base, schedules: [...base.schedules, ov("e2", { priority: 2 })] }, SUN_10).winner?.source).toBe("schedule:s-group");
+    expect(resolveAt({ ...base, schedules: [base.schedules[0]!] }, SUN_10).winner?.source).toBe("schedule:s-screen");
     // 13:00 local: no schedule is on.
     expect(resolveAt(base, new Date("2026-11-08T19:00:00Z")).winner?.source).toBe("fallback");
     expect(resolveAt({ ...base, screen: { ...base.screen, fallbackPlaylistId: null } }, new Date("2026-11-08T19:00:00Z")).winner).toBeNull();
   });
 
-  it("orders events by priority first, then the most specific target, then the newest", () => {
+  it("settles a leftover tie by the most specific target, then the newest", () => {
     const later = new Date("2026-06-01T00:00:00Z");
     const evs = [
-      ov("screen-low", { priority: 10, playlistId: "p1" }),
-      ov("all-high", { targetType: "all", targetId: null, priority: 5000, playlistId: "p2" }),
-      ov("group-same", { targetType: "group", targetId: GROUP_A, priority: 5000, playlistId: "p3" }),
+      ov("screen-low", { priority: 1, playlistId: "p1" }),
+      ov("all-high", { targetType: "all", targetId: null, priority: 5, playlistId: "p2" }),
+      ov("group-same", { targetType: "group", targetId: GROUP_A, priority: 5, playlistId: "p3" }),
     ];
-    expect(resolveAt(input({ overrides: evs }), SUN_10).winner?.source).toBe("override:group-same");
+    expect(resolveAt(input({ schedules: evs }), SUN_10).winner?.source).toBe("schedule:group-same");
     const tie = [ov("old", { playlistId: "p1" }), ov("new", { playlistId: "p2", createdAt: later })];
-    expect(resolveAt(input({ overrides: tie }), SUN_10).winner?.source).toBe("override:new");
+    expect(resolveAt(input({ schedules: tie }), SUN_10).winner?.source).toBe("schedule:new");
   });
 
   it("ignores rules for other screens and groups the screen is not in", () => {
     const other = "00000000-0000-4000-8000-0000000000ff";
-    const r = resolveAt(input({ schedules: [sched("x", { targetId: other }), sched("y", { targetType: "group", targetId: other })], overrides: [ov("z", { targetType: "group", targetId: other })] }), SUN_10);
+    const r = resolveAt(input({ schedules: [sched("x", { targetId: other }), sched("y", { targetType: "group", targetId: other }), ov("z", { targetType: "group", targetId: other })] }), SUN_10);
     expect(r.winner?.source).toBe("fallback");
   });
 
   it("falls through a playlist with nothing to play and says why", () => {
-    const r = resolveAt(input({ schedules: [sched("s1", { playlistId: "empty", priority: 900 }), sched("s2", { playlistId: "p1" })] }), SUN_10);
+    const r = resolveAt(input({ schedules: [sched("s1", { playlistId: "empty", priority: 5 }), sched("s2", { playlistId: "p1" })] }), SUN_10);
     expect(r.winner?.source).toBe("schedule:s2");
     expect(r.candidates[0]).toMatchObject({ source: "schedule:s1", empty: "none of its items are ready yet" });
   });
 
-  it("breaks a group-schedule tie by group id and warns", () => {
+  it("breaks a group tie by group id and warns", () => {
     const a = sched("a", { targetType: "group", targetId: GROUP_B, playlistId: "p1" });
     const b = sched("b", { targetType: "group", targetId: GROUP_A, playlistId: "p2" });
     const inp = input({ schedules: [a, b] });
-    expect(resolveAt(inp, SUN_10).winner?.source).toBe("group-schedule:b");
+    expect(resolveAt(inp, SUN_10).winner?.source).toBe("schedule:b");
     const { warnings } = compileManifest(inp, { from: new Date("2026-11-08T06:00:00Z"), version: 1, days: 1 });
     expect(warnings.join(" ")).toContain("same priority");
   });
@@ -174,6 +168,16 @@ describe("signage weekly windows", () => {
   it("is a 25-hour day across the autumn change for an all-night window", () => {
     const [iv] = weeklyWindows({ daysOfWeek: [6], start: "12:00", end: "12:00", startDate: null, endDate: null }, new Date("2026-10-31T05:00:00Z"), new Date("2026-11-02T06:00:00Z"), TZ);
     expect((iv!.end - iv!.start) / 3_600_000).toBe(25);
+  });
+
+  it("repeats monthly on the chosen weeks: the first and last Saturday", () => {
+    // November 2026: Saturdays are 7, 14, 21, 28 (the 28th is the last). December: 5, 12, 19, 26.
+    const ivs = weeklyWindows({ daysOfWeek: [6], start: "18:00", end: "20:00", startDate: null, endDate: null, monthWeeks: [1, -1] }, new Date("2026-11-01T06:00:00Z"), new Date("2027-01-01T06:00:00Z"), TZ);
+    const days = ivs.map((i) => new Date(i.start - 6 * 3_600_000).toISOString().slice(0, 10));
+    expect(days).toEqual(["2026-11-07", "2026-11-28", "2026-12-05", "2026-12-26"]);
+    // The fourth and the last are the same day in a month with four of that weekday (February 2027 has four Mondays).
+    const feb = weeklyWindows({ daysOfWeek: [1], start: "09:00", end: "10:00", startDate: null, endDate: null, monthWeeks: [4, -1] }, new Date("2027-02-01T06:00:00Z"), new Date("2027-03-01T06:00:00Z"), TZ);
+    expect(feb).toHaveLength(1);
   });
 
   it("respects the first and last day", () => {
@@ -219,7 +223,7 @@ describe("signage manifest", () => {
     expect(manifestContent(a)).toBe(manifestContent(b));
   });
 
-  it("only manages power when a power schedule applies, and an event can force the TV on", () => {
+  it("only manages power when a power schedule applies, and an entry can force the TV on", () => {
     expect(compileManifest(input(), { from, version: 1, days: 1 }).manifest.powerInitial).toBeNull();
     const power = [{ id: "pw", name: "pw", targetType: "all" as const, targetId: null, daysOfWeek: [7], onTime: "07:45", offTime: "13:15", startDate: null, endDate: null, enabled: true }];
     const m = compileManifest(input({ power }), { from, version: 1, days: 1 }).manifest;
@@ -230,7 +234,7 @@ describe("signage manifest", () => {
     ]);
     expect(manifestPowerAt(m, SUN_10)).toBe("on");
     expect(manifestPowerAt(m, new Date("2026-11-08T20:00:00Z"))).toBe("off");
-    const forced = compileManifest(input({ power, overrides: [ov("late", { startsAt: new Date("2026-11-09T01:00:00Z"), endsAt: new Date("2026-11-09T02:00:00Z"), forcePowerOn: true })] }), { from, version: 1, days: 1 }).manifest;
+    const forced = compileManifest(input({ power, schedules: [ov("late", { startsAt: new Date("2026-11-09T01:00:00Z"), endsAt: new Date("2026-11-09T02:00:00Z"), forcePowerOn: true })] }), { from, version: 1, days: 1 }).manifest;
     expect(manifestPowerAt(forced, new Date("2026-11-09T01:30:00Z"))).toBe("on");
     expect(resolveAt(input({ power }), SUN_10).power).toBe("on");
   });

@@ -75,22 +75,36 @@ test("signage: every page of the module, its forms and its own settings pages", 
     await expect(page.getByText(/every rule that applies has nothing to play/i)).toBeVisible();
     await axe(page);
 
-    // Schedule: the add form offers the group and the screen.
+    // Schedule: a month calendar by default; the add form offers the group and the screen, one time or repeating.
     await page.goto("/signage/schedules");
-    await page.getByRole("button", { name: /add a time/i }).click();
+    await expect(page.getByRole("button", { name: "Month" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: /^today$/i })).toBeVisible();
+    await axe(page);
+    await page.getByRole("button", { name: /add to the schedule/i }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("option", { name: new RegExp(GROUP.replace(/[[\]]/g, "\\$&")) })).toHaveCount(1);
+    await expect(dialog.getByLabel("Priority")).toHaveValue("3");
+    await dialog.getByText("Repeats", { exact: true }).click();
+    await dialog.getByLabel("Repeat", { exact: true }).selectOption("monthly");
+    await expect(dialog.getByRole("group", { name: /weeks of the month/i })).toBeVisible();
     await axe(page);
     await page.keyboard.press("Escape");
 
-    // Events: the "notice on every screen" form starts on All screens with TVs switched on.
-    await page.goto("/signage/events");
+    // The "notice on every screen" form is a one-time entry on All screens, Highest, with TVs switched on.
     await page.getByRole("button", { name: /notice on every screen/i }).click();
     await expect(page.getByRole("dialog").getByLabel("Screens", { exact: true })).toHaveValue("all");
-    await expect(page.getByRole("dialog").getByLabel(/switch tvs on/i)).toBeChecked();
-    await axe(page);
+    await expect(page.getByRole("dialog").getByLabel("Priority")).toHaveValue("5");
+    await expect(page.getByRole("dialog").getByLabel(/switch the tvs on/i)).toBeChecked();
     await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.getByRole("region", { name: /every schedule entry/i })).toBeVisible();
+    await axe(page);
+    await page.getByRole("button", { name: "Month" }).click();
+
+    // The old Events address lands on the Schedule.
+    await page.goto("/signage/events");
+    await page.waitForURL("**/signage/schedules");
 
     await page.goto("/signage/playlists");
     await page.getByRole("link", { name: PLAYLIST, exact: true }).click();
@@ -103,13 +117,21 @@ test("signage: every page of the module, its forms and its own settings pages", 
       await axe(page);
     }
 
-    // Devices: the tabs, and the Found tab's discovery form (nothing is scanned).
+    // Devices: the tabs, and the Find Pis discovery form (nothing is scanned).
     await page.goto("/signage/devices?tab=found");
     await expect(page.getByRole("tab", { name: /found/i })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByLabel("Subnet")).toBeVisible();
     await axe(page);
     await page.getByRole("tab", { name: /^all/i }).click();
     await expect(page).toHaveURL(/tab=all/);
+    // Discovery is on the page, not only on the Found tab: a Find Pis button shows and hides it whatever tab is open.
+    const subnet = page.getByLabel("Subnet");
+    if (await subnet.isVisible()) await page.getByRole("button", { name: "Find Pis" }).click();
+    await expect(subnet).toBeHidden();
+    await page.getByRole("button", { name: "Find Pis" }).click();
+    await expect(subnet).toBeVisible();
+    await expect(page.getByLabel("Or add addresses")).toBeVisible();
+    await axe(page);
 
     // Settings live in the module, and the saved setup password never reaches the page.
     await page.goto("/signage/settings");

@@ -123,14 +123,14 @@ export const ROUTE_RULES: RouteRule[] = [
   { pattern: "POST /livestreams/platforms/:platform/test", status: "excluded", reason: "tries the platforms' API keys, an admin's settings task" },
   { pattern: "GET /livestreams/choices", status: "excluded", reason: "the stream form's pickers (group and monitor names); streams are set up in the web app" },
   { pattern: "GET /livestreams/platforms/resi/encoders", status: "excluded", reason: "a picker for the stream form; needs the Resi keys" },
-  // ---- Signage (docs/signage.md): content reads and playlist/schedule/event writes are tools; the rest is the web app's ----
+  // ---- Signage (docs/signage.md): content reads and playlist/schedule writes are tools; the rest is the web app's ----
   { pattern: "POST /signage/media", status: "excluded", reason: SESSION_ONLY },
   { pattern: "GET /signage/media/:id", status: "excluded", reason: "signage_media_list already carries every field" },
   { pattern: "PATCH /signage/media/:id", status: "excluded", reason: "media is curated in the web app's library, beside the pictures" },
   { pattern: "GET /signage/media/:id/file", status: "excluded", reason: "the picture or video itself, for the web page's preview" },
   { pattern: "GET /signage/media/:id/thumb", status: "excluded", reason: "a thumbnail for the web page" },
   { pattern: "DELETE /signage/**", status: "excluded", reason: NO_DELETE },
-  { pattern: "POST /signage/events/:id/end", status: "excluded", reason: "ends what every TV in the event's target shows right now; a person presses End now" },
+  { pattern: "POST /signage/schedules/:id/end", status: "excluded", reason: "ends what every TV in the entry's target shows right now; a person presses End now" },
   { pattern: "POST|PATCH /signage/screens/**", status: "excluded", reason: "a screen describes equipment (its TV, Roku address and input); set up by a Signage admin in the web app" },
   { pattern: "GET /signage/screens/:id/manifest", status: "excluded", reason: "the raw file sent to the Pi; signage_screens_preview and signage_screens_timeline say the same in words" },
   { pattern: "POST|PATCH /signage/groups/**", status: "excluded", reason: "screen groups are arranged by people in the web app, beside the screens" },

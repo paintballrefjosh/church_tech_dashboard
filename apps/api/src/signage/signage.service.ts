@@ -3,24 +3,30 @@ import { SearchService } from "../search/search.service";
 import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import {
   compilePlaylist,
+  legacySignagePriority,
   localDate,
+  normaliseSignageSchedule,
+  signageMomentText,
+  signagePriorityLabel,
   signageRangeProblem,
-  type CreateSignageOverrideInput,
+  signageScheduleConflicts,
+  signageScheduleProblem,
+  type CompileSchedule,
   type CreateSignagePlaylistInput,
   type CreateSignagePowerScheduleInput,
   type CreateSignageScheduleInput,
   type CreateSignageScreenInput,
   type SignageMediaKind,
   type SignageMediaStatus,
-  type SignageOverride,
   type SignagePlaylist,
   type SignagePlaylistItemInput,
   type SignagePowerSchedule,
   type SignageSchedule,
+  type SignageScheduleKind,
+  type SignageScheduleRule,
   type SignageScreenGroup,
   type SignageScreenGroupInput,
   type SignageTargetType,
-  type UpdateSignageOverrideInput,
   type UpdateSignagePlaylistInput,
   type UpdateSignagePowerScheduleInput,
   type UpdateSignageScheduleInput,
@@ -50,7 +56,7 @@ import { NotificationDeliveryService } from "../notifications/notification-deliv
 export type ScreenRow = typeof signageScreens.$inferSelect;
 
 /**
- * Signage content (docs/signage.md): playlists, screens, screen groups, schedules, events and power schedules. Every write
+ * Signage content (docs/signage.md): playlists, screens, screen groups, schedules (one-time and repeating) and power schedules. Every write
  * marks the screens to compile (`markDirty`); with fewer than 30 screens it marks them all, which is cheap because a
  * manifest only gets a new version when its content really changed.
  */
@@ -175,9 +181,12 @@ export class SignageService {
 
   async deletePlaylist(id: string): Promise<void> {
     await this.getPlaylist(id);
-    const [inUse] = await this.db.select({ n: sql<number>`count(*)` }).from(signageSchedules).where(eq(signageSchedules.playlistId, id));
-    const [inEvents] = await this.db.select({ n: sql<number>`count(*)` }).from(signageOverrides).where(and(eq(signageOverrides.playlistId, id), sql`${signageOverrides.endsAt} > now()`));
-    if (Number(inUse?.n ?? 0) + Number(inEvents?.n ?? 0) > 0) throw new ConflictException("Schedules or upcoming events still use this playlist. Change or delete them first.");
+    // One-time entries that are over do not count (they go with the playlist).
+    const [inUse] = await this.db
+      .select({ n: sql<number>`count(*)` })
+      .from(signageSchedules)
+      .where(and(eq(signageSchedules.playlistId, id), sql`(${signageSchedules.kind} IS DISTINCT FROM 'once' OR ${signageSchedules.endsAt} > now())`));
+    if (Number(inUse?.n ?? 0) > 0) throw new ConflictException("Schedule entries still use this playlist. Change or delete them first.");
     await this.db.delete(signagePlaylists).where(eq(signagePlaylists.id, id));
     await this.markDirty();
     this.searchChanged();
@@ -209,7 +218,6 @@ export class SignageService {
     const res = await this.db.delete(signageGroups).where(eq(signageGroups.id, id)).returning({ id: signageGroups.id });
     if (!res.length) throw new NotFoundException("Screen group not found");
     await this.db.delete(signageSchedules).where(and(eq(signageSchedules.targetType, "group"), eq(signageSchedules.targetId, id)));
-    await this.db.delete(signageOverrides).where(and(eq(signageOverrides.targetType, "group"), eq(signageOverrides.targetId, id)));
     await this.db.delete(signagePowerSchedules).where(and(eq(signagePowerSchedules.targetType, "group"), eq(signagePowerSchedules.targetId, id)));
     await this.markDirty();
     this.searchChanged();
@@ -279,7 +287,6 @@ export class SignageService {
     await this.screenRow(id);
     await this.db.delete(signageScreens).where(eq(signageScreens.id, id));
     await this.db.delete(signageSchedules).where(and(eq(signageSchedules.targetType, "screen"), eq(signageSchedules.targetId, id)));
-    await this.db.delete(signageOverrides).where(and(eq(signageOverrides.targetType, "screen"), eq(signageOverrides.targetId, id)));
     await this.db.delete(signagePowerSchedules).where(and(eq(signagePowerSchedules.targetType, "screen"), eq(signagePowerSchedules.targetId, id)));
     this.searchChanged();
   }
@@ -303,125 +310,204 @@ export class SignageService {
     return new Map(rows.map((r) => [r.id, r.name]));
   }
 
-  // ------------------------------------------------------------ schedules
+  // ------------------------------------------------------------ schedules (one-time and repeating entries)
 
   async listSchedules(): Promise<SignageSchedule[]> {
-    const [rows, names, pls] = await Promise.all([this.db.select().from(signageSchedules).orderBy(asc(signageSchedules.name)), this.targetNames(), this.playlistNames()]);
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      targetType: r.targetType as "screen" | "group",
-      targetId: r.targetId,
-      targetName: names.get(r.targetId) ?? "(deleted)",
-      playlistId: r.playlistId,
-      playlistName: pls.get(r.playlistId) ?? "(deleted)",
-      priority: r.priority,
-      daysOfWeek: r.daysOfWeek,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      enabled: r.enabled,
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const [rows, names, pls, tz] = await Promise.all([this.db.select().from(signageSchedules).orderBy(asc(signageSchedules.name)), this.targetNames(), this.playlistNames(), this.zone()]);
+    const now = Date.now();
+    const today = localDate(now, tz);
+    return rows.map((row) => {
+      const r = scheduleRowToCompile(row);
+      const state: SignageSchedule["state"] =
+        r.kind === "once"
+          ? r.endsAt && r.endsAt.getTime() <= now
+            ? "ended"
+            : r.startsAt && r.startsAt.getTime() <= now
+              ? "active"
+              : "upcoming"
+          : r.endDate && r.endDate < today
+            ? "ended"
+            : null;
+      return {
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        targetName: r.targetType === "all" ? "All screens" : (names.get(r.targetId ?? "") ?? "(deleted)"),
+        playlistId: r.playlistId,
+        playlistName: pls.get(r.playlistId) ?? "(deleted)",
+        priority: r.priority,
+        startsAt: r.startsAt?.toISOString() ?? null,
+        endsAt: r.endsAt?.toISOString() ?? null,
+        daysOfWeek: r.daysOfWeek,
+        monthWeeks: r.monthWeeks,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        forcePowerOn: r.forcePowerOn,
+        enabled: r.enabled,
+        state,
+        createdAt: r.createdAt.toISOString(),
+      };
+    });
+  }
+
+  private async scheduleDto(id: string): Promise<SignageSchedule> {
+    const s = (await this.listSchedules()).find((x) => x.id === id);
+    if (!s) throw new NotFoundException("Schedule entry not found");
+    return s;
+  }
+
+  /** Refuse an entry that would be on at the same moment, on a common screen, at the same priority as another (409, names it). */
+  private async assertNoConflict(id: string | null, name: string, v: SignageScheduleRule & { priority: number; enabled: boolean }): Promise<void> {
+    if (!v.enabled) return;
+    const [rows, groupsBy, tz] = await Promise.all([this.db.select().from(signageSchedules), this.groupIdsByScreen(), this.zone()]);
+    const members = new Map<string, string[]>();
+    for (const [screenId, gids] of groupsBy) for (const g of gids) members.set(g, [...(members.get(g) ?? []), screenId]);
+    const candidate = scheduleRowToCompile({
+      id: id ?? "00000000-0000-0000-0000-000000000000",
+      name,
+      kind: v.kind,
+      targetType: v.targetType,
+      targetId: v.targetId,
+      playlistId: "",
+      priority: v.priority,
+      startsAt: v.startsAt ? new Date(v.startsAt) : null,
+      endsAt: v.endsAt ? new Date(v.endsAt) : null,
+      daysOfWeek: v.daysOfWeek,
+      monthWeeks: v.monthWeeks,
+      startTime: v.startTime,
+      endTime: v.endTime,
+      startDate: v.startDate,
+      endDate: v.endDate,
+      forcePowerOn: false,
+      enabled: true,
+      createdBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const found = signageScheduleConflicts(candidate, rows.map(scheduleRowToCompile), members, tz, new Date());
+    const first = found[0];
+    if (!first) return;
+    const more = found.length > 1 ? ` It also overlaps ${found.length - 1} other entr${found.length === 2 ? "y" : "ies"} at that priority.` : "";
+    throw new ConflictException(
+      `This overlaps "${first.name}" on the same screen at the same priority (${signagePriorityLabel(v.priority)}), first on ${signageMomentText(first.at, tz)}. Pick a different priority for one of them, so it is clear which one shows.${more}`,
+    );
   }
 
   async createSchedule(input: CreateSignageScheduleInput, userId: string | null): Promise<SignageSchedule> {
-    await this.checkTarget(input.targetType, input.targetId);
-    await this.getPlaylist(input.playlistId);
-    const [r] = await this.db.insert(signageSchedules).values({ ...input, createdBy: userId }).returning();
+    const v = normaliseSignageSchedule(input);
+    await this.checkTarget(v.targetType, v.targetId);
+    await this.getPlaylist(v.playlistId);
+    await this.assertNoConflict(null, v.name, v);
+    const [r] = await this.db
+      .insert(signageSchedules)
+      .values({ ...v, startsAt: v.startsAt ? new Date(v.startsAt) : null, endsAt: v.endsAt ? new Date(v.endsAt) : null, createdBy: userId })
+      .returning({ id: signageSchedules.id });
     await this.markDirty();
-    return (await this.listSchedules()).find((s) => s.id === r!.id)!;
+    return this.scheduleDto(r!.id);
   }
 
   async updateSchedule(id: string, input: UpdateSignageScheduleInput): Promise<SignageSchedule> {
-    const [before] = await this.db.select().from(signageSchedules).where(eq(signageSchedules.id, id)).limit(1);
-    if (!before) throw new NotFoundException("Schedule not found");
-    const merged = { ...before, ...input };
-    const problem = signageRangeProblem(merged);
+    const before = await this.scheduleDto(id);
+    const merged = normaliseSignageSchedule({ ...before, ...input });
+    const problem = signageScheduleProblem(merged);
     if (problem) throw new BadRequestException(problem);
-    if (input.targetType || input.targetId) await this.checkTarget(merged.targetType as SignageTargetType, merged.targetId);
+    if (input.targetType !== undefined || input.targetId !== undefined) await this.checkTarget(merged.targetType, merged.targetId);
     if (input.playlistId) await this.getPlaylist(input.playlistId);
-    await this.db.update(signageSchedules).set({ ...input, updatedAt: new Date() }).where(eq(signageSchedules.id, id));
+    await this.assertNoConflict(id, merged.name, merged);
+    await this.db
+      .update(signageSchedules)
+      .set({
+        name: merged.name,
+        kind: merged.kind,
+        targetType: merged.targetType,
+        targetId: merged.targetId,
+        playlistId: merged.playlistId,
+        priority: merged.priority,
+        startsAt: merged.startsAt ? new Date(merged.startsAt) : null,
+        endsAt: merged.endsAt ? new Date(merged.endsAt) : null,
+        daysOfWeek: merged.daysOfWeek,
+        monthWeeks: merged.monthWeeks,
+        startTime: merged.startTime,
+        endTime: merged.endTime,
+        startDate: merged.startDate,
+        endDate: merged.endDate,
+        forcePowerOn: merged.forcePowerOn,
+        enabled: merged.enabled,
+        updatedAt: new Date(),
+      })
+      .where(eq(signageSchedules.id, id));
     await this.markDirty();
-    return (await this.listSchedules()).find((s) => s.id === id)!;
+    return this.scheduleDto(id);
+  }
+
+  /** "End now" for a one-time entry: it stops at once (started), or is removed (not started yet). */
+  async endSchedule(id: string): Promise<SignageSchedule | { ok: true }> {
+    const s = await this.scheduleDto(id);
+    if (s.kind !== "once") throw new BadRequestException("Only a one-time entry can be ended now; switch a repeating one off instead.");
+    if (s.startsAt && Date.parse(s.startsAt) > Date.now()) {
+      await this.db.delete(signageSchedules).where(eq(signageSchedules.id, id));
+      await this.markDirty();
+      return { ok: true };
+    }
+    await this.db.update(signageSchedules).set({ endsAt: new Date(), updatedAt: new Date() }).where(and(eq(signageSchedules.id, id), sql`${signageSchedules.endsAt} > now()`));
+    await this.markDirty();
+    return this.scheduleDto(id);
   }
 
   async deleteSchedule(id: string): Promise<void> {
     const res = await this.db.delete(signageSchedules).where(eq(signageSchedules.id, id)).returning({ id: signageSchedules.id });
-    if (!res.length) throw new NotFoundException("Schedule not found");
+    if (!res.length) throw new NotFoundException("Schedule entry not found");
     await this.markDirty();
   }
 
-  // ------------------------------------------------------------ events (overrides)
-
-  async listOverrides(includeEnded = true): Promise<SignageOverride[]> {
-    const where = includeEnded ? undefined : sql`${signageOverrides.endsAt} > now() - INTERVAL '7 days'`;
-    const [rows, names, pls] = await Promise.all([this.db.select().from(signageOverrides).where(where).orderBy(asc(signageOverrides.startsAt)), this.targetNames(), this.playlistNames()]);
-    const now = Date.now();
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      targetType: r.targetType as SignageTargetType,
-      targetId: r.targetId,
-      targetName: r.targetType === "all" ? "All screens" : (names.get(r.targetId ?? "") ?? "(deleted)"),
-      playlistId: r.playlistId,
-      playlistName: pls.get(r.playlistId) ?? "(deleted)",
-      startsAt: r.startsAt.toISOString(),
-      endsAt: r.endsAt.toISOString(),
-      priority: r.priority,
-      forcePowerOn: r.forcePowerOn,
-      state: r.endsAt.getTime() <= now ? "ended" : r.startsAt.getTime() <= now ? "active" : "upcoming",
-      createdAt: r.createdAt.toISOString(),
-    }));
-  }
-
-  async createOverride(input: CreateSignageOverrideInput, userId: string | null): Promise<SignageOverride> {
-    await this.checkTarget(input.targetType, input.targetId);
-    await this.getPlaylist(input.playlistId);
-    const [r] = await this.db
-      .insert(signageOverrides)
-      .values({ ...input, targetId: input.targetType === "all" ? null : input.targetId, startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt), createdBy: userId })
-      .returning();
-    await this.markDirty();
-    return (await this.listOverrides()).find((o) => o.id === r!.id)!;
-  }
-
-  async updateOverride(id: string, input: UpdateSignageOverrideInput): Promise<SignageOverride> {
-    const [before] = await this.db.select().from(signageOverrides).where(eq(signageOverrides.id, id)).limit(1);
-    if (!before) throw new NotFoundException("Event not found");
-    const merged = { targetType: input.targetType ?? before.targetType, targetId: input.targetId !== undefined ? input.targetId : before.targetId, startsAt: input.startsAt ?? before.startsAt.toISOString(), endsAt: input.endsAt ?? before.endsAt.toISOString() };
-    const problem = signageRangeProblem(merged);
-    if (problem) throw new BadRequestException(problem);
-    await this.checkTarget(merged.targetType as SignageTargetType, merged.targetId);
-    if (input.playlistId) await this.getPlaylist(input.playlistId);
-    const { startsAt, endsAt, ...rest } = input;
-    await this.db
-      .update(signageOverrides)
-      .set({ ...rest, ...(merged.targetType === "all" ? { targetId: null } : {}), ...(startsAt ? { startsAt: new Date(startsAt) } : {}), ...(endsAt ? { endsAt: new Date(endsAt) } : {}) })
-      .where(eq(signageOverrides.id, id));
-    await this.markDirty();
-    return (await this.listOverrides()).find((o) => o.id === id)!;
-  }
-
-  /** "End now": the event stops at once (started ones), or is removed (not started yet). */
-  async endOverride(id: string): Promise<SignageOverride | { ok: true }> {
-    const [r] = await this.db.select().from(signageOverrides).where(eq(signageOverrides.id, id)).limit(1);
-    if (!r) throw new NotFoundException("Event not found");
-    if (r.startsAt.getTime() > Date.now()) {
-      await this.db.delete(signageOverrides).where(eq(signageOverrides.id, id));
-      await this.markDirty();
-      return { ok: true };
+  /**
+   * Converts rows from before migration 0093 (idempotent, run by the `signage-schedule-adopt` job): old weekly rows get a kind
+   * and a 1-5 priority, and each old event becomes a one-time entry with the same id (a conditional write each, so two nodes
+   * or a crash halfway are harmless). CockroachDB cannot write a column in the migration that adds it, hence a job.
+   */
+  async adoptLegacySchedules(): Promise<number> {
+    let changed = 0;
+    const legacy = await this.db.select({ id: signageSchedules.id, priority: signageSchedules.priority }).from(signageSchedules).where(isNull(signageSchedules.kind));
+    for (const r of legacy) {
+      const res = await this.db
+        .update(signageSchedules)
+        .set({ kind: "weekly", priority: legacySignagePriority(r.priority, false) })
+        .where(and(eq(signageSchedules.id, r.id), isNull(signageSchedules.kind)))
+        .returning({ id: signageSchedules.id });
+      changed += res.length;
     }
-    await this.db.update(signageOverrides).set({ endsAt: new Date() }).where(and(eq(signageOverrides.id, id), sql`${signageOverrides.endsAt} > now()`));
-    await this.markDirty();
-    return (await this.listOverrides()).find((o) => o.id === id)!;
-  }
-
-  async deleteOverride(id: string): Promise<void> {
-    const res = await this.db.delete(signageOverrides).where(eq(signageOverrides.id, id)).returning({ id: signageOverrides.id });
-    if (!res.length) throw new NotFoundException("Event not found");
-    await this.markDirty();
+    const events = await this.db.select().from(signageOverrides);
+    for (const o of events) {
+      await this.db.transaction(async (tx) => {
+        await tx
+          .insert(signageSchedules)
+          .values({
+            id: o.id,
+            name: o.name,
+            kind: "once",
+            targetType: o.targetType,
+            targetId: o.targetType === "all" ? null : o.targetId,
+            playlistId: o.playlistId,
+            priority: legacySignagePriority(o.priority, true),
+            startsAt: o.startsAt,
+            endsAt: o.endsAt,
+            daysOfWeek: [],
+            forcePowerOn: o.forcePowerOn,
+            enabled: true,
+            createdBy: o.createdBy,
+            createdAt: o.createdAt,
+          })
+          .onConflictDoNothing();
+        await tx.delete(signageOverrides).where(eq(signageOverrides.id, o.id));
+      });
+      changed++;
+    }
+    if (changed) await this.markDirty();
+    return changed;
   }
 
   // ------------------------------------------------------------ power schedules
@@ -486,4 +572,29 @@ export class SignageService {
     const rows = await this.db.select().from(signageDevices).where(isNotNull(signageDevices.screenId));
     return new Map(rows.map((d) => [d.screenId!, d]));
   }
+}
+
+/** A stored row as the compiler and the conflict check read it (rows from before migration 0093 read as weekly, 1-5 priority). */
+export function scheduleRowToCompile(r: typeof signageSchedules.$inferSelect): CompileSchedule {
+  const legacy = r.kind === null;
+  return {
+    id: r.id,
+    name: r.name,
+    kind: (r.kind ?? "weekly") as SignageScheduleKind,
+    targetType: r.targetType as SignageTargetType,
+    targetId: r.targetType === "all" ? null : r.targetId,
+    playlistId: r.playlistId,
+    priority: legacy ? legacySignagePriority(r.priority, false) : r.priority,
+    startsAt: r.startsAt,
+    endsAt: r.endsAt,
+    daysOfWeek: r.daysOfWeek ?? [],
+    monthWeeks: r.monthWeeks ?? null,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    forcePowerOn: r.forcePowerOn,
+    enabled: r.enabled,
+    createdAt: r.createdAt,
+  };
 }

@@ -192,7 +192,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   signage_groups: { policy: "data", group: SIGNAGE, title: "Screen groups", label: ["name"] },
   signage_screen_groups: { policy: "data", group: SIGNAGE, title: "Screen group members" },
   signage_schedules: { policy: "data", group: SIGNAGE, title: "Signage schedules", label: ["name"] },
-  signage_overrides: { policy: "data", group: SIGNAGE, title: "Signage events", label: ["name"] },
+  signage_overrides: { policy: "data", group: SIGNAGE, title: "Signage events (before the merge into schedules)", label: ["name"] },
   signage_power_schedules: { policy: "data", group: SIGNAGE, title: "Signage power schedules", label: ["name"] },
   signage_devices: {
     policy: "data", group: SIGNAGE, title: "Signage devices (Pis)", label: ["name", "ip"],
@@ -207,7 +207,7 @@ export const TABLE_REGISTRY: Record<string, TableInfo> = {
   signage_manifests: runtime("Signage manifests", "Compiled from the schedules again after a restore (every screen is marked to compile)."),
   signage_found: runtime("Signage discovery results", "What the last scans saw; the next scan finds them again."),
   signage_setup_runs: runtime("Signage setup runs", "Logs of setup and update runs, kept 90 days."),
-  signage_status_samples: runtime("Signage device readings", "Temperature and Wi-Fi readings kept 7 days, written by the poller."),
+  signage_status_samples: runtime("Signage device readings", "Temperature, CPU use and Wi-Fi readings kept 7 days, written by the poller."),
   signage_screenshots: runtime("Signage screenshots", "The latest picture of each screen; the next one replaces it."),
   // ---- service monitoring (templates on infra hosts) ----
   service_templates: { policy: "data", group: MONITORING, title: "Service templates", label: ["key"] },
@@ -319,7 +319,7 @@ const SECTION_BLURBS: Record<string, string> = {
   [PRINTERS]: "Printers and their SNMP settings.",
   [ASSETS]: "Rooms, the equipment inventory and who has had each item.",
   [LIVESTREAMS]: "The livestreams that are checked and how (their readings, pictures and history are not kept).",
-  [SIGNAGE]: "TV screens, screen groups, media records, playlists, schedules, events, power times, discovery subnets and the Pis (the media files themselves only when the backup includes them).",
+  [SIGNAGE]: "TV screens, screen groups, media records, playlists, schedules, power times, discovery subnets and the Pis (the media files themselves only when the backup includes them).",
   [FILES]: "Uploaded files (attachments, note images, wiki uploads): their records and the files themselves.",
 };
 

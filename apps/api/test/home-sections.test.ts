@@ -15,7 +15,7 @@ import type { TicketsService } from "../src/tickets/tickets.service";
 import type { PlanningCenterService } from "../src/planning-center/planning-center.service";
 import type { ChecklistsService } from "../src/checklists/checklists.service";
 import type { Db } from "../src/db/db.module";
-import { serviceGroups, serviceInstances, signageDevices, signageOverrides } from "../src/db/schema";
+import { serviceGroups, serviceInstances, signageDevices, signageSchedules } from "../src/db/schema";
 import { NOW, TZ } from "./helpers/home-fixtures";
 
 const ctx = (permissions: string[], id = "me"): HomeContext =>
@@ -44,7 +44,7 @@ function fakeDb(rows: { instances?: unknown[]; groups?: unknown[]; incidents?: u
                 ? (rows.groups ?? [])
                 : from === signageDevices
                   ? (rows.devices ?? [])
-                  : from === signageOverrides
+                  : from === signageSchedules
                     ? (rows.overrides ?? [])
                     : (rows.incidents ?? []),
           ).then(ok, fail),

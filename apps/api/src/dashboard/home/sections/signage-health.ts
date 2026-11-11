@@ -1,6 +1,6 @@
 import { and, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "../../../db/db.module";
-import { signageDevices, signageOverrides, signageScreens } from "../../../db/schema/signage";
+import { signageDevices, signageSchedules, signageScreens } from "../../../db/schema/signage";
 
 /**
  * What the home page says about signage (docs/signage.md): the Pis that are set up and switched on, and which of them
@@ -12,7 +12,7 @@ import { signageDevices, signageOverrides, signageScreens } from "../../../db/sc
 export interface SignageHealth {
   total: number;
   offline: Array<{ id: string; name: string; screenId: string | null; lastSeenAt: Date | null }>;
-  /** Events (notices) showing now. */
+  /** One-time schedule entries (notices, events) on now. */
   eventsNow: number;
 }
 
@@ -32,9 +32,9 @@ export async function readSignageHealth(db: Db, now: Date): Promise<SignageHealt
       .leftJoin(signageScreens, eq(signageScreens.id, signageDevices.screenId))
       .where(and(eq(signageDevices.status, "active"), eq(signageDevices.enabled, true))),
     db
-      .select({ id: signageOverrides.id })
-      .from(signageOverrides)
-      .where(and(lte(signageOverrides.startsAt, now), gt(signageOverrides.endsAt, now))),
+      .select({ id: signageSchedules.id })
+      .from(signageSchedules)
+      .where(and(eq(signageSchedules.kind, "once"), eq(signageSchedules.enabled, true), lte(signageSchedules.startsAt, now), gt(signageSchedules.endsAt, now))),
   ]);
   if (devices.length === 0) return null;
   return {

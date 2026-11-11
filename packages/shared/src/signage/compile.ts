@@ -1,22 +1,21 @@
 import { addDaysInZone, startOfDayInZone, zonedParts, zonedTimeToUtc } from "../dashboard/zoned";
-import { SIGNAGE_LIMITS, type SignageMediaKind, type SignageMediaStatus, type SignageOrientation, type SignageTargetType, type SignageTvControl } from "./schemas";
+import { SIGNAGE_LIMITS, type SignageMediaKind, type SignageMediaStatus, type SignageOrientation, type SignageScheduleKind, type SignageTargetType, type SignageTvControl } from "./schemas";
 
 /**
  * The manifest compiler (docs/signage.md section 9). Pure: rows in, the manifest a Pi plays out. The preview and the timeline
  * routes use the same functions, so the dashboard shows exactly what the TV will do.
  *
  * At any instant a screen shows the first candidate that has something to play:
- *   1. an active event (override) on the screen, one of its screen groups, or all screens: highest priority first, then the
- *      most specific target (screen, group, all), then the newest;
- *   2. a schedule on the screen: highest priority first, then the newest;
- *   3. a schedule on one of its screen groups: highest priority first, then the group whose id sorts first (a tie the UI
- *      warns about), then the newest;
- *   4. the screen's fallback playlist;
- *   5. nothing: the Pi shows its built-in logo slide.
+ *   1. a schedule entry (one-time, weekly or monthly) on the screen, one of its screen groups, or all screens, that is on at
+ *      that moment: highest priority first (1-5; saving refuses two entries that would meet on a screen at the same
+ *      priority, so the rest only settles leftovers such as a screen joining a group later), then the most specific target
+ *      (screen, group, all), then the group whose id sorts first, then the newest;
+ *   2. the screen's fallback playlist;
+ *   3. nothing: the Pi shows its built-in logo slide.
  * A playlist whose items are all off, outside their dates, or not ready yet has nothing to play and falls through.
  *
  * Power: when any power schedule applies to the screen (on the screen, a group of it, or all screens), the TV is on during
- * the union of their on-windows and off outside them; an event with `forcePowerOn` adds its own window. With none, the
+ * the union of their on-windows and off outside them; an entry with `forcePowerOn` adds its own windows. With none, the
  * manifest says nothing about power and the Pi leaves the TV alone.
  */
 
@@ -47,29 +46,22 @@ export interface CompilePlaylist {
 export interface CompileSchedule {
   id: string;
   name: string;
-  targetType: "screen" | "group";
-  targetId: string;
-  playlistId: string;
-  priority: number;
-  daysOfWeek: number[];
-  startTime: string;
-  endTime: string;
-  startDate: string | null;
-  endDate: string | null;
-  enabled: boolean;
-  createdAt: Date;
-}
-
-export interface CompileOverride {
-  id: string;
-  name: string;
+  kind: SignageScheduleKind;
   targetType: SignageTargetType;
   targetId: string | null;
   playlistId: string;
-  startsAt: Date;
-  endsAt: Date;
+  /** 1 (lowest) to 5 (highest). */
   priority: number;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  daysOfWeek: number[];
+  monthWeeks: number[] | null;
+  startTime: string | null;
+  endTime: string | null;
+  startDate: string | null;
+  endDate: string | null;
   forcePowerOn: boolean;
+  enabled: boolean;
   createdAt: Date;
 }
 
@@ -102,7 +94,6 @@ export interface CompileInput {
   playlists: Record<string, CompilePlaylist>;
   media: Record<string, CompileMedia>;
   schedules: CompileSchedule[];
-  overrides: CompileOverride[];
   power: CompilePowerSchedule[];
   timezone: string;
 }
@@ -119,7 +110,7 @@ export interface ManifestTimelineEntry {
   start: string;
   end: string;
   playlist: string;
-  /** `override:<id>`, `schedule:<id>`, `group-schedule:<id>` or `fallback`. */
+  /** `schedule:<id>` or `fallback` (manifests made before the merge also say `override:<id>` and `group-schedule:<id>`). */
   source: string;
 }
 
@@ -152,7 +143,7 @@ export interface Candidate {
   empty: string | null;
 }
 
-interface Interval {
+export interface Interval {
   start: number;
   end: number;
 }
@@ -170,11 +161,26 @@ export function localDate(at: Date | number, tz: string): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+/** Does day `day` of a month with `daysInMonth` days fall in week `w` (1-4, or -1 = the last seven days)? */
+export function inMonthWeek(day: number, daysInMonth: number, w: number): boolean {
+  return w === -1 ? day + 7 > daysInMonth : Math.ceil(day / 7) === w;
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /**
- * The concrete windows of a weekly rule between `from` and `to`. A window belongs to the day it starts on (its weekday and
- * date range are judged on that day); an end at or before the start means the next day (it crosses midnight).
+ * The concrete windows of a weekly (or, with `monthWeeks`, monthly) rule between `from` and `to`. A window belongs to the
+ * day it starts on (its weekday, week of the month and date range are judged on that day); an end at or before the start
+ * means the next day (it crosses midnight).
  */
-export function weeklyWindows(rule: { daysOfWeek: number[]; start: string; end: string; startDate: string | null; endDate: string | null }, from: Date, to: Date, tz: string): Interval[] {
+export function weeklyWindows(
+  rule: { daysOfWeek: number[]; start: string; end: string; startDate: string | null; endDate: string | null; monthWeeks?: number[] | null },
+  from: Date,
+  to: Date,
+  tz: string,
+): Interval[] {
   const out: Interval[] = [];
   const [sh, sm] = hm(rule.start);
   const [eh, em] = hm(rule.end);
@@ -185,6 +191,7 @@ export function weeklyWindows(rule: { daysOfWeek: number[]; start: string; end: 
     const day = addDaysInZone(firstDay, tz, k);
     const p = zonedParts(day, tz);
     if (!rule.daysOfWeek.includes(p.weekday)) continue;
+    if (rule.monthWeeks?.length && !rule.monthWeeks.some((w) => inMonthWeek(p.day, daysInMonth(p.year, p.month), w))) continue;
     const date = localDate(day, tz);
     if (rule.startDate && date < rule.startDate) continue;
     if (rule.endDate && date > rule.endDate) continue;
@@ -194,6 +201,23 @@ export function weeklyWindows(rule: { daysOfWeek: number[]; start: string; end: 
     out.push({ start, end });
   }
   return out;
+}
+
+/** The windows of any schedule entry between `from` and `to` (a one-time entry is its own single window). */
+export function scheduleWindows(
+  s: Pick<CompileSchedule, "kind" | "startsAt" | "endsAt" | "daysOfWeek" | "monthWeeks" | "startTime" | "endTime" | "startDate" | "endDate">,
+  from: Date,
+  to: Date,
+  tz: string,
+): Interval[] {
+  if (s.kind === "once") {
+    if (!s.startsAt || !s.endsAt) return [];
+    const start = s.startsAt.getTime();
+    const end = s.endsAt.getTime();
+    return end > from.getTime() && start < to.getTime() && end > start ? [{ start, end }] : [];
+  }
+  if (!s.startTime || !s.endTime) return [];
+  return weeklyWindows({ daysOfWeek: s.daysOfWeek, start: s.startTime, end: s.endTime, startDate: s.startDate, endDate: s.endDate, monthWeeks: s.kind === "monthly" ? s.monthWeeks : null }, from, to, tz);
 }
 
 function within(ivs: Interval[], t: number): boolean {
@@ -236,7 +260,6 @@ export function compilePlaylist(pl: CompilePlaylist, media: Record<string, Compi
 
 interface Prepared {
   input: CompileInput;
-  overrides: Array<CompileOverride & { level: number }>;
   schedules: Array<{ s: CompileSchedule; ivs: Interval[]; level: number }>;
   powerIvs: Interval[];
   powerManaged: boolean;
@@ -250,20 +273,18 @@ function levelOf(targetType: SignageTargetType, targetId: string | null, screen:
 
 function prepare(input: CompileInput, from: Date, to: Date): Prepared {
   const { screen, timezone } = input;
-  const overrides = input.overrides
-    .map((o) => ({ ...o, level: levelOf(o.targetType, o.targetId, screen) }))
-    .filter((o): o is CompileOverride & { level: number } => o.level !== null && o.endsAt.getTime() > from.getTime() && o.startsAt.getTime() < to.getTime());
   const schedules = input.schedules
     .filter((s) => s.enabled)
     .map((s) => ({ s, level: levelOf(s.targetType, s.targetId, screen) }))
     .filter((x): x is { s: CompileSchedule; level: number } => x.level !== null)
-    .map(({ s, level }) => ({ s, level, ivs: weeklyWindows({ daysOfWeek: s.daysOfWeek, start: s.startTime, end: s.endTime, startDate: s.startDate, endDate: s.endDate }, from, to, timezone) }));
+    .map(({ s, level }) => ({ s, level, ivs: scheduleWindows(s, from, to, timezone) }))
+    .filter((x) => x.ivs.length > 0);
   const powerRules = input.power.filter((p) => p.enabled && levelOf(p.targetType, p.targetId, screen) !== null);
   const powerIvs: Interval[] = [];
   for (const p of powerRules) powerIvs.push(...weeklyWindows({ daysOfWeek: p.daysOfWeek, start: p.onTime, end: p.offTime, startDate: p.startDate, endDate: p.endDate }, from, to, timezone));
-  const forced = overrides.filter((o) => o.forcePowerOn);
-  for (const o of forced) powerIvs.push({ start: o.startsAt.getTime(), end: o.endsAt.getTime() });
-  return { input, overrides, schedules, powerIvs, powerManaged: powerRules.length > 0 || forced.length > 0 };
+  const forced = schedules.filter((x) => x.s.forcePowerOn);
+  for (const x of forced) powerIvs.push(...x.ivs);
+  return { input, schedules, powerIvs, powerManaged: powerRules.length > 0 || forced.length > 0 };
 }
 
 /** Every candidate at instant `t`, best first, each marked with whether it has anything to play. */
@@ -280,18 +301,7 @@ function candidatesAt(p: Prepared, t: number): Array<Candidate & { compiled: Com
     const compiled = compilePlaylist(pl, input.media, date);
     out.push({ source, name, playlistId, empty: compiled.items.length ? null : compiled.skipped ? "none of its items are ready yet" : "it has nothing to play today", compiled: compiled.items.length ? compiled : null });
   };
-  const ov = p.overrides
-    .filter((o) => o.startsAt.getTime() <= t && t < o.endsAt.getTime())
-    .sort((a, b) => b.priority - a.priority || a.level - b.level || b.createdAt.getTime() - a.createdAt.getTime());
-  for (const o of ov) push(`override:${o.id}`, o.name, o.playlistId);
-  const screenScheds = p.schedules
-    .filter((x) => x.level === 0 && within(x.ivs, t))
-    .sort((a, b) => b.s.priority - a.s.priority || b.s.createdAt.getTime() - a.s.createdAt.getTime());
-  for (const x of screenScheds) push(`schedule:${x.s.id}`, x.s.name, x.s.playlistId);
-  const groupScheds = p.schedules
-    .filter((x) => x.level === 1 && within(x.ivs, t))
-    .sort((a, b) => b.s.priority - a.s.priority || a.s.targetId.localeCompare(b.s.targetId) || b.s.createdAt.getTime() - a.s.createdAt.getTime());
-  for (const x of groupScheds) push(`group-schedule:${x.s.id}`, x.s.name, x.s.playlistId);
+  for (const x of activeAt(p, t)) push(`schedule:${x.s.id}`, x.s.name, x.s.playlistId);
   if (input.screen.fallbackPlaylistId) push("fallback", "Fallback playlist", input.screen.fallbackPlaylistId);
   return out;
 }
@@ -300,6 +310,13 @@ export interface ResolveResult {
   winner: (Candidate & { items: ManifestItem[] }) | null;
   candidates: Candidate[];
   power: "on" | "off" | "unmanaged";
+}
+
+/** The entries on at `t`, best first: priority, then the most specific target, then the group id, then the newest. */
+function activeAt(p: Prepared, t: number): Prepared["schedules"] {
+  return p.schedules
+    .filter((x) => within(x.ivs, t))
+    .sort((a, b) => b.s.priority - a.s.priority || a.level - b.level || (a.s.targetId ?? "").localeCompare(b.s.targetId ?? "") || b.s.createdAt.getTime() - a.s.createdAt.getTime());
 }
 
 /** What the screen shows at `at`, and every rule that was considered (for the preview's "why"). */
@@ -330,7 +347,6 @@ export function compileManifest(input: CompileInput, opts: { from: Date; version
 
   // Every instant where the answer can change: rule edges and each local midnight (item date windows).
   const edges = new Set<number>([from.getTime(), to.getTime()]);
-  for (const o of p.overrides) for (const t of [o.startsAt.getTime(), o.endsAt.getTime()]) edges.add(t);
   for (const x of p.schedules) for (const iv of x.ivs) edges.add(iv.start).add(iv.end);
   for (let d = startOfDayInZone(from, tz); d.getTime() < to.getTime(); d = addDaysInZone(d, tz, 1)) edges.add(d.getTime());
   const points = [...edges].filter((t) => t >= from.getTime() && t <= to.getTime()).sort((a, b) => a - b);
@@ -412,15 +428,14 @@ function mergeIntervals(ivs: Interval[]): Interval[] {
   return out;
 }
 
-/** Two group schedules of the same priority, from different groups, both active: the one whose group sorts first wins. */
+/**
+ * Two entries on at the same moment, at the same priority, on this screen. Saving refuses this, so it only happens when
+ * something changed afterwards (a screen joined a group, an entry was restored); the order above still picks one.
+ */
 function tieWarning(p: Prepared, t: number, screenName: string): string | null {
-  const active = p.schedules.filter((x) => x.level === 1 && within(x.ivs, t)).sort((a, b) => b.s.priority - a.s.priority);
-  const top = active[0];
-  if (!top) return null;
-  const rival = active.find((x) => x !== top && x.s.priority === top.s.priority && x.s.targetId !== top.s.targetId);
-  if (!rival) return null;
-  const [win, lose] = top.s.targetId.localeCompare(rival.s.targetId) <= 0 ? [top, rival] : [rival, top];
-  return `On ${screenName}, the schedules "${win.s.name}" and "${lose.s.name}" have the same priority at the same time; "${win.s.name}" wins. Give one a higher priority to choose.`;
+  const [win, lose] = activeAt(p, t);
+  if (!win || !lose || win.s.priority !== lose.s.priority) return null;
+  return `On ${screenName}, "${win.s.name}" and "${lose.s.name}" are on at the same time with the same priority; "${win.s.name}" wins. Give one a different priority to choose.`;
 }
 
 /** The TV power state the manifest wants at `at` (null when power is not managed). */

@@ -1,10 +1,8 @@
 import { z } from "zod";
 import {
   PERMISSIONS,
-  createSignageOverrideSchema,
   createSignagePlaylistSchema,
-  createSignageScheduleSchema,
-  updateSignageOverrideSchema,
+  signageScheduleShape,
   updateSignagePlaylistSchema,
   updateSignageScheduleSchema,
 } from "@lampstand/shared";
@@ -13,12 +11,10 @@ import { defineTool } from "../bridge.types";
 const id = z.string().uuid();
 const READ = PERMISSIONS.SIGNAGE_READ_ANY;
 const WRITE = PERMISSIONS.SIGNAGE_WRITE_ANY;
-// The create schemas carry cross-field refinements (the route still applies them); the tool's input is the object inside.
-const scheduleShape = createSignageScheduleSchema.innerType().innerType().shape;
-const overrideShape = createSignageOverrideSchema.innerType().innerType().shape;
+// The create schema carries cross-field checks (the route still applies them); the tool's input is the plain object.
 
 /**
- * Signage (docs/signage.md section 9): reads, and adding or changing playlists, schedules and events. Media uploads,
+ * Signage (docs/signage.md section 9): reads, and adding or changing playlists and schedule entries (one-time and repeating). Media uploads,
  * screens, devices, discovery, setup and every command are web-app only (route-rules.ts).
  */
 export const SIGNAGE_TOOLS = [
@@ -135,8 +131,9 @@ export const SIGNAGE_TOOLS = [
   }),
   defineTool({
     name: "signage_schedules_list",
-    title: "Signage schedules",
-    description: "The weekly rules: which playlist plays on which screen or screen group, on which days and times (site time zone), and their priority.",
+    title: "Signage schedule",
+    description:
+      "Every schedule entry: which playlist plays on which screen, screen group or all screens, and when. kind once = between startsAt and endsAt; weekly = daysOfWeek (1 = Monday ... 7 = Sunday) from startTime to endTime; monthly = the same days but only in monthWeeks (1-4 = first to fourth, -1 = last). Times are on the site's time zone. priority is 1 (Lowest) to 5 (Highest); state says whether a one-time entry is upcoming, active or ended.",
     cls: "read",
     method: "GET",
     path: "/signage/schedules",
@@ -145,55 +142,25 @@ export const SIGNAGE_TOOLS = [
   }),
   defineTool({
     name: "signage_schedules_create",
-    title: "Add a signage schedule",
-    description: "Add a weekly rule. daysOfWeek: 0 = Sunday ... 6 = Saturday; times HH:MM on the site's time zone (an end before the start runs past midnight). Check signage_screens_preview afterwards.",
+    title: "Add a signage schedule entry",
+    description:
+      "Add a schedule entry. kind once: startsAt and endsAt (ISO with offset). kind weekly: daysOfWeek (1 = Monday ... 7 = Sunday), startTime and endTime as HH:MM on the site's time zone (an end before the start runs past midnight), optional startDate/endDate. kind monthly: as weekly plus monthWeeks (1-4 = first to fourth, -1 = last), e.g. [1, -1] with daysOfWeek [6] = the first and last Saturday. targetType all has no targetId. priority 1-5 (default 3, Normal). Refused (409) when it would be on at the same moment as another entry on a common screen at the same priority: pick another priority. forcePowerOn turns the TVs on for it. Check signage_screens_preview afterwards.",
     cls: "write",
     method: "POST",
     path: "/signage/schedules",
     permissions: [WRITE],
-    input: z.object(scheduleShape),
+    input: z.object(signageScheduleShape),
   }),
   defineTool({
     name: "signage_schedules_update",
-    title: "Change a signage schedule",
-    description: "Change a weekly rule's playlist, days, times, dates, priority or whether it is on.",
+    title: "Change a signage schedule entry",
+    description: "Change an entry's kind, playlist, target, times, days, dates, priority, power or whether it is on (the same rules and conflict check as signage_schedules_create).",
     cls: "write",
     method: "PATCH",
     path: "/signage/schedules/:id",
     permissions: [WRITE],
     idempotent: true,
     input: z.object({ id, ...updateSignageScheduleSchema.shape }),
-  }),
-  defineTool({
-    name: "signage_events_list",
-    title: "Signage events",
-    description: "One-off events (a playlist on some screens between two instants, above the schedules). `ended`: \"0\" leaves out events that are over.",
-    cls: "read",
-    method: "GET",
-    path: "/signage/events",
-    permissions: [READ],
-    input: z.object({ ended: z.enum(["0", "1"]).optional() }),
-  }),
-  defineTool({
-    name: "signage_events_create",
-    title: "Add a signage event",
-    description: "Add a one-off event: a playlist on a screen, a screen group or all screens (targetType all, no targetId) between startsAt and endsAt. forcePowerOn turns the TVs on for it.",
-    cls: "write",
-    method: "POST",
-    path: "/signage/events",
-    permissions: [WRITE],
-    input: z.object(overrideShape),
-  }),
-  defineTool({
-    name: "signage_events_update",
-    title: "Change a signage event",
-    description: "Change an event's playlist, target, times, priority or power.",
-    cls: "write",
-    method: "PATCH",
-    path: "/signage/events/:id",
-    permissions: [WRITE],
-    idempotent: true,
-    input: z.object({ id, ...updateSignageOverrideSchema.shape }),
   }),
   defineTool({
     name: "signage_power_list",

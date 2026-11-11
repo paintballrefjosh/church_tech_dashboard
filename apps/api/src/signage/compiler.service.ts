@@ -25,9 +25,9 @@ import {
   type SignageTvInput,
 } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
-import { signageManifests, signageMedia, signageOverrides, signagePlaylistItems, signagePlaylists, signagePowerSchedules, signageSchedules, signageScreens } from "../db/schema";
+import { signageManifests, signageMedia, signagePlaylistItems, signagePlaylists, signagePowerSchedules, signageSchedules, signageScreens } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
-import { SignageService, type ScreenRow } from "./signage.service";
+import { SignageService, scheduleRowToCompile, type ScreenRow } from "./signage.service";
 import { SIGNAGE_ONLINE_MS } from "./constants";
 
 /** The hour (site time) after which a manifest compiled before today is compiled again, extending its 14 days. */
@@ -37,10 +37,11 @@ export interface LoadedContent {
   playlists: Record<string, CompilePlaylist>;
   media: Record<string, CompileMedia>;
   schedules: CompileInput["schedules"];
-  overrides: CompileInput["overrides"];
   power: CompileInput["power"];
   playlistNames: Map<string, string>;
   mediaNames: Map<string, string>;
+  /** Manifest items name media by sha256; pages need the row id (thumbnails are `/media/:id/thumb`). */
+  mediaIds: Map<string, string>;
 }
 
 /**
@@ -60,16 +61,17 @@ export class SignageCompiler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    // Rows from before migration 0093 (old weekly rules and events) become schedule entries; cheap when there are none.
+    this.jobs.register({ name: "signage-schedule-adopt", everyMs: 600_000, initialDelayMs: 3_000, run: () => this.content.adoptLegacySchedules().then(() => undefined) });
     this.jobs.register({ name: "signage-compile", everyMs: 5_000, initialDelayMs: 15_000, schedule: "fixed-delay", run: () => this.tick() });
   }
 
   async load(): Promise<LoadedContent> {
-    const [pls, items, media, schedules, overrides, power] = await Promise.all([
+    const [pls, items, media, schedules, power] = await Promise.all([
       this.db.select().from(signagePlaylists),
       this.db.select().from(signagePlaylistItems).orderBy(signagePlaylistItems.position),
       this.db.select().from(signageMedia),
       this.db.select().from(signageSchedules),
-      this.db.select().from(signageOverrides).where(sql`${signageOverrides.endsAt} > now() - INTERVAL '1 day'`),
       this.db.select().from(signagePowerSchedules),
     ]);
     const playlists: Record<string, CompilePlaylist> = {};
@@ -78,11 +80,11 @@ export class SignageCompiler implements OnModuleInit {
     return {
       playlists,
       media: Object.fromEntries(media.map((m) => [m.id, { id: m.id, sha256: m.sha256, kind: m.kind as SignageMediaKind | null, durationS: m.durationS, sizeBytes: m.sizeBytes, status: m.status as SignageMediaStatus }])),
-      schedules: schedules.map((s) => ({ ...s, targetType: s.targetType as "screen" | "group" })),
-      overrides: overrides.map((o) => ({ ...o, targetType: o.targetType as SignageTargetType })),
+      schedules: schedules.map(scheduleRowToCompile),
       power: power.map((p) => ({ ...p, targetType: p.targetType as SignageTargetType })),
       playlistNames: new Map(pls.map((p) => [p.id, p.name])),
       mediaNames: new Map(media.map((m) => [m.sha256 ?? m.id, m.name])),
+      mediaIds: new Map(media.map((m) => [m.sha256 ?? m.id, m.id])),
     };
   }
 
@@ -101,7 +103,6 @@ export class SignageCompiler implements OnModuleInit {
       playlists: c.playlists,
       media: c.media,
       schedules: c.schedules,
-      overrides: c.overrides,
       power: c.power,
       timezone,
     };
@@ -178,7 +179,7 @@ export class SignageCompiler implements OnModuleInit {
         ? "Every rule that applies has nothing to play, so the screen shows the logo slide."
         : "Nothing is scheduled and the screen has no fallback playlist: it shows the logo slide."
       : r.winner.source === "fallback"
-        ? "No event or schedule applies at this time, so the screen's fallback playlist plays."
+        ? "Nothing is scheduled at this time, so the screen's fallback playlist plays."
         : `${describe(r.winner.source)} "${r.winner.name}" applies${r.candidates.findIndex((c) => c.source === r.winner!.source) > 0 ? " (rules above it had nothing to play)" : ""}.`;
     return {
       at: at.toISOString(),
@@ -187,7 +188,7 @@ export class SignageCompiler implements OnModuleInit {
       source: r.winner?.source ?? "logo",
       why,
       candidates: r.candidates.map((c) => ({ source: c.source, name: c.name, playlistName: content.playlistNames.get(c.playlistId) ?? "(deleted)", won: c.source === r.winner?.source, note: c.empty })),
-      items: (r.winner?.items ?? []).map((i) => ({ mediaId: i.m, name: content.mediaNames.get(i.m) ?? i.m.slice(0, 12), kind: i.kind, seconds: i.dur })),
+      items: (r.winner?.items ?? []).map((i) => ({ mediaId: content.mediaIds.get(i.m) ?? i.m, name: content.mediaNames.get(i.m) ?? i.m.slice(0, 12), kind: i.kind, seconds: i.dur })),
       power: r.power,
     };
   }
@@ -211,10 +212,10 @@ export class SignageCompiler implements OnModuleInit {
   }
 
   private async sourceNames(): Promise<Map<string, string>> {
-    const [s, o] = await Promise.all([this.db.select({ id: signageSchedules.id, name: signageSchedules.name, t: signageSchedules.targetType }).from(signageSchedules), this.db.select({ id: signageOverrides.id, name: signageOverrides.name }).from(signageOverrides)]);
+    const s = await this.db.select({ id: signageSchedules.id, name: signageSchedules.name }).from(signageSchedules);
     const m = new Map<string, string>([["fallback", "Fallback playlist"]]);
-    for (const r of s) m.set(`${r.t === "group" ? "group-schedule" : "schedule"}:${r.id}`, r.name);
-    for (const r of o) m.set(`override:${r.id}`, r.name);
+    // Manifests compiled before the merge name their entries `override:` and `group-schedule:` (same ids, adopted).
+    for (const r of s) for (const prefix of ["schedule", "group-schedule", "override"]) m.set(`${prefix}:${r.id}`, r.name);
     return m;
   }
 
@@ -268,9 +269,7 @@ export class SignageCompiler implements OnModuleInit {
 }
 
 export function sourceLabel(source: string): string {
-  if (source.startsWith("override:")) return "The event";
-  if (source.startsWith("group-schedule:")) return "The screen group's schedule";
-  if (source.startsWith("schedule:")) return "The screen's schedule";
+  if (source.startsWith("schedule:") || source.startsWith("group-schedule:") || source.startsWith("override:")) return "The schedule entry";
   if (source === "fallback") return "Fallback playlist";
   return "Logo slide";
 }

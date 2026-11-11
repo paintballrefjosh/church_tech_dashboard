@@ -222,7 +222,7 @@ export interface SignageScreen {
   updatedAt: string;
 }
 
-// ---------------------------------------------------------------- schedules, events (overrides), power
+// ---------------------------------------------------------------- schedules (one-time and repeating), power
 
 const target = {
   targetType: z.enum(SIGNAGE_TARGET_TYPES),
@@ -232,102 +232,143 @@ const targetRefine = <T extends { targetType?: SignageTargetType; targetId?: str
   v.targetType === undefined || (v.targetType === "all") === (v.targetId === null || v.targetId === undefined);
 const targetMessage = { message: "Pick a screen or a screen group (or 'all screens' with no target)" };
 
+/** One-time (two instants), weekly (days of the week) or monthly (e.g. the first and last Saturday). */
+export const SIGNAGE_SCHEDULE_KINDS = ["once", "weekly", "monthly"] as const;
+export type SignageScheduleKind = (typeof SIGNAGE_SCHEDULE_KINDS)[number];
+
+/** Five levels, stored as 1-5. When two entries would show on the same screen at the same time, the higher one wins. */
+export const SIGNAGE_PRIORITIES = [
+  { value: 1, label: "Lowest" },
+  { value: 2, label: "Low" },
+  { value: 3, label: "Normal" },
+  { value: 4, label: "High" },
+  { value: 5, label: "Highest" },
+] as const;
+export const SIGNAGE_PRIORITY_DEFAULT = 3;
+export function signagePriorityLabel(p: number): string {
+  return SIGNAGE_PRIORITIES.find((x) => x.value === p)?.label ?? String(p);
+}
+
+/** Which weeks of the month a monthly entry repeats on: 1-4 = first to fourth, -1 = the last. */
+export const SIGNAGE_MONTH_WEEKS = [1, 2, 3, 4, -1] as const;
+const monthWeeks = z
+  .array(z.number().int().refine((w) => (SIGNAGE_MONTH_WEEKS as readonly number[]).includes(w), "Weeks of the month are 1-4, or -1 for the last"))
+  .max(5)
+  .transform((w) => [...new Set(w)].sort((a, b) => (a === -1 ? 9 : a) - (b === -1 ? 9 : b)));
+const instant = z.string().datetime({ offset: true });
+const anyWeekdays = z
+  .array(z.number().int().min(1).max(7))
+  .max(7)
+  .transform((d) => [...new Set(d)].sort((a, b) => a - b));
+
+/** The fields of a schedule entry (also the MCP tool's input). Which ones matter depends on `kind`: see `signageScheduleProblem`. */
+export const signageScheduleShape = {
+  name,
+  kind: z.enum(SIGNAGE_SCHEDULE_KINDS).default("weekly"),
+  targetType: z.enum(SIGNAGE_TARGET_TYPES),
+  targetId: uuid.nullable().default(null),
+  playlistId: uuid,
+  priority: z.number().int().min(1).max(5).default(SIGNAGE_PRIORITY_DEFAULT),
+  /** once: when it starts and ends. */
+  startsAt: instant.nullable().default(null),
+  endsAt: instant.nullable().default(null),
+  /** weekly and monthly: the days (1 = Monday ... 7 = Sunday), the local times, and optionally the first and last day. */
+  daysOfWeek: anyWeekdays.default([]),
+  monthWeeks: monthWeeks.nullable().default(null),
+  startTime: hhmm.nullable().default(null),
+  endTime: hhmm.nullable().default(null),
+  startDate: dateOnly.nullable().default(null),
+  endDate: dateOnly.nullable().default(null),
+  forcePowerOn: z.boolean().default(false),
+  enabled: z.boolean().default(true),
+};
+
 export const createSignageScheduleSchema = z
-  .object({
-    name,
-    targetType: z.enum(["screen", "group"]),
-    targetId: uuid,
-    playlistId: uuid,
-    priority: z.number().int().min(0).max(999).default(100),
-    daysOfWeek: weekdays,
-    startTime: hhmm,
-    endTime: hhmm,
-    startDate: dateOnly.nullable().default(null),
-    endDate: dateOnly.nullable().default(null),
-    enabled: z.boolean().default(true),
-  })
+  .object(signageScheduleShape)
   .strict()
-  .refine((s) => s.startTime !== s.endTime, { message: "The start and end times are the same" })
-  .refine((s) => !s.startDate || !s.endDate || s.startDate <= s.endDate, { message: "The last day is before the first day" });
+  .superRefine((v, ctx) => {
+    const p = signageScheduleProblem(v);
+    if (p) ctx.addIssue({ code: z.ZodIssueCode.custom, message: p });
+  });
 export type CreateSignageScheduleInput = z.infer<typeof createSignageScheduleSchema>;
 
 export const updateSignageScheduleSchema = z
   .object({
     name: name.optional(),
-    targetType: z.enum(["screen", "group"]).optional(),
-    targetId: uuid.optional(),
+    kind: z.enum(SIGNAGE_SCHEDULE_KINDS).optional(),
+    targetType: z.enum(SIGNAGE_TARGET_TYPES).optional(),
+    targetId: uuid.nullable().optional(),
     playlistId: uuid.optional(),
-    priority: z.number().int().min(0).max(999).optional(),
-    daysOfWeek: weekdays.optional(),
-    startTime: hhmm.optional(),
-    endTime: hhmm.optional(),
+    priority: z.number().int().min(1).max(5).optional(),
+    startsAt: instant.nullable().optional(),
+    endsAt: instant.nullable().optional(),
+    daysOfWeek: anyWeekdays.optional(),
+    monthWeeks: monthWeeks.nullable().optional(),
+    startTime: hhmm.nullable().optional(),
+    endTime: hhmm.nullable().optional(),
     startDate: dateOnly.nullable().optional(),
     endDate: dateOnly.nullable().optional(),
+    forcePowerOn: z.boolean().optional(),
     enabled: z.boolean().optional(),
   })
   .strict();
 export type UpdateSignageScheduleInput = z.infer<typeof updateSignageScheduleSchema>;
 
-export interface SignageSchedule {
-  id: string;
-  name: string;
-  targetType: "screen" | "group";
-  targetId: string;
-  targetName: string;
-  playlistId: string;
-  playlistName: string;
-  priority: number;
-  daysOfWeek: number[];
-  startTime: string;
-  endTime: string;
-  startDate: string | null;
-  endDate: string | null;
-  enabled: boolean;
-  createdAt: string;
-}
-
-export const createSignageOverrideSchema = z
-  .object({
-    name,
-    ...target,
-    playlistId: uuid,
-    startsAt: z.string().datetime({ offset: true }),
-    endsAt: z.string().datetime({ offset: true }),
-    priority: z.number().int().min(0).max(100000).default(1000),
-    forcePowerOn: z.boolean().default(false),
-  })
-  .strict()
-  .refine(targetRefine, targetMessage)
-  .refine((o) => Date.parse(o.endsAt) > Date.parse(o.startsAt), { message: "The event ends before it starts" });
-export type CreateSignageOverrideInput = z.infer<typeof createSignageOverrideSchema>;
-
-export const updateSignageOverrideSchema = z
-  .object({
-    name: name.optional(),
-    targetType: z.enum(SIGNAGE_TARGET_TYPES).optional(),
-    targetId: uuid.nullable().optional(),
-    playlistId: uuid.optional(),
-    startsAt: z.string().datetime({ offset: true }).optional(),
-    endsAt: z.string().datetime({ offset: true }).optional(),
-    priority: z.number().int().min(0).max(100000).optional(),
-    forcePowerOn: z.boolean().optional(),
-  })
-  .strict();
-export type UpdateSignageOverrideInput = z.infer<typeof updateSignageOverrideSchema>;
-
-export interface SignageOverride {
-  id: string;
-  name: string;
+/** The fields a schedule entry is judged on (a stored row merged with a PATCH, or a create). */
+export interface SignageScheduleRule {
+  kind: SignageScheduleKind;
   targetType: SignageTargetType;
   targetId: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  daysOfWeek: number[];
+  monthWeeks: number[] | null;
+  startTime: string | null;
+  endTime: string | null;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+/** A one-time entry may last at most this long (a longer one is a recurring entry or the fallback playlist). */
+export const SIGNAGE_ONCE_MAX_DAYS = 366;
+
+/** What is wrong with an entry, in words, or null. */
+export function signageScheduleProblem(v: SignageScheduleRule): string | null {
+  if ((v.targetType === "all") !== (v.targetId === null || v.targetId === undefined)) return targetMessage.message;
+  if (v.kind === "once") {
+    if (!v.startsAt || !v.endsAt) return "A one-time entry needs a start and an end date and time";
+    const a = Date.parse(v.startsAt);
+    const b = Date.parse(v.endsAt);
+    if (!(b > a)) return "It ends before it starts";
+    if (b - a > SIGNAGE_ONCE_MAX_DAYS * 86_400_000) return `A one-time entry can last at most ${SIGNAGE_ONCE_MAX_DAYS} days; make it repeat instead`;
+    return null;
+  }
+  if (!v.startTime || !v.endTime) return "A repeating entry needs a start and an end time";
+  if (v.startTime === v.endTime) return "The start and end times are the same";
+  if (!v.daysOfWeek.length) return "Pick at least one day";
+  if (v.kind === "monthly" && !v.monthWeeks?.length) return "Pick which weeks of the month (first, second ... last)";
+  if (v.startDate && v.endDate && v.startDate > v.endDate) return "The last day is before the first day";
+  return null;
+}
+
+/** The entry with the fields its kind does not use cleared, as it is stored. */
+export function normaliseSignageSchedule<T extends SignageScheduleRule>(v: T): T {
+  if (v.kind === "once") return { ...v, daysOfWeek: [], monthWeeks: null, startTime: null, endTime: null, startDate: null, endDate: null, targetId: v.targetType === "all" ? null : v.targetId };
+  return { ...v, startsAt: null, endsAt: null, monthWeeks: v.kind === "monthly" ? v.monthWeeks : null, targetId: v.targetType === "all" ? null : v.targetId };
+}
+
+export interface SignageSchedule extends SignageScheduleRule {
+  id: string;
+  name: string;
   targetName: string;
   playlistId: string;
   playlistName: string;
-  startsAt: string;
-  endsAt: string;
+  /** 1 (lowest) to 5 (highest). */
   priority: number;
   forcePowerOn: boolean;
-  state: "upcoming" | "active" | "ended";
+  enabled: boolean;
+  /** One-time entries: by the clock. Repeating ones: "ended" once their last day has passed, otherwise null. */
+  state: "upcoming" | "active" | "ended" | null;
   createdAt: string;
 }
 
@@ -388,7 +429,8 @@ export function signageRangeProblem(v: { startTime?: string; endTime?: string; s
 
 // ---------------------------------------------------------------- devices
 
-export const SIGNAGE_DEVICE_STATUSES = ["setting_up", "active", "failed", "disabled"] as const;
+/** `resetting`: Forget started the reset and the dashboard is waiting to see it finish (the row goes once it has). */
+export const SIGNAGE_DEVICE_STATUSES = ["setting_up", "active", "failed", "disabled", "resetting"] as const;
 export type SignageDeviceStatus = (typeof SIGNAGE_DEVICE_STATUSES)[number];
 
 /** What `signage-ctl status` reports (all optional: an older agent may leave some out). */
@@ -401,6 +443,7 @@ export const signagePiStatusSchema = z
     hostname: z.string().max(120).optional(),
     uptimeS: z.number().optional(),
     cpuTempC: z.number().nullable().optional(),
+    cpuPct: z.number().min(0).max(100).nullable().optional(),
     throttled: z.string().max(20).nullable().optional(),
     underVoltage: z.boolean().optional(),
     diskFreeMb: z.number().nullable().optional(),
@@ -445,6 +488,16 @@ export interface SignageDeviceProblem {
   message: string;
 }
 
+/** What a Pi is showing, in words: the Pi only reports ids and a file hash, the dashboard looks the names up. */
+export interface SignageDevicePlaying {
+  /** `playlist`: a scheduled entry's playlist, `fallback`: the screen's fallback playlist, `logo`: the church logo slide (nothing to play). */
+  kind: "playlist" | "fallback" | "logo";
+  playlistName: string | null;
+  mediaName: string | null;
+  /** The schedule entry's name when the playlist came from one. */
+  entryName: string | null;
+}
+
 export interface SignageDevice {
   id: string;
   name: string;
@@ -470,6 +523,8 @@ export interface SignageDevice {
   manifestVersionWanted: number | null;
   settingsApplied: boolean;
   latest: SignagePiStatus | null;
+  /** What the Pi is showing now, named; null while it has reported nothing or its player is not running. */
+  playing: SignageDevicePlaying | null;
   problems: SignageDeviceProblem[];
   identifyCode: string | null;
   identifyUntil: string | null;
@@ -537,11 +592,17 @@ export const signageSetupSchema = z
     sudoPassword: z.string().min(1).max(200).optional(),
   })
   .strict()
-  .refine((s) => !!s.foundId !== !!s.deviceId, { message: "Set up either a found Pi or an existing device" });
+  .refine((s) => !!s.foundId !== !!s.deviceId, { message: "Adopt either a found Pi or an existing device" });
 export type SignageSetupInput = z.infer<typeof signageSetupSchema>;
 
 export const signageShowCodeSchema = z
   .object({ username: z.string().trim().min(1).max(64).optional(), password: z.string().min(1).max(200).optional() })
+  .strict();
+
+/** "Show a code" is taken off the screen again when its window closes. `vt` is the text console the Pi was on before the code
+ * switched a desktop Pi to console 1 (answered by show-code), so the screen can be switched back. */
+export const signageClearCodeSchema = z
+  .object({ username: z.string().trim().min(1).max(64).optional(), password: z.string().min(1).max(200).optional(), vt: z.number().int().min(1).max(63).optional() })
   .strict();
 
 export const signageIdentifySchema = z
@@ -593,7 +654,7 @@ export const signageScreenTvSchema = z
 
 export const signagePowerAllSchema = z.object({ state: z.enum(["on", "off"]), groupId: uuid.nullable().default(null) }).strict();
 
-export const SIGNAGE_RUN_KINDS = ["setup", "apply", "os_update", "agent_update", "show_code"] as const;
+export const SIGNAGE_RUN_KINDS = ["setup", "apply", "os_update", "agent_update", "show_code", "forget"] as const;
 export type SignageRunKind = (typeof SIGNAGE_RUN_KINDS)[number];
 export const SIGNAGE_RUN_STATUSES = ["queued", "running", "succeeded", "failed", "needs_sudo"] as const;
 export type SignageRunStatus = (typeof SIGNAGE_RUN_STATUSES)[number];

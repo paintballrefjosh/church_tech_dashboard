@@ -109,19 +109,30 @@ export const signageScreenGroups = pgTable(
   (t) => ({ pk: primaryKey({ columns: [t.screenId, t.groupId] }), groupIdx: index("signage_screen_groups_group_idx").on(t.groupId) }),
 );
 
-/** A weekly rule. `target_id` is a screen or a screen group (no foreign key: two tables); deleting either removes its rules. */
+/**
+ * A schedule entry: one-time (`starts_at`-`ends_at`), weekly or monthly (`month_weeks`). `target_id` is a screen or a screen
+ * group (no foreign key: two tables; deleting either removes its entries), or null for all screens. `kind` is null only on
+ * rows from before migration 0093 (weekly, with the old 0-999 priority), which the `signage-schedule-adopt` job converts,
+ * together with the old `signage_overrides` (events).
+ */
 export const signageSchedules = pgTable("signage_schedules", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
+  kind: text("kind"),
   targetType: text("target_type").notNull(),
-  targetId: uuid("target_id").notNull(),
+  targetId: uuid("target_id"),
   playlistId: uuid("playlist_id")
     .notNull()
     .references(() => signagePlaylists.id, { onDelete: "cascade" }),
+  /** 1 (lowest) to 5 (highest). */
   priority: integer("priority").notNull().default(100),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
   daysOfWeek: jsonb("days_of_week").$type<number[]>().notNull(),
-  startTime: text("start_time").notNull(),
-  endTime: text("end_time").notNull(),
+  monthWeeks: jsonb("month_weeks").$type<number[]>(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  forcePowerOn: boolean("force_power_on").notNull().default(false),
   startDate: text("start_date"),
   endDate: text("end_date"),
   enabled: boolean("enabled").notNull().default(true),
@@ -130,7 +141,7 @@ export const signageSchedules = pgTable("signage_schedules", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-/** A one-off event (called an override in the code): its own playlist on some screens between two instants. */
+/** One-off events from before migration 0093. Read only by the `signage-schedule-adopt` job, which moves them into `signage_schedules`; dropped in a later release. */
 export const signageOverrides = pgTable(
   "signage_overrides",
   {

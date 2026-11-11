@@ -3,14 +3,12 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   PERMISSIONS,
   SIGNAGE_LIMITS,
-  createSignageOverrideSchema,
   createSignagePlaylistSchema,
   createSignagePowerScheduleSchema,
   createSignageScheduleSchema,
   createSignageScreenSchema,
   signageScreenGroupSchema,
   updateSignageMediaSchema,
-  updateSignageOverrideSchema,
   updateSignagePlaylistSchema,
   updateSignagePowerScheduleSchema,
   updateSignageScheduleSchema,
@@ -47,7 +45,7 @@ function parseRange(header: string | undefined): { start: number; end?: number }
 }
 
 /**
- * Signage content (docs/signage.md section 9): media, playlists, screens, screen groups, schedules, events and power
+ * Signage content (docs/signage.md section 9): media, playlists, screens, screen groups, schedules (one-time and repeating) and power
  * schedules. Reading is the module's user tier, changing content the moderator tier; screens (which TV, which Roku) are
  * the admin tier because they describe equipment.
  */
@@ -256,7 +254,7 @@ export class SignageController {
     return { ok: true };
   }
 
-  // ------------------------------------------------------------ schedules, events, power
+  // ------------------------------------------------------------ schedules (one-time and repeating), power
 
   @Get("schedules")
   @RequirePermissions(PERMISSIONS.SIGNAGE_READ_ANY)
@@ -286,40 +284,12 @@ export class SignageController {
     return { ok: true };
   }
 
-  @Get("events")
-  @RequirePermissions(PERMISSIONS.SIGNAGE_READ_ANY)
-  listEvents(@Query("ended") ended?: string) {
-    return this.content.listOverrides(ended !== "0");
-  }
-
-  @Post("events")
+  /** "End now" for a one-time entry: its end moves to this moment (one that has not started is removed instead). */
+  @Post("schedules/:id/end")
   @RequirePermissions(PERMISSIONS.SIGNAGE_WRITE_ANY)
-  @Audited({ action: "signage.event.create", resourceType: "signage_event" })
-  createEvent(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
-    return this.content.createOverride(parse(createSignageOverrideSchema, body), user.id);
-  }
-
-  @Patch("events/:id")
-  @RequirePermissions(PERMISSIONS.SIGNAGE_WRITE_ANY)
-  @Audited({ action: "signage.event.update", resourceType: "signage_event", resourceIdFromParams: idParam })
-  updateEvent(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    return this.content.updateOverride(id, parse(updateSignageOverrideSchema, body));
-  }
-
-  /** "End now": the event's end moves to this moment (a future event is removed instead). */
-  @Post("events/:id/end")
-  @RequirePermissions(PERMISSIONS.SIGNAGE_WRITE_ANY)
-  @Audited({ action: "signage.event.end", resourceType: "signage_event", resourceIdFromParams: idParam })
-  endEvent(@Param("id", ParseUUIDPipe) id: string) {
-    return this.content.endOverride(id);
-  }
-
-  @Delete("events/:id")
-  @RequirePermissions(PERMISSIONS.SIGNAGE_WRITE_ANY)
-  @Audited({ action: "signage.event.delete", resourceType: "signage_event", resourceIdFromParams: idParam })
-  async deleteEvent(@Param("id", ParseUUIDPipe) id: string) {
-    await this.content.deleteOverride(id);
-    return { ok: true };
+  @Audited({ action: "signage.schedule.end", resourceType: "signage_schedule", resourceIdFromParams: idParam })
+  endSchedule(@Param("id", ParseUUIDPipe) id: string) {
+    return this.content.endSchedule(id);
   }
 
   @Get("power")
