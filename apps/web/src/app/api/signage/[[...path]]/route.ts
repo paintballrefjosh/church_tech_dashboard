@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { apiFetch, streamToApi } from "@/lib/api";
 
 /**
- * Proxy for /api/signage[/...] to /api/v1/signage[/...]; the API checks the permission on every route. Uploads (media and
- * agent releases, multipart) are streamed on without buffering. Bytes are passed through as they are, because thumbnails,
- * media files and screenshots answer with pictures and video.
+ * Proxy for /api/signage[/...] to /api/v1/signage[/...]; the API checks the permission on every route. Bytes are passed
+ * through as they are, because thumbnails, media files and screenshots answer with pictures and video. Media and agent
+ * release uploads do NOT come this way: Next's middleware keeps only the first 10 MB of a request body, so the pages post
+ * them to /api/v1/signage/... directly (like backup uploads). Multipart is still streamed for anything small.
  */
 async function forward(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await ctx.params;

@@ -30,7 +30,7 @@ export function KeySection() {
       <h2 id="sig-key" className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100">
         <KeyRound className="h-4 w-4" aria-hidden /> The dashboard&apos;s SSH key
       </h2>
-      <p className="text-sm text-slate-600 dark:text-slate-300">Made from the site&apos;s secret, so every node has the same one and nothing is stored. Setup puts the public half on each Pi.</p>
+      <p className="text-sm text-slate-600 dark:text-slate-300">Made from the site&apos;s secret, so every node has the same one and nothing is stored. Adopting a Pi puts the public half on it.</p>
       {key.error ? <ErrorLine text={key.error} /> : null}
       {key.data ? (
         <>
@@ -68,7 +68,8 @@ export function ReleasesSection() {
     try {
       const fd = new FormData();
       fd.append("file", f);
-      const r = await fetch(`/api/signage/releases?notes=${encodeURIComponent(notes)}`, { method: "POST", body: fd, credentials: "same-origin" });
+      // Straight to the API, not the web proxy: Next's middleware keeps only the first 10 MB of a body (a release can be 32 MB).
+      const r = await fetch(`/api/v1/signage/releases?notes=${encodeURIComponent(notes)}`, { method: "POST", body: fd, credentials: "same-origin" });
       const j = (await r.json().catch(() => null)) as { message?: string | string[]; version?: string } | null;
       if (!r.ok) throw new Error(Array.isArray(j?.message) ? j.message.join("; ") : (j?.message ?? `Upload failed (${r.status})`));
       setMsg({ ok: true, text: `Agent ${j?.version ?? ""} uploaded.` });
