@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, gte, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   SIGNAGE_KEYS,
   buildApplyConfig,
@@ -15,6 +15,7 @@ import {
   type SignageCommandInput,
   type SignageCommandResult,
   type SignageDevice,
+  type SignageDevicePlaying,
   type SignageDeviceStatus,
   type SignageIdentifyInput,
   type SignageIdentifyResult,
@@ -22,7 +23,7 @@ import {
   type SignagePiStatus,
 } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
-import { signageDevices, signageScreens, signageScreenshots, signageStatusSamples, signageSetupRuns } from "../db/schema";
+import { signageDevices, signageMedia, signagePlaylists, signageSchedules, signageScreens, signageScreenshots, signageStatusSamples, signageSetupRuns } from "../db/schema";
 import { SettingsService } from "../settings/settings.service";
 import { SignageService } from "./signage.service";
 import { SignageCompiler } from "./compiler.service";
@@ -81,6 +82,10 @@ export class SignageDevices {
     return readSignageSecurity((k) => values.get(k));
   }
 
+  zone(): Promise<string> {
+    return this.content.zone();
+  }
+
   /** The settings this device should have now. `extraKeys` carries an older key during a rotation. */
   async applyConfig(d: Pick<DeviceRow, "name" | "setupUser" | "dashboardSources">, extraKeys: string[] = []): Promise<SignageApplyConfig> {
     const [sec, tz, key] = await Promise.all([this.security(), this.content.zone(), this.currentKey()]);
@@ -101,7 +106,7 @@ export class SignageDevices {
 
   async login(d: DeviceRow, generation?: number): Promise<PiLogin> {
     if (d.hostKeyMismatch) throw new CtlError("Its SSH host key changed. Trust the new key on the device page first.");
-    if (!d.loginUser) throw new CtlError("This Pi is not set up yet.");
+    if (!d.loginUser) throw new CtlError("This Pi is not adopted yet.");
     const key = signageKey(generation ?? d.keyGeneration ?? (await this.keyGeneration()));
     return { host: d.ip, port: d.sshPort, username: d.loginUser, privateKey: key.privateKey, knownHostKey: d.knownHostKey, timeoutMs: 10_000 };
   }
@@ -169,6 +174,7 @@ export class SignageDevices {
       this.keyGeneration(),
     ]);
     const byScreen = new Map(screens.map((s) => [s.id, s]));
+    const playing = await this.playingFor(rows);
     const current = bundledAgent()?.version ?? null;
     const now = new Date();
     const out: SignageDevice[] = [];
@@ -225,6 +231,7 @@ export class SignageDevices {
         manifestVersionWanted: s?.version ?? null,
         settingsApplied,
         latest: d.latest,
+        playing: playing.get(d.id) ?? null,
         problems,
         identifyCode: d.identifyUntil && d.identifyUntil > now ? d.identifyCode : null,
         identifyUntil: d.identifyUntil && d.identifyUntil > now ? d.identifyUntil.toISOString() : null,
@@ -234,11 +241,54 @@ export class SignageDevices {
     return out;
   }
 
+  /**
+   * What each Pi is showing, in words. The agent reports the manifest's playlist key (`<playlist id>~<hash>`), the first 12 characters of
+   * the file's SHA-256 and the entry's source (`schedule:<id>`, `fallback`, `logo`); the names are looked up here, three small queries
+   * for all the Pis. A Pi whose player is not running (or that has reported nothing) has none.
+   */
+  private async playingFor(rows: DeviceRow[]): Promise<Map<string, SignageDevicePlaying>> {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const HEX12 = /^[0-9a-f]{12}$/i;
+    const reported = rows.flatMap((d) => (d.latest?.playerRunning !== false && d.latest?.nowPlaying ? [{ id: d.id, np: d.latest.nowPlaying }] : []));
+    const playlistIds = new Set<string>();
+    const prefixes = new Set<string>();
+    const entryIds = new Set<string>();
+    for (const { np } of reported) {
+      const pl = (np.playlist ?? "").split("~")[0] ?? "";
+      if (UUID.test(pl)) playlistIds.add(pl);
+      if (np.media && HEX12.test(np.media)) prefixes.add(np.media.toLowerCase());
+      const m = /^(?:schedule|group-schedule|override):(.+)$/.exec(np.source ?? "");
+      if (m && UUID.test(m[1]!)) entryIds.add(m[1]!);
+    }
+    const [pls, media, entries] = await Promise.all([
+      playlistIds.size ? this.db.select({ id: signagePlaylists.id, name: signagePlaylists.name }).from(signagePlaylists).where(inArray(signagePlaylists.id, [...playlistIds])) : Promise.resolve([]),
+      prefixes.size ? this.db.select({ sha: signageMedia.sha256, name: signageMedia.name }).from(signageMedia).where(inArray(sql`left(${signageMedia.sha256}, 12)`, [...prefixes])) : Promise.resolve([]),
+      entryIds.size ? this.db.select({ id: signageSchedules.id, name: signageSchedules.name }).from(signageSchedules).where(inArray(signageSchedules.id, [...entryIds])) : Promise.resolve([]),
+    ]);
+    const plName = new Map(pls.map((r) => [r.id, r.name]));
+    const mediaName = new Map(media.flatMap((r) => (r.sha ? [[r.sha.slice(0, 12).toLowerCase(), r.name] as const] : [])));
+    const entryName = new Map(entries.map((r) => [r.id, r.name]));
+    const out = new Map<string, SignageDevicePlaying>();
+    for (const { id, np } of reported) {
+      const source = np.source ?? "";
+      const kind: SignageDevicePlaying["kind"] = source === "fallback" ? "fallback" : source === "logo" || !np.playlist ? "logo" : "playlist";
+      const plId = (np.playlist ?? "").split("~")[0] ?? "";
+      const m = /^(?:schedule|group-schedule|override):(.+)$/.exec(source);
+      out.set(id, {
+        kind,
+        playlistName: kind === "logo" ? null : (plName.get(plId) ?? null),
+        mediaName: np.media ? (mediaName.get(np.media.toLowerCase()) ?? null) : null,
+        entryName: m ? (entryName.get(m[1]!) ?? null) : null,
+      });
+    }
+    return out;
+  }
+
   async samples(id: string, hours: number) {
     await this.row(id);
     const since = new Date(Date.now() - hours * 3_600_000);
     const rows = await this.db.select().from(signageStatusSamples).where(and(eq(signageStatusSamples.deviceId, id), gte(signageStatusSamples.ts, since))).orderBy(signageStatusSamples.ts);
-    return rows.map((r) => ({ ts: r.ts.toISOString(), cpuTempC: r.cpuTempC, wifiRssiDbm: r.wifiRssiDbm, diskFreeMb: r.diskFreeMb, memFreeMb: r.memFreeMb }));
+    return rows.map((r) => ({ ts: r.ts.toISOString(), cpuTempC: r.cpuTempC, cpuPct: r.cpuPct, wifiRssiDbm: r.wifiRssiDbm, diskFreeMb: r.diskFreeMb, memFreeMb: r.memFreeMb }));
   }
 
   // ------------------------------------------------------------ changing
@@ -374,7 +424,7 @@ export class SignageDevices {
     if (s.tvControl === "roku_ecp" && s.rokuIp && c.type !== "tv_state") {
       return rokuKeypress(s.rokuIp, c.type === "tv_power" ? (c.state === "on" ? "PowerOn" : "PowerOff") : (c as { input: string }).input);
     }
-    throw new ConflictException("No Pi is set up for this screen and its TV is not a Roku with an address.");
+    throw new ConflictException("No Pi is adopted for this screen and its TV is not a Roku with an address.");
   }
 
   async powerAll(state: "on" | "off", groupId: string | null): Promise<{ results: Array<{ screenId: string; name: string; ok: boolean; message: string }> }> {
@@ -412,6 +462,22 @@ export class SignageDevices {
     return { lines: Array.isArray(r.lines) ? (r.lines as unknown[]).map(String) : [] };
   }
 
+  /** The TV's own answer, through the Pi (HDMI-CEC or the Roku): `power` is on, standby (off) or unknown; `error` says why when it could not be read. */
+  async tvNow(id: string): Promise<{ power: "on" | "standby" | "unknown"; input: string | null; error: string | null }> {
+    const d = await this.row(id);
+    if (!d.enabled) throw new ConflictException("This device is switched off in the dashboard.");
+    try {
+      const r = await this.ctl(d, "tv", ["state"], { timeoutMs: 30_000 });
+      // The agent answers {"tv": {...}} or, when the TV does not answer, {"error": "..."}.
+      const tv = (r.tv && typeof r.tv === "object" ? r.tv : {}) as { power?: unknown; input?: unknown };
+      const power = tv.power === "on" ? "on" : tv.power === "standby" ? "standby" : "unknown";
+      return { power, input: typeof tv.input === "string" ? tv.input : null, error: typeof r.error === "string" ? r.error : null };
+    } catch (err) {
+      if (err instanceof CtlError || err instanceof PiSshError) return { power: "unknown", input: null, error: err.message };
+      throw err;
+    }
+  }
+
   /** The newest setup runs (all, or one device's). */
   async runsFor(deviceId: string | null, limit = 20) {
     return this.db
@@ -446,7 +512,7 @@ export class SignageDevices {
         updatedAt: now,
       })
       .where(eq(signageDevices.id, d.id));
-    await this.db.insert(signageStatusSamples).values({ deviceId: d.id, ts: now, cpuTempC: s.cpuTempC ?? null, wifiRssiDbm: s.wifiRssiDbm ?? null, diskFreeMb: s.diskFreeMb ?? null, memFreeMb: s.memFreeMb ?? null });
+    await this.db.insert(signageStatusSamples).values({ deviceId: d.id, ts: now, cpuTempC: s.cpuTempC ?? null, cpuPct: s.cpuPct ?? null, wifiRssiDbm: s.wifiRssiDbm ?? null, diskFreeMb: s.diskFreeMb ?? null, memFreeMb: s.memFreeMb ?? null });
     return s;
   }
 }

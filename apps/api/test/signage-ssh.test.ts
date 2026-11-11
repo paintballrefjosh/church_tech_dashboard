@@ -6,9 +6,11 @@ import { join } from "node:path";
 import { utils } from "ssh2";
 import { describe, expect, it } from "vitest";
 import { compareVersions, packDir, versionInBundle } from "../src/signage/agent-bundle";
-import { bigDigits, shellQuote } from "../src/signage/discovery.service";
-import { parseSshConnection } from "../src/signage/pi-ssh";
+import { BadGatewayException, BadRequestException, ConflictException } from "@nestjs/common";
+import { bigDigits, isDesktopImage, shellQuote, showCodeProblem } from "../src/signage/discovery.service";
+import { PiSshError, parseSshConnection } from "../src/signage/pi-ssh";
 import { deriveSignageKey } from "../src/signage/ssh-key";
+import { signageClearCodeSchema } from "@lampstand/shared";
 
 describe("the signage SSH key", () => {
   it("is the same for the same secret and generation, and different otherwise", () => {
@@ -98,5 +100,44 @@ describe("small helpers", () => {
     expect(rows).toHaveLength(10);
     expect(new Set(rows.map((r) => r.length)).size).toBe(1);
     expect(rows[0]).toContain("##");
+  });
+});
+
+describe("Show a code failures", () => {
+  it("a refused login is a readable 400 that names the user tried, not a 500", () => {
+    const e = showCodeProblem(new PiSshError("The Pi refused the login (wrong user name, password or key).", "auth"), "pi");
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(e.message).toContain('"pi"');
+    expect(e.message).toContain("Signage > Security settings");
+  });
+  it("a changed host key is a 409 and an unreachable Pi a 502, with the Pi's own words", () => {
+    expect(showCodeProblem(new PiSshError("key changed", "host_key"), "pi")).toBeInstanceOf(ConflictException);
+    const down = showCodeProblem(new PiSshError("The Pi does not answer.", "unreachable"), "pi");
+    expect(down).toBeInstanceOf(BadGatewayException);
+    expect(down.message).toBe("The Pi does not answer.");
+  });
+  it("tells a desktop Pi from Lite by how it boots", () => {
+    expect(isDesktopImage("graphical.target inactive\n")).toBe(true);
+    expect(isDesktopImage("multi-user.target active\n")).toBe(true);
+    expect(isDesktopImage("multi-user.target inactive\n")).toBe(false);
+    expect(isDesktopImage("multi-user.target \n")).toBe(false);
+    expect(isDesktopImage("")).toBe(false);
+  });
+  it("anything else passes through unchanged", () => {
+    const other = new Error("boom");
+    expect(showCodeProblem(other, "pi")).toBe(other);
+  });
+});
+
+describe("taking a code off a Pi's screen", () => {
+  it("takes the login, and the console to go back to", () => {
+    expect(signageClearCodeSchema.parse({})).toEqual({});
+    expect(signageClearCodeSchema.parse({ username: "pi", password: "x", vt: 7 })).toEqual({ username: "pi", password: "x", vt: 7 });
+  });
+  it("refuses a console number that could be anything else, and unknown fields", () => {
+    expect(() => signageClearCodeSchema.parse({ vt: 0 })).toThrow();
+    expect(() => signageClearCodeSchema.parse({ vt: 64 })).toThrow();
+    expect(() => signageClearCodeSchema.parse({ vt: "7; reboot" })).toThrow();
+    expect(() => signageClearCodeSchema.parse({ command: "x" })).toThrow();
   });
 });

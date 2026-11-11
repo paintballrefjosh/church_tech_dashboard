@@ -12,6 +12,7 @@ import {
   signageReleaseSchema,
   signageScreenTvSchema,
   signageSetupSchema,
+  signageClearCodeSchema,
   signageShowCodeSchema,
   updateSignageDeviceSchema,
   updateSignageDiscoverySubnetSchema,
@@ -68,12 +69,17 @@ export class SignageDevicesController {
     return this.devices.update(id, parse(updateSignageDeviceSchema, body));
   }
 
-  /** Forget a device (the Pi keeps running what it has; Set up again to manage it). */
+  /**
+   * Forget a device. By default the Pi is reset to a normal Raspberry Pi first (`?reset=0` forgets it and leaves it as it is:
+   * it then stays locked to the dashboard's key, and Set up again finds it by that key). With a reset the device stays,
+   * `resetting`, until a `forget` run (`runId`) sees the reset finish; only then is it gone.
+   */
   @Delete("devices/:id")
+  @OperationalOnly()
   @Audited({ action: "signage.device.delete", resourceType: "signage_device", resourceIdFromParams: idParam })
-  async remove(@Param("id", ParseUUIDPipe) id: string) {
-    await this.devices.remove(id);
-    return { ok: true };
+  async remove(@Param("id", ParseUUIDPipe) id: string, @Query("reset") reset?: string) {
+    const r = await this.setup.forget(id, reset !== "0" && reset !== "false");
+    return { ok: true, reset: r.reset, ...(r.runId ? { runId: r.runId } : {}) };
   }
 
   @Post("devices/:id/trust-host-key")
@@ -123,6 +129,13 @@ export class SignageDevicesController {
   @OperationalOnly()
   logs(@Param("id", ParseUUIDPipe) id: string, @Query("lines") lines?: string) {
     return this.devices.logs(id, Number(lines) || 200);
+  }
+
+  /** What the TV says now (power and, where it says, the input): asked of the Pi live. A read, so not audited, like the logs. */
+  @Get("devices/:id/tv")
+  @OperationalOnly()
+  tvOfDevice(@Param("id", ParseUUIDPipe) id: string) {
+    return this.devices.tvNow(id);
   }
 
   @Get("devices/:id/samples")
@@ -254,6 +267,14 @@ export class SignageDevicesController {
     return this.discovery.showCode(id, parse(signageShowCodeSchema, body));
   }
 
+  /** The window that showed a code was closed: take the code off the TV (the player's overlay, or the text console). */
+  @Post("discovery/found/:id/clear-code")
+  @OperationalOnly()
+  @Audited({ action: "signage.discovery.clear_code", resourceType: "signage_found", resourceIdFromParams: idParam, redactKeys: SECRET_KEYS })
+  clearCode(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.discovery.clearCode(id, parse(signageClearCodeSchema, body));
+  }
+
   // ------------------------------------------------------------ the dashboard's key
 
   @Get("key")
@@ -365,6 +386,8 @@ export class SignageSummaryController {
       online: list.filter((d) => d.online).length,
       attention: list.filter((d) => d.problems.some((p) => p.severity !== "info")).length,
       newFound: await this.discovery.newCount(),
+      /** The site's time zone: schedule times are on this clock (the Schedule page draws its calendar in it). */
+      timezone: await this.devices.zone(),
     };
   }
 }

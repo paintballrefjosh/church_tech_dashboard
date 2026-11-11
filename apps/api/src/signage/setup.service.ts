@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { and, asc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
+  FORGET_FAILED_PREFIX,
   SIGNAGE_KEYS,
   canonicalJson,
+  forgetVerdict,
   createSignageScreenSchema,
   loginUserFor,
   type SignageApplyConfig,
+  type SignageReleaseProgress,
   type SignageRunKind,
   type SignageRunStatus,
   type SignageSetupInput,
@@ -30,6 +33,8 @@ type RunRow = typeof signageSetupRuns.$inferSelect;
 const CLAIM_MIN = 15;
 const MAX_PARALLEL = 4;
 const BUNDLE_TMP = "/tmp/lampstand-signage-agent.tgz";
+/** How often a Forget run looks at the Pi while it resets. */
+const FORGET_POLL_MS = 15_000;
 
 interface RunSecrets {
   username?: string;
@@ -83,6 +88,10 @@ class RunLog {
       .set({ output: this.buf, claimedUntil: sql`now() + (${CLAIM_MIN}::int * INTERVAL '1 minute')` })
       .where(eq(signageSetupRuns.id, this.id))
       .catch(() => undefined);
+  }
+  /** Renew the claim without new output (a run that waits says nothing new for minutes). */
+  keepAlive(): void {
+    this.dirty = true;
   }
   async close(): Promise<void> {
     clearInterval(this.timer);
@@ -207,8 +216,8 @@ export class SignageSetup implements OnModuleInit {
   /** Queue an apply / agent update / OS update on a set-up device. */
   async queue(deviceId: string, kind: Exclude<SignageRunKind, "setup" | "show_code">, userId: string | null, request: Record<string, unknown> = {}): Promise<SignageSetupRun> {
     const d = await this.devices.row(deviceId);
-    if (d.status !== "active" && d.status !== "failed") throw new ConflictException("Set this Pi up first.");
-    if (!d.loginUser) throw new ConflictException("This Pi was never set up: use Set up.");
+    if (d.status !== "active" && d.status !== "failed") throw new ConflictException("Adopt this Pi first.");
+    if (!d.loginUser) throw new ConflictException("This Pi was never adopted: use Adopt.");
     await this.openRun(d.id);
     const [run] = await this.db.insert(signageSetupRuns).values({ deviceId: d.id, ip: d.ip, kind, request, startedBy: userId }).returning();
     return this.dto(run!);
@@ -271,7 +280,7 @@ export class SignageSetup implements OnModuleInit {
     try {
       const d = r.deviceId ? await this.devices.row(r.deviceId) : null;
       if (!d) throw new CtlError("The device was removed.");
-      if (!d.enabled) throw new CtlError("The device is switched off in the dashboard.");
+      if (!d.enabled && r.kind !== "forget") throw new CtlError("The device is switched off in the dashboard.");
       switch (r.kind) {
         case "setup":
           await this.runSetup(d, secrets, saved, log);
@@ -281,6 +290,9 @@ export class SignageSetup implements OnModuleInit {
           break;
         case "agent_update":
           await this.withKey(d, log, async (s) => this.pushAgent(s, d, log, true));
+          break;
+        case "forget":
+          await this.runForget(d, r, log);
           break;
         case "os_update":
           await this.withKey(d, log, async (s) => {
@@ -301,6 +313,11 @@ export class SignageSetup implements OnModuleInit {
       if (r.kind === "setup" && r.deviceId) {
         await this.db.update(signageDevices).set({ status: "failed", lastError: log.scrub(msg).slice(0, 500), updatedAt: new Date() }).where(and(eq(signageDevices.id, r.deviceId), eq(signageDevices.status, "setting_up")));
       }
+      if (r.kind === "forget" && r.deviceId) {
+        // Never leave a device "resetting" with nothing watching it (forgetStuck has already set its own message).
+        const text = msg.startsWith(FORGET_FAILED_PREFIX) ? msg : `${FORGET_FAILED_PREFIX}${msg}`;
+        await this.db.update(signageDevices).set({ status: "failed", lastError: log.scrub(text).slice(0, 500), updatedAt: new Date() }).where(and(eq(signageDevices.id, r.deviceId), eq(signageDevices.status, "resetting")));
+      }
       if (r.deviceId && err instanceof PiSshError) await this.devices.noteError(await this.devices.row(r.deviceId).catch(() => ({ id: r.deviceId }) as DeviceRow), err);
       await this.finish(r, "failed", msg, log);
     }
@@ -308,7 +325,7 @@ export class SignageSetup implements OnModuleInit {
 
   // ------------------------------------------------------------ flows
 
-  private async withKey<T>(d: DeviceRow, log: RunLog, fn: (s: PiSession) => Promise<T>, generation?: number): Promise<T> {
+  private async withKey<T>(d: DeviceRow, log: Pick<RunLog, "line">, fn: (s: PiSession) => Promise<T>, generation?: number): Promise<T> {
     log.line(`connecting to ${d.loginUser}@${d.ip} with the dashboard's key`);
     const s = await PiSession.open(await this.devices.login(d, generation));
     try {
@@ -325,7 +342,7 @@ export class SignageSetup implements OnModuleInit {
     return rel;
   }
 
-  private async pushAgent(s: PiSession, d: DeviceRow, log: RunLog, force: boolean): Promise<void> {
+  private async pushAgent(s: PiSession, d: DeviceRow, log: Pick<RunLog, "line">, force: boolean): Promise<void> {
     const rel = await this.currentRelease();
     if (!force && d.agentVersion === rel.version) return;
     log.line(`copying agent ${rel.version} (${Math.round(rel.bytes.length / 1024)} KB)`);
@@ -334,15 +351,136 @@ export class SignageSetup implements OnModuleInit {
     await this.db.update(signageDevices).set({ agentVersion: rel.version }).where(eq(signageDevices.id, d.id));
   }
 
+  /**
+   * Forget a device. With `reset` (the default) a Pi the dashboard manages is first taken back to a normal Raspberry Pi: the
+   * agent is brought up to date (an older one cannot do this), then `signage-ctl release` unlocks the first user's password,
+   * removes the dashboard's key, SSH rules, firewall, accounts and agent, restores the console or desktop boot and restarts the
+   * Pi (twice with a read-only root). Wi-Fi and the packages are left alone. A Pi that cannot be reached is NOT forgotten
+   * unless the caller says `reset: false`, or the Pi would be left locked with nothing that can open it.
+   */
+  async forget(id: string, reset: boolean): Promise<{ reset: boolean; runId?: string }> {
+    const d = await this.devices.row(id);
+    const managed = !!d.loginUser && !!d.keyGeneration;
+    if (reset && managed) {
+      await this.openRun(d.id);
+      const lines: string[] = [];
+      const log = { line: (m: string) => void lines.push(m) };
+      let bootId: string | null = null;
+      try {
+        await this.withKey(d, log, async (s) => {
+          await this.pushAgent(s, d, log, true);
+          const out = await SignageDevices.ctlOn(s, "release", [], { timeoutMs: 60_000 });
+          if (out.started !== true) throw new CtlError("the Pi did not start the reset");
+          bootId = typeof out.bootId === "string" && out.bootId ? out.bootId : null;
+        });
+      } catch (err) {
+        throw new ConflictException(
+          `The Pi could not be reset (${(err as Error).message}). It was not forgotten. Check that it is on and reachable, or forget it without a reset (it then keeps the dashboard's settings and stays locked to the dashboard's key).`,
+        );
+      }
+      // Not deleted yet: the row stays, "resetting", until the dashboard sees the reset finish (its key stops opening the
+      // Pi). A reset that stops halfway would otherwise leave a locked Pi that nothing lists and only the key can open.
+      await this.db.update(signageDevices).set({ status: "resetting", screenId: null, lastError: null, updatedAt: new Date() }).where(eq(signageDevices.id, d.id));
+      if (d.screenId) await this.content.markDirty([d.screenId]);
+      const [run] = await this.db
+        .insert(signageSetupRuns)
+        .values({ deviceId: d.id, ip: d.ip, kind: "forget", request: { bootId }, output: `${lines.join("\n")}\nreset started on the Pi\n` })
+        .returning();
+      return { reset: true, runId: run!.id };
+    }
+    await this.devices.remove(id);
+    return { reset: false };
+  }
+
+  /**
+   * The second half of Forget: wait until the dashboard's key no longer opens the Pi, which is the last thing the reset
+   * changes, then delete the row. While the key still works, `release-status` says whether the reset is still going
+   * (`forgetVerdict`). Stuck = the device becomes `failed` with the Pi's own account of it, and Forget can be tried again.
+   */
+  private async runForget(d: DeviceRow, r: RunRow, log: RunLog): Promise<void> {
+    const startedBootId = typeof r.request.bootId === "string" ? r.request.bootId : null;
+    let said = "";
+    const say = (m: string) => {
+      if (m !== said) log.line(m);
+      said = m;
+    };
+    for (;;) {
+      const cur = await this.devices.row(d.id).catch(() => null);
+      if (!cur) {
+        log.line("the device was forgotten without waiting for the reset");
+        return;
+      }
+      if (cur.hostKeyMismatch) return this.forgetStuck(cur, log, "the Pi showed a different SSH host key", null);
+      let progress: SignageReleaseProgress | null = null;
+      try {
+        const s = await PiSession.open(await this.devices.login(cur));
+        try {
+          progress = (await SignageDevices.ctlOn(s, "release-status", [], { timeoutMs: 20_000 }).catch(() => null)) as SignageReleaseProgress | null;
+        } finally {
+          s.close();
+        }
+        say(progress?.phase ? `the Pi is resetting (${progress.phase === "after-boot" ? "lifting the read-only root first" : "undoing the setup"})` : "the dashboard's key still opens the Pi");
+      } catch (err) {
+        if (err instanceof PiSshError && err.kind === "auth") {
+          log.line("the dashboard's key no longer opens the Pi: the reset finished, so the device is forgotten");
+          await this.devices.remove(cur.id);
+          return;
+        }
+        if (err instanceof PiSshError && err.kind === "host_key") return this.forgetStuck(cur, log, "the Pi showed a different SSH host key", null);
+        say("the Pi is not answering (restarting)");
+      }
+      const v = forgetVerdict(startedBootId, progress, Date.now() - r.createdAt.getTime());
+      if (!v.wait) return this.forgetStuck(cur, log, v.reason, progress);
+      log.keepAlive();
+      await new Promise((res) => setTimeout(res, FORGET_POLL_MS));
+    }
+  }
+
+  private async forgetStuck(d: DeviceRow, log: RunLog, reason: string, progress: SignageReleaseProgress | null): Promise<never> {
+    if (progress?.log.length) {
+      log.line("the Pi's reset log:");
+      for (const l of progress.log) log.line(`  ${l}`);
+    }
+    const msg = `${FORGET_FAILED_PREFIX}${reason}. The Pi may still be locked down: Forget again, or forget it without a reset.`;
+    await this.db.update(signageDevices).set({ status: "failed", lastError: msg.slice(0, 500), updatedAt: new Date() }).where(and(eq(signageDevices.id, d.id), eq(signageDevices.status, "resetting")));
+    throw new CtlError(msg);
+  }
+
+  /** Does the dashboard's own key already open this Pi (set up earlier)? Then record the login so setup repeats through it. */
+  private async recognise(d: DeviceRow, log: RunLog): Promise<DeviceRow> {
+    const current = await this.devices.keyGeneration();
+    const user = loginUserFor(await this.devices.applyConfig(d, []));
+    for (let gen = current; gen >= 1; gen--) {
+      try {
+        const s = await PiSession.open({ host: d.ip, port: d.sshPort, username: user, privateKey: signageKey(gen).privateKey, knownHostKey: d.knownHostKey, timeoutMs: 10_000 });
+        try {
+          await this.devices.pinIfUnpinned(d, s.hostKey);
+        } finally {
+          s.close();
+        }
+        log.line(`this Pi was adopted before: the dashboard's key (generation ${gen}) opens ${user}@${d.ip}, so adoption repeats through it`);
+        await this.db.update(signageDevices).set({ loginUser: user, keyGeneration: gen, updatedAt: new Date() }).where(eq(signageDevices.id, d.id));
+        return await this.devices.row(d.id);
+      } catch (err) {
+        if (err instanceof PiSshError && err.kind === "auth") continue;
+        return d; // unreachable, host key problem...: the password path reports it properly
+      }
+    }
+    return d;
+  }
+
   /** The first setup (password login), or a repeat on a Pi the dashboard's key still opens. */
   private async runSetup(d: DeviceRow, secrets: RunSecrets, savedPassword: string, log: RunLog): Promise<void> {
+    // A Pi that was set up before and then forgotten here (or whose record was lost) no longer accepts its setup
+    // password, but the dashboard's key still opens it: find out before asking for a password that cannot work.
+    if (!d.loginUser || !d.keyGeneration) d = await this.recognise(d, log);
     if (d.loginUser && d.keyGeneration) {
       try {
         await this.runApply(d, log, { rotate: false });
         return;
       } catch (err) {
         if (!(err instanceof PiSshError && err.kind === "auth")) throw err;
-        log.line("the dashboard's key is not accepted: setting up again with the setup login");
+        log.line("the dashboard's key is not accepted: adopting again with the setup login");
       }
     }
     const username = secrets.username || String((await this.settings.get(SIGNAGE_KEYS.setupUsername)) ?? "") || "pi";
@@ -374,7 +512,7 @@ export class SignageSetup implements OnModuleInit {
         sudo = "sudo -S -p ''";
         sudoIn = `${pw}\n`;
       }
-      await log.step("agent");
+      await log.step("copy");
       const rel = await this.currentRelease();
       if (!/^\d+\.\d+\.\d+$/.test(rel.version) || !/^[0-9a-f]{64}$/.test(rel.sha256)) throw new CtlError("The agent release has a bad version or hash.");
       log.line(`copying agent ${rel.version}`);
@@ -481,7 +619,7 @@ export class SignageSetup implements OnModuleInit {
         .where(eq(signageDevices.id, d.id));
       await this.devices.recordStatus(await this.devices.row(d.id), st);
       if (reboot) {
-        log.line("rebooting for the boot settings to take effect");
+        log.line("restarting the Pi so the boot settings take effect (the TV stays black for a minute or two while it boots)");
         await SignageDevices.ctlOn(s, "reboot", [], { timeoutMs: 15_000 }).catch(() => undefined);
       }
     } finally {

@@ -36,9 +36,17 @@ export const SIGNAGE_SETUP_BANNER = "lampstand-signage";
 export function judgeEvidence(input: { mac: string | null; name: string | null; banner: string | null; namePattern: string }): { evidence: SignageEvidence; text: string } {
   if (isRaspberryPiMac(input.mac)) return { evidence: "pi_mac", text: `Raspberry Pi (by MAC ${normaliseMac(input.mac)})` };
   if (input.name && nameMatchesPattern(input.name, input.namePattern || "raspberrypi*")) return { evidence: "name", text: `Name matches (${input.name})` };
-  if (input.banner && input.banner.includes(SIGNAGE_SETUP_BANNER)) return { evidence: "setup_banner", text: "Set up by this dashboard before" };
+  if (input.banner && input.banner.includes(SIGNAGE_SETUP_BANNER)) return { evidence: "setup_banner", text: "Adopted by this dashboard before" };
+  // A network card that is known and is not a Raspberry Pi's: a VM, a NAS, a PC. (A Pi on a USB network adapter lands here too,
+  // in the collapsed "Other SSH hosts", where it can still be set up by hand.)
+  if (normaliseMac(input.mac)) return { evidence: "ssh_other", text: `Not a Raspberry Pi network card (MAC ${normaliseMac(input.mac)})` };
   if (input.banner && /debian|raspbian/i.test(input.banner)) return { evidence: "ssh_debian", text: "SSH, Debian (could be a Pi)" };
   return { evidence: "ssh_other", text: input.banner ? `SSH (${input.banner.slice(0, 60)})` : "SSH" };
+}
+
+/** Evidence strong enough to list a host as a Pi, to mark it New and to tell the admins. The rest is "other SSH hosts". */
+export function isLikelyPi(e: SignageEvidence): boolean {
+  return evidenceRank(e) <= evidenceRank("setup_banner");
 }
 
 export function evidenceRank(e: SignageEvidence): number {
@@ -114,8 +122,10 @@ export interface SignageApplyConfig {
   /** The Imager account; its password is locked when `lockSetupPassword`. */
   setupUser: string;
   lockSetupPassword: boolean;
-  passwordLogin: boolean;
-  rootLogin: boolean;
+  /** `PasswordAuthentication`/`KbdInteractiveAuthentication`; null = not written, the Pi keeps its own rule (the default). */
+  passwordLogin: boolean | null;
+  /** `PermitRootLogin`; null = not written (Raspberry Pi OS: root has no password or key, so it cannot log in anyway). */
+  rootLogin: boolean | null;
   allowOnlyLogin: boolean;
   /** CIDRs allowed to connect; empty = any address. */
   onlyFrom: string[];
@@ -134,8 +144,9 @@ export interface SignageApplyConfig {
 export interface SignageSecuritySettings {
   loginAccount: SignageLoginAccount;
   lockSetupPassword: boolean;
-  passwordLogin: boolean;
-  rootLogin: boolean;
+  /** Off (the default): the Pi's own SSH login rules are left exactly as they are; setup only adds the dashboard's key. */
+  refusePasswordLogin: boolean;
+  refuseRootLogin: boolean;
   allowOnlyLogin: boolean;
   onlyDashboard: boolean;
   extraSources: string[];
@@ -178,8 +189,8 @@ export function buildApplyConfig(s: SignageSecuritySettings, ctx: { setupUser: s
     loginAccount: s.loginAccount,
     setupUser: ctx.setupUser,
     lockSetupPassword: s.lockSetupPassword,
-    passwordLogin: s.passwordLogin,
-    rootLogin: s.rootLogin,
+    passwordLogin: s.refusePasswordLogin ? false : null,
+    rootLogin: s.refuseRootLogin ? false : null,
     allowOnlyLogin: s.allowOnlyLogin,
     onlyFrom: s.onlyDashboard ? [...new Set([...ctx.dashboardSources, ...s.extraSources])].sort() : [],
     restrictKey: s.restrictKey,
@@ -237,8 +248,12 @@ export interface DeviceProblemInput {
 export function deviceProblems(d: DeviceProblemInput, now: Date): SignageDeviceProblem[] {
   if (!d.enabled || d.status === "disabled") return [];
   const out: SignageDeviceProblem[] = [];
-  if (d.status === "failed") out.push({ code: "setup_failed", severity: "critical", message: d.lastError ? `Setup failed: ${d.lastError}` : "Setup did not finish" });
-  if (d.status === "setting_up") out.push({ code: "setting_up", severity: "info", message: "Being set up" });
+  if (d.status === "failed") {
+    const forgot = d.lastError?.startsWith(FORGET_FAILED_PREFIX);
+    out.push({ code: "setup_failed", severity: "critical", message: forgot ? d.lastError! : d.lastError ? `Adoption failed: ${d.lastError}` : "Adoption did not finish" });
+  }
+  if (d.status === "setting_up") out.push({ code: "setting_up", severity: "info", message: "Being adopted" });
+  if (d.status === "resetting") out.push({ code: "setting_up", severity: "info", message: "Being reset to a normal Raspberry Pi (Forget): it goes from the list once the dashboard sees that finish" });
   if (d.hostKeyMismatch) out.push({ code: "host_key", severity: "critical", message: "Its SSH host key changed: logins are refused until you trust the new key (or re-flash and set it up again)" });
   if (d.status !== "active") return out;
   const silentMin = d.lastSeenAt ? (now.getTime() - d.lastSeenAt.getTime()) / 60_000 : Infinity;
@@ -272,4 +287,37 @@ export function deviceProblems(d: DeviceProblemInput, now: Date): SignageDeviceP
 /** Problems that put a device on the "Needs attention" tab (info-only ones do not). */
 export function needsAttention(problems: SignageDeviceProblem[]): boolean {
   return problems.some((p) => p.severity !== "info");
+}
+
+// ------------------------------------------------------------------ Forget: waiting for the reset to finish
+
+/** `lastError` of a device whose reset (Forget) did not finish; the device is `failed` and Forget can be tried again. */
+export const FORGET_FAILED_PREFIX = "The reset did not finish: ";
+/** How long Forget waits for the Pi to finish its reset (one or two restarts) before calling it stuck. */
+export const FORGET_WAIT_MS = 15 * 60_000;
+
+/** What `signage-ctl release-status` reports while the dashboard's key still opens the Pi. */
+export interface SignageReleaseProgress {
+  phase: string | null;
+  startedBootId: string | null;
+  bootId: string;
+  readOnlyRoot: boolean;
+  log: string[];
+}
+
+/**
+ * The dashboard's key still opens the Pi during a reset: is that "still going" or "stuck"? A finished reset is seen
+ * differently (the key no longer opens the Pi). `startedBootId` is what the Pi said when the reset started; a different
+ * boot id means it has restarted since.
+ */
+export function forgetVerdict(startedBootId: string | null, p: SignageReleaseProgress | null, elapsedMs: number): { wait: true } | { wait: false; reason: string } {
+  const restarted = !!p && !!startedBootId && !!p.bootId && p.bootId !== startedBootId;
+  if (p && restarted && p.phase === "after-boot" && p.readOnlyRoot)
+    return { wait: false, reason: "the Pi restarted with the read-only root still on (raspi-config did not turn it off), so the reset could not carry on" };
+  if (p && restarted && !p.phase) return { wait: false, reason: "the Pi restarted but did not carry on with the reset (its note of the reset was gone after the restart)" };
+  if (elapsedMs >= FORGET_WAIT_MS) {
+    const where = !p ? "the dashboard's key still opens the Pi" : restarted ? "the Pi restarted but the dashboard's key still opens it" : "the Pi has not restarted";
+    return { wait: false, reason: `${where} after ${Math.round(FORGET_WAIT_MS / 60_000)} minutes` };
+  }
+  return { wait: true };
 }

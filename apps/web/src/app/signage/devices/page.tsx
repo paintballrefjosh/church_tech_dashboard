@@ -4,7 +4,7 @@ import { Suspense, useCallback, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Cpu, Radar, ScanEye, Trash2 } from "lucide-react";
-import type { SignageDevice, SignageDiscoverySubnet, SignageFoundPi, SignageIdentifyResult, SignageScreen } from "@lampstand/shared";
+import { FORGET_FAILED_PREFIX, isLikelyPi, type SignageDevice, type SignageDiscoverySubnet, type SignageFoundPi, type SignageIdentifyResult, type SignageScreen } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";
@@ -47,6 +47,8 @@ function DevicesInner() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  // The "Find Pis" panel (subnets and addresses to look in). null = follow the default: open until there is a device to look after, and on the Found tab.
+  const [finderChoice, setFinderChoice] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const [d, f] = await Promise.all([
@@ -61,12 +63,14 @@ function DevicesInner() {
 
   const all = devices ?? [];
   const attention = all.filter(needsAttention);
-  const waiting = (found ?? []).filter((f) => !f.dismissed && !f.knownDeviceId);
+  // Only hosts that look like Pis count and are listed first; other SSH hosts (a router, a VM) wait in a collapsed section.
+  const waiting = (found ?? []).filter((f) => !f.dismissed && !f.knownDeviceId && isLikelyPi(f.evidence));
   const defaultTab: TabId = attention.length ? "attention" : "all";
   const raw = params.get("tab");
   const tab: TabId = TABS.some((t) => t.id === raw) ? (raw as TabId) : defaultTab;
   const counts: Record<TabId, number> = { attention: attention.length, all: all.length, found: waiting.length, disabled: all.filter((d) => !d.enabled).length };
   const rows = tab === "attention" ? attention : tab === "disabled" ? all.filter((d) => !d.enabled) : all;
+  const finderOpen = finderChoice ?? (devices !== null && (all.length === 0 || tab === "found"));
 
   function pickTab(id: TabId) {
     const q = new URLSearchParams(params.toString());
@@ -110,6 +114,9 @@ function DevicesInner() {
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">The Raspberry Pis behind the screens. The dashboard reaches each one over SSH with its own key; nothing on a Pi listens for the dashboard.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={finderOpen ? primaryCls : btnCls} aria-expanded={finderOpen} aria-controls="signage-find-pis" onClick={() => setFinderChoice(!finderOpen)}>
+            <Radar className="h-4 w-4" aria-hidden /> Find Pis
+          </button>
           <button type="button" className={btnCls} disabled={selected.size === 0} onClick={() => void runIdentify(false)}>
             <ScanEye className="h-4 w-4" aria-hidden /> Identify selected ({selected.size})
           </button>
@@ -121,6 +128,11 @@ function DevicesInner() {
       <ErrorLine text={err} />
       {msg ? <p className="text-sm text-emerald-700 dark:text-emerald-300">{msg}</p> : null}
       {identify ? <IdentifyPanel result={identify} onHide={() => void hideCodes()} onClose={() => setIdentify(null)} /> : null}
+      {finderOpen ? (
+        <div id="signage-find-pis">
+          <Discovery onChanged={() => void load()} />
+        </div>
+      ) : null}
 
       <div role="tablist" aria-label="Which devices" className="flex flex-wrap gap-1 border-b border-slate-300 text-sm dark:border-slate-800">
         {TABS.map((t) => (
@@ -139,7 +151,6 @@ function DevicesInner() {
 
       {tab === "found" ? (
         <div className="space-y-6">
-          <Discovery onChanged={() => void load()} />
           <section aria-labelledby="found-h" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 id="found-h" className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -152,15 +163,30 @@ function DevicesInner() {
             {found === null ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
             ) : (
-              <FoundList rows={(found ?? []).filter((f) => !f.knownDeviceId && (showDismissed || !f.dismissed))} onSetup={setSetupFor} onCode={setCodeFor} onDismiss={dismiss} />
+              <FoundList rows={(found ?? []).filter((f) => !f.knownDeviceId && isLikelyPi(f.evidence) && (showDismissed || !f.dismissed))} onSetup={setSetupFor} onCode={setCodeFor} onDismiss={dismiss} />
             )}
           </section>
+          {(() => {
+            const others = (found ?? []).filter((f) => !f.knownDeviceId && !isLikelyPi(f.evidence) && (showDismissed || !f.dismissed));
+            if (!others.length) return null;
+            return (
+              <details className="rounded-md border border-slate-300 p-3 dark:border-slate-800">
+                <summary className="cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-100">
+                  Other SSH hosts ({others.length}) <span className="font-normal text-slate-500 dark:text-slate-400">answered on port 22 but nothing says they are Raspberry Pis</span>
+                </summary>
+                <p className="my-2 text-sm text-slate-600 dark:text-slate-300">
+                  Servers, VMs and other equipment show up here. If a Pi is among them (for example one on a USB network adapter), set it up from here; the rest can be dismissed.
+                </p>
+                <FoundList rows={others} onSetup={setSetupFor} onCode={setCodeFor} onDismiss={dismiss} />
+              </details>
+            );
+          })()}
         </div>
       ) : devices === null ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="rounded-md border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-          {tab === "attention" ? "Every device is fine." : tab === "disabled" ? "No device is switched off." : "No devices yet. Find Pis on the Found tab, then set them up."}
+          {tab === "attention" ? "Every device is fine." : tab === "disabled" ? "No device is switched off." : "No devices yet. Use Find Pis to scan a subnet or type in addresses, then adopt what turns up on the Found tab."}
         </p>
       ) : (
         <DeviceTable
@@ -227,7 +253,7 @@ function DeviceTable({ rows, selected, onToggle }: { rows: SignageDevice[]; sele
               <td className="px-2 py-2 font-mono text-xs">{d.ip}</td>
               <td className="px-2 py-2">
                 <p className={d.online ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"}>
-                  {!d.enabled ? "Switched off" : d.status === "setting_up" ? "Setting up" : d.status === "failed" ? "Setup failed" : d.online ? "Online" : "Offline"}
+                  {!d.enabled ? "Switched off" : d.status === "setting_up" ? "Adopting" : d.status === "resetting" ? "Being reset" : d.status === "failed" ? (d.lastError?.startsWith(FORGET_FAILED_PREFIX) ? "Reset failed" : "Adoption failed") : d.online ? "Online" : "Offline"}
                 </p>
                 <ProblemBadges problems={d.problems} />
               </td>
@@ -241,7 +267,7 @@ function DeviceTable({ rows, selected, onToggle }: { rows: SignageDevice[]; sele
 }
 
 function FoundList({ rows, onSetup, onCode, onDismiss }: { rows: SignageFoundPi[]; onSetup: (f: SignageFoundPi) => void; onCode: (f: SignageFoundPi) => void; onDismiss: (f: SignageFoundPi, on: boolean) => void }) {
-  if (!rows.length) return <p className="rounded-md border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No Pis waiting. Scan a subnet or add addresses above.</p>;
+  if (!rows.length) return <p className="rounded-md border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No Pis waiting. Use Find Pis to scan a subnet or add addresses.</p>;
   return (
     <ul className="space-y-2">
       {rows.map((f) => (
@@ -271,8 +297,8 @@ function FoundList({ rows, onSetup, onCode, onDismiss }: { rows: SignageFoundPi[
                 <button type="button" className={btnCls} onClick={() => onDismiss(f, true)} aria-label={`Dismiss ${f.ip}`}>
                   Dismiss
                 </button>
-                <button type="button" className={primaryCls} onClick={() => onSetup(f)} aria-label={`Set up ${f.ip}`}>
-                  Set up
+                <button type="button" className={primaryCls} onClick={() => onSetup(f)} aria-label={`Adopt ${f.ip}`}>
+                  Adopt
                 </button>
               </>
             )}
@@ -311,7 +337,8 @@ function Discovery({ onChanged }: { onChanged: () => void }) {
       setBusy(null);
     }
   }
-  const foundText = (r: { found: number; newFound: number }) => `Found ${r.found} Pi${r.found === 1 ? "" : "s"}, ${r.newFound} new.`;
+  const foundText = (r: { found: number; newFound: number; other?: number }) =>
+    `Found ${r.found} Pi${r.found === 1 ? "" : "s"}, ${r.newFound} new.${r.other ? ` ${r.other} other SSH host${r.other === 1 ? "" : "s"} listed separately.` : ""}`;
 
   return (
     <section aria-labelledby={`${id}-h`} className="space-y-4 rounded-md border border-slate-300 p-4 dark:border-slate-800">
@@ -339,7 +366,7 @@ function Discovery({ onChanged }: { onChanged: () => void }) {
                 >
                   {s.continuous ? "Stop scanning by itself" : "Scan by itself"}
                 </button>
-                <button type="button" className={btnCls} disabled={busy !== null || s.running} onClick={() => void act(`s${s.id}`, () => sendJson<{ found: number; newFound: number }>(`/api/signage/discovery/subnets/${s.id}/scan`, "POST"), foundText)}>
+                <button type="button" className={btnCls} disabled={busy !== null || s.running} onClick={() => void act(`s${s.id}`, () => sendJson<{ found: number; newFound: number; other?: number }>(`/api/signage/discovery/subnets/${s.id}/scan`, "POST"), foundText)}>
                   {busy === `s${s.id}` ? "Scanning…" : "Scan now"}
                 </button>
                 <button
@@ -391,7 +418,7 @@ function Discovery({ onChanged }: { onChanged: () => void }) {
             type="button"
             className={btnCls}
             disabled={busy !== null || !cidr.trim()}
-            onClick={() => void act("once", () => sendJson<{ found: number; newFound: number }>("/api/signage/discovery/scan", "POST", { cidr: cidr.trim() }), foundText)}
+            onClick={() => void act("once", () => sendJson<{ found: number; newFound: number; other?: number }>("/api/signage/discovery/scan", "POST", { cidr: cidr.trim() }), foundText)}
           >
             {busy === "once" ? "Scanning…" : "Scan once"}
           </button>
@@ -402,7 +429,7 @@ function Discovery({ onChanged }: { onChanged: () => void }) {
         onSubmit={(e) => {
           e.preventDefault();
           const list = ips.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
-          void act("ips", () => sendJson<{ found: number; newFound: number; unreachable: string[] }>("/api/signage/discovery/ips", "POST", { ips: list }), (r) => {
+          void act("ips", () => sendJson<{ found: number; newFound: number; other?: number; unreachable: string[] }>("/api/signage/discovery/ips", "POST", { ips: list }), (r) => {
             setIps("");
             return `${foundText(r)}${r.unreachable.length ? ` No answer from ${r.unreachable.join(", ")}.` : ""}`;
           });

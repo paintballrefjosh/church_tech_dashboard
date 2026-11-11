@@ -1,12 +1,14 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   SIGNAGE_KEYS,
   SIGNAGE_LIMITS,
   evidenceRank,
   expandCidr,
+  isLikelyPi,
   isPrivateUnicast,
   judgeEvidence,
+  loginUserFor,
   normaliseMac,
   type SignageDiscoverySubnet,
   type SignageDiscoverySubnetInput,
@@ -14,15 +16,17 @@ import {
   type SignageFoundPi,
 } from "@lampstand/shared";
 import { DB, type Db } from "../db/db.module";
-import { ciscoArpCache, ipamHosts, signageDevices, signageDiscoverySubnets, signageFound } from "../db/schema";
+import { ciscoArpCache, ciscoSwitches, infraTargets, ipamHosts, ipamSubnets, signageDevices, signageDiscoverySubnets, signageFound } from "../db/schema";
 import { ClusterJobs } from "../cluster/cluster-jobs.service";
 import { LeaseService } from "../cluster/lease.service";
 import { SettingsService } from "../settings/settings.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { UnifiService } from "../unifi/unifi.service";
 import { SignageService } from "./signage.service";
-import { mapLimit } from "./devices.service";
-import { PiSession, peekSsh } from "./pi-ssh";
+import { mapLimit, SignageDevices } from "./devices.service";
+import { signageKey } from "./ssh-key";
+import { SignageReleases } from "./releases.service";
+import { PiSession, PiSshError, peekSsh } from "./pi-ssh";
 
 type FoundRow = typeof signageFound.$inferSelect;
 type SubnetRow = typeof signageDiscoverySubnets.$inferSelect;
@@ -32,7 +36,14 @@ const CONNECT_TIMEOUT_MS = 1_000;
 
 interface Names {
   mac: Map<string, string>;
+  /** Any name the network gives the address (a UniFi alias too): good enough to RECOGNISE a Pi by its name, not to call it by. */
   name: Map<string, string>;
+  /** The name the Pi reports itself: the host name it sent when it asked for its address (UniFi's `hostname`, never the alias a person typed), else the reverse DNS name. */
+  host: Map<string, string>;
+  /** The UniFi client list was read, so a Pi missing from `host` really reports no name now (an old one must not be kept). */
+  hostsRead: boolean;
+  /** Addresses of equipment the dashboard already knows about (gateways, switches, UniFi devices, monitored hosts): never a Pi to set up. */
+  equipment: Map<string, string>;
 }
 
 /**
@@ -40,6 +51,8 @@ interface Names {
  * key, and ranks the address by what the dashboard already knows about it (a Raspberry Pi MAC from UniFi, the Cisco ARP
  * cache or IPAM; a name; the setup banner). Only "Set up" and "Show a code" use a password.
  */
+const IDENTIFY_SECONDS = 60;
+
 @Injectable()
 export class SignageDiscovery implements OnModuleInit {
   private readonly logger = new Logger(SignageDiscovery.name);
@@ -53,6 +66,8 @@ export class SignageDiscovery implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly unifi: UnifiService,
     private readonly content: SignageService,
+    private readonly devices: SignageDevices,
+    private readonly releases: SignageReleases,
   ) {}
 
   onModuleInit(): void {
@@ -96,13 +111,13 @@ export class SignageDiscovery implements OnModuleInit {
   }
 
   /** Scan a listed subnet now (returns when done: a /24 takes about 20 s). */
-  async scanSubnet(id: string): Promise<{ found: number; newFound: number }> {
+  async scanSubnet(id: string): Promise<{ found: number; newFound: number; other: number }> {
     const [r] = await this.db.select().from(signageDiscoverySubnets).where(eq(signageDiscoverySubnets.id, id));
     if (!r) throw new NotFoundException("No such subnet");
     return this.scanCidr(r.cidr, r.continuous, r.id);
   }
 
-  async scanCidr(cidr: string, continuous = false, subnetId?: string): Promise<{ found: number; newFound: number }> {
+  async scanCidr(cidr: string, continuous = false, subnetId?: string): Promise<{ found: number; newFound: number; other: number }> {
     const ips = this.checkCidr(cidr);
     const mutex = await this.leases.acquireMutex("signage-discover", 120);
     if (!mutex) throw new ConflictException("Another scan is running. Try again in a minute.");
@@ -117,10 +132,10 @@ export class SignageDiscovery implements OnModuleInit {
     }
   }
 
-  async addIps(ips: string[]): Promise<{ found: number; newFound: number; unreachable: string[] }> {
+  async addIps(ips: string[]): Promise<{ found: number; newFound: number; other: number; unreachable: string[] }> {
     const bad = ips.filter((ip) => !isPrivateUnicast(ip));
     if (bad.length) throw new BadRequestException(`Not private addresses: ${bad.join(", ")}`);
-    const res = await this.scan([...new Set(ips)], false);
+    const res = await this.scan([...new Set(ips)], false, true);
     const seen = new Set((await this.db.select({ ip: signageFound.ip }).from(signageFound).where(inArray(signageFound.ip, ips))).map((r) => r.ip));
     const devices = new Set((await this.db.select({ ip: signageDevices.ip }).from(signageDevices).where(inArray(signageDevices.ip, ips))).map((r) => r.ip));
     return { ...res, unreachable: ips.filter((ip) => !seen.has(ip) && !devices.has(ip)) };
@@ -131,12 +146,19 @@ export class SignageDiscovery implements OnModuleInit {
   private async names(): Promise<Names> {
     const mac = new Map<string, string>();
     const name = new Map<string, string>();
+    const host = new Map<string, string>();
+    let hostsRead = false;
     const ipam = await this.db.select({ ip: ipamHosts.ipAddress, mac: ipamHosts.macAddress, host: ipamHosts.hostname, nb: ipamHosts.netbiosName, un: ipamHosts.unifiName }).from(ipamHosts);
     for (const h of ipam) {
       if (h.mac) mac.set(h.ip, h.mac);
       const n = h.un || h.nb || h.host;
       if (n) name.set(h.ip, n);
+      if (h.host) host.set(h.ip, h.host); // reverse DNS: the weaker source of the Pi's own name (IPAM's UniFi name is an alias, left out)
     }
+    const equipment = new Map<string, string>();
+    for (const s of await this.db.select({ ip: ipamSubnets.gateway, cidr: ipamSubnets.cidr }).from(ipamSubnets)) if (s.ip) equipment.set(s.ip, `gateway of ${s.cidr}`);
+    for (const s of await this.db.select({ ip: ciscoSwitches.ipAddress, name: ciscoSwitches.hostname }).from(ciscoSwitches)) equipment.set(s.ip, `Cisco switch ${s.name}`);
+    for (const t of await this.db.select({ host: infraTargets.host, name: infraTargets.name }).from(infraTargets)) if (isPrivateUnicast(t.host)) equipment.set(t.host, `monitored host ${t.name}`);
     const arp = await this.db.select({ ip: ciscoArpCache.ipAddress, mac: ciscoArpCache.macAddress }).from(ciscoArpCache);
     for (const a of arp) if (a.mac && !mac.has(a.ip)) mac.set(a.ip, a.mac);
     try {
@@ -145,15 +167,27 @@ export class SignageDiscovery implements OnModuleInit {
         if (c.mac) mac.set(c.ip, c.mac);
         const n = c.name || c.hostname;
         if (n) name.set(c.ip, n);
+        if (c.hostname) host.set(c.ip, c.hostname);
+        else host.delete(c.ip); // UniFi sees this client and it reports no name: reverse DNS may be an older Pi's
       }
+      hostsRead = true;
     } catch (err) {
       this.logger.debug(`signage discovery: UniFi clients not read: ${(err as Error).message}`);
     }
-    return { mac, name };
+    try {
+      for (const d of (await this.unifi.devices()) as Array<{ ip?: string; name?: string; model?: string }>) if (d.ip) equipment.set(d.ip, `UniFi device ${d.name || d.model || d.ip}`);
+    } catch (err) {
+      this.logger.debug(`signage discovery: UniFi devices not read: ${(err as Error).message}`);
+    }
+    return { mac, name, host, hostsRead, equipment };
   }
 
-  /** Probe addresses and record the SSH hosts. A host key that belongs to a set-up device updates that device's address. */
-  async scan(ips: string[], continuous: boolean): Promise<{ found: number; newFound: number }> {
+  /**
+   * Probe addresses and record the SSH hosts. A host key that belongs to a set-up device updates that device's address.
+   * Equipment the dashboard already knows (a gateway, a switch) is left out and any row for it removed, unless the address was typed
+   * in by hand (`explicit`): then the admin said it is a Pi.
+   */
+  async scan(ips: string[], continuous: boolean, explicit = false): Promise<{ found: number; newFound: number; other: number }> {
     const [names, pattern, devices] = await Promise.all([
       this.names(),
       this.settings.get(SIGNAGE_KEYS.discoverNamePattern).then((v) => String(v ?? "") || "raspberrypi*"),
@@ -161,7 +195,8 @@ export class SignageDiscovery implements OnModuleInit {
     ]);
     const byKey = new Map(devices.filter((d) => d.key).map((d) => [d.key!, d]));
     const deviceIps = new Set(devices.map((d) => d.ip));
-    let found = 0;
+    let found = 0; // hosts that look like Pis
+    let other = 0; // other SSH hosts
     let newFound = 0;
     await mapLimit(ips, CONNECTS_AT_ONCE, async (ip) => {
       const p = await peekSsh(ip, 22, CONNECT_TIMEOUT_MS);
@@ -173,25 +208,34 @@ export class SignageDiscovery implements OnModuleInit {
         return;
       }
       if (deviceIps.has(ip)) return;
+      if (!explicit && names.equipment.has(ip)) {
+        await this.db.delete(signageFound).where(eq(signageFound.ip, ip));
+        return;
+      }
       const mac = normaliseMac(names.mac.get(ip));
-      const name = names.name.get(ip) ?? null;
-      const e = judgeEvidence({ mac, name, banner: p.banner, namePattern: pattern });
-      found++;
+      // What the Pi calls itself is what is shown and offered at Set up. Not the UniFi alias: it belongs to the hardware address
+      // and survives a re-flash (a Pi re-imaged as pi-tv1 was still listed as tv1-pi). The alias still helps RECOGNISE a Pi.
+      const name = names.host.get(ip) ?? null;
+      const e = judgeEvidence({ mac, name: name ?? names.name.get(ip) ?? null, banner: p.banner, namePattern: pattern });
+      // Only a host that looks like a Pi is New (and announced); the rest sit in "Other SSH hosts" until someone sets one up.
+      const likely = isLikelyPi(e.evidence);
+      if (likely) found++;
+      else other++;
       const [existing] = await this.db.select().from(signageFound).where(eq(signageFound.ip, ip));
       if (!existing) {
-        await this.db.insert(signageFound).values({ ip, hostKey: p.hostKey, banner: p.banner, evidence: e.evidence, evidenceText: e.text, mac, name, isNew: continuous && evidenceRank(e.evidence) <= evidenceRank("ssh_debian") }).onConflictDoNothing();
-        if (continuous) newFound++;
+        await this.db.insert(signageFound).values({ ip, hostKey: p.hostKey, banner: p.banner, evidence: e.evidence, evidenceText: e.text, mac, name, isNew: continuous && likely }).onConflictDoNothing();
+        if (continuous && likely) newFound++;
       } else {
         const keyChanged = !!p.hostKey && existing.hostKey !== p.hostKey;
         await this.db
           .update(signageFound)
-          .set({ hostKey: p.hostKey, banner: p.banner, evidence: e.evidence, evidenceText: e.text, mac: mac ?? existing.mac, name: name ?? existing.name, lastSeenAt: new Date(), ...(keyChanged ? { dismissedAt: null, isNew: continuous, notifiedAt: null } : {}) })
+          .set({ hostKey: p.hostKey, banner: p.banner, evidence: e.evidence, evidenceText: e.text, mac: mac ?? existing.mac, name: name ?? (keyChanged || names.hostsRead ? null : existing.name), lastSeenAt: new Date(), ...(keyChanged ? { dismissedAt: null, isNew: continuous && likely, notifiedAt: null } : {}), ...(likely ? {} : { isNew: false }) })
           .where(eq(signageFound.id, existing.id));
-        if (keyChanged && continuous) newFound++;
+        if (keyChanged && continuous && likely) newFound++;
       }
     });
     await this.notifyNew();
-    return { found, newFound };
+    return { found, newFound, other };
   }
 
   /** One notice per newly found Pi (if the setting is on), CLAIMED by `notified_at` so two nodes never both send it. */
@@ -204,7 +248,7 @@ export class SignageDiscovery implements OnModuleInit {
       const [claimed] = await this.db.update(signageFound).set({ notifiedAt: new Date() }).where(and(eq(signageFound.id, f.id), isNull(signageFound.notifiedAt))).returning();
       if (!claimed) continue;
       await this.notifications.createMany(
-        recipients.map((id) => ({ recipientUserId: id, kind: "signage.pi_found", title: `New Pi found at ${f.ip}`, body: `${f.evidenceText}. Set it up or dismiss it on the Signage devices page.`, link: "/signage/devices?tab=found" })),
+        recipients.map((id) => ({ recipientUserId: id, kind: "signage.pi_found", title: `New Pi found at ${f.ip}`, body: `${f.evidenceText}. Adopt it or dismiss it on the Signage devices page.`, link: "/signage/devices?tab=found" })),
       );
     }
   }
@@ -259,29 +303,150 @@ export class SignageDiscovery implements OnModuleInit {
     return Number(r?.n ?? 0);
   }
 
+  /** A session opened with the dashboard's own key (any generation), or null when the key is not accepted or the Pi cannot be reached. */
+  private async openWithKey(ip: string, hostKey: string | null, setupUser: string): Promise<{ session: PiSession; user: string } | null> {
+    const config = await this.devices.applyConfig({ name: "", setupUser, dashboardSources: [] });
+    const user = loginUserFor(config);
+    for (let gen = await this.devices.keyGeneration(); gen >= 1; gen--) {
+      try {
+        const s = await PiSession.open({ host: ip, port: 22, username: user, privateKey: signageKey(gen).privateKey, knownHostKey: hostKey, timeoutMs: 10_000 });
+        return { session: s, user };
+      } catch (err) {
+        if (err instanceof PiSshError && err.kind === "auth") continue;
+        return null;
+      }
+    }
+    return null;
+  }
+
   /**
    * "Show a code" on a found Pi: log in with the setup login and print a large code on the TV's console (tty1), so a person
    * standing at the TV can say which address it is. Installs nothing; the host key seen must match the one discovery saw.
    */
-  async showCode(id: string, login: { username?: string; password?: string }): Promise<{ code: string }> {
+  async showCode(id: string, login: { username?: string; password?: string }): Promise<{ code: string; desktop: boolean; seconds: number | null; vt: number | null }> {
     const [f] = await this.db.select().from(signageFound).where(eq(signageFound.id, id));
     if (!f) throw new NotFoundException("No such Pi");
     const username = login.username || String((await this.settings.get(SIGNAGE_KEYS.setupUsername)) ?? "") || "pi";
     const password = login.password || String((await this.settings.get(SIGNAGE_KEYS.setupPassword)) ?? "");
-    if (!password) throw new BadRequestException("No setup password: save one in Signage > Security settings, or type it.");
     const code = String(100 + Math.floor(Math.random() * 900));
-    const s = await PiSession.open({ host: f.ip, port: 22, username, password, knownHostKey: f.hostKey, timeoutMs: 10_000 });
+    let desktop = false;
+    let vt: number | null = null;
+    // A Pi that was set up has its setup password locked and only the dashboard's key gets in: try that first.
+    const viaKey = login.password ? null : await this.openWithKey(f.ip, f.hostKey, username);
+    if (viaKey) {
+      // A set-up Pi: the dedicated login may only run signage-ctl (as root), so use the agent's own "identify": the player
+      // draws the code over whatever it is showing, for a minute.
+      try {
+        // The code is drawn by the Pi's player. An older player cannot draw it (agent 1.0.0 ran mpv with its on-screen display
+        // off), so bring the agent up to date first; this only copies files, and the agent restarts itself.
+        const hello = await SignageDevices.ctlOn(viaKey.session, "hello", [], { timeoutMs: 15_000 });
+        const rel = await this.releases.current();
+        if (rel && hello.agentVersion !== rel.version) {
+          await SignageDevices.ctlOn(viaKey.session, "agent-put", [rel.version, rel.sha256], { stdin: rel.bytes, timeoutMs: 120_000 });
+          await new Promise((r) => setTimeout(r, 6_000)); // the player restarts: give it a moment before the code is asked for
+        }
+        await SignageDevices.ctlOn(viaKey.session, "identify", [code, String(IDENTIFY_SECONDS)], { timeoutMs: 20_000 });
+      } catch (err) {
+        throw showCodeProblem(err, viaKey.user);
+      } finally {
+        viaKey.session.close();
+      }
+      return { code, desktop: false, seconds: IDENTIFY_SECONDS, vt: null };
+    }
+    if (!password) throw new BadRequestException("No setup password: save one in Signage > Security settings, or type it.");
+    let s: PiSession;
     try {
+      s = await PiSession.open({ host: f.ip, port: 22, username, password, knownHostKey: f.hostKey, timeoutMs: 10_000 });
+    } catch (err) {
+      throw showCodeProblem(err, username);
+    }
+    try {
+      // A Pi that boots to the desktop shows the desktop, not the text console the code is written to: switch the screen to it.
+      const boot = await s.exec(`sh -c 'echo "$(systemctl get-default 2>/dev/null) $(systemctl is-active display-manager.service 2>/dev/null)"'`, { timeoutMs: 8_000 });
+      desktop = isDesktopImage(boot.stdout.toString("utf8"));
       const art = bigDigits(code);
-      const script = `printf '\\033c\\033[?25l\\n\\n\\n' > /dev/tty1; printf '%s\\n' ${art.map((l) => `'          ${l}'`).join(" ")} > /dev/tty1; printf '\\n\\n          Lampstand: ${f.ip}\\n' > /dev/tty1`;
-      let r = await s.exec(`sudo -n sh -c ${shellQuote(script)}`, { timeoutMs: 15_000 });
-      if (r.code !== 0) r = await s.exec(`sudo -S -p '' sh -c ${shellQuote(script)}`, { stdin: `${password}\n`, timeoutMs: 15_000 });
+      // On a desktop Pi, note which console the desktop is on BEFORE switching away, so closing the window can switch back.
+      const script = `${desktop ? `echo "VT:$(fgconsole 2>/dev/null)"; ` : ""}printf '\\033c\\033[?25l\\n\\n\\n' > /dev/tty1; printf '%s\\n' ${art.map((l) => `'          ${l}'`).join(" ")} > /dev/tty1; printf '\\n\\n          Lampstand: ${f.ip}\\n' > /dev/tty1${desktop ? `; chvt 1; [ "$(fgconsole)" = 1 ]` : ""}`;
+      const r = await this.rootSh(s, script, password);
       if (r.code !== 0) throw new ConflictException(`The code could not be shown: ${r.stderr.trim().slice(-200) || "sudo refused"}`);
+      const m = /VT:(\d{1,2})/.exec(r.stdout.toString("utf8"));
+      vt = m && Number(m[1]) >= 1 && Number(m[1]) <= 63 ? Number(m[1]) : null;
+    } catch (err) {
+      throw showCodeProblem(err, username);
     } finally {
       s.close();
     }
-    return { code };
+    return { code, desktop, seconds: null, vt };
   }
+
+  /** Run a script as root on the Pi: `sudo -n`, else the password piped to `sudo -S`. */
+  private async rootSh(s: PiSession, script: string, password: string) {
+    const r = await s.exec(`sudo -n sh -c ${shellQuote(script)}`, { timeoutMs: 15_000 });
+    if (r.code === 0 || !password) return r;
+    return s.exec(`sudo -S -p '' sh -c ${shellQuote(script)}`, { stdin: `${password}\n`, timeoutMs: 15_000 });
+  }
+
+  /**
+   * The window that showed a code was closed: take the code off the TV. A Pi the dashboard adopted draws it in its player (the
+   * agent's `identify off`); any other Pi had it written on the text console, so reset that console, then give the screen back
+   * (a desktop Pi: switch to the console it was on, `vt`; a Lite Pi: start the login prompt again). Best effort for the caller:
+   * a failure is reported, but the code also ends on its own when the Pi restarts.
+   */
+  async clearCode(id: string, login: { username?: string; password?: string; vt?: number }): Promise<{ cleared: true }> {
+    const [f] = await this.db.select().from(signageFound).where(eq(signageFound.id, id));
+    if (!f) throw new NotFoundException("No such Pi");
+    const username = login.username || String((await this.settings.get(SIGNAGE_KEYS.setupUsername)) ?? "") || "pi";
+    const password = login.password || String((await this.settings.get(SIGNAGE_KEYS.setupPassword)) ?? "");
+    const viaKey = login.password ? null : await this.openWithKey(f.ip, f.hostKey, username);
+    if (viaKey) {
+      try {
+        await SignageDevices.ctlOn(viaKey.session, "identify", ["off"], { timeoutMs: 20_000 });
+      } catch (err) {
+        throw showCodeProblem(err, viaKey.user);
+      } finally {
+        viaKey.session.close();
+      }
+      return { cleared: true };
+    }
+    if (!password) throw new BadRequestException("No setup password: save one in Signage > Security settings, or type it.");
+    let s: PiSession;
+    try {
+      s = await PiSession.open({ host: f.ip, port: 22, username, password, knownHostKey: f.hostKey, timeoutMs: 10_000 });
+    } catch (err) {
+      throw showCodeProblem(err, username);
+    }
+    try {
+      const back = login.vt ? `chvt ${login.vt}` : "systemctl restart getty@tty1.service >/dev/null 2>&1 || true";
+      const r = await this.rootSh(s, `printf '\\033c\\033[?25h' > /dev/tty1; ${back}`, password);
+      if (r.code !== 0) throw new ConflictException(`The code could not be taken off the screen: ${r.stderr.trim().slice(-200) || "sudo refused"}`);
+    } catch (err) {
+      throw showCodeProblem(err, username);
+    } finally {
+      s.close();
+    }
+    return { cleared: true };
+  }
+}
+
+/** `systemctl get-default` then `systemctl is-active display-manager.service`, on one line: graphical boot, or a running display manager. */
+export function isDesktopImage(out: string): boolean {
+  const [target, dm] = out.trim().split(/\s+/);
+  return target === "graphical.target" || dm === "active";
+}
+
+/**
+ * An SSH failure while showing a code, as an answer the page can print: a refused login says which user was tried and where to
+ * change it (it used to escape as a bare 500, "Internal server error"). Never a 401/403: the web treats those as "signed out".
+ */
+export function showCodeProblem(err: unknown, username: string): Error {
+  if (!(err instanceof PiSshError)) return err as Error;
+  if (err.kind === "auth") {
+    return new BadRequestException(
+      `The Pi refused the login for "${username}" (wrong user name or password). Raspberry Pi OS has no default user: it is the one set in Imager. Change the saved setup login in Signage > Security settings, or tick "Use another login for this Pi". A Pi that was already set up locks that password and accepts only the dashboard's key; the key was not accepted either, so it may have been re-flashed or set up under a different key.`,
+    );
+  }
+  if (err.kind === "host_key") return new ConflictException(err.message);
+  return new BadGatewayException(err.message);
 }
 
 function ipSort(a: string, b: string): number {

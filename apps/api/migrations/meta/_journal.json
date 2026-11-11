@@ -659,6 +659,13 @@
       "when": 1793128016977,
       "tag": "0093_signage_schedule_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1793128017977,
+      "tag": "0094_signage_cpu_pct",
+      "breakpoints": true
     }
   ]
 }

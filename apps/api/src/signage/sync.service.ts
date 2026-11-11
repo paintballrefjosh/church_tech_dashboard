@@ -74,9 +74,16 @@ export class SignageSync implements OnModuleInit {
       this.active.add(claimed.id);
       void this.syncDevice(claimed, false)
         .catch((err: Error) => this.logger.warn(`signage sync ${claimed.name}: ${err.message}`))
-        .finally(() => {
+        .finally(async () => {
           this.active.delete(claimed.id);
-          void this.db.update(signageDevices).set({ syncClaimedUntil: null }).where(eq(signageDevices.id, claimed.id));
+          // Awaited: a drizzle query only runs when it is awaited (or `.then` is called). This was `void this.db.update(...)`,
+          // which never ran, so every sync, failed or not, held the device for the whole claim (a Pi that was restarting
+          // when its first sync came got nothing for 10 minutes).
+          await this.db
+            .update(signageDevices)
+            .set({ syncClaimedUntil: null })
+            .where(eq(signageDevices.id, claimed.id))
+            .catch((err: Error) => this.logger.warn(`signage sync ${claimed.name}: could not release the claim: ${err.message}`));
         });
     }
   }

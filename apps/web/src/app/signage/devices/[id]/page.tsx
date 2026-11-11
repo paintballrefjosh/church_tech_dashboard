@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useCallback, useId, useState } from "react";
+import { use, useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Cpu, KeyRound, RefreshCw } from "lucide-react";
 import { SIGNAGE_TV_INPUTS, type SignageCommandInput, type SignageCommandResult, type SignageDevice, type SignageScreen, type SignageSetupRun } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
+import { HoverTip, TipLink } from "@/components/hover-tip";
 import { GoneNotice } from "@/components/gone-notice";
 import { sendJson } from "@/components/assets-ui";
 import { usePoll } from "@/lib/use-poll";
@@ -13,7 +14,60 @@ import { Modal } from "../../../monitoring/network-cisco/cisco-ui";
 import { ErrorLine, Forbidden, Label, ProblemBadges, ago, btnCls, dangerCls, inputCls, primaryCls, useSignageJson, when } from "../../signage-ui";
 import { RUN_KIND_TEXT, RUN_STATUS_TEXT, RunLog, SetupModal } from "../devices-ui";
 
-type Sample = { ts: string; cpuTempC: number | null; wifiRssiDbm: number | null; diskFreeMb: number | null; memFreeMb: number | null };
+/*
+ * What the three maintenance buttons do, in the words a church volunteer needs. Keep these true to the code:
+ * "Apply settings again" is a run of kind `apply` (SetupService.runApply), "Update the agent" a run of kind `agent_update`
+ * (pushAgent with force), "Set up again" a run of kind `setup` (runSetup). docs/signage.md section 3 says the same.
+ */
+const APPLY_TIP = (
+  <>
+    <span className="block font-semibold">Make the Pi match the Signage settings</span>
+    <span className="mt-1 block">
+      Signs in with the dashboard&apos;s key and applies the current Security and system settings: the login account, SSH rules, firewall, read-only root, Wi-Fi, time server and
+      the OS update window. Use it after you change one of those settings, or when this page says &quot;Settings: not yet applied&quot;.
+    </span>
+    <span className="mt-1 block">
+      It also brings the agent up to date if it is behind. It does not change what the screen plays, and it restarts the Pi only if a boot setting needs it. If the dashboard can no
+      longer log in afterwards, the Pi puts its SSH settings back within 2 minutes. Safe to repeat.
+    </span>
+    <span className="mt-2 block">
+      <TipLink href="/signage/guide#device-buttons">More in the Signage guide</TipLink>
+    </span>
+  </>
+);
+
+const AGENT_TIP = (
+  <>
+    <span className="block font-semibold">Install the agent version this dashboard carries</span>
+    <span className="mt-1 block">
+      The agent is the small program on the Pi that plays the content, controls the TV and reports back. This copies the dashboard&apos;s current version over (checked against its
+      hash), switches to it and restarts the agent, even if the Pi already shows the same version.
+    </span>
+    <span className="mt-1 block">If the new agent is not healthy within 2 minutes, the Pi goes back to the previous one by itself. Settings and content are not touched.</span>
+    <span className="mt-2 block">
+      <TipLink href="/signage/guide#device-buttons">More in the Signage guide</TipLink>
+    </span>
+  </>
+);
+
+const SETUP_AGAIN_TIP = (
+  <>
+    <span className="block font-semibold">Adopt the Pi again</span>
+    <span className="mt-1 block">
+      Runs the whole adoption from the beginning, as when the Pi was first added: it checks the Pi, installs or repairs the player and agent, puts the dashboard&apos;s key on it and
+      applies the Security settings. You can change the name and screen, and give a different login for this Pi.
+    </span>
+    <span className="mt-1 block">
+      Use it for a Pi whose adoption failed, that was re-flashed, or no longer answers to the dashboard. If the dashboard&apos;s key still works it is used and no password is needed; otherwise
+      the saved setup login is tried. Available even while the Pi is not working.
+    </span>
+    <span className="mt-2 block">
+      <TipLink href="/signage/guide#device-buttons">More in the Signage guide</TipLink>
+    </span>
+  </>
+);
+
+type Sample = { ts: string; cpuTempC: number | null; cpuPct?: number | null; wifiRssiDbm: number | null; diskFreeMb: number | null; memFreeMb: number | null };
 
 export default function SignageDevicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -31,6 +85,11 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
   const [shotAt, setShotAt] = useState<number>(0);
   const [logs, setLogs] = useState<string[] | null>(null);
   const [input, setInput] = useState<string>(SIGNAGE_TV_INPUTS[0]);
+  // What the TV itself said last (asked of the Pi live; "standby" is what the TV calls off). The button for the state it is already in is disabled.
+  const [tvNow, setTvNow] = useState<{ power: "on" | "standby" | "unknown"; input: string | null; error: string | null } | null>(null);
+  const [tvAsking, setTvAsking] = useState(false);
+  const tvAsked = useRef(false);
+  const tvTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/signage/devices/${id}`, { credentials: "same-origin", cache: "no-store" }).catch(() => null);
@@ -44,6 +103,33 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
   }, [id]);
   usePoll(load, 15_000);
 
+  const readTv = useCallback(async () => {
+    setTvAsking(true);
+    try {
+      const r = await fetch(`/api/signage/devices/${id}/tv`, { credentials: "same-origin", cache: "no-store" });
+      if (r.ok) setTvNow((await r.json()) as { power: "on" | "standby" | "unknown"; input: string | null; error: string | null });
+      else setTvNow({ power: "unknown", input: null, error: `The TV could not be asked (${r.status}).` });
+    } catch {
+      setTvNow({ power: "unknown", input: null, error: "The TV could not be asked." });
+    } finally {
+      setTvAsking(false);
+    }
+  }, [id]);
+  // Ask once when the page opens (and the Pi can be reached); afterwards after each TV command, or with "Ask the TV".
+  const canAsk = device?.status === "active" && device.enabled;
+  useEffect(() => {
+    if (canAsk && !tvAsked.current) {
+      tvAsked.current = true;
+      void readTv();
+    }
+  }, [canAsk, readTv]);
+  useEffect(
+    () => () => {
+      if (tvTimer.current) clearTimeout(tvTimer.current);
+    },
+    [],
+  );
+
   async function command(c: SignageCommandInput, label: string, confirm?: string) {
     if (confirm && !window.confirm(confirm)) return;
     setBusy(label);
@@ -51,6 +137,16 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
     try {
       const r = await sendJson<SignageCommandResult>(`/api/signage/devices/${id}/command`, "POST", c);
       setResult({ ok: r.ok, text: r.message, output: c.type === "diag" ? r.output : undefined });
+      if (c.type === "tv_state") {
+        const o = r.output as { power?: string; input?: string | null } | undefined;
+        setTvNow({ power: o?.power === "on" ? "on" : o?.power === "standby" ? "standby" : "unknown", input: o?.input ?? null, error: r.ok ? null : r.message });
+      }
+      if (c.type === "tv_power" && r.ok) {
+        // Show what was asked for at once, then check what the TV says once it has had time to change.
+        setTvNow({ power: c.state === "on" ? "on" : "standby", input: tvNow?.input ?? null, error: null });
+        if (tvTimer.current) clearTimeout(tvTimer.current);
+        tvTimer.current = setTimeout(() => void readTv(), 8000);
+      }
       const runId = (r.output as { runId?: string } | undefined)?.runId;
       if (runId) setWatchRun(runId);
       void load();
@@ -89,12 +185,36 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
     }
   }
   async function remove() {
-    if (!device || !window.confirm(`Forget ${device.name}? The Pi keeps playing what it has until it is set up again.`)) return;
+    if (!device) return;
+    const managed = device.keyGeneration !== null;
+    const ask = managed
+      ? `Forget ${device.name}? The dashboard first resets the Pi to a normal Raspberry Pi: its original login (user and password) works again, the dashboard's key, lock-down and player are removed, and it restarts (twice if the read-only root was on). Wi-Fi settings are kept.`
+      : `Forget ${device.name}? The Pi keeps playing what it has until it is adopted again.`;
+    if (!window.confirm(ask)) return;
     try {
-      await sendJson(`/api/signage/devices/${id}`, "DELETE");
+      const r = await sendJson<{ reset?: boolean; runId?: string }>(`/api/signage/devices/${id}`, "DELETE");
+      if (r?.reset && r.runId) {
+        // The device stays until the dashboard sees the reset finish: watch it here.
+        setResult({ ok: true, text: `${device.name} is being reset. It restarts once or twice over the next few minutes; it leaves the list once the dashboard sees that it is a normal Raspberry Pi again.` });
+        setWatchRun(r.runId);
+        void load();
+        void runs.reload();
+        return;
+      }
       router.push("/signage/devices?tab=all");
     } catch (e) {
-      setResult({ ok: false, text: (e as Error).message });
+      const msg = (e as Error).message;
+      if (managed && msg.startsWith("The Pi could not be reset") && window.confirm(`${msg}\n\nForget it anyway, without resetting it? It stays locked to the dashboard's key, and Adopt again finds it by that key.`)) {
+        try {
+          await sendJson(`/api/signage/devices/${id}?reset=0`, "DELETE");
+          router.push("/signage/devices?tab=all");
+          return;
+        } catch (e2) {
+          setResult({ ok: false, text: (e2 as Error).message });
+          return;
+        }
+      }
+      setResult({ ok: false, text: msg });
     }
   }
 
@@ -159,21 +279,23 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
             <Row k="OS" v={device.osRelease ?? s?.osVersion} />
             <Row k="Agent" v={device.agentVersion} />
             <Row k="Login" v={device.loginUser ? `${device.loginUser} (key ${device.keyGeneration ?? "?"})` : null} />
-            <Row k="Playing" v={s?.nowPlaying ? [s.nowPlaying.playlist, s.nowPlaying.media].filter(Boolean).join(": ") || null : null} />
+            <Row k="Playing" v={playingText(device)} />
             <Row k="Player" v={s?.playerRunning === undefined ? null : s.playerRunning ? "running" : "stopped"} />
             <Row k="TV" v={s?.tvPower ? `${s.tvPower}${s.tvInput ? `, ${s.tvInput}` : ""}${s.tvError ? ` (${s.tvError})` : ""}` : null} />
             <Row k="Content" v={`version ${device.manifestVersionApplied ?? "none"}${device.manifestVersionWanted && device.manifestVersionWanted !== device.manifestVersionApplied ? `, ${device.manifestVersionWanted} waiting` : ""}${s?.missingMedia ? `, ${s.missingMedia} files missing` : ""}`} />
             <Row k="Settings" v={device.settingsApplied ? "as chosen" : "not yet applied"} />
-            <Row k="Temperature" v={s?.cpuTempC != null ? `${s.cpuTempC.toFixed(0)} °C${s.underVoltage ? ", under-voltage" : ""}` : null} />
+            <Row k="CPU" v={s?.cpuPct != null ? `${Math.round(s.cpuPct)}% busy` : null} />
+            <Row k="Temperature" v={s?.cpuTempC != null ? `${fahrenheit(s.cpuTempC)} °F${s.underVoltage ? ", under-voltage" : ""}` : null} />
             <Row k="Disk free" v={s?.diskFreeMb != null ? `${(s.diskFreeMb / 1024).toFixed(1)} GB${s.diskTotalMb ? ` of ${(s.diskTotalMb / 1024).toFixed(1)}` : ""}` : null} />
             <Row k="Wi-Fi" v={s?.wifiSsid ? `${s.wifiSsid}${s.wifiRssiDbm != null ? `, ${s.wifiRssiDbm} dBm` : ""}${s.wifiBand ? `, ${s.wifiBand}` : ""}` : null} />
             <Row k="Clock" v={s?.clockSynced === undefined ? null : s.clockSynced ? "in sync" : "NOT in sync"} />
             <Row k="OS updates" v={s?.osUpdatesPending != null ? `${s.osUpdatesPending} waiting${s.osUpdateState ? ` (${s.osUpdateState})` : ""}` : null} />
-            <Row k="Up for" v={s?.uptimeS != null ? `${Math.floor(s.uptimeS / 86400)} d ${Math.floor((s.uptimeS % 86400) / 3600)} h` : null} />
+            <Row k="Up for" v={s?.uptimeS != null ? humanUptime(s.uptimeS) : null} />
             <Row k="Serial" v={device.serial} />
             <Row k="MAC" v={[device.macEth, device.macWlan].filter(Boolean).join(", ") || null} />
           </dl>
           <SampleStrip samples={samples.data ?? []} />
+          <CpuStrip samples={samples.data ?? []} />
         </section>
 
         <section aria-labelledby="dev-shot" className="space-y-2 rounded-md border border-slate-300 p-4 dark:border-slate-800">
@@ -204,7 +326,7 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
         <h2 id="dev-actions" className="text-base font-semibold text-slate-900 dark:text-slate-100">
           Do something
         </h2>
-        {!usable ? <p className="text-sm text-slate-600 dark:text-slate-300">{device.enabled ? "Finish setting the Pi up first." : "The device is switched off: the dashboard does not sign in to it."}</p> : null}
+        {!usable ? <p className="text-sm text-slate-600 dark:text-slate-300">{device.status === "resetting" ? "Being reset (Forget): the dashboard no longer manages this Pi." : device.enabled ? "Finish adopting the Pi first." : "The device is switched off: the dashboard does not sign in to it."}</p> : null}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "sync_now" }, "sync")}>
             <RefreshCw className="h-4 w-4" aria-hidden /> Send content now
@@ -226,15 +348,26 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
           </button>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "tv_power", state: "on" }, "tvon")}>
+          <button type="button" className={btnCls} disabled={!usable || busy !== null || tvNow?.power === "on"} aria-pressed={tvNow?.power === "on"} onClick={() => void command({ type: "tv_power", state: "on" }, "tvon")}>
             TV on
           </button>
-          <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "tv_power", state: "off" }, "tvoff")}>
+          <button type="button" className={btnCls} disabled={!usable || busy !== null || tvNow?.power === "standby"} aria-pressed={tvNow?.power === "standby"} onClick={() => void command({ type: "tv_power", state: "off" }, "tvoff")}>
             TV off
           </button>
-          <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "tv_state" }, "tvstate")}>
-            Ask the TV
+          <button type="button" className={btnCls} disabled={!usable || busy !== null || tvAsking} onClick={() => void command({ type: "tv_state" }, "tvstate")}>
+            {tvAsking ? "Asking…" : "Ask the TV"}
           </button>
+          <p role="status" className="self-center text-sm text-slate-700 dark:text-slate-200">
+            {tvAsking && !tvNow
+              ? "Asking the TV…"
+              : tvNow
+                ? tvNow.power === "on"
+                  ? "The TV is on."
+                  : tvNow.power === "standby"
+                    ? "The TV is off (standby)."
+                    : `The TV's power state is not known${tvNow.error ? `: ${tvNow.error}` : "."}`
+                : null}
+          </p>
           <span className="flex items-end gap-2">
             <span>
               <label htmlFor="dev-input" className="block text-xs text-slate-500 dark:text-slate-400">
@@ -254,18 +387,24 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
           </span>
         </div>
         <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
-          <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void post<SignageSetupRun>("apply", "apply", (r) => { setWatchRun(r.id); return "Settings queued."; })}>
-            Apply settings again
-          </button>
-          <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "agent_update" }, "agent")}>
-            Update the agent
-          </button>
+          <HoverTip tip={APPLY_TIP}>
+            <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void post<SignageSetupRun>("apply", "apply", (r) => { setWatchRun(r.id); return "Settings queued."; })}>
+              Apply settings again
+            </button>
+          </HoverTip>
+          <HoverTip tip={AGENT_TIP}>
+            <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "agent_update" }, "agent")}>
+              Update the agent
+            </button>
+          </HoverTip>
           <button type="button" className={btnCls} disabled={!usable || busy !== null} onClick={() => void command({ type: "os_update" }, "os", "Install OS updates now? The Pi may restart afterwards.")}>
             Install OS updates
           </button>
-          <button type="button" className={btnCls} disabled={busy !== null} onClick={() => setAgain(true)}>
-            Set up again
-          </button>
+          <HoverTip tip={SETUP_AGAIN_TIP}>
+            <button type="button" className={btnCls} disabled={busy !== null} onClick={() => setAgain(true)}>
+              Adopt again
+            </button>
+          </HoverTip>
         </div>
         {busy ? <p className="text-sm text-slate-500 dark:text-slate-400">Working…</p> : null}
         {result ? (
@@ -283,7 +422,7 @@ export default function SignageDevicePage({ params }: { params: Promise<{ id: st
 
       <section aria-labelledby="dev-runs" className="space-y-2">
         <h2 id="dev-runs" className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          Setup and update runs
+          Adoption and update runs
         </h2>
         {runs.data?.length ? (
           <ul className="space-y-1 text-sm">
@@ -338,6 +477,35 @@ function Row({ k, v }: { k: string; v: string | null | undefined }) {
   );
 }
 
+/** What the Pi is showing, in words ("Sunday loop: Welcome.jpg (Sunday service)"); null while it has reported nothing. */
+function playingText(d: SignageDevice): string | null {
+  const p = d.playing;
+  if (!p) return d.latest?.playerRunning === false ? "nothing (the player is not running)" : null;
+  if (p.kind === "logo") return "The logo slide (nothing is scheduled to play)";
+  const list = p.playlistName ?? "a playlist that no longer exists";
+  const item = p.mediaName ?? (d.latest?.nowPlaying?.media ? "a file not in the library" : "waiting for files");
+  const from = p.kind === "fallback" ? " (fallback playlist)" : p.entryName ? ` (${p.entryName})` : "";
+  return `${list}: ${item}${from}`;
+}
+
+/** The Pi reports Celsius; the page shows Fahrenheit (the bars' height and colour limits stay in Celsius). */
+function fahrenheit(c: number): string {
+  return (c * 1.8 + 32).toFixed(0);
+}
+
+/** Uptime in its two largest units: "45 s", "3 min 12 s", "2 h 5 min", "1 d 4 h". */
+function humanUptime(total: number): string {
+  const t = Math.max(0, Math.floor(total));
+  const d = Math.floor(t / 86400);
+  const h = Math.floor((t % 86400) / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  if (d > 0) return `${d} d ${h} h`;
+  if (h > 0) return `${h} h ${m} min`;
+  if (m > 0) return `${m} min ${sec} s`;
+  return `${sec} s`;
+}
+
 /** The last day's temperature as small bars: enough to see a Pi that runs hot in the afternoon. */
 function SampleStrip({ samples }: { samples: Sample[] }) {
   const temps = samples.filter((x) => x.cpuTempC != null);
@@ -347,11 +515,30 @@ function SampleStrip({ samples }: { samples: Sample[] }) {
   const hi = Math.max(...last.map((t) => t.cpuTempC ?? 0));
   return (
     <figure className="pt-2">
-      <figcaption className="text-xs text-slate-500 dark:text-slate-400">Temperature, last day (highest {hi.toFixed(0)} °C)</figcaption>
+      <figcaption className="text-xs text-slate-500 dark:text-slate-400">Temperature, last day (highest {fahrenheit(hi)} °F)</figcaption>
       <div className="mt-1 flex h-10 items-end gap-px" aria-hidden>
         {last.map((t) => {
           const v = t.cpuTempC ?? 0;
-          return <span key={t.ts} title={`${when(t.ts)}: ${v.toFixed(0)} °C`} className={`flex-1 rounded-t-sm ${v >= 80 ? "bg-rose-500" : v >= 70 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ height: `${Math.max(4, (v / max) * 100)}%` }} />;
+          return <span key={t.ts} title={`${when(t.ts)}: ${fahrenheit(v)} °F`} className={`flex-1 rounded-t-sm ${v >= 80 ? "bg-rose-500" : v >= 70 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ height: `${Math.max(4, (v / max) * 100)}%` }} />;
+        })}
+      </div>
+    </figure>
+  );
+}
+
+/** The last day's CPU use as small bars (0-100%, the whole bar height is 100%): a Pi that is flat out while decoding video shows here. */
+function CpuStrip({ samples }: { samples: Sample[] }) {
+  const used = samples.filter((x) => x.cpuPct != null);
+  if (used.length < 2) return null;
+  const last = used.slice(-96);
+  const hi = Math.max(...last.map((t) => t.cpuPct ?? 0));
+  return (
+    <figure className="pt-2">
+      <figcaption className="text-xs text-slate-500 dark:text-slate-400">CPU use, last day (highest {Math.round(hi)}%)</figcaption>
+      <div className="mt-1 flex h-10 items-end gap-px" aria-hidden>
+        {last.map((t) => {
+          const v = Math.min(100, Math.max(0, t.cpuPct ?? 0));
+          return <span key={t.ts} title={`${when(t.ts)}: ${Math.round(v)}%`} className={`flex-1 rounded-t-sm ${v >= 90 ? "bg-rose-500" : v >= 70 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ height: `${Math.max(4, v)}%` }} />;
         })}
       </div>
     </figure>

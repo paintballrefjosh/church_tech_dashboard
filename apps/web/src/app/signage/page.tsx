@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { Plus, Tv, Users } from "lucide-react";
+import { Plus, Radar, Tv, Users } from "lucide-react";
 import type { SignagePlaylist, SignagePreview, SignageScreen, SignageScreenGroup } from "@lampstand/shared";
 import { PageTitle } from "@/components/page-title";
 import { sendJson } from "@/components/assets-ui";
@@ -52,6 +52,11 @@ export default function SignageScreensPage() {
             </button>
           ) : null}
           {perms.admin ? (
+            <Link href="/signage/devices?tab=found" className={btnCls}>
+              <Radar className="h-4 w-4" aria-hidden /> Find Pis
+            </Link>
+          ) : null}
+          {perms.admin ? (
             <button type="button" className={primaryCls} onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" aria-hidden /> Add a screen
             </button>
@@ -65,7 +70,7 @@ export default function SignageScreensPage() {
         <div className="rounded-md border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
           <p className="font-medium text-slate-900 dark:text-slate-100">No screens yet.</p>
           <p className="mt-1">
-            A screen is one TV. Set up its Raspberry Pi on the Devices page (that can make the screen for you), or add the screen here
+            A screen is one TV. Adopt its Raspberry Pi on the Devices page (that can make the screen for you), or add the screen here
             first and give it a Pi later. Then put pictures and videos in a playlist and schedule it.
           </p>
         </div>

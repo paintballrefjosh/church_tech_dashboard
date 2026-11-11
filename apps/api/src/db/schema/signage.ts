@@ -298,6 +298,7 @@ export const signageStatusSamples = pgTable(
       .references(() => signageDevices.id, { onDelete: "cascade" }),
     ts: timestamp("ts").notNull().defaultNow(),
     cpuTempC: real("cpu_temp_c"),
+    cpuPct: real("cpu_pct"),
     wifiRssiDbm: real("wifi_rssi_dbm"),
     diskFreeMb: real("disk_free_mb"),
     memFreeMb: real("mem_free_mb"),

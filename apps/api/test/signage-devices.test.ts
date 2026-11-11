@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  FORGET_FAILED_PREFIX,
+  FORGET_WAIT_MS,
   buildApplyConfig,
   canonicalJson,
   deviceProblems,
   expandCidr,
+  forgetVerdict,
   hostnameFor,
   identifyCodes,
   inBulkWindow,
   isPrivateUnicast,
   isRaspberryPiMac,
+  isLikelyPi,
   judgeEvidence,
   nameMatchesPattern,
   needsAttention,
@@ -29,12 +33,21 @@ describe("signage discovery rules", () => {
     expect(isRaspberryPiMac(null)).toBe(false);
   });
 
+  it("lists only the strong evidence as likely Pis", () => {
+    expect(["pi_mac", "name", "setup_banner"].every((e) => isLikelyPi(e as never))).toBe(true);
+    expect(isLikelyPi("ssh_debian")).toBe(false);
+    expect(isLikelyPi("ssh_other")).toBe(false);
+  });
+
   it("ranks the evidence: MAC, then name, then a Debian banner", () => {
     expect(judgeEvidence({ mac: "DC:A6:32:00:00:01", name: null, banner: null, namePattern: "" }).evidence).toBe("pi_mac");
     expect(judgeEvidence({ mac: null, name: "raspberrypi", banner: null, namePattern: "" }).evidence).toBe("name");
     expect(judgeEvidence({ mac: null, name: "tv-lobby", banner: null, namePattern: "tv-*" }).evidence).toBe("name");
     expect(judgeEvidence({ mac: null, name: "printer", banner: "SSH-2.0-OpenSSH_10.0p2 Debian-7", namePattern: "tv-*" }).evidence).toBe("ssh_debian");
     expect(judgeEvidence({ mac: null, name: null, banner: "SSH-2.0-Cisco-1.25", namePattern: "" }).evidence).toBe("ssh_other");
+    // A known network card that is not a Pi's (a VMware VM) is not "could be a Pi", whatever the banner says.
+    expect(judgeEvidence({ mac: "00:50:56:9F:E1:7C", name: "plex", banner: "SSH-2.0-OpenSSH_9.2p1 Debian-2", namePattern: "tv-*" }).evidence).toBe("ssh_other");
+    expect(judgeEvidence({ mac: "00:50:56:9F:E1:7C", name: "tv-lobby", banner: null, namePattern: "tv-*" }).evidence).toBe("name");
   });
 
   it("matches name patterns as whole names, case-insensitively, several at once", () => {
@@ -76,16 +89,24 @@ describe("signage identify codes", () => {
 describe("signage security settings", () => {
   it("fills safe defaults and ignores nonsense", () => {
     const s = readSignageSecurity(() => undefined);
-    expect(s).toMatchObject({ loginAccount: "dedicated", passwordLogin: false, rootLogin: false, onlyDashboard: true, restrictKey: true, readOnlyRoot: true, firewall: false });
+    expect(s).toMatchObject({ loginAccount: "dedicated", lockSetupPassword: false, refusePasswordLogin: false, refuseRootLogin: false, allowOnlyLogin: false, onlyDashboard: false, restrictKey: false, readOnlyRoot: true, firewall: false, setHostname: true });
     expect(readSignageSecurity((k) => (k === SIGNAGE_KEYS.loginAccount ? "root" : undefined)).loginAccount).toBe("dedicated");
   });
 
   it("builds the config the Pi receives; 'only the dashboard' off means any address", () => {
     const s = readSignageSecurity((k) => (k === SIGNAGE_KEYS.extraSources ? "10.0.5.0/24, 10.0.9.9" : undefined));
-    const c = buildApplyConfig(s, { setupUser: "pi", dashboardSources: ["10.1.1.10/32"], timezone: "America/Chicago", deviceName: "Lobby TV #1", authorizedKeys: ["ssh-ed25519 AAAA"] });
+    const c = buildApplyConfig({ ...s, onlyDashboard: true }, { setupUser: "pi", dashboardSources: ["10.1.1.10/32"], timezone: "America/Chicago", deviceName: "Lobby TV #1", authorizedKeys: ["ssh-ed25519 AAAA"] });
     expect(c.onlyFrom).toEqual(["10.0.5.0/24", "10.0.9.9/32", "10.1.1.10/32"]);
     expect(c.hostname).toBe("lobby-tv-1");
     expect(buildApplyConfig({ ...s, onlyDashboard: false }, { setupUser: "pi", dashboardSources: ["10.1.1.10/32"], timezone: "UTC", deviceName: "x", authorizedKeys: [] }).onlyFrom).toEqual([]);
+  });
+
+  it("by default leaves the Pi's own SSH login rules alone, and only writes one when it is to be refused", () => {
+    const ctx = { setupUser: "pi", dashboardSources: [], timezone: "UTC", deviceName: "x", authorizedKeys: [] };
+    const d = buildApplyConfig(readSignageSecurity(() => undefined), ctx);
+    expect([d.passwordLogin, d.rootLogin]).toEqual([null, null]);
+    const strict = buildApplyConfig({ ...readSignageSecurity(() => undefined), refusePasswordLogin: true, refuseRootLogin: true }, ctx);
+    expect([strict.passwordLogin, strict.rootLogin]).toEqual([false, false]);
   });
 
   it("writes canonical JSON with sorted keys", () => {
@@ -165,5 +186,42 @@ describe("signage needs attention", () => {
   it("reports setup failures and a changed host key even when not active", () => {
     const p = deviceProblems({ ...base, status: "failed", lastError: "apt failed", hostKeyMismatch: true }, now);
     expect(p.map((x) => x.code)).toEqual(["setup_failed", "host_key"]);
+  });
+});
+
+describe("signage forget waits for the reset", () => {
+  const progress = (over: Partial<{ phase: string | null; bootId: string; readOnlyRoot: boolean }> = {}) => ({ phase: "running", startedBootId: "boot-1", bootId: "boot-1", readOnlyRoot: false, log: [], ...over });
+
+  it("waits while the Pi has not restarted yet, or is not answering", () => {
+    expect(forgetVerdict("boot-1", progress(), 60_000)).toEqual({ wait: true });
+    expect(forgetVerdict("boot-1", null, 60_000)).toEqual({ wait: true });
+  });
+
+  it("waits while phase two runs after the restart that lifted the read-only root", () => {
+    expect(forgetVerdict("boot-1", progress({ phase: "after-boot", bootId: "boot-2" }), 120_000)).toEqual({ wait: true });
+  });
+
+  it("stops at once when the Pi restarted and the note of the reset was lost (the tv1-pi case)", () => {
+    const v = forgetVerdict("boot-1", progress({ phase: null, bootId: "boot-2", readOnlyRoot: true }), 120_000);
+    expect(v.wait).toBe(false);
+    expect(!v.wait && v.reason).toMatch(/did not carry on/);
+  });
+
+  it("stops at once when the read-only root is still on after the restart", () => {
+    const v = forgetVerdict("boot-1", progress({ phase: "after-boot", bootId: "boot-2", readOnlyRoot: true }), 120_000);
+    expect(!v.wait && v.reason).toMatch(/read-only root still on/);
+  });
+
+  it("gives up after the wait, whatever the Pi says, and an agent without a boot id only ever waits until then", () => {
+    expect(forgetVerdict(null, progress({ phase: null, bootId: "boot-2" }), 60_000)).toEqual({ wait: true });
+    const v = forgetVerdict("boot-1", progress(), FORGET_WAIT_MS);
+    expect(!v.wait && v.reason).toMatch(/has not restarted after 15 minutes/);
+  });
+
+  it("names a failed reset as such, not as a failed setup", () => {
+    const now = new Date("2026-11-08T16:00:00Z");
+    const d = { status: "failed" as const, enabled: true, lastSeenAt: null, lastError: `${FORGET_FAILED_PREFIX}x`, hostKeyMismatch: false, settingsApplied: true, keyOutOfDate: false, manifestApplied: null, manifestWanted: null, manifestWantedSince: null, shouldBeOn: null, hasScreen: false, latest: null, agentOutOfDate: false, currentAgent: null };
+    expect(deviceProblems(d, now)[0]!.message).toBe(`${FORGET_FAILED_PREFIX}x`);
+    expect(deviceProblems({ ...d, status: "resetting", lastError: null }, now)[0]!.message).toMatch(/Being reset/);
   });
 });
