@@ -329,6 +329,21 @@ body {
   background-color: rgba(2, 6, 23, 0.6);
 }
 
+/* The same wash for one block of reading text inside a section whose cards are
+   the usual frosted ones (a module's guide, components/guide.tsx): long prose
+   sits straight on the page, so the drifting shapes behind it are calmed the
+   way the wiki's are. Slightly more opaque than the wiki's wash (0.7) because
+   the Signage backdrop's slides are larger and brighter. */
+.fx-surface .fx-reading-block {
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border-radius: 0.75rem;
+}
+.dark .fx-surface .fx-reading-block {
+  background-color: rgba(2, 6, 23, 0.7);
+}
+
 /* Frost the card/input/pill surfaces so the backdrop shows through at ~10%
    (0.90 alpha) — enough to perceive the motion but keep text legible. The blur
    is deliberately light (2px): a heavier blur smears the motion into a flat

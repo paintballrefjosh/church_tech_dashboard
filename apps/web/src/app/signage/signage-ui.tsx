@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarRange, Clapperboard, Cpu, ListVideo, Power, Settings, Tv, type LucideIcon } from "lucide-react";
+import { CalendarRange, Clapperboard, Cpu, ListVideo, Power, BookOpen, Settings, Tv, type LucideIcon } from "lucide-react";
 import { PERMISSIONS, type SignageDeviceProblem, type SignagePlaylist, type SignageScreen, type SignageScreenGroup } from "@lampstand/shared";
 import { can, useViewer, type Viewer } from "@/components/assets-ui";
 
@@ -11,12 +11,12 @@ import { can, useViewer, type Viewer } from "@/components/assets-ui";
 const TABS: Array<{ href: string; label: string; Icon: LucideIcon; need: string; match: (p: string) => boolean }> = [
   { href: "/signage", label: "Screens", Icon: Tv, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p === "/signage" || p.startsWith("/signage/screens") },
   { href: "/signage/schedules", label: "Schedule", Icon: CalendarRange, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/schedules") },
-  { href: "/signage/events", label: "Events", Icon: CalendarClock, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/events") },
   { href: "/signage/playlists", label: "Playlists", Icon: ListVideo, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/playlists") },
   { href: "/signage/media", label: "Media", Icon: Clapperboard, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/media") },
   { href: "/signage/power", label: "Power", Icon: Power, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/power") },
   { href: "/signage/devices", label: "Devices", Icon: Cpu, need: PERMISSIONS.SIGNAGE_ADMIN, match: (p) => p.startsWith("/signage/devices") },
   { href: "/signage/settings", label: "Settings", Icon: Settings, need: PERMISSIONS.SIGNAGE_ADMIN, match: (p) => p.startsWith("/signage/settings") || p.startsWith("/signage/security") },
+  { href: "/signage/guide", label: "Guide", Icon: BookOpen, need: PERMISSIONS.SIGNAGE_READ_ANY, match: (p) => p.startsWith("/signage/guide") },
 ];
 
 /** The module's tab row. The Devices tab carries how many Pis need attention (and new ones found). */
@@ -149,16 +149,13 @@ export function DayPicker({ value, onChange, idPrefix }: { value: number[]; onCh
   );
 }
 
-/** What a schedule, event or power rule is for, as words. */
+/** What a schedule entry or power rule is for, as words. */
 export function targetText(t: { targetType: string; targetName: string }): string {
   if (t.targetType === "all") return "All screens";
   return t.targetType === "group" ? `Group: ${t.targetName}` : t.targetName;
 }
 
-/**
- * Pick "all screens", a screen group or one screen. `allowAll` is off for schedules (a schedule belongs to a screen or a
- * group; "every screen" is the fallback playlist's job or an event's).
- */
+/** Pick "all screens" (when `allowAll`), a screen group or one screen. */
 export function TargetPicker({
   id,
   targetType,
@@ -273,6 +270,9 @@ export function TvFrame({ screen, thumb, label }: { screen: Pick<SignageScreen, 
   );
 }
 
+/** Problem codes that mean "an update is waiting": the OS updates and an agent behind the dashboard's. */
+const UPDATE_CODES = new Set(["os_updates", "agent"]);
+
 export function ProblemBadges({ problems }: { problems: SignageDeviceProblem[] }) {
   if (!problems.length) return null;
   return (
@@ -285,7 +285,10 @@ export function ProblemBadges({ problems }: { problems: SignageDeviceProblem[] }
               ? "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200"
               : p.severity === "warning"
                 ? "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
-                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                : UPDATE_CODES.has(p.code)
+                  ? // Updates are not faults (they stay off "Needs attention") but are something to do: blue, not the grey of plain notes.
+                    "bg-sky-100 text-sky-900 ring-1 ring-inset ring-sky-300 dark:bg-sky-900/60 dark:text-sky-100 dark:ring-sky-700"
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
           }`}
         >
           {p.message}
