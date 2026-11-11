@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HelpdeskBackdrop } from "@/components/helpdesk-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for the Help Desk (everything under /tickets). Like the
@@ -10,9 +11,11 @@ import { HelpdeskBackdrop } from "@/components/helpdesk-backdrop";
  */
 export default function TicketsLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <HelpdeskBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="tickets">
+      <div>
+        <HelpdeskBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChecklistsBackdrop } from "@/components/checklists-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for Checklists (everything under /checklists). Adds no chrome of
@@ -10,9 +11,11 @@ import { ChecklistsBackdrop } from "@/components/checklists-backdrop";
  */
 export default function ChecklistsLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <ChecklistsBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="checklists">
+      <div>
+        <ChecklistsBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

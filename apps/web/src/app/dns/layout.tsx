@@ -7,6 +7,7 @@ import { apiJson } from "@/lib/api";
 import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { MonitoringBackdrop } from "@/components/monitoring-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 export const dynamic = "force-dynamic";
 
@@ -24,25 +25,27 @@ export default async function DnsLayout({ children }: { children: ReactNode }) {
   const me = await apiJson<{ permissions: string[] }>("/api/v1/me").catch(() => null);
   const canAdmin = me?.permissions.includes("monitors:write:any") ?? false;
   return (
-    <div>
-      <MonitoringBackdrop />
-      <div className="fx-surface">
-        <TopBar />
-        <main className="mx-auto max-w-6xl px-4 py-8">
-          <div className="flex items-center justify-between gap-3">
-            <PageTitle icon={Globe}>DNS</PageTitle>
-            {canAdmin ? (
-              <Link
-                href="/dns/settings"
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-              >
-                <Settings className="h-4 w-4" aria-hidden /> Settings
-              </Link>
-            ) : null}
-          </div>
-          <div className="mt-6">{children}</div>
-        </main>
+    <RequireModule module="monitoring">
+      <div>
+        <MonitoringBackdrop />
+        <div className="fx-surface">
+          <TopBar />
+          <main className="mx-auto max-w-6xl px-4 py-8">
+            <div className="flex items-center justify-between gap-3">
+              <PageTitle icon={Globe}>DNS</PageTitle>
+              {canAdmin ? (
+                <Link
+                  href="/dns/settings"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  <Settings className="h-4 w-4" aria-hidden /> Settings
+                </Link>
+              ) : null}
+            </div>
+            <div className="mt-6">{children}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </RequireModule>
   );
 }

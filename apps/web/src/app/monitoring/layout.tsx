@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { MonitoringBackdrop } from "@/components/monitoring-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for everything under /monitoring. It contributes no chrome of
@@ -10,9 +11,11 @@ import { MonitoringBackdrop } from "@/components/monitoring-backdrop";
  */
 export default function MonitoringLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <MonitoringBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="monitoring">
+      <div>
+        <MonitoringBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

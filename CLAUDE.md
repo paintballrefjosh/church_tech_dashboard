@@ -130,6 +130,13 @@ migrations 0022/0024). Access is granted as **(module, tier)** per **group**:
   but those strings are now *derived* from module tiers, not stored per role.
 - The `admin` **group** is special-cased: top tier on every module + every
   permission, and locked from edit in the UI/API.
+- **A module's pages are gated in its layout** (`RequireModule`, `apps/web/src/components/require-module.tsx`: any tier on the module
+  opens it, same rule as the top-bar menus; otherwise a "No access" page). Until 2026-11-10 only the menus hid the links, and pages
+  that swallowed the API's 403 (`/monitoring`) drew an empty shell for anyone who typed the address. **A new module section's
+  `layout.tsx` wraps what it renders in `<RequireModule module="...">`** (IPAM, DNS, Cabinets, Device profiles, Renewals and the print
+  sheets use `monitoring`; Rooms is left open because its API needs only a session). It fails open if `/me` cannot be read (the API
+  still refuses the data). The `user` group's default grants include Assets and Livestreams (`DEFAULT_GROUP_MODULE_ACCESS`, migrations
+  0082/0084), so a plain `user` account sees those menus until an admin removes them in Admin > Groups.
 
 Modules are defined in `packages/shared/src/modules.ts`: `notes`, `tickets`,
 `wiki`, `monitoring`, `printers`, `propresenter`, `planning_center`,

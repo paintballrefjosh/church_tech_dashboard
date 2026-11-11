@@ -112,6 +112,13 @@ body {
  *   - Checklists       → ticking checkboxes            (.fx-glow-checklists)
  *   - ProPresenter     → advancing slides             (.fx-glow-propresenter)
  *   - Admin            → turning gears                 (.fx-glow-admin)
+ *   - Equipment        → drifting crates               (.fx-glow-assets)
+ *   - Rooms            → floor plan rooms with doors   (.fx-glow-rooms)
+ *   - Device profiles  → switch faceplates sliding     (.fx-glow-brand)
+ *   - Renewals         → calendar pages, a date circled (.fx-glow-renewals)
+ *   - Assistant        → twinkling sparkles            (.fx-glow-assistant)
+ *   - My account       → avatar badges                 (.fx-glow-profile)
+ *   - Reports          → rising bar charts             (.fx-glow-reports)
  * The frosting rules below are shared by all; only the canvas + glow differ
  * per section. (See <section>-backdrop.tsx, all built on the shared
  * <CanvasBackdrop>.)
@@ -229,6 +236,66 @@ body {
   background:
     radial-gradient(60% 55% at 15% 0%, rgba(129, 140, 248, 0.16), transparent 70%),
     radial-gradient(55% 50% at 100% 100%, rgba(217, 70, 239, 0.12), transparent 70%);
+}
+.fx-backdrop.fx-glow-assets {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(249, 115, 22, 0.07), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(245, 158, 11, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-assets {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(251, 146, 60, 0.14), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(245, 158, 11, 0.11), transparent 70%);
+}
+.fx-backdrop.fx-glow-rooms {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(236, 72, 153, 0.07), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(139, 92, 246, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-rooms {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(244, 114, 182, 0.14), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(167, 139, 250, 0.11), transparent 70%);
+}
+.fx-backdrop.fx-glow-renewals {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(245, 158, 11, 0.08), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(244, 63, 94, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-renewals {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(251, 191, 36, 0.14), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(251, 113, 133, 0.11), transparent 70%);
+}
+.fx-backdrop.fx-glow-assistant {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(139, 92, 246, 0.08), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(217, 70, 239, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-assistant {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(167, 139, 250, 0.16), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(232, 121, 249, 0.12), transparent 70%);
+}
+.fx-backdrop.fx-glow-profile {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(99, 102, 241, 0.08), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(14, 165, 233, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-profile {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(129, 140, 248, 0.15), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(56, 189, 248, 0.11), transparent 70%);
+}
+.fx-backdrop.fx-glow-reports {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(16, 185, 129, 0.07), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(14, 165, 233, 0.06), transparent 70%);
+}
+.dark .fx-backdrop.fx-glow-reports {
+  background:
+    radial-gradient(60% 55% at 14% 0%, rgba(52, 211, 153, 0.14), transparent 70%),
+    radial-gradient(55% 50% at 100% 100%, rgba(56, 189, 248, 0.11), transparent 70%);
 }
 .fx-backdrop.fx-glow-admin {
   background:

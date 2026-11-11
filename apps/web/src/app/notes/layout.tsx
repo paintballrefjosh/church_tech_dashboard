@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { NotesBackdrop } from "@/components/notes-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for Notes (/notes). Adds no chrome of its own — the page keeps
@@ -9,9 +10,11 @@ import { NotesBackdrop } from "@/components/notes-backdrop";
  */
 export default function NotesLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <NotesBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="notes">
+      <div>
+        <NotesBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

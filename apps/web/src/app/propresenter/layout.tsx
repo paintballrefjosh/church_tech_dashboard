@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ProPresenterBackdrop } from "@/components/propresenter-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for ProPresenter (/propresenter). Adds no chrome of its own —
@@ -9,9 +10,11 @@ import { ProPresenterBackdrop } from "@/components/propresenter-backdrop";
  */
 export default function ProPresenterLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <ProPresenterBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="propresenter">
+      <div>
+        <ProPresenterBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

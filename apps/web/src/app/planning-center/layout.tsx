@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PlanningCenterBackdrop } from "@/components/planning-center-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for Planning Center (everything under /planning-center). Adds no
@@ -10,9 +11,11 @@ import { PlanningCenterBackdrop } from "@/components/planning-center-backdrop";
  */
 export default function PlanningCenterLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <PlanningCenterBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="planning_center">
+      <div>
+        <PlanningCenterBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

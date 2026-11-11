@@ -44,7 +44,13 @@ export function CanvasBackdrop({
     | "notifications"
     | "checklists"
     | "propresenter"
-    | "admin";
+    | "admin"
+    | "assets"
+    | "rooms"
+    | "renewals"
+    | "assistant"
+    | "profile"
+    | "reports";
   createRenderer: () => BackdropRenderer;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

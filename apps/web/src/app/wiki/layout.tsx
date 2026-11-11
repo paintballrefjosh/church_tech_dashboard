@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { WikiBackdrop } from "@/components/wiki-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for the Wiki (everything under /wiki). Adds no chrome of its own
@@ -11,9 +12,11 @@ import { WikiBackdrop } from "@/components/wiki-backdrop";
  */
 export default function WikiLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <WikiBackdrop />
-      <div className="fx-surface fx-reading">{children}</div>
-    </div>
+    <RequireModule module="wiki">
+      <div>
+        <WikiBackdrop />
+        <div className="fx-surface fx-reading">{children}</div>
+      </div>
+    </RequireModule>
   );
 }

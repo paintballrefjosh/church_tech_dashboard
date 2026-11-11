@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PrintersBackdrop } from "@/components/printers-backdrop";
+import { RequireModule } from "@/components/require-module";
 
 /**
  * Section shell for Printers (/printers). Adds no chrome of its own — the page
@@ -9,9 +10,11 @@ import { PrintersBackdrop } from "@/components/printers-backdrop";
  */
 export default function PrintersLayout({ children }: { children: ReactNode }) {
   return (
-    <div>
-      <PrintersBackdrop />
-      <div className="fx-surface">{children}</div>
-    </div>
+    <RequireModule module="printers">
+      <div>
+        <PrintersBackdrop />
+        <div className="fx-surface">{children}</div>
+      </div>
+    </RequireModule>
   );
 }
