@@ -3,7 +3,7 @@
 # across builds. Without it, every lockfile change re-downloads + re-extracts
 # every dependency from scratch.
 
-FROM node:22-alpine AS base
+FROM node:25-alpine AS base
 RUN corepack enable
 WORKDIR /app
 ENV PNPM_HOME=/root/.local/share/pnpm
