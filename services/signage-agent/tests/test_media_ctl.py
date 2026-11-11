@@ -95,5 +95,10 @@ def test_agent_put_checks_the_hash(capsys):
 def test_config_closed_keys(capsys):
     code, out = run_ctl(capsys, ["config", "set", "hwdec", "no"])
     assert code == 0 and out["config"]["hwdec"] == "no"
+    code, out = run_ctl(capsys, ["config", "set", "hwdec", "v4l2m2m-copy"])
+    assert code == 0 and out["config"]["hwdec"] == "v4l2m2m-copy"
+    # "default" removes the override: the agent picks by model again.
+    code, out = run_ctl(capsys, ["config", "set", "hwdec", "default"])
+    assert code == 0 and "hwdec" not in out["config"]
     code, out = run_ctl(capsys, ["config", "set", "anything", "x"])
     assert code == 2

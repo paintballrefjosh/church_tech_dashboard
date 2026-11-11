@@ -103,8 +103,17 @@ def read_json(path: str, default=None):
         return default
 
 
-def write_json(path: str, value, mode: int = 0o644) -> None:
-    write_file(path, json.dumps(value, sort_keys=True, separators=(",", ":")), mode, persist=False)
+def write_json(path: str, value, mode: int = 0o644, durable: bool = False) -> None:
+    """`durable`: a note that must survive the next restart even with the read-only root on (a reset or OS update that
+    carries on after the reboot). It is then also written to the real root underneath. /var/lib/signage is normally
+    bind-mounted from there already (signage-data.service), in which case this writes the same file twice; the second
+    copy is for when that mount is missing, which nothing else would notice until the note was gone."""
+    body = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    write_file(path, body, mode, persist=False)
+    if durable and overlay_active():
+        lower = paths.OVERLAY_LOWER + (path[len(paths.ROOT):] if paths.ROOT else path)
+        run(["mount", "-o", "remount,rw", paths.OVERLAY_LOWER])
+        _write(lower, body.encode("utf-8"), mode)
 
 
 def users() -> List[str]:

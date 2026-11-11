@@ -23,8 +23,11 @@ def check_config(c: Dict) -> Dict:
         raise ConfigError("loginAccount")
     if not isinstance(c.get("setupUser"), str) or not USER_RE.match(c["setupUser"]):
         raise ConfigError("setupUser")
-    for k in ("lockSetupPassword", "passwordLogin", "rootLogin", "allowOnlyLogin", "restrictKey", "firewall", "readOnlyRoot"):
+    for k in ("lockSetupPassword", "allowOnlyLogin", "restrictKey", "firewall", "readOnlyRoot"):
         if not isinstance(c.get(k), bool):
+            raise ConfigError(k)
+    for k in ("passwordLogin", "rootLogin"):  # null = leave the Pi's own rule
+        if c.get(k) is not None and not isinstance(c.get(k), bool):
             raise ConfigError(k)
     if not isinstance(c.get("onlyFrom"), list) or len(c["onlyFrom"]) > 64:
         raise ConfigError("onlyFrom")
@@ -52,20 +55,30 @@ def login_user(c: Dict) -> str:
     return "signage" if c["loginAccount"] == "dedicated" else c["setupUser"]
 
 
+def _yn(v: bool) -> str:
+    return "yes" if v else "no"
+
+
+def locked_down(c: Dict) -> bool:
+    """Any SSH lock-down chosen at all. Without one, setup only adds the dashboard's key and changes no login rule."""
+    return c.get("passwordLogin") is not None or c.get("rootLogin") is not None or c["allowOnlyLogin"] or bool(c["onlyFrom"])
+
+
 def sshd_dropin(c: Dict) -> str:
     """The drop-in. Debian's sshd_config includes sshd_config.d/*.conf FIRST and the first value of a keyword wins, so
-    50-lampstand-signage.conf overrides the stock file."""
+    10-lampstand-signage.conf overrides the stock file and cloud-init's 50- one. A login rule is written only when the
+    settings choose one (null = the Pi's own rule stays); the banner is always there, discovery recognises Pis by it."""
     lines = [
         "# Written by Lampstand (signage). Changed through Signage > Security settings, not by hand.",
         f"VersionAddendum {BANNER}",
-        f"PasswordAuthentication {'yes' if c['passwordLogin'] else 'no'}",
-        f"KbdInteractiveAuthentication {'yes' if c['passwordLogin'] else 'no'}",
-        f"PermitRootLogin {'yes' if c['rootLogin'] else 'no'}",
-        "PubkeyAuthentication yes",
-        "X11Forwarding no",
-        "AllowAgentForwarding no",
-        "PermitTunnel no",
     ]
+    if c.get("passwordLogin") is not None:
+        lines.append(f"PasswordAuthentication {_yn(c['passwordLogin'])}")
+        lines.append(f"KbdInteractiveAuthentication {_yn(c['passwordLogin'])}")
+    if c.get("rootLogin") is not None:
+        lines.append(f"PermitRootLogin {_yn(c['rootLogin'])}")
+    if locked_down(c):
+        lines += ["X11Forwarding no", "AllowAgentForwarding no", "PermitTunnel no"]
     if c["allowOnlyLogin"]:
         lines.append(f"AllowUsers {login_user(c)}")
     if c["onlyFrom"]:
@@ -127,11 +140,12 @@ def parse_sshd_t(text: str) -> Dict[str, str]:
 
 def sshd_drift(c: Dict, effective: Dict[str, str]) -> List[str]:
     """What `sshd -T` says that the config does not want (empty = as wanted)."""
-    want = {
-        "passwordauthentication": "yes" if c["passwordLogin"] else "no",
-        "kbdinteractiveauthentication": "yes" if c["passwordLogin"] else "no",
-        "permitrootlogin": "yes" if c["rootLogin"] else "no",
-    }
+    want: Dict[str, str] = {}
+    if c.get("passwordLogin") is not None:
+        want["passwordauthentication"] = _yn(c["passwordLogin"])
+        want["kbdinteractiveauthentication"] = _yn(c["passwordLogin"])
+    if c.get("rootLogin") is not None:
+        want["permitrootlogin"] = _yn(c["rootLogin"])
     out = [f"{k} is {effective.get(k, '?')}, wanted {v}" for k, v in want.items() if effective.get(k) != v]
     if c["allowOnlyLogin"] and effective.get("allowusers", "").split() != [login_user(c)]:
         out.append(f"allowusers is {effective.get('allowusers', '(any)')!r}, wanted {login_user(c)}")

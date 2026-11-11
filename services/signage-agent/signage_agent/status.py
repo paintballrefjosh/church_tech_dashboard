@@ -4,12 +4,12 @@ import os
 import re
 import shutil
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from . import manifest as mf
 from . import media, paths, render, version
 from .apply import model, os_release
-from .util import have, overlay_active, read_json, run
+from .util import have, overlay_active, read_json, run, write_json
 
 
 def _read(path: str) -> str:
@@ -23,6 +23,49 @@ def _read(path: str) -> str:
 def cpu_temp() -> Optional[float]:
     t = _read("/sys/class/thermal/thermal_zone0/temp").strip()
     return round(int(t) / 1000, 1) if t.isdigit() else None
+
+
+def _cpu_times() -> Optional[Tuple[int, int]]:
+    """(busy, total) jiffies of all cores from the first line of /proc/stat. guest time is already inside user."""
+    line = _read("/proc/stat").split("\n", 1)[0].split()
+    if len(line) < 9 or line[0] != "cpu":
+        return None
+    try:
+        v = [int(x) for x in line[1:9]]
+    except ValueError:
+        return None
+    idle = v[3] + v[4]
+    total = sum(v)
+    return total - idle, total
+
+
+def cpu_percent() -> Optional[float]:
+    """How busy the CPU has been, 0-100 over all cores: since the previous status read when that was 1 s to 15 min ago (the
+    average over the poll interval, so a spike between polls still counts), else over a short 0.5 s sample."""
+    cur = _cpu_times()
+    if cur is None:
+        return None
+    now = time.time()
+    prev = read_json(paths.CPU_SAMPLE)
+    try:
+        os.makedirs(os.path.dirname(paths.CPU_SAMPLE), exist_ok=True)
+        write_json(paths.CPU_SAMPLE, {"at": now, "busy": cur[0], "total": cur[1]})
+    except OSError:
+        pass
+    base = None
+    if isinstance(prev, dict) and all(isinstance(prev.get(k), (int, float)) for k in ("at", "busy", "total")):
+        if 1 <= now - prev["at"] <= 900 and cur[1] > prev["total"] and cur[0] >= prev["busy"]:
+            base = (int(prev["busy"]), int(prev["total"]))
+    if base is None:
+        time.sleep(0.5)
+        later = _cpu_times()
+        if later is None:
+            return None
+        base, cur = cur, later
+    total = cur[1] - base[1]
+    if total <= 0:
+        return None
+    return round(max(0.0, min(100.0, 100.0 * (cur[0] - base[0]) / total)), 1)
 
 
 def throttled() -> Optional[str]:
@@ -115,6 +158,7 @@ def collect(full: bool = True) -> Dict[str, object]:
         "hostname": os.uname().nodename[:120],
         "uptimeS": _uptime(),
         "cpuTempC": cpu_temp(),
+        "cpuPct": cpu_percent(),
         "throttled": flags,
         "underVoltage": under_voltage(flags),
         "diskFreeMb": round(disk.free / 1048576),
@@ -131,6 +175,8 @@ def collect(full: bool = True) -> Dict[str, object]:
         "tvError": player.get("tvError") if fresh else None,
         "roku": player.get("roku") if fresh else None,
         "displayMode": player.get("displayMode") if fresh else None,
+        "decoder": player.get("decoder") if fresh else None,
+        "playback": player.get("playback") if fresh else None,
         "osUpdateState": (read_json(paths.OS_UPDATE_STATE) or {}).get("state"),
         "identifyUntil": ident.get("until") if ident and ident.get("untilTs", 0) > time.time() else None,
         "readOnlyRoot": overlay_active(),

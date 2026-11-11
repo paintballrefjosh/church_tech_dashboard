@@ -18,7 +18,7 @@ import sys
 import time
 from typing import Callable, Dict, List
 
-from . import paths, render
+from . import adoption, paths, render
 from .util import have, overlay_active, read_json, remove_file, run, write_file, write_json
 
 PACKAGES = ["mpv", "v4l-utils", "iw", "nftables", "python3"]
@@ -37,6 +37,7 @@ class Log:
 
     def step(self, name: str) -> None:
         print(f"@@step {name}", file=sys.stderr, flush=True)
+        adoption.note(name)  # what the TV says while the Pi is adopted
 
     def __call__(self, msg: str) -> None:
         self.lines.append(msg)
@@ -71,6 +72,37 @@ def model() -> str:
     return ""
 
 
+def desktop_image() -> bool:
+    """True when the Pi boots to a graphical session (the full desktop image): `systemctl get-default` says graphical.target.
+
+    The player is mpv on DRM/KMS and needs the screen to itself, so setup switches such a Pi to boot to the console."""
+    code, out, _ = run(["systemctl", "get-default"])
+    return code == 0 and out.strip() == "graphical.target"
+
+
+def remember_original(facts: Dict[str, object]) -> None:
+    """The Pi as it was before the first setup, kept once so "forget" (release) can put it back. Never overwritten."""
+    if os.path.exists(paths.ORIGINAL):
+        return
+    zone = ""
+    try:
+        zone = os.readlink(paths.p("/etc/localtime"))
+    except OSError:
+        pass
+    write_json(
+        paths.ORIGINAL,
+        {
+            "desktop": bool(facts.get("desktop")),
+            "hostname": _read(paths.p("/etc/hostname")).strip(),
+            "timezoneLink": zone,
+            "timezone": _read(paths.p("/etc/timezone")).strip(),
+            "cmdline": _read(paths.CMDLINE) or None,
+            "at": time.time(),
+        },
+        0o600,
+    )
+
+
 def check(log: Log) -> Dict[str, object]:
     log.step("check")
     m = model()
@@ -85,7 +117,21 @@ def check(log: Log) -> Dict[str, object]:
         raise ApplyError(f"{facts['os'] or 'This OS'} is not supported: flash Raspberry Pi OS Lite 64-bit ({', '.join(SUPPORTED_CODENAMES)}).")
     if arch != "aarch64" and not simulated():
         raise ApplyError(f"The OS is {arch}: flash the 64-bit Raspberry Pi OS Lite.")
-    free_mb = shutil.disk_usage(paths.p("/")).free // 1048576
+    facts["desktop"] = False if simulated() else desktop_image()
+    if facts["desktop"]:
+        log("this Pi boots to the desktop (full Raspberry Pi OS): setup will switch it to the console")
+    overlay_on = overlay_active()
+    if overlay_on and not os.path.exists(paths.APPLIED):
+        # Not ours (a Pi set up before turns it on and off itself): anything installed now would live in memory and be
+        # gone at the next restart. Typically a Forget that could not finish, or the person switched it on.
+        raise ApplyError(
+            "The read-only root (overlay file system) is on, so nothing setup installs would survive a restart. "
+            "Turn it off on the Pi (sudo raspi-config nonint disable_overlayfs, then restart it), or take out the SD card and "
+            "delete overlayroot=tmpfs from cmdline.txt on its boot partition, then set it up again."
+        )
+    remember_original(facts)
+    # With the read-only root on, / is a RAM overlay about half the memory in size: the SD card is the real root under it.
+    free_mb = shutil.disk_usage(paths.OVERLAY_LOWER if overlay_on else paths.p("/")).free // 1048576
     if free_mb < 1024:
         raise ApplyError(f"Only {free_mb} MB free on the SD card; at least 1 GB is needed.")
     log(f"{m or 'simulated Pi'}, {facts['os']}, {arch}, {free_mb} MB free")
@@ -194,21 +240,26 @@ def system(c: Dict, log: Log) -> bool:
     if os.path.exists(cmdline):
         args = _read(cmdline).split()
         want = {"consoleblank": "0", "vt.global_cursor_default": "0", "quiet": None}
-        changed = False
         for k, v in want.items():
             token = k if v is None else f"{k}={v}"
+            if token in args:
+                continue  # already there: leave it where it is (moving it made every apply rewrite the file and restart the Pi)
             args = [a for a in args if not (a == k or a.startswith(k + "="))] + [token]
-            changed = True
         if not any(a.startswith("video=HDMI-A-1:") for a in args):
             # Drive HDMI even when the TV was off at boot (no hot-plug), at the v1 resolution.
             args.append("video=HDMI-A-1:1920x1080@60D")
         new = " ".join(args) + "\n"
-        if changed and write_file(cmdline, new):
+        if write_file(cmdline, new):
             reboot = True
             log("boot options: no console blanking, HDMI forced on at 1920x1080")
     elif not simulated():
         log("warning: /boot/firmware/cmdline.txt not found; boot options not changed")
     if have("systemctl") and not simulated():
+        if desktop_image():
+            # mpv draws straight to the display (DRM/KMS), which a running desktop holds: boot to the console instead.
+            run(["systemctl", "set-default", "multi-user.target"])
+            log("boot to the console instead of the desktop (after the reboot)")
+            reboot = True
         code, out, _ = run(["systemctl", "is-enabled", "getty@tty1.service"])
         if out.strip() != "masked":
             run(["systemctl", "mask", "getty@tty1.service"])
@@ -247,6 +298,8 @@ def lockdown(c: Dict, log: Log) -> Dict[str, object]:
     home = _home(login)
     ak = os.path.join(home, ".ssh", "authorized_keys")
     targets = {paths.SSHD_DROPIN: render.sshd_dropin(c), ak: render.authorized_keys(c)}
+    if os.path.exists(paths.LEGACY_SSHD_DROPIN):
+        targets[paths.LEGACY_SSHD_DROPIN] = None  # the old 50- name (lost to cloud-init's file); the undo puts it back
     if c["firewall"]:
         targets[paths.NFT_FILE] = render.nft_rules(c)
     backups: Dict[str, object] = {}
@@ -270,6 +323,7 @@ def lockdown(c: Dict, log: Log) -> Dict[str, object]:
         _chown(login, os.path.join(home, ".ssh"))
         _chown(login, ak)
         write_file(paths.SSHD_DROPIN, render.sshd_dropin(c))
+        remove_file(paths.LEGACY_SSHD_DROPIN)
         code, _, err = run(["sshd", "-t"])
         if code != 0:
             raise ApplyError(f"sshd refused the new settings: {err.strip()}")
@@ -374,12 +428,12 @@ def overlay(c: Dict, log: Log) -> bool:
         code, _, err = run(["raspi-config", "nonint", "enable_overlayfs"], timeout=600)
         if code != 0:
             raise ApplyError(f"could not turn the read-only root on: {err.strip()}")
-        log("read-only root turned on (after the reboot)")
+        log("read-only root turned on, from the next restart: the SD card is then only read, so a power cut cannot damage it; the Pi keeps its changes in memory and forgets them at restart")
     else:
         code, _, err = run(["raspi-config", "nonint", "disable_overlayfs"], timeout=600)
         if code != 0:
             raise ApplyError(f"could not turn the read-only root off: {err.strip()}")
-        log("read-only root turned off (after the reboot)")
+        log("read-only root turned off, from the next restart: the SD card is written normally again")
     return True
 
 
@@ -414,10 +468,27 @@ def _home(user: str) -> str:
     raise ApplyError(f"there is no {user} account")
 
 
+def chown_targets(path: str) -> List[str]:
+    """The files that must belong to the user: `path` itself and, with the read-only root on, its copy on the real root
+    underneath. `write_file` writes both, but a new file is made by root, and sshd (StrictModes) refuses an
+    authorized_keys that its user does not own: the first re-apply on a Pi with the read-only root on gave the live copy to
+    `signage` and left the real one root's, so after the next restart the dashboard's key was refused and nothing could get
+    in (found 2026-11-11, tv1-pi)."""
+    out = [path]
+    if overlay_active():
+        out.append(paths.OVERLAY_LOWER + (path[len(paths.ROOT):] if paths.ROOT else path))
+    return out
+
+
 def _chown(user: str, path: str) -> None:
     if paths.ROOT:
         return
-    shutil.chown(path, user, user)
+    for i, target in enumerate(chown_targets(path)):
+        if i:
+            if not os.path.lexists(target):
+                continue
+            run(["mount", "-o", "remount,rw", paths.OVERLAY_LOWER])
+        shutil.chown(target, user, user)
 
 
 def _read(path: str) -> str:

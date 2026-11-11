@@ -93,3 +93,23 @@ def test_sshd_drift():
     assert render.sshd_drift(config(), eff) == []
     eff["passwordauthentication"] = "yes"
     assert render.sshd_drift(config(), eff) == ["passwordauthentication is yes, wanted no"]
+
+
+def test_the_default_settings_change_no_ssh_login_rule():
+    """Nothing chosen (the defaults since 2026-11-11): only the banner, so the Pi's own password/root rules stay as they are."""
+    c = config(lockSetupPassword=False, passwordLogin=None, rootLogin=None, allowOnlyLogin=False, onlyFrom=[], restrictKey=False)
+    assert render.check_config(c) is c
+    text = render.sshd_dropin(c)
+    for word in ("PasswordAuthentication", "KbdInteractiveAuthentication", "PermitRootLogin", "AllowUsers", "DenyUsers", "X11Forwarding"):
+        assert word not in text
+    assert "VersionAddendum lampstand-signage" in text
+    # Whatever the Pi has is not drift when nothing was asked for.
+    assert render.sshd_drift(c, {"passwordauthentication": "yes", "permitrootlogin": "prohibit-password"}) == []
+
+
+def test_the_drop_in_sorts_before_cloud_inits():
+    import os
+
+    from signage_agent import paths
+
+    assert os.path.basename(paths.SSHD_DROPIN) < "50-cloud-init.conf"

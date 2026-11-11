@@ -20,7 +20,7 @@ from typing import Dict, List, NoReturn
 
 from . import apply as ap
 from . import manifest as mf
-from . import media, osupdate, paths, status, tv, version
+from . import console, media, osupdate, paths, release, status, tv, version
 from .util import read_json, run, write_json
 
 SHA = re.compile(r"^[0-9a-f]{64}$")
@@ -31,7 +31,9 @@ CODE = re.compile(r"^\d{3}$")
 B64 = re.compile(r"^[A-Za-z0-9_-]{0,400}={0,2}$")
 SSHCONN = re.compile(r"^[0-9a-fA-F.:]{3,45} \d{1,5} [0-9a-fA-F.:]{3,45} \d{1,5}$")
 MAX_STDIN = {"manifest-put": mf.MAX_BYTES, "apply": 64 * 1024, "agent-put": 32 * 1024 * 1024}
-CONFIG_KEYS = {"hwdec": {"auto-safe", "no", "drm"}}
+# hwdec: "default" removes the override (the agent picks by model, player.default_hwdec).
+# v4l2m2m (no copy) hands the decoded frame straight to the GPU; untried on a Pi 3, so it is a choice, not the default.
+CONFIG_KEYS = {"hwdec": {"default", "auto-safe", "no", "drm", "v4l2m2m-copy", "v4l2m2m"}}
 
 # Commands a remote caller may run, and whether each needs root.
 COMMANDS = {
@@ -53,9 +55,11 @@ COMMANDS = {
     "apply": True,
     "confirm": True,
     "os-update": True,
+    "release": True,
+    "release-status": True,
 }
 # Only from argv (the agent itself, the timed undo), never from SSH_ORIGINAL_COMMAND.
-INTERNAL = {"revert-after": True, "rollback-check": True, "os-update-run": True, "agent-install": True}
+INTERNAL = {"revert-after": True, "rollback-check": True, "os-update-run": True, "agent-install": True, "release-run": True}
 
 
 class Refused(Exception):
@@ -189,11 +193,13 @@ def c_restart_player(args: List[str], conn: str) -> Dict:
 
 
 def c_restart_agent(args: List[str], conn: str) -> Dict:
+    console.say(console.RESTARTING_PLAYER)
     code, _, err = run(["systemctl", "restart", "--no-block", "signage-agent.service"])
     return {"restarted": code == 0, "error": err.strip() or None}
 
 
 def c_reboot(args: List[str], conn: str) -> Dict:
+    console.say(console.RESTARTING)
     subprocess.Popen(["/bin/sh", "-c", "sleep 2; systemctl reboot"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     return {"rebooting": True}
 
@@ -214,6 +220,9 @@ def c_diag(args: List[str], conn: str) -> Dict:
         "time": cmd("timedatectl"),
         "agent": cmd("systemctl", "status", "--no-pager", "-n", "0", "signage-agent.service"),
         "cec": cmd("cec-ctl", "-d", "/dev/cec0", "--list-devices"),
+        # The hardware video codecs the kernel offers (bcm2835-codec-decode on a Pi 3 or 4) and the chosen decoder.
+        "codecs": cmd("sh", "-c", "for d in /sys/class/video4linux/video*; do echo $(basename $d) $(cat $d/name); done"),
+        "hwdec": (read_json(paths.LOCAL_CONFIG, {}) or {}).get("hwdec") or "default",
         "displays": cmd("sh", "-c", "for d in /sys/class/drm/*HDMI*; do echo $d $(cat $d/status) $(head -n1 $d/modes); done"),
         "journal": cmd("journalctl", "-u", "signage-agent", "-n", "50", "--no-pager"),
     }
@@ -224,10 +233,13 @@ def c_config(args: List[str], conn: str) -> Dict:
     if args == ["get"]:
         return {"config": cfg}
     if len(args) == 3 and args[0] == "set" and args[1] in CONFIG_KEYS and args[2] in CONFIG_KEYS[args[1]]:
-        cfg[args[1]] = args[2]
+        if args[2] == "default":
+            cfg.pop(args[1], None)
+        else:
+            cfg[args[1]] = args[2]
         write_json(paths.LOCAL_CONFIG, cfg)
         return {"config": cfg}
-    raise Refused("usage: config get | config set hwdec auto-safe|no|drm")
+    raise Refused("usage: config get | config set hwdec default|auto-safe|no|drm|v4l2m2m-copy|v4l2m2m")
 
 
 def c_apply(args: List[str], conn: str) -> Dict:
@@ -257,6 +269,42 @@ def c_os_update(args: List[str], conn: str) -> Dict:
         return {"started": False, "state": s.get("state")}
     spawn_detached(["os-update-run"])
     return {"started": True}
+
+
+def c_release(args: List[str], conn: str) -> Dict:
+    """Take this Pi back to a normal Raspberry Pi (the dashboard's Forget). Returns at once; the Pi restarts once or twice."""
+    persist_agent()  # the work may run after a restart, from this very version
+    r = release.start()
+    if r.get("error"):
+        raise Refused(str(r["error"]))
+    if r.get("runNow"):
+        spawn_detached(["release-run"])
+    else:
+        subprocess.Popen(["/bin/sh", "-c", "sleep 3; systemctl reboot"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return {"started": True, "reboots": True, "lifting_read_only_root": not r.get("runNow"), "bootId": r.get("bootId")}
+
+
+def c_release_run(args: List[str], conn: str) -> Dict:
+    return {"done": release.run_release()}
+
+
+def persist_agent() -> None:
+    """With the read-only root on, an installed agent exists only in memory: copy the running version (and the links to it) to
+    the real root underneath, or the next restart brings back the old one."""
+    from .util import overlay_active
+
+    if not overlay_active() or ap.simulated():
+        return
+    run(["mount", "-o", "remount,rw", paths.OVERLAY_LOWER])
+    real = os.path.realpath(paths.CURRENT)
+    dst = paths.OVERLAY_LOWER + real
+    if not os.path.exists(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copytree(real, dst)
+    for link in (paths.CURRENT, paths.PREVIOUS, paths.CTL_LINK):
+        if os.path.islink(link):
+            os.makedirs(os.path.dirname(paths.OVERLAY_LOWER + link), exist_ok=True)
+            _swap_link(paths.OVERLAY_LOWER + link, os.readlink(link))
 
 
 def c_agent_put(args: List[str], conn: str) -> Dict:
@@ -329,8 +377,10 @@ def install(src: str, ver: str) -> Dict:
         run(["systemctl", "daemon-reload"])
         code, _, _ = run(["systemctl", "is-enabled", "signage-agent.service"])
         if code == 0:
+            console.say(console.UPDATING)
             run(["systemctl", "restart", "--no-block", "signage-agent.service"])
             restarted = True
+    persist_agent()
     if prev and restarted:
         spawn_detached(["rollback-check", os.path.basename(prev), "120"])
     # Keep the current and previous versions only.
@@ -406,6 +456,9 @@ HANDLERS = {
     "apply": c_apply,
     "confirm": c_confirm,
     "os-update": c_os_update,
+    "release": c_release,
+    "release-status": lambda a, c: release.progress(),
+    "release-run": c_release_run,
     "revert-after": c_revert_after,
     "rollback-check": c_rollback_check,
     "os-update-run": c_os_update_run,

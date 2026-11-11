@@ -7,7 +7,7 @@ import os
 import time
 from typing import Dict
 
-from . import paths
+from . import console, paths
 from .util import have, overlay_active, read_json, run, write_json
 
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "DEBIAN_FRONTEND": "noninteractive", "LANG": "C.UTF-8"}
@@ -21,7 +21,7 @@ def _set(**kw) -> None:
     s = state()
     s.update(kw)
     s["changedAt"] = time.time()
-    write_json(paths.OS_UPDATE_STATE, s)
+    write_json(paths.OS_UPDATE_STATE, s, durable=True)  # read again after the restart that lifts the read-only root
 
 
 def start() -> Dict:
@@ -32,6 +32,7 @@ def start() -> Dict:
         if code != 0:
             _set(state=f"failed: could not lift the read-only root: {err.strip()[-200:]}", phase=None)
             return state()
+        console.say(console.UPDATING_SYSTEM)
         run(["systemctl", "reboot"])
         return state()
     return upgrade(restore_overlay=False)
@@ -51,6 +52,7 @@ def upgrade(restore_overlay: bool) -> Dict:
         run(["raspi-config", "nonint", "enable_overlayfs"], timeout=600)
         reboot = True
     if reboot and have("systemctl"):
+        console.say(console.RESTARTING)
         run(["systemctl", "reboot"])
     return state()
 

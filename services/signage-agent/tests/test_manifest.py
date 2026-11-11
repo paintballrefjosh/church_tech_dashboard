@@ -79,3 +79,101 @@ def test_sequencer_skips_missing_media_and_unsynced_clock_plays_fallback():
     assert s.current(man, start + 1, True, {B})["item"]["m"] == B
     assert s.current(man, start + 1, False, {A, B})["entry"] is None
     assert Sequencer().current(man, start + 1, True, set())["item"] is None
+
+
+def _edited(man, items, key="p1~new"):
+    """The manifest a re-compile gives after the playlist was edited: a new key, and the entry now starts when it was compiled."""
+    out = json.loads(json.dumps(man))
+    out["playlists"] = {**man["playlists"], key: items}
+    out["timeline"] = [{**man["timeline"][0], "start": "2026-11-08T10:00:05Z", "playlist": key}]
+    return out
+
+
+def test_an_edited_playlist_waits_for_the_cycle_to_finish():
+    C = "c" * 64
+    man = m()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    have = {A, B, C}
+    assert s.current(man, start + 1, True, have)["item"]["m"] == A
+    # Edited while A is on: A, then B (the old cycle) finish; only then does the new list begin.
+    new = _edited(man, [{"m": C, "dur": 8, "kind": "image"}, {"m": A, "dur": 8, "kind": "image"}])
+    assert s.current(new, start + 5, True, have)["item"]["m"] == A
+    assert s.current(new, start + 9, True, have)["item"]["m"] == B
+    assert s.current(new, start + 19, True, have)["item"]["m"] == B
+    assert s.current(new, start + 21, True, have)["item"]["m"] == C
+    assert s.current(new, start + 29, True, have)["item"]["m"] == A
+
+
+def test_an_edit_does_not_send_the_show_back_to_its_first_item():
+    man = m()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    assert s.current(man, start + 1, True, {A, B})["item"]["m"] == A
+    assert s.current(man, start + 9, True, {A, B})["item"]["m"] == B
+    again = _edited(man, man["playlists"]["p1~x"])
+    assert s.current(again, start + 10, True, {A, B})["item"]["m"] == B
+
+
+def test_an_item_removed_from_the_pi_is_not_held_on_for():
+    man = m()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    assert s.current(man, start + 1, True, {A, B})["item"]["m"] == A
+    assert s.current(man, start + 9, True, {A, B})["item"]["m"] == B
+    assert s.current(man, start + 10, True, {A})["item"]["m"] == A
+
+
+def test_a_different_playlist_or_schedule_starts_from_its_first_item():
+    man = m()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    assert s.current(man, start + 1, True, {A, B})["item"]["m"] == A
+    assert s.current(man, start + 9, True, {A, B})["item"]["m"] == B
+    other = json.loads(json.dumps(man))
+    other["playlists"]["p2~z"] = [{"m": A, "dur": 8, "kind": "image"}, {"m": B, "dur": 12, "kind": "video"}]
+    other["timeline"][0]["playlist"] = "p2~z"
+    assert s.current(other, start + 10, True, {A, B})["item"]["m"] == A
+
+
+def _three():
+    C = "c" * 64
+    man = m()
+    man["playlists"]["p1~x"] = [{"m": A, "dur": 8, "kind": "image"}, {"m": B, "dur": 8, "kind": "image"}, {"m": C, "dur": 8, "kind": "image"}]
+    return man, {A, B, C}, C
+
+
+def test_a_stalled_loop_moves_on_one_item_and_never_skips_the_next():
+    # 2026-11-11: a CEC check held the loop up ~9 s; the picture before stayed up 16 s and the next one never showed.
+    man, have, C = _three()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    assert s.current(man, start + 1, True, have)["item"]["m"] == A
+    assert s.current(man, start + 7.5, True, have)["item"]["m"] == A
+    # The loop comes back 9 s late, after B's whole slot: B shows now, for its full 8 s, and C follows.
+    assert s.current(man, start + 17, True, have)["item"]["m"] == B
+    assert s.current(man, start + 24.5, True, have)["item"]["m"] == B
+    assert s.current(man, start + 25, True, have)["item"]["m"] == C
+
+
+def test_on_time_ticks_keep_the_wall_clock():
+    man, have, C = _three()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    seen = []
+    x = start
+    while x < start + 48:
+        seen.append((round(x - start, 1), s.current(man, x, True, have)["item"]["m"][0]))
+        x += 0.5
+    changes = [(at, k) for i, (at, k) in enumerate(seen) if i == 0 or seen[i - 1][1] != k]
+    assert changes == [(0.0, "a"), (8.0, "b"), (16.0, "c"), (24.0, "a"), (32.0, "b"), (40.0, "c")]
+
+
+def test_a_long_gap_catches_up_with_the_clock():
+    man, have, C = _three()
+    s = Sequencer()
+    start = t("2026-11-08T10:00:00Z")
+    assert s.current(man, start + 1, True, have)["item"]["m"] == A
+    # Stopped for ten minutes: 600 s = 25 cycles of 24 s, so A again, as if it had played all along.
+    assert s.current(man, start + 601, True, have)["item"]["m"] == A
+    assert s.current(man, start + 609, True, have)["item"]["m"] == B
