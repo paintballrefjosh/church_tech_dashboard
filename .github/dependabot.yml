@@ -1,0 +1,32 @@
+# Weekly update pull requests. The project picks versions published at least two weeks ago (CLAUDE.md, Dependencies):
+# cooldown holds a new release back for 14 days before a PR is opened.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+  - package-ecosystem: docker
+    directories: [/apps/api, /apps/web, /services/monitor, /infra/garage]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+  - package-ecosystem: pip
+    directory: /services/signage-agent
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14

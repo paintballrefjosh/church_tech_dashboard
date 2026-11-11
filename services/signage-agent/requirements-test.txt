@@ -1,0 +1,3 @@
+# Test-only tools for the signage agent (the agent itself uses the Python standard library only).
+pytest==9.1.1
+pytest-cov==7.1.0

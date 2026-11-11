@@ -1,0 +1,76 @@
+# Typecheck and unit tests on every push to master and every pull request. The smoke, e2e and integration suites need
+# the running stack or a database and are run locally (make regression; TEST_DATABASE_URL), not here.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Typecheck and unit tests (api, web, shared)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (version from packageManager)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the shared package
+        run: pnpm --filter @lampstand/shared build
+      - name: Typecheck
+        run: |
+          pnpm --filter @lampstand/shared typecheck
+          pnpm --filter @lampstand/api exec tsc --noEmit -p tsconfig.json --tsBuildInfoFile /tmp/tsbi-api
+          pnpm --filter @lampstand/web typecheck
+      - name: Unit tests with coverage
+        run: |
+          pnpm --filter @lampstand/api exec vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
+          pnpm --filter @lampstand/web exec vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
+      - name: No source file hidden by .gitignore
+        run: scripts/check-ignored.sh
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: apps/api/coverage/lcov.info,apps/web/coverage/lcov.info
+          flags: node
+          fail_ci_if_error: false
+
+  agent:
+    name: Signage agent (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13" # Debian 13 (trixie), what the Pis run
+      - run: pip install -r services/signage-agent/requirements-test.txt
+      - name: pytest
+        working-directory: services/signage-agent
+        run: python -m pytest -q -p no:cacheprovider --cov=signage_agent --cov-report=xml tests
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: services/signage-agent/coverage.xml
+          flags: agent
+          fail_ci_if_error: false

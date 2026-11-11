@@ -1,5 +1,12 @@
 # Lampstand
 
+[![CI](https://github.com/paintballrefjosh/lampstand/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/paintballrefjosh/lampstand/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/paintballrefjosh/lampstand/actions/workflows/codeql.yml/badge.svg?branch=master)](https://github.com/paintballrefjosh/lampstand/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/paintballrefjosh/lampstand/badge)](https://scorecard.dev/viewer/?uri=github.com/paintballrefjosh/lampstand)
+[![codecov](https://codecov.io/gh/paintballrefjosh/lampstand/graph/badge.svg)](https://codecov.io/gh/paintballrefjosh/lampstand)
+[![Version](https://img.shields.io/github/package-json/v/paintballrefjosh/lampstand?label=version)](./package.json)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](./LICENSE)
+
 > "Nor do people light a lamp and put it under a basket, but on a stand, and it gives light to
 > all in the house." — Matthew 5:15 (ESV)
 >
@@ -185,4 +192,10 @@ make regression
 
 ## License
 
-To be decided. Default for now: no public redistribution; private/internal use only.
+[GNU Affero General Public License v3.0](./LICENSE) (AGPL-3.0-only). You may use, change and share
+Lampstand freely; if you run a modified copy for other people over a network, you must offer them
+its source code.
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](./SECURITY.md).
