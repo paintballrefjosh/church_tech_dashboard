@@ -23,6 +23,49 @@ volunteer checklists, livestream checks, TV signage, an optional AI assistant, a
 > built against simulated Raspberry Pis only (no real Pi or TV has run it yet), and the Assistant has not yet been run against a real model. See
 > [CLAUDE.md](./CLAUDE.md) § Roadmap for the detail.
 
+## Screenshots
+
+Shown in your browser's light or dark setting. These come from the development stack with names, addresses and hostnames replaced by examples.
+
+### Home page
+
+Every person picks a look for the home page. This is **Front of House**, the console view for a booth screen or the person on duty: the service countdown, a strip per area (servers, internet, Wi-Fi, switches, DNS, services) with live meters, and whatever currently needs someone.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-front-of-house-dark.png">
+  <img src="docs/screenshots/home-front-of-house-light.png" alt="The Front of House home page: a countdown to the next service, then a card for each system area with live meters and an Everything summary with recent events.">
+</picture>
+
+There are six looks (Front of House, Glass, Nave, Toward Sunday, Start page and the draggable Tiles), all in light and dark, all reading the same data:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-looks-dark.gif">
+  <img src="docs/screenshots/home-looks-light.gif" alt="An animation cycling through the six home page looks.">
+</picture>
+
+### Monitoring
+
+Hosts are read over SSH with no agent: CPU, memory, disk, load, network and disk throughput, containers and pending updates, with threshold alerts that open incidents.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/monitoring-host-dark.png">
+  <img src="docs/screenshots/monitoring-host-light.png" alt="An infrastructure host page with CPU, memory, disk, load average and network throughput charts.">
+</picture>
+
+Cisco switches are shown as a picture of the real front panel, with each port coloured by state and a details card on hover. The pictures are device profiles an admin can import from a vendor stencil.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/monitoring-switch-dark.png">
+  <img src="docs/screenshots/monitoring-switch-light.png" alt="A Cisco Nexus switch drawn from its front panel with a hover card showing one port's description, mode, VLANs and speed.">
+</picture>
+
+A short tour of the Monitoring section: service probes, a host's charts, UniFi devices, and a switch's ports and back panel.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/monitoring-tour-dark.gif">
+  <img src="docs/screenshots/monitoring-tour-light.gif" alt="An animation touring the Monitoring pages: services, an infrastructure host, UniFi devices and a Cisco switch.">
+</picture>
+
 ## What's in here
 
 Each module has its own settings inside it (for example `/signage/settings`, `/tickets/settings`),
