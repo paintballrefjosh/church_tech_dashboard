@@ -49,7 +49,7 @@ needs_rebuild() {
   find "$path" -type f \( \
       -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.mjs' \
       -o -name '*.json' -o -name '*.css' -o -name 'Dockerfile' -o -name '*.sql' \
-      -o -name '*.yml' -o -name 'Caddyfile' -o -name '*.sh' \
+      -o -name '*.yml' -o -name 'Caddyfile' -o -name '*.sh' -o -name '*.py' -o -name 'VERSION' \
     \) -newer "$REBUILD_MARKER" -print -quit 2>/dev/null | grep -q .
 }
 

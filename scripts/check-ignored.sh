@@ -10,7 +10,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 git rev-parse --git-dir >/dev/null 2>&1 || { echo "check-ignored: not a git checkout, nothing to check"; exit 0; }
 hidden=$(git ls-files --others --ignored --exclude-standard --directory -- apps packages services tests infra docs scripts 2>/dev/null \
-  | grep -vE '(^|/)(node_modules|dist|\.next|\.turbo|coverage|playwright-report|test-results|\.playwright)(/|$)|\.tsbuildinfo$|\.log$|(^|/)\.nfs')
+  | grep -vE '(^|/)(node_modules|dist|\.next|\.turbo|coverage|playwright-report|test-results|\.playwright|__pycache__|\.pytest_cache)(/|$)|\.tsbuildinfo$|\.log$|(^|/)\.nfs')
 if [[ -n $hidden ]]; then
   echo "check-ignored: these exist but .gitignore hides them, so a fresh clone will not have them:" >&2
   sed 's/^/  /' <<<"$hidden" >&2
