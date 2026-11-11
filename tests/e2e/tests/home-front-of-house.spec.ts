@@ -73,7 +73,7 @@ test.describe("Home look: Front of House", () => {
       expect(isDark).toBe(scheme === "dark");
       // The look paints its own background, and it differs between the schemes.
       const bg = await root.evaluate((el) => getComputedStyle(el).backgroundColor);
-      expect(bg).toBe(scheme === "dark" ? "rgb(29, 32, 37)" : "rgb(217, 221, 227)");
+      expect(bg).toBe(scheme === "dark" ? "rgb(10, 16, 32)" : "rgb(217, 221, 227)");
     });
   }
 

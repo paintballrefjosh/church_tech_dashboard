@@ -252,7 +252,9 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     <DialogFrame
       onClose={onClose}
       labelledBy={titleId}
-      className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+      // Capped at the window and scrolling inside: the overlay centres the panel and does not scroll, so a form taller than
+      // the window (Edit switch, 720 px high) lost its Save button below the bottom edge.
+      className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-300 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
     >
       <h2 id={titleId} className="mb-3 text-base font-semibold">{title}</h2>
       {children}
