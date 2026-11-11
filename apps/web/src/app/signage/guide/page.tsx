@@ -59,7 +59,7 @@ export default async function SignageGuidePage() {
             <strong>Screens</strong> are the places a TV hangs (Foyer, Cafe). A screen is what you plan for; the Pi behind it can be swapped without changing the plan.
           </li>
           <li>
-            <strong>Schedule</strong> says which playlist a screen, a group of screens or every screen shows, and when: one time (a wedding, a conference) or repeating every week or on some weeks of the month (the first and last Saturday). Each entry has a priority from Lowest to Highest. On the month calendar, double-click a day to add to it, or right-click a day (or an event) for a small menu.
+            <strong>Schedule</strong> says which playlist a screen, a group of screens or every screen shows, and when: one time (a wedding, a conference) or repeating every week or on some weeks of the month (the first and last Saturday). Each entry has a priority from Lowest to Highest. On the month calendar, double-click a day to add to it, or right-click a day (or an event) for a small menu. Groups of screens are made and filled on the Devices page, on its Groups tab.
           </li>
           <li>
             <strong>Power</strong> turns the TV on and off at set times, and the Pi keeps those times itself.
