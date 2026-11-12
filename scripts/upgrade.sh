@@ -39,6 +39,13 @@
 #   5. Checks that the new containers are healthy and run the new build id. If not, it goes back to the previous
 #      version by itself (the migrations are not undone, which is safe because they are additive).
 #
+# A version can name the compose project differently from the one before it (the rename to Lampstand: church-prod ->
+# lampstand-prod). Then the running containers belong to a project the new files do not know, and they hold the ports
+# and the object store's data. The swap stops the old project's containers first (never its volumes or ./data), starts
+# the new ones, and goes back the same way if the new version is not healthy. A service built from this repo besides
+# api/web/monitor (the bundled Garage) gets its image under the new name from the old one (a retag) or by building it.
+# A bundled database cannot change project this way: the upgrade stops before touching anything (see INSTALL.md).
+#
 # State and logs are in data/upgrade/ (git-ignored). --rollback uses the commit recorded there.
 set -euo pipefail
 # UPGRADE_ROOT lets upgrade-cluster.sh run THIS file (the target version's copy) from outside the checkout, so a node
@@ -62,7 +69,7 @@ while [[ $# -gt 0 ]]; do
     --build) FORCE_BUILD=1; shift ;;
     --pull) PULL_ONLY=1; shift ;;
     --yes|-y) YES=1; shift ;;
-    -h|--help) sed -n '2,46p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,49p' "$0"; exit 0 ;;
     *) echo "upgrade.sh: unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -134,11 +141,31 @@ fi
 USE_REGISTRY=0; [[ -n "$REGISTRY" && $FORCE_BUILD -eq 0 ]] && USE_REGISTRY=1
 
 dc() { "${DC[@]}" "$@"; }
-running() { [[ -n "$(dc ps -q api 2>/dev/null | head -n 1)" ]]; }
+
+# The compose project name can differ between two versions (the rename to Lampstand: church-prod -> lampstand-prod).
+# Compose only knows the project of the version that is checked out, so another project's containers are found by label.
+PROJ_CUR=""; PROJ_HEAD=""
+load_project() { # the project name the CHECKED-OUT version gives this stack (goto_commit calls it again after every move)
+  local h; h="$(git rev-parse HEAD)"
+  [[ "$h" != "$PROJ_HEAD" ]] || return 0
+  PROJ_CUR="$(dc config 2>/dev/null | sed -n 's/^name: *//p' | head -n 1 || true)"; PROJ_HEAD="$h"
+}
+load_project
+project_api() { docker ps -q --filter "label=com.docker.compose.project=$1" --filter "label=com.docker.compose.service=api" 2>/dev/null | head -n 1 || true; }
+# The name this stack had before the rename, for a checkout that is already on the new version while its containers are not.
+legacy_name() { [[ "$PROJ_CUR" == lampstand* ]] && printf 'church%s' "${PROJ_CUR#lampstand}" || true; }
+legacy_api() { local n; n="$(legacy_name)"; [[ -z "$n" ]] || project_api "$n"; }
+here_api() { dc ps -q api 2>/dev/null | head -n 1 || true; }
+running() { [[ -n "$(here_api)" || -n "$(legacy_api)" ]]; }
 runs_build() { # service, build id
   [[ "$(dc exec -T "$1" printenv BUILD_ID 2>/dev/null | tr -d '\r\n')" == "$2" ]]
 }
-running_build() { dc exec -T api printenv BUILD_ID 2>/dev/null | tr -d '\r\n' || true; }
+running_build() {
+  local b c
+  b="$(dc exec -T api printenv BUILD_ID 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -z "$b" ]]; then c="$(legacy_api)"; [[ -z "$c" ]] || b="$(docker exec "$c" printenv BUILD_ID 2>/dev/null | tr -d '\r\n' || true)"; fi
+  printf '%s' "$b"
+}
 
 # --status (used by upgrade-cluster.sh): does what RUNS match what is checked out? One last line: down | current | stale <running build>.
 # A checkout can be on the target commit while its containers still run an older build (the code was pulled but never built).
@@ -183,7 +210,11 @@ if [[ "$TARGET" == "$OLD" ]]; then
     # The code being here does not mean it is what runs: `git pull` moves the checkout and builds nothing.
     WANT="$(bash scripts/build-id.sh)"
     if runs_build api "$WANT" && runs_build web "$WANT"; then ok "already on $(short "$OLD") and running it; nothing to upgrade."; exit 0; fi
-    warn "the checkout is already on $(short "$OLD"), but the containers run build '$(running_build)', not '$WANT': building and swapping to bring them up to date."
+    if [[ -z "$(here_api)" ]]; then
+      warn "the checkout is already on $(short "$OLD"), but its containers still run under the old compose project name ($(legacy_name)): moving them."
+    else
+      warn "the checkout is already on $(short "$OLD"), but the containers run build '$(running_build)', not '$WANT': building and swapping to bring them up to date."
+    fi
   else
     warn "already on $(short "$OLD") but the stack is not running."
   fi
@@ -212,6 +243,21 @@ git diff --quiet "$OLD" "$TARGET" -- infra/caddy infra/docker-compose.yml infra/
 (( INFRA_CHANGED )) && warn "infrastructure files changed: the proxy, and any service whose definition changed, are recreated too."
 git diff --quiet "$OLD" "$TARGET" -- INSTALL.md || warn "INSTALL.md changed: read what is new before relying on old habits."
 
+# Does this upgrade change the compose project the containers belong to? RUN_OLD is the project the running containers are in:
+# the checked-out version's, or (checkout already on the new version) the old name. A name in .env or the environment wins over
+# the compose file's, and then nothing changes.
+PROJ_OLD="$PROJ_CUR"; RUN_OLD="$PROJ_OLD"
+if [[ -z "$(here_api)" && -n "$(legacy_api)" ]]; then RUN_OLD="$(legacy_name)"; fi
+tfile=infra/docker-compose.yml; [[ "$STACK" != prod ]] || tfile=infra/docker-compose.prod.yml
+TARGET_PROJ="$(git show "$TARGET:$tfile" 2>/dev/null | sed -n 's/^name: *//p' | head -n 1 || true)"
+[[ -z "${COMPOSE_PROJECT_NAME:-$(conf_env COMPOSE_PROJECT_NAME)}" ]] || TARGET_PROJ=""
+MOVE_PLAN=0
+if [[ -n "$RUN_OLD" && -n "$TARGET_PROJ" && "$RUN_OLD" != "$TARGET_PROJ" && -n "$(project_api "$RUN_OLD")" ]]; then
+  MOVE_PLAN=1
+  warn "the compose project is renamed: $RUN_OLD -> $TARGET_PROJ. The old containers are stopped and the new ones started (a short interruption on this node)."
+  [[ "$DB_MODE" != bundled ]] || die "the database is bundled, so it would have to move between compose projects, which this script does not do. Follow INSTALL.md, \"An install made before the rename to Lampstand\" (stop the old project, then start the new one). Nothing was changed."
+fi
+
 if [[ -z "$BACKUP" ]]; then if [[ "$DEPLOY_MODE" == cluster ]]; then BACKUP=no; else BACKUP=yes; fi; fi
 if [[ "$BACKUP" == yes && "$DB_MODE" != bundled ]]; then
   warn "the database is external: this script cannot back it up. Use your database's tooling (or Admin > Backups for the app's data)."
@@ -219,7 +265,11 @@ if [[ "$BACKUP" == yes && "$DB_MODE" != bundled ]]; then
 fi
 kv "  database backup first:" "$BACKUP$([[ "$DEPLOY_MODE" == cluster && "$BACKUP" == no ]] && echo ' (cluster: take one before the first node with --backup)')"
 if (( USE_REGISTRY )); then kv "  images:" "pulled from ${C}$REGISTRY${Z}$( ((PULL_ONLY)) || echo ' (built here if they are not there)')"; else kv "  images:" "built on this node"; fi
-kv "  swap:" "$([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, restart api/web/monitor, wait healthy, undrain" || echo 'restart api/web/monitor (a short interruption)')"
+if (( MOVE_PLAN )); then
+  kv "  swap:" "$([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, " || true)stop the $RUN_OLD containers, start $TARGET_PROJ, wait healthy$([[ "$DEPLOY_MODE" == cluster ]] && echo ', undrain' || true)"
+else
+  kv "  swap:" "$([[ "$DEPLOY_MODE" == cluster ]] && echo "drain, wait ${DRAIN_WAIT}s, restart api/web/monitor, wait healthy, undrain" || echo 'restart api/web/monitor (a short interruption)')"
+fi
 (( CHECK )) && { say; ok "--check: nothing was changed."; exit 0; }
 
 running || die "the stack is not running. Start it first (scripts/compose.sh$([[ $STACK == prod ]] && echo ' --prod') up -d), then upgrade."
@@ -294,7 +344,46 @@ pull_images() { # build id
     docker tag "$REGISTRY-$s:$id" "$name" || return 1
   done
 }
+# Services built from this repo besides api/web/monitor (the bundled Garage): their image name carries the compose project name, so after a
+# rename the image the new version wants does not exist yet. Reuse the old project's image under the new name (same bits, no registry,
+# no build), else build it. OTHER_PROJ is the project the containers came from.
+OTHER_PROJ=""
+ensure_local_images() {
+  local svc img src
+  while read -r svc img; do
+    [[ -n "$svc" && -n "$img" ]] || continue
+    case "$svc" in api|web|monitor) continue ;; esac
+    ! docker image inspect "$img" >/dev/null 2>&1 || continue
+    src=""
+    if [[ -n "$OTHER_PROJ" && -n "$PROJ_CUR" && "$img" == "$PROJ_CUR"* ]]; then src="$OTHER_PROJ${img#"$PROJ_CUR"}"; fi
+    if [[ -n "$src" ]] && docker image inspect "$src" >/dev/null 2>&1; then
+      note "  image $img is new under this project name: reusing $src"
+      docker tag "$src" "$img" || return 1
+    else
+      note "  building $svc (the image $img is not here)"
+      dc build "$svc" || return 1
+    fi
+  done < <(dc config 2>/dev/null | awk '/^[^ ]/ {top=$1} top=="services:" && /^  [A-Za-z0-9_-]+:[ ]*$/ {cur=$1; sub(/:$/,"",cur)} top=="services:" && /^    build:/ {b[cur]=1} top=="services:" && /^    image:/ {im[cur]=$2} END {for (s in b) if (im[s] != "") print s, im[s]}' | sort -u)
+}
+# Stop and remove a compose project's containers and networks, found by label. Never volumes, never ./data.
+retire_project() { # project name
+  local p=$1 ids nets
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$p" 2>/dev/null || true)"
+  [[ -n "$ids" ]] || return 0
+  note "  stopping the containers of compose project $p"
+  # shellcheck disable=SC2086
+  docker stop $ids >/dev/null 2>&1 || true
+  # shellcheck disable=SC2086
+  docker rm $ids >/dev/null 2>&1 || true
+  nets="$(docker network ls -q --filter "label=com.docker.compose.project=$p" 2>/dev/null || true)"
+  # shellcheck disable=SC2086
+  [[ -z "$nets" ]] || docker network rm $nets >/dev/null 2>&1 || true
+  [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=$p" 2>/dev/null || true)" ]] || warn "some containers of $p are still running; the new ones may not be able to start."
+}
 get_images() { # build id
+  get_app_images "$1" && ensure_local_images
+}
+get_app_images() { # build id
   if (( USE_REGISTRY )); then
     pull_images "$1" && return 0
     (( PULL_ONLY )) && return 1
@@ -314,6 +403,12 @@ goto_commit() { # sync the working tree to a commit
   else
     git checkout --quiet --detach "$1"
   fi
+  load_project
+}
+restore_old() { # build id: bring the previous version back
+  # After a project move the old images are still on this node: use them first, a rebuild would keep the site down for minutes.
+  if (( MOVE )) && swap && wait_healthy "$1" "$HEALTH_WAIT"; then return 0; fi
+  get_images "$1" && swap && wait_healthy "$1" "$HEALTH_WAIT"
 }
 swap() { # recreate what changed; the databases and the object store are left alone
   if (( INFRA_CHANGED )); then
@@ -338,6 +433,14 @@ fi
 head1 "Fetching the new version and $( ((USE_REGISTRY)) && echo 'its images' || echo 'building it') (the site keeps running the old one)"
 write_state
 goto_commit "$TARGET"
+PROJ_NEW="$PROJ_CUR"; OTHER_PROJ="$RUN_OLD"
+MOVE=0
+if [[ -n "$RUN_OLD" && -n "$PROJ_NEW" && "$RUN_OLD" != "$PROJ_NEW" && -n "$(project_api "$RUN_OLD")" ]]; then MOVE=1; fi
+if (( MOVE )) && [[ "$DB_MODE" == bundled ]]; then
+  warn "the compose project changes ($RUN_OLD -> $PROJ_NEW) and the database is bundled: not moving it. Putting the code back; nothing was touched. See INSTALL.md, \"An install made before the rename to Lampstand\"."
+  goto_commit "$OLD"
+  exit 1
+fi
 NEWID="$(bash scripts/build-id.sh)"
 kv "build id:" "$NEWID"
 if ! get_images "$NEWID"; then
@@ -367,6 +470,13 @@ if [[ "$DEPLOY_MODE" == cluster ]]; then
   (( DRAIN_WAIT > 0 )) && { note "waiting ${DRAIN_WAIT}s for open requests to finish"; sleep "$DRAIN_WAIT"; }
 fi
 SWAP_AT=$SECONDS
+if (( MOVE )); then
+  # The old containers hold the ports and the object store's data under the old project name, so they go first. The old images stay
+  # on the node, which is what makes going back quick.
+  note "  compose project $RUN_OLD -> $PROJ_NEW: stopping the old containers, starting the new ones"
+  retire_project "$RUN_OLD"
+  INFRA_CHANGED=1
+fi
 swap || true   # judged by the health check below, which also catches a half-started swap
 
 # ---- 4. verify, and go back by itself if it is not right ------------------------------------------------------------------
@@ -378,7 +488,8 @@ else
   dc logs --tail 30 api web 2>&1 | sed "s/^/    ${D}/; s/\$/${Z}/" || true
   goto_commit "$OLD"
   OLDID="$(bash scripts/build-id.sh)"
-  if get_images "$OLDID" && swap && wait_healthy "$OLDID" "$HEALTH_WAIT"; then
+  if (( MOVE )); then retire_project "$PROJ_NEW"; OTHER_PROJ="$PROJ_NEW"; INFRA_CHANGED=1; fi
+  if restore_old "$OLDID"; then
     undrain
     # The failed target must not be what --rollback goes back to.
     { echo "PREV_COMMIT=$TARGET"; echo "BRANCH=${BRANCH:-$(state_get BRANCH)}"; echo "TARGET=$OLD"; echo "STACK=$STACK"; echo "WHEN=$(date -u +%FT%TZ)"; } >"$STATE"

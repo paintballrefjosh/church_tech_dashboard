@@ -27,6 +27,12 @@ case "$1" in
         cp "$f" "$FAKE_RUN/img.$(safe "$2")"; echo "pulled $2" ;;
   tag) f="$FAKE_RUN/img.$(safe "$2")"; [[ -f "$f" ]] || exit 1; cp "$f" "$FAKE_RUN/img.$(safe "$3")" ;;
   builder) [[ "${FAKE_PRUNE:-}" == fail ]] && { echo "prune failed" >&2; exit 1; } ;;
+  # Containers per compose project: $FAKE_RUN/ctr.<project> exists = the project has containers (id c-<project>).
+  ps) proj=""; for a in "$@"; do [[ "$a" == label=com.docker.compose.project=* ]] && proj="${a#label=com.docker.compose.project=}"; done
+      [[ -n "$proj" && -f "$FAKE_RUN/ctr.$proj" ]] && echo "c-$proj"; exit 0 ;;
+  stop) echo "docker $*" >>"$FAKE_RUN/calls" ;;
+  rm) for a in "$@"; do [[ "$a" == c-* ]] && rm -f "$FAKE_RUN/ctr.${a#c-}"; done; exit 0 ;;
+  exec) [[ "$2" == c-* && -f "$FAKE_RUN/ctr.${2#c-}" ]] && { cat "$FAKE_RUN/running"; exit 0; }; exit 1 ;;
 esac
 exit 0
 EOF
@@ -35,19 +41,26 @@ chmod +x "$W/bin/docker"
 FAKE_COMPOSE='#!/usr/bin/env bash
 RUN="${FAKE_RUN:?}"
 [[ "${1:-}" == "--prod" ]] && shift
+# The compose project this checkout names: COMPOSE_PROJECT_NAME in .env wins, then the file'"'"'s `name:`, else t.
+PROJ="$(sed -n "s/^COMPOSE_PROJECT_NAME=//p" .env 2>/dev/null | tail -n 1)"
+[[ -n "$PROJ" ]] || PROJ="$(sed -n "s/^name: *//p" infra/docker-compose.prod.yml 2>/dev/null | head -n 1)"
+PROJ="${PROJ:-t}"
 echo "compose $*" >>"$RUN/calls"
 case "$1" in
-  --db-mode) echo bundled; exit 0 ;;
+  --db-mode) echo "${FAKE_DB:-bundled}"; exit 0 ;;
   --deploy-mode) echo "${DEPLOY_MODE:-single}"; exit 0 ;;
-  ps) [[ -f "$RUN/running" ]] && echo abc123; exit 0 ;;
+  ps) if [[ -f "$RUN/ctrmode" ]]; then [[ -f "$RUN/ctr.$PROJ" ]] && echo abc123; else [[ -f "$RUN/running" ]] && echo abc123; fi; exit 0 ;;
   build) [[ "${FAKE_BUILD:-}" == fail ]] && { echo "ERROR: web: Module not found" >&2; exit 1; }; exit 0 ;;
-  config) printf "name: t\nservices:\n  api:\n    image: lampstand-prod-api\n    build:\n      context: /x\n  monitor:\n    image: lampstand-prod-monitor\n  web:\n    image: lampstand-prod-web\nvolumes: {}\n"; exit 0 ;;
+  config) printf "name: %s\nservices:\n  api:\n    image: lampstand-prod-api\n    build:\n      context: /x\n  monitor:\n    image: lampstand-prod-monitor\n  web:\n    image: lampstand-prod-web\n" "$PROJ"
+          [[ -f "$RUN/ctrmode" ]] && printf "  garage:\n    image: %s-garage\n    build:\n      context: /g\n  garage-init:\n    image: %s-garage\n    build:\n      context: /g\n  meilisearch:\n    image: getmeili/meilisearch:v1\n" "$PROJ" "$PROJ"
+          printf "volumes: {}\n"; exit 0 ;;
   run) [[ "${FAKE_MIGRATE:-}" == fail ]] && { echo "migration 0002 failed" >&2; exit 1; }; exit 0 ;;
-  up) id="$(bash scripts/build-id.sh)"
+  up) id="$(bash scripts/build-id.sh)"; [[ -f "$RUN/ctrmode" ]] && touch "$RUN/ctr.$PROJ"
       if [[ -n "${FAKE_BAD_ID:-}" && "$id" == "$FAKE_BAD_ID"* ]]; then echo broken >"$RUN/running"; else echo "$id" >"$RUN/running"; fi
       exit 0 ;;
   exec) shift; shift   # -T
         svc="$1"; shift
+        [[ -f "$RUN/ctrmode" && ! -f "$RUN/ctr.$PROJ" ]] && exit 1   # no such container in THIS version'"'"'s project
         if [[ "$1" == printenv ]]; then cat "$RUN/running"; exit 0; fi
         [[ "$(cat "$RUN/running")" == broken ]] && exit 1; exit 0 ;;
   restart|logs) exit 0 ;;
@@ -68,7 +81,8 @@ fresh() {
     mkdir -p scripts apps/api/migrations infra/caddy
     cp "$REPO/scripts/upgrade.sh" "$REPO/scripts/build-id.sh" scripts/
     printf '%s\n' "$FAKE_COMPOSE" >scripts/compose.sh; printf '%s\n' "$FAKE_CLUSTER" >scripts/cluster.sh; printf '%s\n' "$FAKE_DBS3" >scripts/db-s3.sh
-    printf '/data/\n' >.gitignore; echo "select 1;" >apps/api/migrations/0001.sql; echo "A=1" >.env.example; echo x >infra/docker-compose.prod.yml; echo y >infra/caddy/Caddyfile
+    printf '/data/\n' >.gitignore; echo "select 1;" >apps/api/migrations/0001.sql; echo "A=1" >.env.example
+    if [[ "${1:-}" == rename ]]; then echo "name: church-prod" >infra/docker-compose.prod.yml; else echo x >infra/docker-compose.prod.yml; fi; echo y >infra/caddy/Caddyfile
     git add -A && git commit -q -m "first" && git push -q origin master 2>/dev/null )
   git clone -q "$W/origin.git" "$W/work" 2>/dev/null
   ( cd "$W/work" && git config user.email t@t && git config user.name t; bash scripts/build-id.sh >"$W/run/running" )
@@ -76,8 +90,11 @@ fresh() {
     echo "select 2;" >apps/api/migrations/0002.sql
     [[ "${1:-}" == infra ]] && echo z >>infra/caddy/Caddyfile
     [[ "${1:-}" == env ]] && echo "NEW_SETTING=1" >>.env.example
+    [[ "${1:-}" == rename ]] && echo "name: lampstand-prod" >infra/docker-compose.prod.yml
     git add -A && git commit -q -m "add a thing" && git push -q origin master 2>/dev/null )
   OLD=$(git -C "$W/work" rev-parse HEAD); NEW=$(git -C "$W/dev" rev-parse HEAD)
+  # the rename scenario: containers are told apart by compose project (see the fake docker and compose)
+  [[ "${1:-}" != rename ]] || touch "$W/run/ctrmode" "$W/run/ctr.church-prod"
 }
 up_() { # args; runs the script in work; output in $W/out, exit code in $W/rc
   ( cd "$W/work" && PATH="$W/bin:$PATH" FAKE_RUN="$W/run" UPGRADE_HEALTH_WAIT=3 bash scripts/upgrade.sh "$@" >"$W/out" 2>&1 ); echo $? >"$W/rc"
@@ -308,6 +325,52 @@ check "--rollback to an unpublished version builds it" bash -c "[[ \$(cat '$W/rc
 fresh none; publish "$(newid)"; publish "$(oldid)"
 IMAGE_REGISTRY=$REG FAKE_BAD_ID="$(newid)" up_ --prod --yes
 check "an unhealthy new version goes back to the old images (pulled)" bash -c "[[ \$(cat '$W/rc') != 0 ]] && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]] && grep -q '^docker pull $REG-api:$(oldid)\$' '$W/run/dockercalls' && grep -q 'previous version' '$W/out'"
+
+echo "== the new version renames the compose project (church-prod -> lampstand-prod)"
+export FAKE_DB=external
+fresh rename
+up_ --prod --check
+check "--check says so and changes nothing" bash -c "grep -q 'renamed: church-prod -> lampstand-prod' '$W/out' && grep -q 'stop the church-prod containers' '$W/out' && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]] && [[ -f '$W/run/ctr.church-prod' ]]"
+fresh rename; echo church-image >"$W/run/img.church-prod-garage"
+up_ --prod --yes
+check "exits 0" test "$(rc)" = 0
+check "the old project's containers are gone" test ! -f "$W/run/ctr.church-prod"
+check "the new project's containers run" test -f "$W/run/ctr.lampstand-prod"
+check "stops the old containers before starting the new ones" bash -c "c=\"$(calls)\"; s=\$(grep -n 'docker stop c-church-prod' <<<\"\$c\" | head -1 | cut -d: -f1); u=\$(grep -n 'compose up' <<<\"\$c\" | head -1 | cut -d: -f1); [[ -n \$s && -n \$u && \$s -lt \$u ]]"
+check "brings up every service, not only api web monitor" bash -c "grep -q 'compose up -d --no-build\$' <<<\"$(calls)\""
+check "gives the Garage image its new name from the old one, no build" bash -c "grep -q 'docker tag church-prod-garage lampstand-prod-garage' '$W/run/dockercalls' && ! grep -q 'compose build garage' '$W/run/calls'"
+check "never removes volumes" bash -c "! grep -qE 'volume|down' '$W/run/dockercalls' '$W/run/calls'"
+check "now runs the new build" test "$(running_id)" = "$(git -C "$W/work" rev-parse --short=12 HEAD)"
+fresh rename
+up_ --prod --yes
+check "no old Garage image to reuse: it is built" bash -c "[[ \$(cat '$W/rc') == 0 ]] && grep -q 'compose build garage' '$W/run/calls'"
+fresh rename; echo church-image >"$W/run/img.church-prod-garage"
+DEPLOY_MODE=cluster up_ --yes --drain-wait 0
+check "a cluster node drains, then stops the old project, starts the new one, then undrains" bash -c "c=\"$(calls)\"; d=\$(grep -n 'cluster drain' <<<\"\$c\" | head -1 | cut -d: -f1); s=\$(grep -n 'docker stop' <<<\"\$c\" | head -1 | cut -d: -f1); u=\$(grep -n 'compose up' <<<\"\$c\" | head -1 | cut -d: -f1); n=\$(grep -n 'cluster undrain' <<<\"\$c\" | head -1 | cut -d: -f1); [[ \$(cat '$W/rc') == 0 && -n \$d && \$d -lt \$s && \$s -lt \$u && \$u -lt \$n ]]"
+fresh rename; echo church-image >"$W/run/img.church-prod-garage"
+FAKE_BAD_ID="$(git -C "$W/dev" rev-parse --short=12 HEAD)" up_ --prod --yes
+check "an unhealthy new version: exits non-zero and goes back to the previous commit" bash -c "[[ \$(cat '$W/rc') != 0 ]] && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD ]]"
+check "... the new project is stopped and the old one runs again" bash -c "[[ ! -f '$W/run/ctr.lampstand-prod' && -f '$W/run/ctr.church-prod' ]]"
+check "... on the old build, without rebuilding it" bash -c "[[ \$(cat '$W/run/running') == \$(git -C '$W/work' rev-parse --short=12 HEAD) ]] && [[ \$(grep -c 'compose build' '$W/run/calls') == 1 ]]"
+fresh rename; echo church-image >"$W/run/img.church-prod-garage"
+up_ --prod --yes
+up_ --prod --yes --rollback
+check "--rollback across the rename moves back the same way" bash -c "[[ \$(cat '$W/rc') == 0 && -f '$W/run/ctr.church-prod' && ! -f '$W/run/ctr.lampstand-prod' && \$(git -C '$W/work' rev-parse HEAD) == $OLD ]]"
+fresh rename
+git -C "$W/work" pull -q origin master 2>/dev/null
+up_ --prod --status
+check "the checkout is on the new version, the containers in the old project: --status says stale and names their build" bash -c "[[ \$(tail -n 1 '$W/out') == \"stale \$(cat '$W/run/running')\" ]]"
+echo church-image >"$W/run/img.church-prod-garage"
+up_ --prod --yes
+check "it is not called up to date: it moves the containers" bash -c "[[ \$(cat '$W/rc') == 0 && -f '$W/run/ctr.lampstand-prod' && ! -f '$W/run/ctr.church-prod' ]] && grep -q 'old compose project name' '$W/out'"
+fresh rename
+echo .env >>"$W/work/.git/info/exclude"; echo "COMPOSE_PROJECT_NAME=church-prod" >>"$W/work/.env"
+up_ --prod --yes
+check "a COMPOSE_PROJECT_NAME in .env keeps the name: no move, nothing is stopped" bash -c "[[ \$(cat '$W/rc') == 0 && -f '$W/run/ctr.church-prod' ]] && ! grep -q 'docker stop' '$W/run/calls' && grep -q 'compose up' '$W/run/calls' && ! grep -q 'renamed:' '$W/out'"
+fresh rename
+FAKE_DB=bundled up_ --prod --yes
+check "a bundled database is not moved between projects: refused before anything changes" bash -c "[[ \$(cat '$W/rc') != 0 ]] && grep -q 'database is bundled' '$W/out' && [[ \$(git -C '$W/work' rev-parse HEAD) == $OLD && -f '$W/run/ctr.church-prod' ]] && ! grep -qE 'docker stop|compose (build|run|up)' '$W/run/calls'"
+unset FAKE_DB
 
 echo "== colour"
 fresh none

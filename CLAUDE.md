@@ -1639,6 +1639,15 @@ image in a one-off container -> swap only `api web monitor` (`up -d --no-build -
 only when `infra/` changed; in a cluster `cluster.sh drain` before and `undrain` after the node is healthy) -> verify
 inside the containers (`/readyz`, web answering, `BUILD_ID` of api and web equals `scripts/build-id.sh`) -> otherwise
 roll back by itself. A failed build or migration puts the code back before anything was swapped. Rules:
+- **A version can change the compose project name** (the Lampstand rename: `church-prod` -> `lampstand-prod`; compose only knows the checked-out
+  version's project, so the others are found by LABEL). `upgrade.sh` compares the running containers' project (`RUN_OLD`: the old name too when the checkout is
+  already on the new version) with the target's `name:`, and when they differ (a `COMPOSE_PROJECT_NAME` in `.env` or the environment means they do not) it
+  `retire_project`s the old containers (stop, rm, networks; never volumes or `./data`) right before a FULL `up -d`, and the unhealthy path retires the new
+  project and restores the old one from the images still on the node (`restore_old`: no rebuild while the site is down). `ensure_local_images` gives the
+  services built from this repo besides api/web/monitor (Garage) their image under the new name: a retag of the old one, else a build. **A bundled database
+  is refused** (it would have to change project): stop before touching anything and point at INSTALL.md. Before this (found 2026-11-12 on a 3-node cluster)
+  the swap failed on `No such image: lampstand-prod-garage` and, with the image present, would have started a second stack beside the old one on the same
+  port and Garage metadata. Tests: `tests/upgrade/upgrade.sh` "the new version renames the compose project".
 - **Do not skip rebuilding a service because its sources did not change.** `BUILD_ID` is baked into every image and every
   node of a cluster must run the same build; Docker's layer cache already makes the unchanged parts cheap.
 - **Build once, pull everywhere (`IMAGE_REGISTRY`, 2026-10-24)**: with `IMAGE_REGISTRY=<prefix>` (`.env` or environment; the prefix

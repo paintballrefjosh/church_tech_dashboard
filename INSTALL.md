@@ -1215,9 +1215,15 @@ rename (stop the app first; a node still running the old code would lose the dat
 - **Bundled CockroachDB, one node:** `DATABASE_URL`/`COCKROACH_URL` in `.env` names the database, so nothing is needed; to rename it too,
   `ALTER DATABASE church RENAME TO lampstand` and edit that line.
 - **Your own database (`DB_MODE=external`):** nothing. The URL in `.env` is the whole story.
-- **Compose project and images:** the project is now `lampstand` (`lampstand-prod` for production). `docker compose down` the old project
-  (`COMPOSE_PROJECT_NAME=church scripts/compose.sh down`) before the first start of the new one; the data under `./data` is not touched. A
-  `COMPOSE_PROJECT_NAME` set in `.env` is kept as it is, so a node that sets it keeps its old container names.
+- **Compose project and images:** the project is now `lampstand` (`lampstand-prod` for production), and the bundled Garage image is
+  `lampstand-prod-garage`. **`scripts/upgrade.sh` and `upgrade-cluster.sh` handle this** (with the script from the release that has the
+  rename, which a cluster upgrade uses on every node): the node's old `church-prod` containers are stopped just before the new ones start
+  (a short interruption, after the drain in a cluster), the Garage image is reused from the old name or built, and an unhealthy new
+  version puts the old project back from the images still on the node. Volumes and `./data` are never touched, and the old images stay
+  for `--rollback`. **A bundled database cannot move between projects this way**: the upgrade says so and stops before changing anything,
+  and for that case `docker compose down` the old project by hand (`COMPOSE_PROJECT_NAME=church-prod scripts/compose.sh --prod down`, or
+  `church` for the dev stack) before the first start of the new one. A `COMPOSE_PROJECT_NAME` set in `.env` is kept as it is, so a node
+  that sets it keeps its old container names and nothing moves.
 - **Registry tags:** images are `<prefix>-api|web|monitor`; use a registry prefix ending in `lampstand` for new releases.
 - **Bucket:** a `MINIO_BUCKET`/`S3_BUCKET` in `.env` is kept (the default for new installs is `lampstand-files`). Offsite backup copies named
   `church-dashboard-<time>-<id>.tar.gz` are still found, counted and pruned.
