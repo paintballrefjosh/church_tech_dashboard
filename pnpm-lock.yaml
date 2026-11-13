@@ -50,8 +50,8 @@ importers:
   apps/api:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: 0.133.0
-        version: 0.133.0(zod@3.25.76)
+        specifier: 1.3.0
+        version: 1.3.0(zod@3.25.76)
       '@auth/core':
         specifier: 0.41.3
         version: 0.41.3(nodemailer@10.3.1)
@@ -90,7 +90,7 @@ importers:
         version: 0.45.1
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
+        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
       fastify:
         specifier: 5.12.7
         version: 5.12.7
@@ -271,7 +271,7 @@ importers:
         version: 8.0.4
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
+        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
       lucide-react:
         specifier: 0.460.0
         version: 0.460.0(react@19.3.1)
@@ -280,10 +280,10 @@ importers:
         version: 11.17.2
       next:
         specifier: 15.5.28
-        version: 15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 15.5.28(@opentelemetry/api@1.10.0)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       next-auth:
         specifier: 5.0.0-beta.32
-        version: 5.0.0-beta.32(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        version: 5.0.0-beta.32(next@15.5.28(@opentelemetry/api@1.10.0)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       next-themes:
         specifier: 0.4.6
         version: 0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -399,7 +399,7 @@ importers:
         version: link:../../packages/shared
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
+        version: 0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1)
       pg:
         specifier: 8.23.1
         version: 8.23.1
@@ -470,8 +470,8 @@ packages:
   '@antfu/install-pkg@2.1.0':
     resolution: {integrity: sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw==}
 
-  '@anthropic-ai/sdk@0.133.0':
-    resolution: {integrity: sha512-jlqUN8p8ESTJj+GJnA4KjzbEfF1waEoGzRT8jwytlYGFFgv+/DUQOxlYGvYw10UzhD1kwLqYzxvA3FrTB2YWuQ==}
+  '@anthropic-ai/sdk@1.3.0':
+    resolution: {integrity: sha512-k7z9BlLLPxfZH+ov7dS6EnaN/wiZeV8YNT1LZfrpAHIy7oY7pHr4UzirF9f2OlHtFEnRBOX+AZQ91Y5fK+TPTw==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -519,8 +519,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  '@babel/runtime@7.29.7':
-    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+  '@babel/runtime@7.29.14':
+    resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.11':
@@ -1749,6 +1749,10 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@opentelemetry/api@1.10.0':
+    resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
+    engines: {node: '>=8.0.0'}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -6931,8 +6935,9 @@ snapshots:
       package-manager-detector: 1.8.0
       tinyexec: 1.3.1
 
-  '@anthropic-ai/sdk@0.133.0(zod@3.25.76)':
+  '@anthropic-ai/sdk@1.3.0(zod@3.25.76)':
     dependencies:
+      '@opentelemetry/api': 1.10.0
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
     optionalDependencies:
@@ -6975,7 +6980,7 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.11
 
-  '@babel/runtime@7.29.7': {}
+  '@babel/runtime@7.29.14': {}
 
   '@babel/types@7.29.11':
     dependencies:
@@ -7909,6 +7914,8 @@ snapshots:
       fastq: 1.20.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@opentelemetry/api@1.10.0': {}
 
   '@opentelemetry/api@1.9.1': {}
 
@@ -9784,7 +9791,7 @@ snapshots:
 
   dom-helpers@5.2.1:
     dependencies:
-      '@babel/runtime': 7.29.7
+      '@babel/runtime': 7.29.14
       csstype: 3.2.3
 
   dom-serializer@2.0.0:
@@ -9816,9 +9823,9 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-orm@0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1):
+  drizzle-orm@0.45.4(patch_hash=45wf2q6yxjdjfneyx2rejjlwz4)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(mysql2@3.24.6(@types/node@20.16.10))(pg@8.23.1):
     optionalDependencies:
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
       '@types/pg': 8.23.1
       mysql2: 3.24.6(@types/node@20.16.10)
       pg: 8.23.1
@@ -11094,7 +11101,7 @@ snapshots:
 
   json-schema-to-ts@3.1.1:
     dependencies:
-      '@babel/runtime': 7.29.7
+      '@babel/runtime': 7.29.14
       ts-algebra: 2.0.0
 
   json-schema-traverse@0.4.1: {}
@@ -11819,10 +11826,10 @@ snapshots:
       asn1-ber: 1.2.2
       smart-buffer: 4.2.0
 
-  next-auth@5.0.0-beta.32(next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
+  next-auth@5.0.0-beta.32(next@15.5.28(@opentelemetry/api@1.10.0)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
     dependencies:
       '@auth/core': 0.41.3(nodemailer@10.3.1)
-      next: 15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      next: 15.5.28(@opentelemetry/api@1.10.0)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
 
   next-themes@0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
@@ -11830,7 +11837,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  next@15.5.28(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  next@15.5.28(@opentelemetry/api@1.10.0)(@playwright/test@1.64.1)(@types/node@20.16.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@next/env': 15.5.28
       '@swc/helpers': 0.5.15
@@ -11848,7 +11855,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 15.5.28
       '@next/swc-win32-arm64-msvc': 15.5.28
       '@next/swc-win32-x64-msvc': 15.5.28
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
       '@playwright/test': 1.64.1
       sharp: 0.35.5(@types/node@20.16.10)
     transitivePeerDependencies:
@@ -12530,7 +12537,7 @@ snapshots:
 
   react-transition-group@4.4.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
-      '@babel/runtime': 7.29.7
+      '@babel/runtime': 7.29.14
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
