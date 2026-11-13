@@ -39,6 +39,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
+      # @anthropic-ai/sdk 1.x sends an `apiKey` as "Authorization: Bearer <key>", where 0.x sent "x-api-key" (the assistant's Anthropic
+      # client test fails on exactly that). Whether the real API and the gateways a base URL can point at accept it was not verified
+      # (it needs a live key: Assistant > Settings > Test connection). Take it deliberately, not from a weekly PR.
+      - dependency-name: "@anthropic-ai/sdk"
+        update-types: ["version-update:semver-major"]
       # react-grid-layout 2 dropped WidthProvider and changed the Layout types: the draggable home tiles
       # (apps/web/src/app/dashboard-tiles/dashboard-grid.tsx) have to be rewritten for it.
       - dependency-name: "react-grid-layout"
