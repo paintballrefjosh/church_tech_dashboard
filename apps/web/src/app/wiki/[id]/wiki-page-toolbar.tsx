@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Pencil, History, Trash2, FileLock, Globe, LayoutTemplate } from "lucide-react";
+import { Pencil, History, Trash2, FileLock, Globe, LayoutTemplate, Archive } from "lucide-react";
 import type { WikiVisibility } from "@lampstand/shared";
 
 interface AclRow {
@@ -23,6 +23,7 @@ export function WikiPageToolbar({
   isAdmin,
   visibility,
   acl,
+  archived,
 }: {
   pageId: string;
   canEdit: boolean;
@@ -31,6 +32,8 @@ export function WikiPageToolbar({
   isAdmin: boolean;
   visibility: WikiVisibility;
   acl: AclRow[];
+  /** Already archived: the page's banner offers the way back, so there is no Archive button. */
+  archived: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -45,6 +48,19 @@ export function WikiPageToolbar({
     if (res.ok) router.push("/wiki");
     else {
       alert(`Delete failed (${res.status})`);
+      setBusy(false);
+    }
+  }
+
+  async function archive() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/v1/wiki/${pageId}/archive`, { method: "POST", credentials: "same-origin" });
+      if (!res.ok) throw new Error(String(res.status));
+      router.refresh();
+    } catch (e) {
+      alert(`Could not archive the page (${(e as Error).message})`);
+    } finally {
       setBusy(false);
     }
   }
@@ -86,6 +102,18 @@ export function WikiPageToolbar({
       >
         <History className="h-3.5 w-3.5" aria-hidden /> History
       </Link>
+      {canEdit && !archived ? (
+        <button
+          type="button"
+          onClick={() => void archive()}
+          disabled={busy}
+          data-testid="wiki-archive"
+          title="Leave this page out of the wiki menu and list it last in searches. It stays readable, and can be restored."
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <Archive className="h-3.5 w-3.5" aria-hidden /> Archive
+        </button>
+      ) : null}
       {isAdmin ? (
         <button
           type="button"

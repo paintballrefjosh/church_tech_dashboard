@@ -9,10 +9,11 @@ import { LocalDateTime } from "@/components/local-date-time";
 import { WikiPageToolbar } from "./wiki-page-toolbar";
 import { WikiEditHotkey } from "./wiki-edit-hotkey";
 import { WikiReviewBar, type ReviewInfo } from "./wiki-review-bar";
+import { WikiArchivedBar } from "./wiki-archived-bar";
 import { WikiTreeSidebar } from "../wiki-tree-sidebar";
 import { WikiSidebarPane } from "../wiki-sidebar-pane";
 import { ancestorChain } from "../wiki-tree-utils";
-import type { WikiPage, WikiTreeNode } from "@lampstand/shared";
+import { withoutArchivedPages, type WikiPage, type WikiTreeNode } from "@lampstand/shared";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ interface PagePayload {
   canManage: boolean;
   isAdmin: boolean;
   updatedBy: { id: string; name: string | null; email: string } | null;
+  archivedBy: { id: string; name: string | null; email: string } | null;
   review: ReviewInfo;
 }
 
@@ -66,7 +68,8 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
     payload.acl.length
       ? apiJson<GroupBrief[]>("/api/v1/groups").catch(() => [] as GroupBrief[])
       : Promise.resolve([] as GroupBrief[]),
-    apiJson<WikiTreeNode[]>("/api/v1/wiki/tree").catch(() => [] as WikiTreeNode[]),
+    // Archived pages come too, only so the breadcrumb of a page under an archived one is whole; the menu leaves them out.
+    apiJson<WikiTreeNode[]>("/api/v1/wiki/tree?archived=1").catch(() => [] as WikiTreeNode[]),
     apiJson<Backlink[]>(`/api/v1/wiki/${encodeURIComponent(id)}/backlinks`).catch(() => [] as Backlink[]),
   ]);
   const groupMap = new Map(groups.map((g) => [g.id, g]));
@@ -87,7 +90,7 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
             and this view route get the persistent-menu split pane. */}
         <div className="gap-6 md:flex">
           <WikiSidebarPane>
-            <WikiTreeSidebar tree={tree} activeId={payload.page.id} />
+            <WikiTreeSidebar tree={withoutArchivedPages(tree)} activeId={payload.page.id} />
           </WikiSidebarPane>
           <section className="mt-6 min-w-0 flex-1 md:mt-0">
             <article>
@@ -120,6 +123,7 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                   isAdmin={payload.isAdmin}
                   visibility={payload.page.visibility}
                   acl={acl}
+                  archived={Boolean(payload.page.archivedAt)}
                 />
               </div>
               <header className="mb-4">
@@ -132,7 +136,16 @@ export default async function ViewWikiPage({ params }: { params: Promise<{ id: s
                 </p>
               </header>
 
-              <WikiReviewBar pageId={payload.page.id} canEdit={payload.canEdit} review={payload.review} />
+              {payload.page.archivedAt ? (
+                <WikiArchivedBar
+                  pageId={payload.page.id}
+                  canEdit={payload.canEdit}
+                  archivedAt={payload.page.archivedAt}
+                  archivedBy={payload.archivedBy ? (payload.archivedBy.name ?? payload.archivedBy.email) : null}
+                />
+              ) : (
+                <WikiReviewBar pageId={payload.page.id} canEdit={payload.canEdit} review={payload.review} />
+              )}
 
               {payload.page.body.trim() ? (
                 <Markdown>{payload.page.body}</Markdown>

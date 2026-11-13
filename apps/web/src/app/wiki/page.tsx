@@ -6,7 +6,7 @@ import { TopBar } from "@/components/topbar";
 import { PageTitle } from "@/components/page-title";
 import { viewerPermissions } from "@/lib/load-module-settings";
 import { LocalDateTime } from "@/components/local-date-time";
-import { BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate, Settings as SettingsIcon } from "lucide-react";
+import { Archive, BookOpen, Plus, FileLock, FileUp, ClipboardCheck, LayoutTemplate, Settings as SettingsIcon } from "lucide-react";
 import type { WikiPage, WikiTreeNode } from "@lampstand/shared";
 import { WikiSearch } from "./wiki-search";
 import { WikiTagFilter } from "./tag-filter-island";
@@ -105,7 +105,7 @@ export default async function WikiListPage({
                 )}
               </p>
             ) : (
-              <ul className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
+              <ul data-testid="wiki-list" className="divide-y divide-slate-200 rounded-md border border-slate-300 dark:divide-slate-800 dark:border-slate-800">
                 {pages.map((p) => (
                   <li key={p.id}>
                     <Link
@@ -113,6 +113,14 @@ export default async function WikiListPage({
                       className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50 dark:hover:bg-slate-900"
                     >
                       <span className="flex-1 truncate text-sm font-medium">{p.title}</span>
+                      {p.archivedAt ? (
+                        <span
+                          data-testid="archived-pill"
+                          className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                        >
+                          <Archive className="h-3 w-3" aria-hidden /> archived
+                        </span>
+                      ) : null}
                       {p.visibility === "group" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                           <FileLock className="h-3 w-3" aria-hidden /> restricted

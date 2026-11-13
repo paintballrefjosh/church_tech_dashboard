@@ -6,7 +6,7 @@ const id = z.string().uuid();
 
 /**
  * The wiki routes the seven hand-written tools (mcp.tools.ts) do not cover:
- * old revisions, revert, who can see or edit a page, and renaming or moving a
+ * old revisions, revert, who can see or edit a page, archiving, and renaming or moving a
  * folder. Pages and folders cannot be deleted by an agent.
  */
 export const WIKI_TOOLS = [
@@ -55,6 +55,29 @@ export const WIKI_TOOLS = [
       visibility: z.enum(WIKI_VISIBILITIES),
       acl: z.array(wikiAclEntrySchema).optional(),
     }),
+  }),
+  defineTool({
+    name: "wiki_archive_page",
+    title: "Archive a wiki page",
+    description:
+      "Put a page away: it leaves the wiki menu and comes last in searches (marked archived), but stays readable by its address and keeps its history. Use it for a page that is out of date or no longer used, when asked; it is not a delete and wiki_unarchive_page undoes it. You need to be able to edit the page.",
+    cls: "write",
+    method: "POST",
+    path: "/wiki/:id/archive",
+    permissions: [PERMISSIONS.WIKI_READ_OWN],
+    idempotent: true,
+    input: z.object({ id }),
+  }),
+  defineTool({
+    name: "wiki_unarchive_page",
+    title: "Restore an archived wiki page",
+    description: "Bring an archived page back into the wiki menu and normal search order. You need to be able to edit the page.",
+    cls: "write",
+    method: "POST",
+    path: "/wiki/:id/unarchive",
+    permissions: [PERMISSIONS.WIKI_READ_OWN],
+    idempotent: true,
+    input: z.object({ id }),
   }),
   defineTool({
     name: "wiki_update_folder",

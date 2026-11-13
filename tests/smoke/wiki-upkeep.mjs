@@ -144,6 +144,68 @@ export async function wikiUpkeepTests({ test, assert, fetchWithCookies, jar }) {
       assert((await put(1.5)).res.status === 400, "1.5");
       assert((await put(180)).res.status === 200, "180");
     });
+
+    // ---- archiving ----
+    await test("archive: needs a session", async () => {
+      const anon = await fetchWithCookies(`/api/v1/wiki/${target.id}/archive`, { method: "POST" });
+      assert(anon.res.status === 401, `anon status ${anon.res.status}`);
+    });
+
+    await test("archive: out of the menu and the list, last in searches, readable by address, and back again", async () => {
+      const word = `zqarch${Date.now().toString(36)}`;
+      const live1 = await makePage(`[smoke] ${word} live one`, word);
+      const live2 = await makePage(`[smoke] ${word} live two`, word);
+      const put = await makePage(`[smoke] ${word} put away`, word); // the newest, so it would be first if archiving changed nothing
+      const before = await getPage(put.id);
+      const revisions = await revisionCount(put.id);
+
+      const bad = await session(`/api/v1/wiki/not-a-uuid/archive`, { method: "POST" });
+      assert(bad.res.status === 400 || bad.res.status === 404, `bad id status ${bad.res.status}`);
+
+      const r = await session(`/api/v1/wiki/${put.id}/archive`, { method: "POST" });
+      assert(r.res.status === 200 || r.res.status === 201, `archive status ${r.res.status}`);
+      const archivedAt = (await r.res.json()).archivedAt;
+      assert(typeof archivedAt === "string", "archivedAt in the answer");
+      const twice = await (await session(`/api/v1/wiki/${put.id}/archive`, { method: "POST" })).res.json();
+      assert(twice.archivedAt === archivedAt, "a second archive keeps the first date");
+
+      const page = await getPage(put.id);
+      assert(page.page.archivedAt === archivedAt && page.archivedBy?.email, `page: ${JSON.stringify(page.archivedBy)}`);
+      assert(page.page.updatedAt === before.page.updatedAt && (await revisionCount(put.id)) === revisions, "not an edit");
+
+      const menu = await (await session("/api/v1/wiki/tree")).res.json();
+      assert(!menu.some((n) => n.id === put.id), "archived page is not in the menu");
+      assert(menu.some((n) => n.id === live1.id), "live page is in the menu");
+      const withArchived = await (await session("/api/v1/wiki/tree?archived=1")).res.json();
+      assert(withArchived.find((n) => n.id === put.id)?.archived === true, "flagged when asked for");
+
+      const browse = await (await session("/api/v1/wiki?limit=200")).res.json();
+      assert(!browse.some((p) => p.id === put.id), "not in the browse list");
+      const found = await (await session(`/api/v1/wiki?q=${word}`)).res.json();
+      assert(found.map((p) => p.id).at(-1) === put.id && found.length === 3, `list order: ${found.map((p) => p.title)}`);
+
+      // The search index follows the database within a moment.
+      const hits = async () => (await (await session(`/api/v1/search?q=${word}&kind=wiki`)).res.json()).hits;
+      let h = [];
+      for (let i = 0; i < 40; i++) {
+        h = await hits();
+        if (h.find((x) => x.resourceId === put.id)?.archived === true) break;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      assert(h.length === 3 && h.at(-1).resourceId === put.id && h.at(-1).archived === true, `search order: ${JSON.stringify(h.map((x) => [x.title, x.archived]))}`);
+      assert(h.slice(0, 2).every((x) => x.archived !== true && [live1.id, live2.id].includes(x.resourceId)), "live pages first");
+
+      const u = await session(`/api/v1/wiki/${put.id}/unarchive`, { method: "POST" });
+      assert(u.res.status === 200 || u.res.status === 201, `unarchive status ${u.res.status}`);
+      assert((await getPage(put.id)).page.archivedAt === null, "archivedAt cleared");
+      assert((await (await session("/api/v1/wiki/tree")).res.json()).some((n) => n.id === put.id), "back in the menu");
+      for (let i = 0; i < 40; i++) {
+        h = await hits();
+        if (h.find((x) => x.resourceId === put.id)?.archived !== true) break;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      assert(h.find((x) => x.resourceId === put.id)?.archived !== true, "no longer flagged in search");
+    });
   } finally {
     for (const id of pagesMade) await session(`/api/v1/wiki/${id}`, { method: "DELETE" }).catch(() => undefined);
     for (const id of templatesMade) await session(`/api/v1/wiki/templates/${id}`, { method: "DELETE" }).catch(() => undefined);

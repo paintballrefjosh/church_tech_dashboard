@@ -54,6 +54,8 @@ export interface SearchHit {
   title: string;
   body: string;
   extra?: Record<string, unknown>;
+  /** An archived wiki page (search lists these last). */
+  archived?: boolean;
   /** Deep link set by the indexer; preferred over the kind-based fallback. */
   url?: string;
   updatedAt: string;

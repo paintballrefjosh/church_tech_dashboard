@@ -312,6 +312,11 @@ export function CommandPalette({ access }: { access: Access }) {
                           >
                             <Icon className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                             <span className="truncate">{h.title}</span>
+                            {h.archived ? (
+                              <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                Archived
+                              </span>
+                            ) : null}
                             <span className="ml-auto text-[10px] uppercase text-slate-500 dark:text-slate-400">{kindMeta?.label ?? h.kind}</span>
                           </Command.Item>
                         );

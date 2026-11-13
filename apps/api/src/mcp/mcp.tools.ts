@@ -215,7 +215,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_search",
           description:
-            "Search wiki pages you can read by words in the title or body. Returns id, title, a snippet around the first match, updatedAt and a link, newest first.",
+            "Search wiki pages you can read by words in the title or body. Returns id, title, a snippet around the first match, updatedAt and a link, newest first, with archived pages last (marked archived: true).",
           inputSchema: {
             type: "object",
             properties: {
@@ -237,6 +237,7 @@ export class McpToolsService {
               title: p.title,
               snippet: snippet(p.body, a.query),
               updatedAt: p.updatedAt,
+              ...(p.archivedAt ? { archived: true } : {}),
               url: await this.pageUrl(p.id),
             })),
           );
@@ -246,7 +247,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_get_page",
           description:
-            "Read one wiki page: title, Markdown body, location, visibility, whether you can edit it, updatedAt (pass it to wiki_update_page), when a person last confirmed it is still correct (lastReviewedAt) and whether it is due for another look (needsReview).",
+            "Read one wiki page: title, Markdown body, location, visibility, whether you can edit it, whether it is archived, updatedAt (pass it to wiki_update_page), when a person last confirmed it is still correct (lastReviewedAt) and whether it is due for another look (needsReview).",
           inputSchema: {
             type: "object",
             properties: { id: { type: "string", format: "uuid" } },
@@ -267,6 +268,7 @@ export class McpToolsService {
             parentId: page.parentId,
             parentFolderId: page.parentFolderId,
             canEdit,
+            archived: page.archivedAt !== null,
             updatedAt: page.updatedAt,
             updatedBy: updatedBy?.name ?? updatedBy?.email ?? null,
             lastReviewedAt: review.lastReviewedAt,
@@ -279,7 +281,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_tree",
           description:
-            "The wiki's folders and pages you can read, as a flat list. Each node names its parent folder (parentFolderId) or parent page (parentId); both null means top level.",
+            "The wiki's folders and pages you can read, as a flat list. Each node names its parent folder (parentFolderId) or parent page (parentId); both null means top level. Archived pages are left out (they are not in the menu); wiki_search finds them.",
           inputSchema: { type: "object", properties: {}, additionalProperties: false },
           annotations: { title: "Wiki tree", readOnlyHint: true, openWorldHint: false },
         },

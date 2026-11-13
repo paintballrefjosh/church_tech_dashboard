@@ -1520,7 +1520,7 @@ The endpoint only accepts API tokens; a browser session is refused. Set **Site U
 | `wiki_create_folder` | Create a folder |
 | `search_everything` | Search wiki, notes, tickets and (when permitted) monitoring data by words |
 | `me_get_profile` | Who the token acts as, its permissions and its limits |
-| `wiki_get_revision`, `wiki_revert_page`, `wiki_set_page_access`, `wiki_update_folder` | Old versions, revert, who can see or edit a page, rename or move a folder |
+| `wiki_get_revision`, `wiki_revert_page`, `wiki_set_page_access`, `wiki_archive_page`, `wiki_unarchive_page`, `wiki_update_folder` | Old versions, revert, who can see or edit a page, archive or restore a page, rename or move a folder |
 | `tickets_*`, `ticket_categories_*` | List, read, create, update, bulk-update and comment on tickets; categories; saved replies (list, create, edit) |
 | `notes_*`, `tags_*`, `saved_views_*` | The owner's notes (archive, not delete), tags on tickets/notes/pages, saved list filters |
 | `activity_list`, `notifications_*`, `me_*_notification_prefs`, `me_*_notification_delivery` | Activity feed, the owner's notifications, how they receive them (in app, email, push) and their quiet hours and daily summary. Push subscriptions are not tools: they need a browser session |

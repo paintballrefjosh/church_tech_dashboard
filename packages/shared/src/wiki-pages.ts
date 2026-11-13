@@ -1,9 +1,22 @@
 import { z } from "zod";
+import type { WikiTreeNode } from "./schemas/wiki";
 
 /**
  * Wiki upkeep rules: which pages link to which, when a page is due for another look, and the page templates.
  * Pure functions, used by the API, the review job and the web, and unit-tested in apps/api/test/wiki-pages.test.ts.
  */
+
+// ---- archived pages --------------------------------------------------------------------------------------------------
+
+/**
+ * The tree as the menu shows it: archived pages left out. A page under an archived one is not archived itself and stays, and
+ * the menu builder puts it at the top level, as it does for a page whose parent the person cannot read. Folders are never
+ * archived. (The API already leaves archived pages out unless asked; the page view asks for them back only to draw a
+ * breadcrumb, and uses this for its menu.)
+ */
+export function withoutArchivedPages(rows: readonly WikiTreeNode[]): WikiTreeNode[] {
+  return rows.filter((r) => !(r.kind === "page" && r.archived));
+}
 
 // ---- links between pages ---------------------------------------------------------------------------------------------
 

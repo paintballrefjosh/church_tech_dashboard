@@ -51,7 +51,9 @@ export class WikiReview implements OnModuleInit {
         reviewIntervalDays: wikiPages.reviewIntervalDays,
         reviewNotifiedAt: wikiPages.reviewNotifiedAt,
       })
-      .from(wikiPages);
+      .from(wikiPages)
+      // An archived page is put away on purpose: its owner is not asked whether it is still right.
+      .where(isNull(wikiPages.archivedAt));
 
     const byOwner = new Map<string, Array<{ id: string; title: string }>>();
     for (const r of rows) {

@@ -613,6 +613,20 @@ Apply is disabled for a restricted page with no group). Every flex child and fie
 long group name pushed the Add button out of the narrow card and made the page scroll sideways (e2e `wiki.spec.ts` checks the form and the dialog). Only the owner
 or a Wiki admin changes either list. Do not reintroduce a single "Visibility" control that hides the edit list inside "restricted".
 
+**Wiki archive** (2026-11-13; migration 0095 `wiki_pages.archived_at/archived_by`; `POST /wiki/:id/archive` and `/unarchive`, audited `wiki.archive`/`wiki.unarchive`, MCP
+`wiki_archive_page`/`wiki_unarchive_page`). An archived page is put away, not deleted: **left out of the menu, last in searches, still readable and editable by address.**
+Rules: (1) *Who:* anyone who may edit the page (`canWritePage`; a reader gets 403, a page they cannot read 404), because it is reversible and not a delete. (2) *Not an
+edit:* no revision, `updated_at` untouched, no "page updated" notice, and archiving twice keeps the first date and person. (3) *The menu:* `WikiService.tree` leaves archived
+pages out **by default**, so the sidebar, both page pickers and MCP `wiki_tree` need nothing; `?archived=1` returns them flagged `archived: true` and the page view uses that
+only to draw a breadcrumb through an archived parent (its menu goes through `withoutArchivedPages`). **A page under an archived page is not archived and stays in the menu,
+at the top level**, like a page whose parent cannot be read, never hidden with its parent. (4) *Lists:* `GET /wiki` without `q` leaves archived pages out; with `q` (the
+wiki search box, MCP `wiki_search`) they come LAST (`ORDER BY archived_at IS NOT NULL`, so the limit cuts them first) and carry `archivedAt`. (5) *Global search:* the
+document has top-level `archived: true` only when archived (so turning it on re-indexed nothing), `archived` is a filterable attribute, and `SearchService.search` runs the
+live query first and fills the rest with `archived = true` hits: a re-sort of one query would let well-matching archived pages push live ones out of the limit. The result
+carries `archived` and both search lists badge it. (6) Review: an archived page is not "due" (`reviewList`, the `wiki-review` job). Tests: `wiki-archive.integration.test.ts`
+(both engines, one integration file at a time), `wiki-pages.test.ts`, smoke `wiki-upkeep.mjs`, e2e `wiki.spec.ts` (whose cleanup now lists with `?q=` because browsing hides
+archived pages).
+
 **Notification delivery: quiet hours, daily summary, push** (migration 0068; rules in `packages/shared/src/notification-delivery.ts`, unit-tested in
 `apps/api/test/notification-delivery.test.ts`). Channels per kind are `in_app`, `email`, `push` (push opt-in: a kind with no saved row never pushes).
 **All routing goes through `NotificationsService.create/createMany`**: in-app is always immediate and silent; **push is sent immediately except during

@@ -9,6 +9,7 @@ import {
   renderWikiTemplate,
   wikiLinkContext,
   wikiReviewDays,
+  withoutArchivedPages,
   wikiReviewNotice,
   wikiReviewState,
 } from "@lampstand/shared";
@@ -180,5 +181,27 @@ describe("page templates", () => {
     expect(createWikiTemplateSchema.safeParse({ name: "  Setup  ", body: "x" })).toMatchObject({ success: true, data: { name: "Setup", description: "" } });
     expect(createWikiTemplateSchema.safeParse({ name: "", body: "x" }).success).toBe(false);
     expect(createWikiTemplateSchema.safeParse({ name: "a", body: "x".repeat(50_001) }).success).toBe(false);
+  });
+});
+
+describe("archived pages in the menu", () => {
+  const folder = { kind: "folder", id: "f1", name: "Ops", parentFolderId: null } as const;
+  const page = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ kind: "page", id, title: id, parentId: null, parentFolderId: null, ...extra }) as never;
+
+  it("drops archived pages and keeps folders and the rest", () => {
+    const rows = [folder, page("a"), page("b", { archived: true }), page("c", { archived: false })];
+    expect(withoutArchivedPages(rows).map((r) => r.id)).toEqual(["f1", "a", "c"]);
+  });
+
+  it("keeps a page whose parent was archived (it is not archived itself)", () => {
+    const rows = [page("parent", { archived: true }), page("child", { parentId: "parent" })];
+    expect(withoutArchivedPages(rows).map((r) => r.id)).toEqual(["child"]);
+  });
+
+  it("does not change what it is given", () => {
+    const rows = [page("a", { archived: true })];
+    withoutArchivedPages(rows);
+    expect(rows).toHaveLength(1);
   });
 });

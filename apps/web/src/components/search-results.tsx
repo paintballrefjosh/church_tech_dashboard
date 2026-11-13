@@ -56,6 +56,14 @@ export function SearchResultList({
                       className="truncate text-sm font-medium"
                       dangerouslySetInnerHTML={{ __html: titleHtml }}
                     />
+                    {h.archived ? (
+                      <span
+                        data-testid="search-archived"
+                        className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                      >
+                        Archived
+                      </span>
+                    ) : null}
                   </div>
                   <div
                     className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400"

@@ -92,6 +92,11 @@ export interface SearchDoc {
   title: string;
   body: string;
   tagIds?: string[];
+  /**
+   * An archived wiki page. Set only when true (a document that is not archived carries no field, so turning archiving on
+   * changed no existing document's `rev`). Search lists these after everything else.
+   */
+  archived?: boolean;
   /** Free-form extra fields the frontend can render (e.g. ticket number, note color). */
   extra?: Record<string, unknown>;
   /**

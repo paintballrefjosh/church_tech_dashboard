@@ -6,7 +6,7 @@ import {
   BadRequestException,
   ConflictException,
 } from "@nestjs/common";
-import { and, asc, desc, eq, ilike, inArray, ne, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { DB, type Db } from "../db/db.module";
 import {
   wikiPages,
@@ -177,10 +177,15 @@ export class WikiService {
     return aclHit.length > 0;
   }
 
+  /**
+   * Browsing (no search words) leaves archived pages out, as the menu does. Searching includes them, after every page that
+   * is not archived (the sort puts `archived_at IS NOT NULL` first, so the limit cuts archived pages before live ones).
+   */
   async list(user: AuthenticatedUser, query: WikiPageListQuery) {
     const conds: SQL[] = [];
     const aclPredicate = this.readablePredicate(user);
     if (aclPredicate) conds.push(aclPredicate);
+    if (!query.q) conds.push(isNull(wikiPages.archivedAt));
     if (query.q) {
       const like = `%${query.q.replace(/[%_]/g, "\\$&")}%`;
       conds.push(or(ilike(wikiPages.title, like), ilike(wikiPages.body, like))!);
@@ -205,7 +210,7 @@ export class WikiService {
       .select()
       .from(wikiPages)
       .where(conds.length ? and(...conds) : undefined)
-      .orderBy(desc(wikiPages.updatedAt))
+      .orderBy(asc(sql`(${wikiPages.archivedAt} IS NOT NULL)`), desc(wikiPages.updatedAt))
       .limit(query.limit);
   }
 
@@ -270,6 +275,9 @@ export class WikiService {
     const [reviewer] = page.lastReviewedBy
       ? await this.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.id, page.lastReviewedBy)).limit(1)
       : [];
+    const [archiver] = page.archivedBy
+      ? await this.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.id, page.archivedBy)).limit(1)
+      : [];
     const state = wikiReviewState(page, await this.reviewDefaultDays(), new Date());
     const review = {
       intervalDays: state.intervalDays,
@@ -283,7 +291,7 @@ export class WikiService {
     };
 
     // canManage: the owner or a wiki admin (visibility, access, how often the page is reviewed); isAdmin: wiki admin (templates).
-    return { page, acl: aclRows, canEdit, canDelete, canManage: canDelete, isAdmin: this.canWriteAny(user), updatedBy: lastEditor ?? null, review };
+    return { page, acl: aclRows, canEdit, canDelete, canManage: canDelete, isAdmin: this.canWriteAny(user), updatedBy: lastEditor ?? null, archivedBy: archiver ?? null, review };
   }
 
   /**
@@ -314,6 +322,8 @@ export class WikiService {
     const conds: SQL[] = [];
     const readable = this.readablePredicate(user);
     if (readable) conds.push(readable);
+    // An archived page is put away on purpose: nobody is asked whether it is still right.
+    conds.push(isNull(wikiPages.archivedAt));
     if (query.scope === "mine") conds.push(eq(wikiPages.ownerUserId, user.id));
     const rows = await this.db
       .select({
@@ -370,6 +380,44 @@ export class WikiService {
       needsReview: state.needsReview,
       dueAt: state.dueAt ? state.dueAt.toISOString() : null,
     };
+  }
+
+  /**
+   * Archive a page: it leaves the menu and sorts last in searches, but stays readable by address. Whoever may edit the page
+   * may archive and restore it (it is not a delete, and it is undone with one click). Not an edit: no revision, `updatedAt`
+   * untouched (so "updated" stays true and the review clock is not restarted), no "page updated" notices. Already archived
+   * keeps its original date and archiver, so a second request is harmless.
+   */
+  async archive(user: AuthenticatedUser, id: string) {
+    await this.assertReadable(user, id);
+    if (!(await this.canWritePage(user, id))) throw new ForbiddenException("Cannot edit this page");
+    const [changed] = await this.db
+      .update(wikiPages)
+      .set({ archivedAt: new Date(), archivedBy: user.id })
+      .where(and(eq(wikiPages.id, id), isNull(wikiPages.archivedAt)))
+      .returning();
+    if (changed) void this.indexPage(changed);
+    return this.pageRow(id);
+  }
+
+  /** Put an archived page back in the menu and in normal search order. Same rule as `archive`. */
+  async unarchive(user: AuthenticatedUser, id: string) {
+    await this.assertReadable(user, id);
+    if (!(await this.canWritePage(user, id))) throw new ForbiddenException("Cannot edit this page");
+    const [changed] = await this.db
+      .update(wikiPages)
+      .set({ archivedAt: null, archivedBy: null })
+      .where(eq(wikiPages.id, id))
+      .returning();
+    if (!changed) throw new NotFoundException("Wiki page not found");
+    void this.indexPage(changed);
+    return changed;
+  }
+
+  private async pageRow(id: string) {
+    const [page] = await this.db.select().from(wikiPages).where(eq(wikiPages.id, id)).limit(1);
+    if (!page) throw new NotFoundException("Wiki page not found");
+    return page;
   }
 
   async create(user: AuthenticatedUser, input: CreateWikiPageInput) {
@@ -567,8 +615,13 @@ export class WikiService {
    * just navigation, not gates. Keeps the API stateless and the wire payload
    * small — the web builds the actual tree client-side.
    */
-  async tree(user: AuthenticatedUser): Promise<WikiTreeNode[]> {
+  async tree(user: AuthenticatedUser, opts: { includeArchived?: boolean } = {}): Promise<WikiTreeNode[]> {
     const aclPredicate = this.readablePredicate(user);
+    // Archived pages are left out of the menu (every picker reads this too). A page under an archived one is not archived
+    // itself and still shows, at the top level, as a page whose parent cannot be read already does. The page view asks
+    // for them back (`includeArchived`) only to draw the breadcrumb of a page whose parent was archived.
+    const live = opts.includeArchived ? undefined : isNull(wikiPages.archivedAt);
+    const where = aclPredicate && live ? and(aclPredicate, live) : (aclPredicate ?? live);
     const [folderRows, pageRows] = await Promise.all([
       this.db
         .select({ id: wikiFolders.id, name: wikiFolders.name, parentFolderId: wikiFolders.parentFolderId })
@@ -580,14 +633,17 @@ export class WikiService {
           title: wikiPages.title,
           parentId: wikiPages.parentId,
           parentFolderId: wikiPages.parentFolderId,
+          archivedAt: wikiPages.archivedAt,
         })
         .from(wikiPages)
-        .where(aclPredicate ?? undefined)
+        .where(where)
         .orderBy(asc(wikiPages.title)),
     ]);
     return [
       ...folderRows.map((f): WikiTreeNode => ({ kind: "folder", ...f })),
-      ...pageRows.map((p): WikiTreeNode => ({ kind: "page", ...p })),
+      ...pageRows.map(
+        ({ archivedAt, ...p }): WikiTreeNode => ({ kind: "page", ...p, ...(archivedAt ? { archived: true } : {}) }),
+      ),
     ];
   }
 

@@ -18,6 +18,9 @@ export const wikiPageSchema = z.object({
   lastReviewedBy: z.string().uuid().nullable().optional(),
   /** null = the site setting, 0 = never flagged, n = flagged after n days. */
   reviewIntervalDays: z.number().int().min(0).max(3650).nullable().optional(),
+  /** When the page was archived (left out of the menu, last in searches), and by whom; null = not archived. */
+  archivedAt: z.string().datetime().nullable().optional(),
+  archivedBy: z.string().uuid().nullable().optional(),
 });
 export type WikiPage = z.infer<typeof wikiPageSchema>;
 
@@ -65,6 +68,8 @@ export const wikiTreeNodeSchema = z.discriminatedUnion("kind", [
     title: z.string(),
     parentId: z.string().uuid().nullable(),
     parentFolderId: z.string().uuid().nullable(),
+    /** Only present (true) when the tree was asked for with archived pages included. */
+    archived: z.boolean().optional(),
   }),
 ]);
 export type WikiTreeNode = z.infer<typeof wikiTreeNodeSchema>;

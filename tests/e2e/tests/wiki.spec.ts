@@ -53,7 +53,9 @@ async function typeLines(page: Page, lines: string[]) {
 async function wipeAllWikiPages(page: Page) {
   await page.goto("/wiki");
   const ids = (await page.evaluate(async (prefix) => {
-    const r = await fetch("/api/wiki", { credentials: "same-origin" });
+    // Searching (q) is the only list that includes archived pages; browsing leaves them out, and a test that died after
+    // archiving one would otherwise leave it here for good.
+    const r = await fetch(`/api/wiki?q=${encodeURIComponent(prefix)}&limit=200`, { credentials: "same-origin" });
     const list = (await r.json()) as Array<{ id: string; title: string }>;
     return list.filter((p) => p.title.startsWith(prefix)).map((p) => p.id);
   }, E2E_PREFIX)) as string[];
@@ -303,6 +305,70 @@ test.describe("Phase 1.4 — Wiki", () => {
         (i) => fetch(`/api/v1/groups/${i}`, { method: "DELETE", credentials: "same-origin" }),
         groupId,
       );
+    }
+  });
+  test("an archived page leaves the menu, comes last in a search with a flag, and can be restored", async ({ page }) => {
+    const word = `e2earch${Date.now().toString(36)}`;
+    const make = (title: string) =>
+      page.evaluate(
+        async ([t, w]) => {
+          const r = await fetch("/api/wiki", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ title: t, body: w }),
+          });
+          return ((await r.json()) as { id: string }).id;
+        },
+        [title, word],
+      );
+    const ids: string[] = [];
+    try {
+      await page.goto("/wiki");
+      ids.push(await make(`[e2e] ${word} alpha`));
+      const target = await make(`[e2e] ${word} beta`);
+      ids.push(target);
+      // Made last, so newest: a search lists gamma, then beta, then alpha, until beta is archived.
+      ids.push(await make(`[e2e] ${word} gamma`));
+
+      // Archive from the page itself.
+      await page.goto(`/wiki/${target}`);
+      await expect(page.getByTestId("archived-banner")).toHaveCount(0);
+      await page.getByTestId("wiki-archive").click();
+      const banner = page.getByTestId("archived-banner");
+      await expect(banner).toContainText("This page is archived");
+      await expect(page.getByTestId("wiki-archive")).toHaveCount(0);
+      // Still readable by address, with its text.
+      await expect(page.getByRole("heading", { name: `[e2e] ${word} beta` })).toBeVisible();
+
+      // The menu leaves it out; the other two are there.
+      await page.goto("/wiki");
+      await expect(page.getByRole("link", { name: `[e2e] ${word} beta` })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: `[e2e] ${word} alpha` }).first()).toBeVisible();
+
+      // Searching the wiki lists it last, flagged.
+      await page.goto(`/wiki?q=${word}`);
+      // The results list only: the menu beside it holds the same titles.
+      const rows = page.getByTestId("wiki-list").getByRole("listitem");
+      await expect(rows).toHaveCount(3);
+      await expect(rows.last()).toContainText(`beta`);
+      await expect(rows.last().getByTestId("archived-pill")).toBeVisible();
+      await expect(page.getByTestId("archived-pill")).toHaveCount(1);
+
+      // Restore from the banner.
+      await page.goto(`/wiki/${target}`);
+      await page.getByTestId("wiki-unarchive").click();
+      await expect(page.getByTestId("archived-banner")).toHaveCount(0);
+      await expect(page.getByTestId("wiki-archive")).toBeVisible();
+      await page.goto("/wiki");
+      await expect(page.getByRole("link", { name: `[e2e] ${word} beta` }).first()).toBeVisible();
+    } finally {
+      for (const id of ids) {
+        await page.evaluate(
+          (i) => fetch(`/api/wiki/${i}`, { method: "DELETE", credentials: "same-origin" }),
+          id,
+        );
+      }
     }
   });
 });

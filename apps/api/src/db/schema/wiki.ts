@@ -74,6 +74,10 @@ export const wikiPages = pgTable(
     lastReviewedBy: uuid("last_reviewed_by").references(() => users.id, { onDelete: "set null" }),
     reviewIntervalDays: integer("review_interval_days"),
     reviewNotifiedAt: timestamp("review_notified_at"),
+    // Archived (migration 0095): left out of the menu and last in searches, still readable by address. Not an edit: no
+    // revision, `updated_at` untouched. `archived_by` goes null if that account is removed.
+    archivedAt: timestamp("archived_at"),
+    archivedBy: uuid("archived_by").references(() => users.id, { onDelete: "set null" }),
   },
   (t) => ({
     ownerIdx: index("wiki_pages_owner_idx").on(t.ownerUserId),

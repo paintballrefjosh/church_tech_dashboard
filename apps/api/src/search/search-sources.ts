@@ -90,6 +90,7 @@ export function wikiDoc(row: typeof wikiPages.$inferSelect, aclGroupIds: string[
     title: row.title,
     // The editor's per-table settings comment (`<!-- table: ... -->`) is markup, not content.
     body: (row.body ?? "").replace(/^<!--\s*table:[^\n]*-->[ \t]*$/gm, ""),
+    ...(row.archivedAt ? { archived: true } : {}),
     url: `/wiki/${row.id}`,
     updatedAt: row.updatedAt.toISOString(),
   };

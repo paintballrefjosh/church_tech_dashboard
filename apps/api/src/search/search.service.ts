@@ -182,6 +182,7 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
       "visibility",
       "aclGroupIds",
       "tagIds",
+      "archived",
     ]);
     await idx.updateSortableAttributes(["updatedAt"]);
     await idx.updateSearchableAttributes(["title", "body"]);
@@ -469,17 +470,27 @@ export class SearchService implements OnModuleInit, OnModuleDestroy {
     const tagIds = (opts.tagIds ?? []).filter((t) => UUID_RE.test(t));
     if (tagIds.length > 0) filter = `${filter} AND tagIds IN [${quoted(tagIds)}]`;
 
+    const limit = opts.limit ?? 20;
+    const run = async (f: string, n: number) =>
+      (
+        await idx.search<SearchDoc>(opts.q, {
+          filter: f,
+          limit: n,
+          sort: ["updatedAt:desc"],
+          attributesToHighlight: ["title", "body"],
+          highlightPreTag: "<mark>",
+          highlightPostTag: "</mark>",
+          cropLength: 60,
+        })
+      ).hits as SearchResult[];
+
     try {
-      const res = await idx.search<SearchDoc>(opts.q, {
-        filter,
-        limit: opts.limit ?? 20,
-        sort: ["updatedAt:desc"],
-        attributesToHighlight: ["title", "body"],
-        highlightPreTag: "<mark>",
-        highlightPostTag: "</mark>",
-        cropLength: 60,
-      });
-      return res.hits as SearchResult[];
+      // Archived wiki pages come last, whatever their relevance: two queries (not a re-sort of one, which would let archived
+      // pages that match well crowd live ones out of the limit). The second only runs when the first left room.
+      if (kinds.length > 0 && !kinds.includes("wiki")) return await run(filter, limit);
+      const live = await run(`${filter} AND NOT archived = true`, limit);
+      if (live.length >= limit) return live;
+      return [...live, ...(await run(`${filter} AND archived = true`, limit - live.length))];
     } catch (err) {
       this.logger.warn(`search.search failed: ${(err as Error).message}`);
       return [];

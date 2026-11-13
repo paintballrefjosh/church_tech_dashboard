@@ -59,8 +59,9 @@ export class WikiController {
 
   @Get("tree")
   @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
-  tree(@CurrentUser() user: AuthenticatedUser) {
-    return this.wiki.tree(user);
+  tree(@CurrentUser() user: AuthenticatedUser, @Query("archived") archived?: string) {
+    // Archived pages are left out unless asked for (`?archived=1`): the page view wants them for a breadcrumb.
+    return this.wiki.tree(user, { includeArchived: archived === "1" || archived === "true" });
   }
 
   /** Pages that are due for another look (the Needs review screen). */
@@ -88,6 +89,33 @@ export class WikiController {
   })
   markReviewed(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
     return this.wiki.markReviewed(user, id);
+  }
+
+  /** Leave the page out of the menu and put it last in searches. Not an edit; whoever may edit the page may do it. */
+  @Post(":id/archive")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  @Audited({
+    action: "wiki.archive",
+    resourceType: "wiki_page",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async archive(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
+    const page = await this.wiki.archive(user, id);
+    this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
+    return page;
+  }
+
+  @Post(":id/unarchive")
+  @RequirePermissions(PERMISSIONS.WIKI_READ_OWN)
+  @Audited({
+    action: "wiki.unarchive",
+    resourceType: "wiki_page",
+    resourceIdFromParams: (p) => p.id ?? null,
+  })
+  async unarchive(@CurrentUser() user: AuthenticatedUser, @Param("id", ParseUUIDPipe) id: string) {
+    const page = await this.wiki.unarchive(user, id);
+    this.realtime.toRoom(`wiki:${id}`, "wiki:updated", page);
+    return page;
   }
 
   @Get(":id/revisions")
