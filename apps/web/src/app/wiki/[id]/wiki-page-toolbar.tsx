@@ -125,11 +125,14 @@ export function WikiPageToolbar({
           )}
           {visibility === "group" ? "Restricted" : "Public"}
         </span>
-        {acl.length ? (
-          <span
-            title={acl.map((a) => `${a.groupName} (${a.canEdit ? "read + edit" : "read"})`).join(", ")}
-          >
-            {acl.map((a) => a.groupName).join(", ")}
+        {visibility === "group" && acl.length ? (
+          <span title="Groups that can read this page (the owner and Wiki moderators and admins always can)">
+            Read: {acl.map((a) => a.groupName).join(", ")}
+          </span>
+        ) : null}
+        {acl.some((a) => a.canEdit) ? (
+          <span title="Groups that can edit this page (the owner and Wiki admins always can)">
+            Edit: {acl.filter((a) => a.canEdit).map((a) => a.groupName).join(", ")}
           </span>
         ) : null}
       </div>

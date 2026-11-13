@@ -46,6 +46,7 @@ export * from "./helpdesk";
 export * from "./inbound-mail";
 export * from "./contact-host";
 export * from "./wiki-pages";
+export * from "./wiki-access";
 export * from "./notification-delivery";
 export * from "./rack-layout";
 export * from "./port-sheet";

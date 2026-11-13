@@ -600,6 +600,19 @@ hand-written read tools; confirming a review and saving templates are not tools 
 `route-rules.ts`). Tests: `wiki-upkeep.integration.test.ts` (CockroachDB and YugabyteDB), smoke `wiki-upkeep.mjs`, e2e
 `wiki-upkeep.spec.ts` (a page can only become due by time, so only the integration test covers that).
 
+**Wiki page access: reading and editing are two separate lists** (2026-11-12; rules in `packages/shared/src/wiki-access.ts`, unit-tested in
+`apps/api/test/wiki-access.test.ts`). READ is `visibility`: `public` (everyone with the Wiki module) or `group` (the groups in `wiki_page_acl`, any
+`can_edit`, plus the owner and `wiki:read:any`). EDIT is the owner, Wiki admins and every group whose row has `can_edit`, **on a public page too**, so
+"everyone reads, a few groups edit" is a public page with edit rows; editing implies reading (on a restricted page the row is what lets the group
+read). No migration: one table, two meanings. **`replaceAcl` saves through `normaliseWikiAcl`** (one row per group, last entry wins; a public page
+keeps only its edit grants, a read-only row there means nothing). The page forms use one component, `wiki-access-editor.tsx` ("Who can read this
+page" / "Who can edit this page"; add/remove go through the shared helpers, never by hand) and send the list through `normaliseWikiAcl`. The new-page and
+import forms show it inline; **the edit form's 16rem menu column shows only a summary** (`wiki-access-card.tsx`, "Access": who reads, who edits) and an
+"Edit access" button that opens the editor in a dialog working on a draft (Apply hands it to the form, which saves it with the page; Cancel and Escape discard;
+Apply is disabled for a restricted page with no group). Every flex child and fieldset in the editor is `min-w-0`: a fieldset sizes to its content, and a
+long group name pushed the Add button out of the narrow card and made the page scroll sideways (e2e `wiki.spec.ts` checks the form and the dialog). Only the owner
+or a Wiki admin changes either list. Do not reintroduce a single "Visibility" control that hides the edit list inside "restricted".
+
 **Notification delivery: quiet hours, daily summary, push** (migration 0068; rules in `packages/shared/src/notification-delivery.ts`, unit-tested in
 `apps/api/test/notification-delivery.test.ts`). Channels per kind are `in_app`, `email`, `push` (push opt-in: a kind with no saved row never pushes).
 **All routing goes through `NotificationsService.create/createMany`**: in-app is always immediate and silent; **push is sent immediately except during

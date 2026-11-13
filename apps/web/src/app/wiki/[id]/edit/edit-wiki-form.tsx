@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   WIKI_REVIEW_CHOICES,
-  WIKI_VISIBILITIES,
+  normaliseWikiAcl,
   type Attachment,
   type WikiPage,
   type WikiVisibility,
 } from "@lampstand/shared";
-import { AclEditor, type AclState } from "../../acl-editor";
+import { WikiAccessCard } from "../../wiki-access-card";
+import type { AclState } from "../../wiki-access-editor";
 import { TagPicker } from "@/components/tag-picker";
 import { type TagLike } from "@/components/tag-badge";
 import { AttachmentList } from "@/components/attachment-list";
@@ -150,7 +151,7 @@ export function EditWikiForm({
           title,
           body,
           // An editor who is not the owner may change the text, not who can see the page or its review schedule.
-          ...(canManage ? { visibility, acl, reviewIntervalDays: reviewInterval } : {}),
+          ...(canManage ? { visibility, acl: normaliseWikiAcl(visibility, acl), reviewIntervalDays: reviewInterval } : {}),
           summary: summary || undefined,
           parentId: location.parentId,
           parentFolderId: location.parentFolderId,
@@ -223,7 +224,7 @@ export function EditWikiForm({
           body itself. Sticks in place on scroll (md:self-start keeps it from
           stretching to the row height, which is what lets sticky work) so
           it's always reachable while editing a long page. */}
-      <aside className="space-y-4 md:sticky md:top-4 md:order-first md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-y-auto">
+      <aside className="space-y-4 md:sticky md:top-4 md:order-first md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-y-auto md:overflow-x-hidden">
         <div className="flex items-center gap-3">
           <button
             type="submit"
@@ -293,36 +294,17 @@ export function EditWikiForm({
           </p>
         </fieldset>
         ) : null}
+        {/* A summary here; the two lists open in a dialog, where they have room for long group names. */}
         {canManage ? (
-        <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Visibility
-          </legend>
-          <div className="space-y-2">
-            {WIKI_VISIBILITIES.map((v) => (
-              <label key={v} className="flex items-start gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="visibility"
-                  value={v}
-                  checked={visibility === v}
-                  onChange={() => setVisibility(v)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="font-medium">
-                    {v === "public" ? "Public" : "Restricted to groups"}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-          {visibility === "group" ? (
-            <div className="mt-4">
-              <AclEditor groups={groups} value={acl} onChange={setAcl} />
-            </div>
-          ) : null}
-        </fieldset>
+          <WikiAccessCard
+            groups={groups}
+            visibility={visibility}
+            acl={acl}
+            onApply={(v, a) => {
+              setVisibility(v);
+              setAcl(a);
+            }}
+          />
         ) : null}
       </aside>
     </form>

@@ -1266,6 +1266,30 @@ async function main() {
     assert(res.status === 200, `status ${res.status}`);
   });
 
+  await test("a public page keeps edit groups but drops read-only ones; a restricted page keeps both", async () => {
+    // Reading and editing are separate lists: "everyone reads, some groups edit" is a public page with edit rows.
+    // Read-only rows mean nothing on a public page (everyone reads it), so the server does not store them.
+    const g1 = await (await fetchWithCookies("/api/v1/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: `smoke-wiki-acl-a-${Date.now()}` }) }, jar)).res.json();
+    const g2 = await (await fetchWithCookies("/api/v1/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: `smoke-wiki-acl-b-${Date.now()}` }) }, jar)).res.json();
+    try {
+      const patch = (payload) =>
+        fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }, jar);
+      const aclOf = async () => {
+        const { res } = await fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, {}, jar);
+        return (await res.json()).acl.map((a) => `${a.groupId}:${a.canEdit}`).sort();
+      };
+      let r = await patch({ visibility: "public", acl: [{ groupId: g1.id, canEdit: false }, { groupId: g2.id, canEdit: true }] });
+      assert(r.res.status === 200, `public patch status ${r.res.status}`);
+      assert(JSON.stringify(await aclOf()) === JSON.stringify([`${g2.id}:true`]), "a public page should keep only its edit group");
+      r = await patch({ visibility: "group", acl: [{ groupId: g1.id, canEdit: false }, { groupId: g2.id, canEdit: true }] });
+      assert(r.res.status === 200, `restricted patch status ${r.res.status}`);
+      assert(JSON.stringify(await aclOf()) === JSON.stringify([`${g1.id}:false`, `${g2.id}:true`].sort()), "a restricted page should keep readers and editors");
+    } finally {
+      await fetchWithCookies(`/api/v1/wiki/${createdWikiId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ visibility: "public", acl: [] }) }, jar);
+      for (const g of [g1, g2]) if (g?.id) await fetchWithCookies(`/api/v1/groups/${g.id}`, { method: "DELETE" }, jar);
+    }
+  });
+
   // ---- wiki attachments (Phase 1.5.1) ----
   await test("POST /api/v1/wiki/:id/attachments uploads a file", async () => {
     const fd = new FormData();

@@ -2,8 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { WIKI_VISIBILITIES, type WikiVisibility } from "@lampstand/shared";
-import { AclEditor, type AclState } from "../acl-editor";
+import { normaliseWikiAcl, type WikiVisibility } from "@lampstand/shared";
+import { WikiAccessEditor, type AclState } from "../wiki-access-editor";
 import { WikiLocationPicker, type WikiLocation } from "../wiki-location-picker";
 
 interface GroupBrief {
@@ -48,7 +48,8 @@ export function ImportWikiForm({ groups }: { groups: GroupBrief[] }) {
     const qs = new URLSearchParams();
     if (title) qs.set("title", title);
     qs.set("visibility", visibility);
-    if (visibility === "group" && acl.length > 0) qs.set("acl", JSON.stringify(acl));
+    const saved = normaliseWikiAcl(visibility, acl);
+    if (saved.length > 0) qs.set("acl", JSON.stringify(saved));
     if (location.parentId) qs.set("parentId", location.parentId);
     if (location.parentFolderId) qs.set("parentFolderId", location.parentFolderId);
 
@@ -103,40 +104,13 @@ export function ImportWikiForm({ groups }: { groups: GroupBrief[] }) {
         />
       </label>
       <WikiLocationPicker value={location} onChange={setLocation} />
-      <fieldset className="rounded-md border border-slate-300 p-4 dark:border-slate-800">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Visibility
-        </legend>
-        <div className="space-y-2">
-          {WIKI_VISIBILITIES.map((v) => (
-            <label key={v} className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
-                name="visibility"
-                value={v}
-                checked={visibility === v}
-                onChange={() => setVisibility(v)}
-                className="mt-0.5"
-              />
-              <span>
-                <span className="font-medium">
-                  {v === "public" ? "Public" : "Restricted to groups"}
-                </span>
-                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                  {v === "public"
-                    ? "Any signed-in user can read this page."
-                    : "Only members of the groups you list can read or edit."}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-        {visibility === "group" ? (
-          <div className="mt-4">
-            <AclEditor groups={groups} value={acl} onChange={setAcl} />
-          </div>
-        ) : null}
-      </fieldset>
+      <WikiAccessEditor
+        groups={groups}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        acl={acl}
+        onAclChange={setAcl}
+      />
       {error ? (
         <p
           role="alert"

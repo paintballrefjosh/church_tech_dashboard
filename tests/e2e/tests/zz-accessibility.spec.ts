@@ -192,6 +192,20 @@ for (const size of SIZES) {
         await expect(page.getByRole("dialog", { name: "Command palette" }).getByRole("combobox")).toBeVisible();
         await scan(page, "/ with the command palette open", scheme, size.name);
         await page.keyboard.press("Escape");
+        // The wiki page's "Edit access" dialog (the two lists of groups), when the account can manage a page.
+        if (await visit(page, "/wiki")) {
+          const hrefs = await page.$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href") ?? ""));
+          const pageHref = hrefs.find((h) => /^\/wiki\/[0-9a-f-]{36}$/.test(h));
+          if (pageHref && (await visit(page, `${pageHref}/edit`))) {
+            const open = page.getByRole("button", { name: "Edit access" });
+            if (await open.count()) {
+              await open.click();
+              await expect(page.getByRole("dialog", { name: "Who can read and edit this page" })).toBeVisible();
+              await scan(page, `${pageHref}/edit with the access dialog open`, scheme, size.name);
+              await page.keyboard.press("Escape");
+            }
+          }
+        }
       });
     });
   }

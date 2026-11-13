@@ -44,7 +44,7 @@ export const WIKI_TOOLS = [
     name: "wiki_set_page_access",
     title: "Set who can see or edit a page",
     description:
-      "Make a page visible to everyone who can read the wiki ('public'), or only to the groups listed in acl ('group'), and say which of those groups may edit it. acl replaces the whole list. Changing access can hide a page from people, so only do it when asked.",
+      "Say who may READ a page: everyone who can read the wiki ('public'), or only the groups listed in acl ('group'). Separately, acl entries with canEdit true say which groups may EDIT it, on a public page as well (entries with canEdit false only matter for a 'group' page, where they are read-only readers; a group that can edit can also read). The owner and Wiki admins can always edit. acl replaces the whole list. Changing access can hide a page from people, so only do it when asked.",
     cls: "write",
     method: "PATCH",
     path: "/wiki/:id",

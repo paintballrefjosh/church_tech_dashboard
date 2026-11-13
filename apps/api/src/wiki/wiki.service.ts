@@ -21,6 +21,7 @@ import {
   PERMISSIONS,
   WIKI_REVIEW_DAYS_KEY,
   extractWikiLinks,
+  normaliseWikiAcl,
   wikiLinkContext,
   wikiReviewDays,
   wikiReviewState,
@@ -28,6 +29,7 @@ import {
   type UpdateWikiPageInput,
   type WikiAclEntry,
   type WikiPageListQuery,
+  type WikiVisibility,
   type WikiReviewQuery,
   type WikiTreeNode,
 } from "@lampstand/shared";
@@ -45,11 +47,13 @@ import { WikiFoldersService } from "./wiki-folders.service";
  *     - wiki:read:any         → yes
  *     - owner                 → yes
  *     - visibility=public     → yes (any signed-in user)
- *     - in any ACL group      → yes
- *   write:
- *     - wiki:write:any        → yes
+ *     - in any ACL group      → yes (a restricted page; editing implies reading)
+ *   write (a separate question from read: a public page can have edit groups):
+ *     - wiki:admin            → yes
  *     - owner                 → yes
- *     - in an ACL group whose can_edit=true → yes
+ *     - in an ACL group whose can_edit=true → yes, whatever the page's visibility
+ *   The ACL list is "groups that read a restricted page, some of which may also edit it"; see
+ *   packages/shared/src/wiki-access.ts for how the two are kept apart.
  *   delete:
  *     - wiki:delete:any       → yes
  *     - owner + wiki:delete:own → yes
@@ -383,7 +387,7 @@ export class WikiService {
       })
       .returning();
     if (!page) throw new Error("Insert failed");
-    if (input.acl.length) await this.replaceAcl(page.id, input.acl);
+    if (input.acl.length) await this.replaceAcl(page.id, input.visibility, input.acl);
     await this.db.insert(wikiRevisions).values({
       pageId: page.id,
       title: page.title,
@@ -477,7 +481,7 @@ export class WikiService {
       .returning();
     if (!page) throw new NotFoundException("Wiki page not found");
 
-    if (input.acl !== undefined) await this.replaceAcl(id, input.acl);
+    if (input.acl !== undefined) await this.replaceAcl(id, page.visibility as WikiVisibility, input.acl);
 
     const titleChanged = input.title !== undefined && input.title !== existing.title;
     const bodyChanged = input.body !== undefined && input.body !== existing.body;
@@ -685,18 +689,11 @@ export class WikiService {
     return [...ids];
   }
 
-  private async replaceAcl(pageId: string, acl: WikiAclEntry[]) {
+  /** Saves the page's list as `normaliseWikiAcl` reads it: one row per group, and a public page keeps only its edit grants. */
+  private async replaceAcl(pageId: string, visibility: WikiVisibility, acl: WikiAclEntry[]) {
     await this.db.delete(wikiPageAcl).where(eq(wikiPageAcl.pageId, pageId));
-    if (!acl.length) return;
-    // De-dupe groupId; last entry wins for canEdit.
-    const map = new Map<string, boolean>();
-    for (const a of acl) map.set(a.groupId, a.canEdit);
-    await this.db.insert(wikiPageAcl).values(
-      [...map.entries()].map(([groupId, canEdit]) => ({
-        pageId,
-        groupId,
-        canEdit,
-      })),
-    );
+    const rows = normaliseWikiAcl(visibility, acl);
+    if (!rows.length) return;
+    await this.db.insert(wikiPageAcl).values(rows.map(({ groupId, canEdit }) => ({ pageId, groupId, canEdit })));
   }
 }

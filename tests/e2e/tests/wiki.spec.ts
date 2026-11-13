@@ -167,4 +167,142 @@ test.describe("Phase 1.4 — Wiki", () => {
     await expect(page.getByRole("heading", { name: "[e2e] secret handbook" })).toBeVisible();
     await expect(page.getByText("Restricted").first()).toBeVisible();
   });
+
+  test("reading and editing are separate lists, and the editor never scrolls sideways", async ({ page }) => {
+    // A long group name is what used to push the Add button out of the card and make a scrollbar.
+    const longName = `${RESTRICTED_GROUP_NAME}-${"long-group-name-".repeat(4)}`;
+    await page.goto("/wiki");
+    const groupId = (await page.evaluate(async (name) => {
+      const r = await fetch("/api/v1/groups", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ name }),
+      });
+      return ((await r.json()) as { id: string }).id;
+    }, longName)) as string;
+    try {
+      await page.goto("/wiki/new");
+      await page.getByLabel("Title").fill(`${E2E_PREFIX} read and edit`);
+      const sidewaysScroll = () =>
+        page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const readBox = page.getByRole("group", { name: "Who can read this page" });
+      const editBox = page.getByRole("group", { name: "Who can edit this page" });
+
+      // Public by default: everyone reads, and a group can still be given edit rights.
+      await expect(readBox.getByRole("radio", { name: /^Everyone/ })).toBeChecked();
+      await editBox.getByLabel("Add a group that can edit this page").selectOption(groupId);
+      await editBox.getByRole("button", { name: "Add", exact: true }).click();
+      await expect(editBox.getByRole("button", { name: /^Remove .* from editors$/ })).toHaveCount(1);
+
+      // Restricted: the group is now a reader too (editing implies reading), the Add buttons stay on screen.
+      await readBox.getByRole("radio", { name: /^Restricted to groups/ }).check();
+      await expect(readBox.getByText("can also edit")).toBeVisible();
+      for (const box of [readBox, editBox]) {
+        const add = box.getByRole("button", { name: "Add", exact: true });
+        const card = await box.boundingBox();
+        const button = await add.boundingBox();
+        expect(button!.x + button!.width).toBeLessThanOrEqual(card!.x + card!.width);
+      }
+      expect(await sidewaysScroll()).toBeLessThanOrEqual(0);
+
+      // Taking the edit right away leaves the group reading.
+      await editBox.getByRole("button", { name: /^Remove .* from editors$/ }).click();
+      await expect(readBox.getByText("can also edit")).toHaveCount(0);
+      await expect(readBox.getByRole("button", { name: /^Remove .* from readers/ })).toHaveCount(1);
+
+      // Give it edit rights again, save, and the page says who reads and who edits.
+      await editBox.getByLabel("Add a group that can edit this page").selectOption(groupId);
+      await editBox.getByRole("button", { name: "Add", exact: true }).click();
+      await Promise.all([
+        page.waitForURL(/\/wiki\/[0-9a-f-]+$/, { timeout: 15_000 }),
+        page.getByRole("button", { name: "Create page" }).click(),
+      ]);
+      await expect(page.getByText("Restricted").first()).toBeVisible();
+      await expect(page.getByText(/^Read: /)).toBeVisible();
+      await expect(page.getByText(/^Edit: /)).toBeVisible();
+    } finally {
+      await page.evaluate(
+        (i) => fetch(`/api/v1/groups/${i}`, { method: "DELETE", credentials: "same-origin" }),
+        groupId,
+      );
+    }
+  });
+
+  test("the edit page's Access card summarises who reads and edits, and a dialog changes it", async ({ page }) => {
+    const groupName = `${RESTRICTED_GROUP_NAME}-${"long-group-name-".repeat(4)}`;
+    await page.goto("/wiki");
+    const groupId = (await page.evaluate(async (name) => {
+      const r = await fetch("/api/v1/groups", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ name }),
+      });
+      return ((await r.json()) as { id: string }).id;
+    }, groupName)) as string;
+    let pageId = "";
+    try {
+      pageId = (await page.evaluate(async () => {
+        const r = await fetch("/api/wiki", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ title: "[e2e] access dialog", body: "x" }),
+        });
+        return ((await r.json()) as { id: string }).id;
+      })) as string;
+      await page.goto(`/wiki/${pageId}/edit`);
+      const read = page.getByTestId("access-read-summary");
+      const edit = page.getByTestId("access-edit-summary");
+      await expect(read).toHaveText("Everyone");
+      await expect(edit).toHaveText("The owner and Wiki admins");
+
+      // Cancel throws the draft away.
+      await page.getByRole("button", { name: "Edit access" }).click();
+      const dialog = page.getByRole("dialog", { name: "Who can read and edit this page" });
+      await dialog.getByLabel("Add a group that can edit this page").selectOption(groupId);
+      await dialog.getByRole("button", { name: "Add", exact: true }).click();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(edit).toHaveText("The owner and Wiki admins");
+
+      // Apply: everyone still reads, and the group edits.
+      await page.getByRole("button", { name: "Edit access" }).click();
+      await dialog.getByLabel("Add a group that can edit this page").selectOption(groupId);
+      await dialog.getByRole("button", { name: "Add", exact: true }).click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+      await dialog.getByRole("button", { name: "Apply" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(read).toHaveText("Everyone");
+      await expect(edit).toContainText(groupName);
+
+      // A restricted page with no groups cannot be applied.
+      await page.getByRole("button", { name: "Edit access" }).click();
+      await dialog.getByRole("radio", { name: /^Restricted to groups/ }).check();
+      await dialog.getByRole("button", { name: /^Remove .* from readers/ }).click();
+      await expect(dialog.getByRole("button", { name: "Apply" })).toBeDisabled();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+
+      // Saving keeps it, and the page says who edits.
+      await Promise.all([
+        page.waitForURL(/\/wiki\/[0-9a-f-]+$/, { timeout: 15_000 }),
+        page.getByRole("button", { name: /save changes/i }).click(),
+      ]);
+      await expect(page.getByText(/^Edit: /)).toContainText(groupName);
+      await expect(page.getByText("Public").first()).toBeVisible();
+    } finally {
+      // The wipe at the start of each test would only catch this page on the NEXT test, and this one is last.
+      if (pageId) {
+        await page.evaluate(
+          (i) => fetch(`/api/wiki/${i}`, { method: "DELETE", credentials: "same-origin" }),
+          pageId,
+        );
+      }
+      await page.evaluate(
+        (i) => fetch(`/api/v1/groups/${i}`, { method: "DELETE", credentials: "same-origin" }),
+        groupId,
+      );
+    }
+  });
 });

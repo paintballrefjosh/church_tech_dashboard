@@ -367,7 +367,7 @@ export class McpToolsService {
         tool: {
           name: "wiki_create_page",
           description:
-            "Create a wiki page, visible to everyone who can read the wiki unless you set visibility 'group' and list the groups in acl (each with canEdit). Put it in a folder (parentFolderId) or under another page (parentId), or omit both for the top level. Check wiki_tree / wiki_search first so you don't duplicate an existing page.",
+            "Create a wiki page, readable by everyone who can read the wiki unless you set visibility 'group', which limits reading to the groups listed in acl. acl also says which groups may EDIT (canEdit true), on a public page too; the owner and Wiki admins can always edit. Put it in a folder (parentFolderId) or under another page (parentId), or omit both for the top level. Check wiki_tree / wiki_search first so you don't duplicate an existing page.",
           inputSchema: {
             type: "object",
             properties: {
@@ -378,7 +378,7 @@ export class McpToolsService {
               visibility: { type: "string", enum: ["public", "group"], default: "public" },
               acl: {
                 type: "array",
-                description: "With visibility 'group': the groups that can see the page, and which of them can edit it",
+                description: "Groups with canEdit true may edit the page. With visibility 'group' every group listed may also read it (canEdit false = read only); on a public page only canEdit true entries are kept",
                 items: {
                   type: "object",
                   properties: { groupId: { type: "string", format: "uuid" }, canEdit: { type: "boolean" } },
