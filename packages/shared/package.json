@@ -26,8 +26,8 @@
   "devDependencies": {
     "@types/node": "20.19.43",
     "@types/pg": "8.23.1",
-    "@vitest/coverage-v8": "2.1.1",
+    "@vitest/coverage-v8": "2.1.9",
     "typescript": "5.9.3",
-    "vitest": "2.1.1"
+    "vitest": "2.1.9"
   }
 }
