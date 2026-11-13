@@ -30,6 +30,21 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "tiptap-markdown"
         update-types: ["version-update:semver-major"]
+      # vitest and its coverage provider move together (a lone one cannot load: "does not provide an export named
+      # BaseCoverageProvider"), and vitest 5 needs a newer vite than the 5.4 the tests run on ("./module-runner" is not
+      # exported). One deliberate change for the whole test setup, not two weekly PRs.
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      # react-grid-layout 2 dropped WidthProvider and changed the Layout types: the draggable home tiles
+      # (apps/web/src/app/dashboard-tiles/dashboard-grid.tsx) have to be rewritten for it.
+      - dependency-name: "react-grid-layout"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-grid-layout"
+        update-types: ["version-update:semver-major"]
       # meilisearch became ESM-only between 0.54 and 0.58 (package "exports", no CommonJS entry), and the api is compiled as
       # CommonJS with moduleResolution Node, so tsc cannot find 0.62 ("Cannot find module 'meilisearch'"). 0.x minors are
       # breaking anyway: moving off 0.45 is a deliberate change (the api's module format), patches still come.
