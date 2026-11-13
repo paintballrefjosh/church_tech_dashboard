@@ -208,7 +208,8 @@ describe.skipIf(!url)("archiving wiki pages against a real database", () => {
       const child = await addPage({ title: "Child", parentId: parent });
       await wiki.archive(person(owner, base), parent);
       const menu = await wiki.tree(person(owner, base));
-      expect(menu).toEqual([expect.objectContaining({ id: child, parentId: parent })]);
+      // Folders may exist in the database (other test files, the seed): only the pages are under test.
+      expect(menu.filter((n) => n.kind === "page")).toEqual([expect.objectContaining({ id: child, parentId: parent })]);
     });
   });
 

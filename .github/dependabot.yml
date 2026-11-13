@@ -13,6 +13,28 @@ updates:
       # The type definitions follow the Node major the images run (22, LTS).
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # Majors below each need a migration, not a version bump (found 2026-11-13 from failing PRs); do them as deliberate changes.
+      # TypeScript 7 removed moduleResolution "node10", which the api and shared packages use.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # undici 8's Agent no longer works as the `dispatcher` of Node's built-in fetch ("invalid onRequestStart method"); the TLS-skipping
+      # and pinned-address clients would have to move to undici's own fetch.
+      - dependency-name: "undici"
+        update-types: ["version-update:semver-major"]
+      # pdf-parse 2 is a different, class-based API; the import sandbox's worker is written against 1.x (CLAUDE.md, Wiki file import).
+      - dependency-name: "pdf-parse"
+        update-types: ["version-update:semver-major"]
+      # The editor's tiptap packages are pinned together at one version: a lone package on a new major does not match the
+      # core it needs (CI cannot see that, the editor breaks at run time). Move the whole family in one change.
+      - dependency-name: "@tiptap/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tiptap-markdown"
+        update-types: ["version-update:semver-major"]
+      # meilisearch became ESM-only between 0.54 and 0.58 (package "exports", no CommonJS entry), and the api is compiled as
+      # CommonJS with moduleResolution Node, so tsc cannot find 0.62 ("Cannot find module 'meilisearch'"). 0.x minors are
+      # breaking anyway: moving off 0.45 is a deliberate change (the api's module format), patches still come.
+      - dependency-name: "meilisearch"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
