@@ -83,7 +83,8 @@ export function readZip(buf: Uint8Array, limits: Partial<ZipLimits> = {}): ZipEn
 
 /** Inflates raw deflate data, stopping with an error if it grows past `limit` (the size the archive declared, plus a little). */
 async function inflateRaw(data: Uint8Array, limit: number, name: string): Promise<Uint8Array> {
-  const stream = new ReadableStream<Uint8Array>({
+  // Element type left to inference: TypeScript 5.9 types DecompressionStream as taking BufferSource, which a plain Uint8Array is not.
+  const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(data);
       controller.close();
@@ -113,7 +114,8 @@ async function inflateRaw(data: Uint8Array, limit: number, name: string): Promis
 
 /** Inflates zlib-wrapped data (a PowerPoint metafile blip), under the same cap. */
 export async function inflateZlib(data: Uint8Array, limit: number): Promise<Uint8Array> {
-  const stream = new ReadableStream<Uint8Array>({
+  // Element type left to inference: TypeScript 5.9 types DecompressionStream as taking BufferSource, which a plain Uint8Array is not.
+  const stream = new ReadableStream({
     start(controller) {
       controller.enqueue(data);
       controller.close();

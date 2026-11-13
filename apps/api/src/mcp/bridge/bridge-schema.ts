@@ -13,7 +13,9 @@ export function strictInput(tool: BridgeTool) {
  * without the `$schema` marker, which is what MCP clients expect.
  */
 export function toInputSchema(tool: BridgeTool): Tool["inputSchema"] {
-  const schema = zodToJsonSchema(strictInput(tool), { target: "jsonSchema7", $refStrategy: "none" }) as Record<
+  // TypeScript 5.9 gives up comparing the strict object with zod-to-json-schema's parameter type (TS2589), so it is not compared:
+  // `never` skips the check. It is the same Zod object the arguments are validated with; the unit tests read the generated schemas.
+  const schema = zodToJsonSchema(strictInput(tool) as never, { target: "jsonSchema7", $refStrategy: "none" }) as Record<
     string,
     unknown
   >;
