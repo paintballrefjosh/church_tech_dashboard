@@ -69,10 +69,10 @@
     "@types/ssh2": "1.15.6",
     "@types/turndown": "5.0.6",
     "@types/web-push": "3.6.4",
-    "@vitest/coverage-v8": "2.1.1",
+    "@vitest/coverage-v8": "2.1.9",
     "drizzle-kit": "0.31.11",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "vitest": "2.1.1"
+    "vitest": "2.1.9"
   }
 }
