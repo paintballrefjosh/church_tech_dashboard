@@ -1,0 +1,46 @@
+# Codecov merges the uploads of the CI jobs (flags node, database, agent) into one report for each commit.
+# Components give each part of the project its own figure on codecov.io, beside the overall one in the README badge.
+codecov:
+  notify:
+    # Wait for all three uploads before reporting, or the first job's partial figure shows up as a drop.
+    after_n_builds: 3
+
+coverage:
+  status:
+    # Informational only: a change is never failed for coverage; the figures are there to be read.
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, condensed_files, components"
+  require_changes: true
+
+ignore:
+  # Build and tool configuration, not application code.
+  - "apps/web/next.config.mjs"
+  - "apps/web/tailwind.config.ts"
+  - "apps/web/postcss.config.mjs"
+  - "apps/api/drizzle.config.ts"
+  - "**/vitest.config.ts"
+
+component_management:
+  individual_components:
+    - component_id: api
+      name: API
+      paths: ["apps/api/src/**"]
+    - component_id: shared
+      name: Shared rules
+      paths: ["packages/shared/src/**"]
+    - component_id: web_lib
+      name: Web logic
+      paths: ["apps/web/src/lib/**"]
+    - component_id: web_ui
+      name: Web pages and components (tested by the Playwright suite, not in CI)
+      paths: ["apps/web/src/app/**", "apps/web/src/components/**", "apps/web/src/middleware.ts", "apps/web/public/**"]
+    - component_id: agent
+      name: Signage agent
+      paths: ["services/signage-agent/**"]

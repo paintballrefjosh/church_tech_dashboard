@@ -9,6 +9,10 @@ updates:
     cooldown:
       default-days: 14
     open-pull-requests-limit: 5
+    ignore:
+      # The type definitions follow the Node major the images run (22, LTS).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -24,6 +28,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 14
+    ignore:
+      # The images stay on a Node LTS line (22 now); moving to the next LTS is a deliberate change, not a weekly PR.
+      # Odd majors (23, 25) are short-lived "current" releases and never LTS.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /services/signage-agent
     schedule:

@@ -51,6 +51,51 @@ jobs:
           flags: node
           fail_ci_if_error: false
 
+  database:
+    # The *.integration.test.ts files (skipped by the job above) against a real, freshly migrated CockroachDB. They empty
+    # the tables they use, so they run one file at a time. The database is addressed by IP on purpose: the app refuses
+    # loopback and one-word host names for services it reaches (the SQL service-monitoring test goes through that rule).
+    name: Database tests (CockroachDB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (version from packageManager)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Start CockroachDB
+        run: |
+          docker run -d --name crdb cockroachdb/cockroach:v24.2.0 start-single-node --insecure --store=type=mem,size=2GiB
+          for _ in $(seq 60); do
+            docker exec crdb cockroach sql --insecure -e 'CREATE DATABASE IF NOT EXISTS lampstand_test' && break
+            sleep 1
+          done
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' crdb)
+          echo "DATABASE_URL=postgresql://root@${ip}:26257/lampstand_test?sslmode=disable" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: |
+          pnpm --filter @lampstand/shared build
+          pnpm --filter @lampstand/api build
+      - name: Migrate
+        run: pnpm --filter @lampstand/api db:migrate
+      - name: Integration tests with coverage
+        run: |
+          export TEST_DATABASE_URL="$DATABASE_URL"
+          pnpm --filter @lampstand/api exec vitest run integration --no-file-parallelism --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: apps/api/coverage/lcov.info
+          flags: database
+          fail_ci_if_error: false
+
   agent:
     name: Signage agent (pytest)
     runs-on: ubuntu-latest
